@@ -1,0 +1,219 @@
+		NXP S32G2XX BSP
+
+
+1. About this document
+======================
+This document describes the common and non-hardware specific information.
+Please refer to README.hardware for hardware specific information.
+
+Dependencies
+------------
+This layer depends on the oe-core version supplied with linux-yocto kernel.
+
+
+Maintenance
+-----------
+This layer is maintained by Wind River Systems, Inc.
+Contact <support@windriver.com> or your support representative for more
+information on submitting changes.
+
+Building the nxp-s32g2xx layer
+-----------------------------
+This layer should be added to bblayers.conf. This is done automatically
+when using the Wind River setup.sh wrapper.
+
+License
+-------
+Copyright (C) 2018-2020 Wind River Systems, Inc.
+
+Source code included in the tree for individual recipes is under the LICENSE
+stated in the associated recipe (.bb file) unless otherwise stated.
+
+The metadata is under the following license unless otherwise stated.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+2. BSP Kernel and Distros
+=========================
+
+The following table summarizes the valid Wind River Linux distros for this BSP.
+'Y' in each content cell stands for supported; 'N' stands for not supported:
+
+  +--------------+-------------+-------------+-------------+
+  | valid/distro |   wrlinux   | wrlinux-cgl | wrlinux-ovp |
+  +--------------+-------------+-------------+-------------+
+  |    valid     |      Y      |      N      |      N      |
+  +--------------+-------------+-------------+-------------+
+
+For the supported kernel type for this BSP, please check the TARGET_SUPPORTED_KTYPES
+by running 'bitbake -e virtual/kernel | grep "^TARGET_SUPPORTED_KTYPES="'.
+
+Note: The preempt-rt ktype is not available for this BSP/Machine at this time.
+
+
+3. Board Specific Patches
+=========================
+
+To get a list of patches applied to the kernel specific to this BSP
+along with patch descriptions use git whatchanged on the default
+kernel (git whatchanged <kernel_type>..<bsp_name>). For example:
+
+  # cd tmp-glibc/work-shared/<bsp_name>/kernel-source
+  # git whatchanged standard/base..HEAD
+
+
+4. Boot Instructions
+====================
+
+The typical u-boot settings apply to these boards. You will need to use
+setenv, printenv and saveenv, to configure, display and store respectively
+your network configuration details and kernel command line. In order to
+TFTP a kernel, you need at a minimum to set the following:
+
+	- ipaddr
+	- gatewayip
+	- netmask
+	- serverip
+	- loadaddr
+	- dtbfile
+	- dtbaddr
+	- ethaddr
+	- eth1addr
+
+Your board may ship with the values for the MAC address of
+the Ethernet interfaces set to the defaults compiled into the
+u-boot image.  You should set the ethaddr, eth1addr and so on
+as per the manufacturer assigned values, usually indicated with
+a sticker on the board.
+
+Target specifics are usually set in the "bootargs" variable, and the
+kernel image is set in the "bootfile" variable. Don't forget that if you
+want these values to be available after a power cycle you will need to run
+the saveenv command.
+
+Typically convenience macros exist that will create a complete bootargs
+command line for the kernel based on variables that contain individual
+settings.  Since these macros exist as env variables themselves, they
+may or may not be present depending on who installed and configured
+u-boot for the board.
+
+The console device for the board is ttyLF0 at 115200 baud. For the DTB
+address, 0x90000000  was used with success by Wind River. The load address
+must be high enough to not interfere with kernel decompression. A value
+of 0x81000000 was used with success for all kernels tested by Wind River.
+
+4.1 NFS Root File System
+------------------------
+
+Example settings for the monitor (u-boot) are shown below:
+
+nfsboot=setenv bootargs root=/dev/nfs rw nfsroot=$serverip:$rootpath \
+ip=$ipaddr:$serverip:$gatewayip:$netmask:$hostname:$netdev:off \
+console=$consoledev,$baudrate $othbootargs;tftp $loadaddr $bootfile; \
+tftp $fdtaddr $fdtfile;booti $loadaddr - $fdtaddr
+ethaddr=00:04:9F:02:00:FD
+eth1addr=00:04:9F:02:01:FD
+eth2addr=00:04:9F:02:02:FD
+loadaddr=0x81000000
+fdtaddr=0x90000000
+gatewayip=192.168.1.1
+netmask=255.255.255.0
+ipaddr=192.168.1.100
+serverip=192.168.1.2
+netdev=eth0
+bootfile=Image
+fdtfile=fsl-s32g274a-evb.dtb
+rootpath=/tftpboot/rootfs
+consoledev=ttyLF0
+baudrate=115200
+
+5. Creating Partitioned Images(WIC)
+===================================
+
+User can use the OpenEmbedded Image Creator, wic, to create the properly
+partitioned image on a SD card. The wic command
+generates partitioned images from existing OpenEmbedded build artifacts.
+User can refer to the below URL to get more WIC details:
+
+http://www.yoctoproject.org/docs/2.6/mega-manual/mega-manual.html#creating-partitioned-images-using-wic
+
+This BSP supports disk images for SD card.
+After build the project, user will get a WIC image under the directory
+tmp-glibc/deploy/images/<bsp name>/ ,such as:
+
+tmp-glibc/deploy/images/nxp-s32g2xx/wrlinux-image-glic-<rootfs_type>-nxp-s32g2xx.wic
+
+Then user can write the output image to a SD card:
+
+Since this BSP needs the uboot with PFE firmware installed, we can not
+integrated the firmware directly due to the license reason. Since the
+WIC image only contains kernel, dtb and rootfs. We still need to additional write U-boot
+image picked from NXP to SD card.
+
+5.1 Burn images to SD card
+--------------------------
+
+1) To burn WIC image to SD card, user only need to execute the below command:
+
+# dd if=wrlinux-image-small-nxp-s32g2xx.wic of=/dev/your_sd_dev
+
+2) Prepare the bootloader image u-boot-s32g274aevb.s32. User can request for the
+"binaries_auto_linux_bsp24.0_s32g274_pfe.tgz" from the "www.nxp.com".
+
+3) Use the command as below to burn it to SD card:
+
+# sudo dd if=u-boot-s32g274aevb.s32 of=/dev/your_sd_dev conv=notrunc bs=256 count=1 seek=0
+# sudo dd if=u-boot-s32g274aevb.s32 of=/dev/your_sd_dev conv=notrunc bs=512 seek=1 skip=1
+
+
+5.2 Set uboot env
+-----------------
+
+Board can boot automatically by set the below uboot environment variables:
+
+=> setenv bootfile Image; setenv fdtfile fsl-s32g274a-evb.dtb; setenv loadaddr 0x81000000; setenv fdtaddr 0x90000000;
+
+=> setenv bootargs console=ttyLF0,115200n8 root=/dev/mmcblk0p2 rw no_console_suspend ip=dhcp
+
+=> setenv bootcmd 'fatload mmc 0:1 $loadaddr $bootfile; fatload mmc 0:1 $fdtaddr $fdtfile; booti $loadaddr - $fdtaddr'
+
+=> saveenv; run bootcmd;
+
+6. Features
+===========
+
+6.1 FLEXCAN
+-----------
+
+Detail verification commands as below:
+
+	# ip link set can0 up type can bitrate 125000 dbitrate 8000000 fd on
+	# ip link set can1 up type can bitrate 125000 dbitrate 8000000 fd on
+	# candump can0 &
+	# cansend can1 5A1#11.22.33.44.55.66.77.88
+	# ip -d -s link show can0
+	# ip -d -s link show can1
+
+If can0 dumps data from can1, FLEXCAN feature works fine.
+
+Note: can0 is the J79 on the S32G-PROCEVB-S board, can1 & can2 is the J19 & J20
+on the S32GRV-PLATEVB board.
+
+
+
