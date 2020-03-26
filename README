@@ -143,6 +143,15 @@ rootpath=/tftpboot/rootfs
 consoledev=ttyLF0
 baudrate=115200
 
+Note:
+By default, in u-boot eth0 is occupied by PFE mode. When in non-PFE mode
+in order to switch eth0 to the GMAC by explicitly disabling and enabling
+the GMAC driver. Run below commands in u-boot:
+
+# s32ccgmac disable
+# s32ccgmac enable
+# setenv ethact eth_eqos
+
 5. Creating Partitioned Images(WIC)
 ===================================
 
@@ -161,26 +170,12 @@ tmp-glibc/deploy/images/nxp-s32g2xx/wrlinux-image-glic-<rootfs_type>-nxp-s32g2xx
 
 Then user can write the output image to a SD card:
 
-Since this BSP needs the uboot with PFE firmware installed, we can not
-integrated the firmware directly due to the license reason. Since the
-WIC image only contains kernel, dtb and rootfs. We still need to additional write U-boot
-image picked from NXP to SD card.
-
 5.1 Burn images to SD card
 --------------------------
 
-1) To burn WIC image to SD card, user only need to execute the below command:
+To burn WIC image to SD card, user only need to execute the below command:
 
 # dd if=wrlinux-image-small-nxp-s32g2xx.wic of=/dev/your_sd_dev
-
-2) Prepare the bootloader image u-boot-s32g274aevb.s32. User can request for the
-"binaries_auto_linux_bsp24.0_s32g274_pfe.tgz" from the "www.nxp.com".
-
-3) Use the command as below to burn it to SD card:
-
-# sudo dd if=u-boot-s32g274aevb.s32 of=/dev/your_sd_dev conv=notrunc bs=256 count=1 seek=0
-# sudo dd if=u-boot-s32g274aevb.s32 of=/dev/your_sd_dev conv=notrunc bs=512 seek=1 skip=1
-
 
 5.2 Set uboot env
 -----------------
@@ -189,7 +184,7 @@ Board can boot automatically by set the below uboot environment variables:
 
 => setenv bootfile Image; setenv fdtfile fsl-s32g274a-evb.dtb; setenv loadaddr 0x81000000; setenv fdtaddr 0x90000000;
 
-=> setenv bootargs console=ttyLF0,115200n8 root=/dev/mmcblk0p2 rw no_console_suspend ip=dhcp
+=> setenv bootargs console=ttyLF0,115200n8 root=/dev/mmcblk0p2 rw
 
 => setenv bootcmd 'fatload mmc 0:1 $loadaddr $bootfile; fatload mmc 0:1 $fdtaddr $fdtfile; booti $loadaddr - $fdtaddr'
 
