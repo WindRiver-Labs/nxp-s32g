@@ -1,0 +1,1 @@
+include do_make_nxp_s32g2xx_wic.inc
