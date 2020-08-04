@@ -17,13 +17,15 @@ This BSP supports the following boards:
 
    + NXP S32G274A-EVB: Board: S32GRV-PLATEVB (SCH-30081 REV B, 700-30081 REV B)
                               S32G-PROCEVB-S
-                       CPU: NXP S32G274A rev. 1.0.0
+                       CPU: NXP S32G274A rev. 1.0.0/1.0.1
 
 2. Change History
 =================
 
   - 2020/05 (LINUXPG-343): Wind River Linux 10.19 RCPL07. Standard support based on NXP
 			   SDK v4.19.59_bsp24.0.
+  - 2020/08 (LINUXPG-454): WindRiver CI/CD branch support. Standard support based on NXP
+		           SDK v5.4.24_bsp25.0.
 
 3. BSP Features
 ===============
@@ -81,7 +83,7 @@ SD, if used in a different environment it may run into unknown issues.
 
 S32G274A-EVB:
 	Processor::    	        NXP S32G274A 
-	CPU Revision:           rev. 1.0.0
+	CPU Revision:           rev. 1.0.0/1.0.1
 	Board Serial:   	NXP S32G27x
 	BootLoader:		U-Boot
 	BootLoader Version:	U-Boot 2018.07+gf4d904327e (Feb 27 2020 - 09:35:26 +0000)

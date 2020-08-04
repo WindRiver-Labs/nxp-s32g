@@ -26,6 +26,7 @@ inherit nxp-u-boot-localversion
 SCMVERSION = "y"
 LOCALVERSION = ""
 PACKAGE_ARCH = "${MACHINE_ARCH}"
+UBOOT_INITIAL_ENV = ""
 
 USRC ?= ""
 S = '${@oe.utils.conditional("USRC", "", "${WORKDIR}/git", "${USRC}", d)}'
