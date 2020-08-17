@@ -17,9 +17,11 @@ LIC_FILES_CHKSUM = " \
 INHIBIT_DEFAULT_DEPS = "1"
 DEPENDS_append = " libgcc virtual/${TARGET_PREFIX}gcc python dtc-native bison-native"
 
-SRC_URI = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=alb/master"
+SRC_URI = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=alb-2019.04"
 
-SRCREV = "f4d904327e7d7f807bfcbfe5312eea92875c37cc"
+SRCREV = "63065a52b26a7bf781947b0b6f93408ac9317786"
+
+SRC_URI += "file://0001-drivers-net-dwc_eth_qos-correct-the-invalidation-des.patch"
 
 inherit nxp-u-boot-localversion
 
