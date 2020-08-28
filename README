@@ -209,5 +209,68 @@ If can0 dumps data from can1, FLEXCAN feature works fine.
 Note: can0 is the J79 on the S32G-PROCEVB-S board, can1 & can2 is the J19 & J20
 on the S32GRV-PLATEVB board.
 
+6.2 HSE
+-------
 
+The NXP HSE (Hardware Security Engine) is a security subsystem aimed at running
+relevant security functions for applications with stringent confidentiality and
+authenticity requirements. This chapter describes the supported HSE features for
+the S32G274 board. Detailed information can refer to "HSE Reference Manual".
 
+HSE is a component of S32G274A SOC. It must be installed with the firmware to use.
+HSE firmware is not shipped with SDK. It is released through NXP's Flexera, customers
+have to contact NXP to get the access to Flexera.
+
+6.2.1 HSE firmware
+------------------
+
+Before to use the HSE, HSE firmware must be installed and the key catalogs must
+be formatted.
+
+If you get permission to use HSE, you can get packages "HSE_FW_S32G274_1_0_8_2.exe"
+and "HSE_FW_DEMO_APP_S32G274_1_0_8_2.exe" from NXP's official website. you can find
+the HSE firmware pink image from "HSE_FW_S32G274_1_0_8_2.exe"
+
+6.2.2 HSE Demo
+--------------
+
+The demo application is provided separately and contains details on how to
+provision HSE FW on virgin devices and demonstrates common use cases of its
+security features.
+
+The HSE Demo is from the package "HSE_FW_DEMO_APP_S32G274_1_0_8_2.exe" of
+NXP's official website.
+
+Frist step in installing the HSE FW on a device is to generate the blob image,
+the blob image is a binary image which defines the layout of external flash memory.
+Contains all images used by BootRom/HSE FW to boot and configure the system at start-up.
+
+Below steps is an example about how to verify the HSE function on M7 cores,
+detailed information can refer to the document of "HSE_FW_DEMO_APP_S32G274_1_0_8_2_ReadMe.pdf"
+
+1) Generate the blob image using scripts\blob.py script:
+
+%> set PLATFORM=s32g2xx
+%> cd demo_security_installer\scripts
+%> python3 blob.py -o new -j json/s32g2xx_new_blob.json -b images/blob_s32g2xx_sd.bin -i sd
+
+2) Flashing the blob image:
+
+%> dd if=blob_s32g2xx_sd.bin of=/dev/your_sd_dev
+
+3) Boot target from SD:
+
+There will be a display below on the serial to confirm HSE is up and running.
+
+	HSE FW Version: 0.1.1_0.8.2
+	HSE FW up and running! Status:
+	    HSE_STATUS_RNG_INIT_OK
+	    HSE_STATUS_INIT_OK
+	    HSE_STATUS_CUST_SUPER_USER
+
+6.2.3 HSE linux
+---------------
+
+Currently there is no demo and blob image for linux to validate the HSE
+cryptographic offloading capabilities on A53 cores, so HSE doesn't work on
+linux. But the HSE crypto driver is provided as is and builds fine.

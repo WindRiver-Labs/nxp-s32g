@@ -53,6 +53,7 @@ The following BSP features are validated and supported.
 	+ UART: NXP LINFLEX UART
 	+ eDMA: Enhanced Direct Memory Access
 	+ GPIO: On-Chip general purpose Input/Output
+	+ HSE: Hardware Security Engine
 
 3.2 Unsupported Features
 ========================
@@ -66,7 +67,6 @@ The following features are not supported or validated same as SDK.
 	x Watchdog
 	x RTC
 	x QuadSPI
-	x HSE: Hardware Security Engine
 
 The following feature is not supported since the license limitation.
 
