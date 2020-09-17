@@ -1,0 +1,251 @@
+	Secure Boot High Level Design On NXP S32G274A Platform
+
+1. About this document
+======================
+This document provides detail description about how to enable secure
+boot on S32G274A-EVB board. It includes the implementation principles
+of secure boot, implementation example step by step and so on.
+
+Dependencies
+------------
+This layer depends on the nxp-s32g2xx BSP layer supplied by Wind River Linux
+
+Maintenance
+-----------
+This layer is maintained by Wind River Systems, Inc.
+Contact <support@windriver.com> or your support representative for more
+information on submitting changes.
+
+Building the s32g2xx-secure-boot layer
+-------------------------------------
+This layer and nxp-s32g2xx BSP layer should be added to bblayers.conf.
+
+2. Preparations & Prerequisites
+===============================
+To use secure boot feature, assume that you are:
+ - Experienced with WRL linux embedded software development
+ - Familiar with ARMv8 and S32G274A SoC architecture.
+ - Familiar with the basic concepts of security, like openssl, authentication,
+   encryption, hardware root trust, RSA, AES, key source, certificate, etc.
+ - Faimiar with HSE of S32G274A SoC, and have contacted NXP get the access to Flexera.
+
+Hardware preparations:
+ - A host machine installed with wrlinux product.
+ - S32G274A-EVB development board.
+ - An SD Card.
+
+3. Secure Boot Process
+======================
+
+Secure boot refers to a two-stage process of successive authentication of the U-Boot
+and Linux kernel images. This process requires a "root of trust", which is known to
+be secure. In this case, the root of trust is HSE itself. Each image is authenticated
+by the preceding step. Thus, the secure boot flow is the following:
+
+ - BootROM passes control over to HSE FW.
+
+ - HSE FW authenticates the U-Boot image.
+
+ - U-Boot authenticates the Kernel image.
+
+3.1 Obtain script & HSE FW & U-Boot
+-----------------------------------
+
+Obtain the archive package "binaries_auto_linux_bsp25.0.hf1_s32g274.tgz" from NXP Flexera,
+extract it to a folder. In the extracted folder, you can find the script file 
+"./s32g274aevb/s32gen1_secboot.sh", which will sign U-Boot, then write all the necessary
+data to the SD card. 
+
+Obtain the HSE FW "hse_fw_s32g2xx_0.1.1_0.8.2_pb200220.pink", please refer to the chapter
+'6.2 HSE' of BSP nxp-s32g2xx README. 
+
+Obtain U-Boot, using the u-boot.s32, which will be built out on the below step
+"5.1 Build nxp-s32g2xx BSP project with secure boot layer". 
+
+3.2 SD Card Configuration
+-------------------------
+
+To make use of HSE for secure boot, a different SD card layout must be used, to have
+sufficient space to store HSE and required associated data on it. As such, the following
+layout is used:
+
+			+--------------+   0x0
+			|     IVT      |     
+			|	       |
+			+--------------+   0x100  
+			|     MBR      |
+			|              |
+			+--------------+   0x200  
+			|   HSE FW     |
+			|              |
+			+--------------+   0x70200   
+			|   SYS_IMG    | 
+			|              |
+			+--------------+   0x80200
+			|   Signature  |
+			|              |
+			+--------------+   0x80400
+			|   U-Boot     |
+			|              |
+			+--------------+   0x182400
+
+The obtained script can be used to create a complete blob, containing above IVT, HSE FW, 
+U-Boot signature, and U-Boot. Please note that the HSE FW image must be obtained and available
+in the host file system.
+
+Usage: s32gen1_secboot.sh -k <key_path> -d <device> --hse <hse_pink_binary>
+	-k|--key   Full path to key pair directory
+		   NOTE: A new key pair will be created in the
+		        specified directory
+	-d|--dev   Full path to device (i.e. /dev/sdb)
+	--hse      Full path to HSE Firmware
+	-h|--help  Display this help section
+	
+The following steps are taken by the script to configure, sign and write the signed U-Boot
+image to the SD card:
+
+ - Generate a RSA2048 key pair;
+ - Extract application code and application header from u-boot.s32;
+ - Pad extracted image to 1M;
+ - Sign the extracted image with the generated private key;
+ - Verify the signed image with the generated public key;
+ - Write the IVT to the boot media;
+ - Write the HSE FW to the boot media;
+ - Write the signature to the boot media;
+ - Write the DCD to the boot media;
+ - Write the signed and padded image to the boot media;
+
+3.3 Target Configuration
+------------------------
+
+To authenticate the U-Boot image, HSE uses Advanced Secure Boot (ASB). The system
+configuration is saved as a System Image (SYS_IMG), which contains data related to
+imported keys, Secure Memory Region (SMR) configuration and Core Reset (CR) entry
+configuration. The SYS_IMG is signed with a device-specific key.
+
+Imported keys are stored in a NVM key catalog, which contains multiple slots for
+multiple key types and authentication schemes.
+
+The Secure Memory Region entry is used to define which data needs to be authenticated
+from the boot media, which key and authentication scheme is required, and where to place
+the data in memory after authentication.
+
+The Core Reset entry is used to define which core should be enabled and what address to
+jump to after authentication, as well as what action to take in case authentication fails.
+
+A U-Boot command is provided to prepare the host board for secure booting. The steps taken
+by the command are the following:
+
+ - Check if HSE FW has been initialized;
+ - Read the IVT from the boot media;
+ - If the SYS_IMG pointer in the IVT is already set:
+    (a) If the BOOT_SEQ bit is set in the boot configuration word, do nothing;
+    (b) Otherwise, set the BOOT_SEQ bit and write back the IVT;
+ - Otherwise, configure the HSE NVM and RAM key catalogs;
+ - Import the RSA public key into the NVM key catalog;
+ - Configure and install the Core Reset entry;
+ - Configure and install the Secure Memory Region entry;
+ - Generate the signed SYS_IMG;
+ - Write the SYS_IMG back onto the boot media;
+ - Set appropriate pointers in the IVT;
+ - Set the BOOT_SEQ bit;
+ - Write the IVT back onto the boot media;
+
+The command can be called from the U-Boot command line:
+
+ #  hse_adv_secboot_prep_demo
+
+4. A verifiable fitimage
+========================
+
+u-boot uses rsa2048/rsa4096 cryptographic algorithms to 'sign' software images.
+Images are signed with a private key of the ras2048/rsa4096 key pair that is only
+owned by the signer, but can be verified by anyone who has the public key.
+In wrlinux, the fitImage is signed with private key during building linux-yocto kernel.
+The public key is combined with u-boot.dtb that is in the final image u-boot.elf.
+The signature and verification process as follows:
+
+
+      Signing                                      Verification
+      =======                                      ============
+
+ +--------------+                   *
+ | 2048/4096 RSA|                   *             +---------------+
+ | key pair     |                   *             | Public key in |
+ +--------------+       +------> Public key ----->| trusted u-boot|
+        |               |           *             +---------------+
+        |               |           *                    |
+        v               |           *                    v
+   +---------+          |           *             +---------------+
+   |         |----------+           *             |u-boot verify  |
+   | Signer  |                      *             |the fitImage   |
+   |         |----------+           *             |signed with the|--> yes/no
+   +---------+          |           *             |rsa2048/rsa4096|
+        ^               |           *             |private key    |
+        |               |           *             +---------------+
+        |               |           *                    ^
+   +----------+         |           *                    |
+   | Software |         +----> Signed fitImage ----------+
+   |  image   |                     *
+   +----------+                     *
+
+Note:
+ - To sign kernel image, nxp-s32g2xx secure boot feature supports rsa2048 and rsa4096 key type.
+   Set KERNEL_RAS_TYPE as the expected value. The default one is rsa2048.
+
+5. Enable secure boot for BSP npx-s32g2xx
+=========================================
+
+5.1 Build nxp-s32g2xx BSP project with secure boot layer
+--------------------------------------------------------
+Detail steps as below:
+	$ mkdir <path_to_project>
+	$ cd <path_to_project>
+	$ <path_to_wrlinux>/wrlinux-x/setup.sh --machine nxp-s32g2xx --kernel standard --distro wrlinux --dl-layers --all-layers --accept-eula=yes
+	$ source ./environment-setup-x86_64-wrlinuxsdk-linux
+	$ source ./oe-init-build-env
+	$ bitbake-layers add-layer <path_to_project>/layers/nxp-s32g2xx/s32g2xx-secure-boot
+	$ bitbake wrlinux-image-std
+
+Note:
+When build nxp-s32g2xx BSP project with secure boot layer, the kernel image type is fitImage that
+includes dtb and kernel image. They are all signed by the private key of a RSA-2048/RSA-4096 key that is in
+<path_to_project>/layers/nxp-s32g2xx/s32g2xx-secure-boot/s32g2xx-sample-key/fitImage-rsa2048-keys
+
+The secure boot layer is an internal layer only for BSP nxp-s32g2xx, it doesn't support to add
+this layer with --layer option during setup project.
+
+5.2 Verify secure boot
+----------------------
+
+Insert the SD card configured by above step "3.2", booting the NXPS32G274A-EVB board.
+
+Run the U-Boot command line:
+	# hse_adv_secboot_prep_demo
+
+After the command is finished, simply reset the board to boot in secure mode. You can verify if the board has booted
+in secure mode by checking the BOOT_SEQ bit as value "1" in the IVT, at offset 0x28:
+	# mmc read 0xa0000000 0 1
+	# md 0xa0000000
+                  0        4        8        E
+        a0000020: 00082400 00000000 00000009 00000000
+
+Then booted the fitImage with command "bootm".
+There is an example as below, download kernel from tftp server and mount NFS file system.
+
+	# setenv bootargs console=ttyLF0,115200 root=/dev/nfs rw rootwait earlycon nfsroot=$serverip:<path_to_nfs>,v3,tcp ip=dhcp
+	# setenv bootcmd 'tftpboot 0x83E00000 $serverip:<path_to_kernel>/fitImage; bootm 0x83E00000#conf@freescale_fsl-s32g274a-evb.dtb'
+	# setenv ipaddr <board-ip>
+	# setenv netmask <board-netmask>
+	# setenv gatewayip <board-gatewayip>
+	# setenv serverip <server-ip>
+	# run bootcmd
+
+6. References
+=============
+
+[1] HSE Reference Manual
+[2] Linux BSP 25.0 Hotfix 1 User Manual for S32G274A
+[3] HSE_FW_DEMO_APP_S32G274_1_0_8_2_ReadMe
+[4] Secure Boot With HSE
+[5] https://source.codeaurora.org/external/autobsps32/u-boot  //The fitImage-related docs in path_to_u-boot/doc
