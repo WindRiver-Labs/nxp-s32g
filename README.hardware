@@ -26,6 +26,8 @@ This BSP supports the following boards:
 			   SDK v4.19.59_bsp24.0.
   - 2020/08 (LINUXPG-454): WindRiver CI/CD branch support. Standard support based on NXP
 		           SDK v5.4.24_bsp25.0.
+  - 2020/10 (LINUXPG-571): WindRiver CI/CD branch support. Standard support based on NXP
+			   SDK v5.4.24_bsp26.0.
 
 3. BSP Features
 ===============
@@ -39,6 +41,7 @@ The following BSP features are validated and supported.
 	+ I2C: On-Chip I2C controller
 	+ DSPI: NXP DSPI bus controller in master mode
 	+ uSDHC: On-Chip ultra secured digital host controller
+	+ PCIe: On-Chip PCIe controller
 
   o Network
 	+ Ethernet: DWMAC ethernet controller, KSZ9021 Gigabit PHY
@@ -60,8 +63,6 @@ The following BSP features are validated and supported.
 
 The following features are not supported or validated same as SDK.
 
-
-	x PCIe
 	x USB OTG
 	x CPU Freq
 	x Watchdog
@@ -86,4 +87,4 @@ S32G274A-EVB:
 	CPU Revision:           rev. 1.0.0/1.0.1
 	Board Serial:   	NXP S32G27x
 	BootLoader:		U-Boot
-	BootLoader Version:	U-Boot 2019.04+g63065a52b2 (Aug 17 2020 - 04:26:21 +0000)
+	BootLoader Version:	U-Boot 2020.04+gacc70867f0 (Sep 27 2020 - 09:06:19 +0000)
