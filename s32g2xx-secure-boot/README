@@ -201,7 +201,7 @@ Note:
 Detail steps as below:
 	$ mkdir <path_to_project>
 	$ cd <path_to_project>
-	$ <path_to_wrlinux>/wrlinux-x/setup.sh --machine nxp-s32g2xx --kernel standard --distro wrlinux --dl-layers --all-layers --accept-eula=yes
+	$ <path_to_wrlinux>/wrlinux-x/setup.sh --machine nxp-s32g2xx --distro wrlinux --dl-layers --all-layers --accept-eula=yes
 	$ source ./environment-setup-x86_64-wrlinuxsdk-linux
 	$ source ./oe-init-build-env
 	$ bitbake-layers add-layer <path_to_project>/layers/nxp-s32g2xx/s32g2xx-secure-boot
