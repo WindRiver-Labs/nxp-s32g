@@ -1,7 +1,5 @@
 require recipes-bsp/u-boot/u-boot.inc
 
-inherit pythonnative
-
 DESCRIPTION = "U-boot provided by NXP with focus on S32 chipsets"
 PROVIDES += "u-boot"
 
