@@ -28,6 +28,8 @@ This BSP supports the following boards:
 		           SDK v5.4.24_bsp25.0.
   - 2020/10 (LINUXPG-571): WindRiver CI/CD branch support. Standard support based on NXP
 			   SDK v5.4.24_bsp26.0.
+  - 2020/11 (LINUXPG-592): WindRiver CI/CD branch support. Standard support based on NXP
+			   SDK v5.4.24_bsp26.0.1.
 
 3. BSP Features
 ===============
@@ -42,6 +44,7 @@ The following BSP features are validated and supported.
 	+ DSPI: NXP DSPI bus controller in master mode
 	+ uSDHC: On-Chip ultra secured digital host controller
 	+ PCIe: On-Chip PCIe controller
+	+ QSPI: On-Chip Quad-SPI flash controller
 
   o Network
 	+ Ethernet: DWMAC ethernet controller, KSZ9021 Gigabit PHY
@@ -50,7 +53,8 @@ The following BSP features are validated and supported.
 
   o Storage
 	+ Micso SD card
-
+	+ NOR Flash:
+		+ QSPI NOR Flash: 64MB Macronix MX25UW51245G
 
   o Misc Devices
 	+ UART: NXP LINFLEX UART
@@ -67,7 +71,6 @@ The following features are not supported or validated same as SDK.
 	x CPU Freq
 	x Watchdog
 	x RTC
-	x QuadSPI
 
 The following feature is not supported since the license limitation.
 
