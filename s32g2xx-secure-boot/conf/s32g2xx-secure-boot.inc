@@ -10,6 +10,8 @@ UBOOT_SIGN_KEYNAME = "boot_key"
 UBOOT_ENTRYPOINT = "0x80080000"
 UBOOT_LOADADDRESS = "0x80080000"
 
+# Now only S32G274A-EVB board supports secure-boot
+UBOOT_CONFIG = "s32g274aevb"
 UBOOT_MAKE_TARGET ?= "u-boot.s32 u-boot.dtb"
 UBOOT_SUFFIX = "img"
 PREFERRED_PROVIDER_u-boot = "u-boot-s32"

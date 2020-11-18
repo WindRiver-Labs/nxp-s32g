@@ -19,11 +19,7 @@ inherit nxp-u-boot-localversion
 
 SRC_URI_prepend = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=alb-2020.04 "
 
-SRCREV = "acc70867f053f8f6c494dcd04c52569eeb885cc9"
-
-SRC_URI += " \
-    file://0001-pfeng-add-GCC-version-10.2.0-support.patch \
-"
+SRCREV = "64825fa242c760f28da2d51a5e0ccd7d99df2d4d"
 
 SCMVERSION = "y"
 LOCALVERSION = ""
