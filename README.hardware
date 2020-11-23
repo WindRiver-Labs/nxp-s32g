@@ -1,4 +1,4 @@
-		NXP S32G274A-EVB Board Support Package
+		NXP S32G274A-EVB/S32G274A-RDB2 Board Support Package
 
 
 Table of Contents
@@ -18,6 +18,8 @@ This BSP supports the following boards:
    + NXP S32G274A-EVB: Board: S32GRV-PLATEVB (SCH-30081 REV B, 700-30081 REV B)
                               S32G-PROCEVB-S
                        CPU: NXP S32G274A rev. 1.0.0/1.0.1
+   + NXP S32G274A-RDB2: Board: S32G274A-VNP-RDB2 (SCH-47440 REV C1, 700-47440 REV X2)
+                       CPU: NXP S32G274A rev. 2.1.0
 
 2. Change History
 =================
@@ -30,7 +32,8 @@ This BSP supports the following boards:
 			   SDK v5.4.24_bsp26.0.
   - 2020/11 (LINUXPG-592): WindRiver CI/CD branch support. Standard support based on NXP
 			   SDK v5.4.24_bsp26.0.1.
-
+  - 2020/12 (LINUXPG-602): WindRiver CI/CD branch support. Support S32G274A-RDB2 board
+			   based on SDK v5.4.24_bsp26.0.1.
 3. BSP Features
 ===============
 
@@ -43,7 +46,7 @@ The following BSP features are validated and supported.
 	+ I2C: On-Chip I2C controller
 	+ DSPI: NXP DSPI bus controller in master mode
 	+ uSDHC: On-Chip ultra secured digital host controller
-	+ PCIe: On-Chip PCIe controller
+	+ PCIe: On-Chip PCIe controller (Only S32G274A-EVB)
 	+ QSPI: On-Chip Quad-SPI flash controller
 
   o Network
@@ -60,7 +63,7 @@ The following BSP features are validated and supported.
 	+ UART: NXP LINFLEX UART
 	+ eDMA: Enhanced Direct Memory Access
 	+ GPIO: On-Chip general purpose Input/Output
-	+ HSE: Hardware Security Engine
+	+ HSE: Hardware Security Engine (Only S32G274A-EVB)
 
 3.2 Unsupported Features
 ========================
@@ -90,4 +93,11 @@ S32G274A-EVB:
 	CPU Revision:           rev. 1.0.0/1.0.1
 	Board Serial:   	NXP S32G27x
 	BootLoader:		U-Boot
-	BootLoader Version:	U-Boot 2020.04+gacc70867f0 (Sep 27 2020 - 09:06:19 +0000)
+	BootLoader Version:	U-Boot 2020.04+g64825fa242 (Nov 18 2020 - 06:10:11 +0000)
+
+S32G274A-RDB2:
+	Processor::             NXP S32G274A
+	CPU Revision:           rev. 2.1.0
+	Board Serial:           NXP S32G27x
+	BootLoader:		U-Boot
+	BootLoader Version:	U-Boot 2020.04+g64825fa242 (Nov 18 2020 - 06:10:07 +0000)

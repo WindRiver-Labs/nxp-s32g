@@ -137,7 +137,7 @@ ipaddr=192.168.1.100
 serverip=192.168.1.2
 netdev=eth0
 bootfile=Image
-fdtfile=fsl-s32g274a-evb.dtb
+fdtfile=fsl-s32g274a-evb.dtb or fsl-s32g274a-rdb2.dtb
 rootpath=/tftpboot/rootfs
 consoledev=ttyLF0
 baudrate=115200
@@ -165,7 +165,7 @@ This BSP supports disk images for SD card.
 After build the project, user will get a WIC image under the directory
 tmp-glibc/deploy/images/<bsp name>/ ,such as:
 
-tmp-glibc/deploy/images/nxp-s32g2xx/wrlinux-image-glic-<rootfs_type>-nxp-s32g2xx.wic
+tmp-glibc/deploy/images/nxp-s32g2xx/wrlinux-image-<rootfs_type>-nxp-s32g2xx-<board>.wic
 
 Then user can write the output image to a SD card:
 
@@ -174,14 +174,18 @@ Then user can write the output image to a SD card:
 
 To burn WIC image to SD card, user only need to execute the below command:
 
-# dd if=wrlinux-image-small-nxp-s32g2xx.wic of=/dev/your_sd_dev
+For S32G274A-EVB:
+# dd if=wrlinux-image-small-nxp-s32g2xx-evb.wic of=/dev/your_sd_dev
+
+For S32G274A-RDB2:
+# dd if=wrlinux-image-small-nxp-s32g2xx-rdb2.wic of=/dev/your_sd_dev
 
 5.2 Set uboot env
 -----------------
 
 Board can boot automatically by set the below uboot environment variables:
 
-=> setenv bootfile Image; setenv fdtfile fsl-s32g274a-evb.dtb; setenv loadaddr 0x81000000; setenv fdtaddr 0x90000000;
+=> setenv bootfile Image; setenv fdtfile <fsl-s32g274a-evb.dtb or fsl-s32g274a-rdb2.dtb>; setenv loadaddr 0x81000000; setenv fdtaddr 0x90000000;
 
 => setenv bootargs console=ttyLF0,115200n8 root=/dev/mmcblk0p2 rw
 
@@ -206,8 +210,11 @@ Detail verification commands as below:
 
 If can0 dumps data from can1, FLEXCAN feature works fine.
 
-Note: can0 is the J79 on the S32G-PROCEVB-S board, can1 & can2 is the J19 & J20
+Note:
+For S32G274A-EVB, can0 is the J79 on the S32G-PROCEVB-S board, can1 & can2 are the J19 & J20
 on the S32GRV-PLATEVB board.
+For S32G274A-RDB2, can0 & can1 are on the J6 on the S32G-VNP-RDB2 board and validated,
+can 2 & can3 are no external interfaces and no validation.
 
 6.2 HSE
 -------
