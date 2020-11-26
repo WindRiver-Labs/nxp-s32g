@@ -53,6 +53,7 @@ The following BSP features are validated and supported.
 	+ Ethernet: DWMAC ethernet controller, KSZ9021 Gigabit PHY
 	+ FLEXCAN: Flexible controller area network
 	+ IEEE-1588
+	+ PFE: Package Forwarding Engine
 
   o Storage
 	+ Micso SD card
@@ -74,10 +75,6 @@ The following features are not supported or validated same as SDK.
 	x CPU Freq
 	x Watchdog
 	x RTC
-
-The following feature is not supported since the license limitation.
-
-	x PFE: Package Forwarding Engine
 
 4. BSP Notes
 ============

@@ -281,3 +281,60 @@ There will be a display below on the serial to confirm HSE is up and running.
 Currently there is no demo and blob image for linux to validate the HSE
 cryptographic offloading capabilities on A53 cores, so HSE doesn't work on
 linux. But the HSE crypto driver is provided as is and builds fine.
+
+6.3 PFE
+-------
+
+The NXP PFE (Packet Forwarding Engine) offloads the processing of Ethernet packets
+from the host cores, yielding higher performance and lower power than pure software
+processing can achieve.
+
+PFE is a component of S32G274A SOC. It must be installed with the firmware to use.
+PFE firmware is not shipped with SDK, customers have to contact NXP to get permission
+and download the PFE firmware.
+
+6.3.1 PFE firmware
+------------------
+
+PFE is a firmware-based module. Load the firmware before using PFE.
+The firmware name is "s32g_pfe_class.fw" with version 0.9.0, which has to be downloaded
+from NXP Software.
+
+6.3.2 Steps to verify
+---------------------
+
+1. Add the "pfe" package to the system through including the
+following line in your local.conf:
+
+	IMAGE_INSTALL_append_nxp-s32g2xx = " pfe"
+
+2. Built and install them:
+
+	# bitbake wrlinux-image-<small/std>
+
+3. Copy the firmware file "s32g_pfe_class.fw" to /lib/firmware of the target
+image rootfs.
+
+4. Copy the firmware file "s32g_pfe_class.fw" to the sdcard first boot partition
+
+Booting the target system, the u-boot will default use the eth_pfeng mode and
+boot the wrlinux, you can set the ip address for the pfe port to do a simple test
+in the wrlinux. More complex usage and testing can refer to the document
+"S32G Linux PFE Driver User’s Manual".
+
+About the detailed pfe port map information can refer to the chapter "Ethernet Hardware Support on S32G274A"
+of the document "Linux BSP 26.0.1 User Manual for S32G274A".
+
+Note:
+
+1. Same as NXP SDK, only the "pfe1" interface for S32G274A-EVB board and
+"pfe2" interface for S32G274A-RDB2 board are verified fine. Others pfe ports
+connected with "SJA1105Q" or "SJA1110A" don't work.
+
+2. In order to use the Ethernet port with GMAC active instead of pfe in u-boot, you can
+remove the s32g_pfe_class.fw from sdcard first boot partition,
+
+3. For S32G274A-EVB board, since the "pfe1" and GMAC Ethernet port share the same physical
+port, and u-boot will force the GMAC to be disabled if detecting the pfe
+firmware. So the GMAC will not be usable at this time, you can use the WIC method to
+test the pfe feature or adding a PCIe Ethernet port as a replacement.
