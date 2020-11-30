@@ -9,13 +9,11 @@ LIC_FILES_CHKSUM = "file://LICENSE-GPL2.txt;md5=5dcdfe25f21119aa5435eab9d0256af7
 inherit module deploy
 
 # Dummy entry to keep the recipe parser happy if we don't use this recipe
-PFE_LOCAL_FIRMWARE_DIR ?= "."
-
-PFE_FW_BIN ?= ""
+PFE_LOCAL_FIRMWARE_DIR_BIN ?= "."
 
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=https \
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
-	file://${PFE_LOCAL_FIRMWARE_DIR}/${PFE_FW_BIN} \
+	file://${PFE_LOCAL_FIRMWARE_DIR_BIN} \
 	"
 SRCREV = "0046ccdcc7a70afececdccfca33620f7b08ac88b"
 
@@ -37,9 +35,9 @@ EXTRA_OEMAKE_append = " KBUILD_MODPOST_WARN=0 KERNELDIR=${STAGING_KERNEL_DIR} MD
 module_do_install() {
 	install -D ${MDIR}/pfeng.ko ${INSTALL_DIR}/pfeng.ko
 	
-	if [ -f ${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR}/${PFE_FW_BIN} ];then
+	if [ -f ${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR_BIN} ];then
 		mkdir -p "${FW_INSTALL_DIR}"
-		install -D "${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR}/${PFE_FW_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_NAME}"
+		install -D "${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_NAME}"
 	fi
 }
 
@@ -60,5 +58,6 @@ do_package_qa_setscene[noexec] = "1"
 
 FILES_${PN} += "${base_libdir}/*"
 FILES_${PN} += "${sysconfdir}/modules-load.d/*"
+FILES_${PN} += "/lib/firmware/${FW_INSTALL_NAME}"
 
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"

@@ -147,6 +147,7 @@ By default, in u-boot eth0 is occupied by PFE mode. When in non-PFE mode
 in order to switch eth0 to the GMAC by explicitly disabling and enabling
 the GMAC driver. Run below commands in u-boot:
 
+# pfeng disable
 # s32ccgmac disable
 # s32ccgmac enable
 # setenv ethact eth_eqos
@@ -307,18 +308,17 @@ from NXP Software.
 following line in your local.conf:
 
 	IMAGE_INSTALL_append_nxp-s32g2xx = " pfe"
+	PFE_LOCAL_FIRMWARE_DIR_BIN = "<The firmware fully directory path and file, eg: /lib/firmware/s32g_pfe_class.fw>"
 
 2. Built and install them:
 
 	# bitbake wrlinux-image-<small/std>
 
-3. Copy the firmware file "s32g_pfe_class.fw" to /lib/firmware of the target
-image rootfs.
+3. Copy the firmware file "s32g_pfe_class.fw" to the sdcard first boot partition
 
-4. Copy the firmware file "s32g_pfe_class.fw" to the sdcard first boot partition
-
-Booting the target system, the u-boot will default use the eth_pfeng mode and
-boot the wrlinux, you can set the ip address for the pfe port to do a simple test
+Normally the PFE feature should use the WIC booting system to verify instead of
+using NFS, the u-boot will default use the eth_pfeng Ethernet port mode and boot
+the wrlinux. You can set the ip address for the pfe port to do a simple test
 in the wrlinux. More complex usage and testing can refer to the document
 "S32G Linux PFE Driver User’s Manual".
 
@@ -338,3 +338,7 @@ remove the s32g_pfe_class.fw from sdcard first boot partition,
 port, and u-boot will force the GMAC to be disabled if detecting the pfe
 firmware. So the GMAC will not be usable at this time, you can use the WIC method to
 test the pfe feature or adding a PCIe Ethernet port as a replacement.
+
+4. For S32G274A-RDB2 board, if using NFS to verify the PFE feature. You should
+first switch eth to GMAC in u-boot, please refer to above chapter "4.1 NFS Root File System"
+to switch eth to GMAC.
