@@ -60,4 +60,5 @@ FILES_${PN} += "${base_libdir}/*"
 FILES_${PN} += "${sysconfdir}/modules-load.d/*"
 FILES_${PN} += "/lib/firmware/${FW_INSTALL_NAME}"
 
+COMPATIBLE_MACHINE = "^$"
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
