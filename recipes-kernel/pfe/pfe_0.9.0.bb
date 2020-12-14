@@ -14,6 +14,7 @@ PFE_LOCAL_FIRMWARE_DIR_BIN ?= "."
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=https \
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
 	file://0002-pfeng-hif-disable-softirq-before-napi_alloc_frag.patch \
+	file://0003-pfeng-napi-stop-phylink-when-releasing-pfeng-port.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR_BIN} \
 	"
 SRCREV = "0046ccdcc7a70afececdccfca33620f7b08ac88b"
