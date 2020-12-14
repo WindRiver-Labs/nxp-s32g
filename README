@@ -147,7 +147,6 @@ By default, in u-boot eth0 is occupied by PFE mode. When in non-PFE mode
 in order to switch eth0 to the GMAC by explicitly disabling and enabling
 the GMAC driver. Run below commands in u-boot:
 
-# pfeng disable
 # s32ccgmac disable
 # s32ccgmac enable
 # setenv ethact eth_eqos
@@ -193,6 +192,17 @@ Board can boot automatically by set the below uboot environment variables:
 => setenv bootcmd 'fatload mmc 0:1 $loadaddr $bootfile; fatload mmc 0:1 $fdtaddr $fdtfile; booti $loadaddr - $fdtaddr'
 
 => saveenv; run bootcmd;
+
+Note:
+Because PFE and Ethernet GMAC ports are mutually exclusive, in order to enable
+PFE or Ethernet GMAC ports on WIC image need to run u-boot commands first
+before "run bootcmd":
+
+To use Ethernet GMAC ports:
+=> s32ccgmac disable;s32ccgmac enable;setenv ethact eth_eqos;
+
+To use PFE ports:
+=> pfeng stop
 
 6. Features
 ===========
