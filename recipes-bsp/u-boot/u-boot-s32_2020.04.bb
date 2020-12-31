@@ -17,9 +17,10 @@ DEPENDS_append = " libgcc virtual/${TARGET_PREFIX}gcc python dtc-native bison-na
 
 inherit nxp-u-boot-localversion
 
-SRC_URI_prepend = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=alb-2020.04 "
+SRC_URI_prepend = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=release/bsp27.0-2020.04 "
 
-SRCREV = "64825fa242c760f28da2d51a5e0ccd7d99df2d4d"
+SRCREV = "6f1223272a76516b04d5f22c2667a4dd64810443"
+SRC_URI[sha256sum] = "4e80caf195787c76639675712492230d090fe2eb435fd44491d653463485e30c"
 
 SCMVERSION = "y"
 LOCALVERSION = ""
