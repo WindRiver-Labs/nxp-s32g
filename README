@@ -308,8 +308,8 @@ and download the PFE firmware.
 ------------------
 
 PFE is a firmware-based module. Load the firmware before using PFE.
-The firmware name is "s32g_pfe_class.fw" with version 0.9.0, which has to be downloaded
-from NXP Software.
+The firmwares name are "s32g_pfe_class.fw" and "s32g_pfe_util.fw" with
+version 0.9.2, which have to be downloaded from NXP Software.
 
 6.3.2 Steps to verify
 ---------------------
@@ -318,13 +318,14 @@ from NXP Software.
 following line in your local.conf:
 
 	IMAGE_INSTALL_append_nxp-s32g2xx = " pfe"
-	PFE_LOCAL_FIRMWARE_DIR_BIN = "<The firmware fully directory path and file, eg: /lib/firmware/s32g_pfe_class.fw>"
+	PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN = "<The class firmware fully directory path and file, eg: lib/firmware/s32g_pfe_class.fw>"
+	PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN = "<The util firmware fully directory path and file, eg: lib/firmware/s32g_pfe_util.fw>"
 
 2. Built and install them:
 
 	# bitbake wrlinux-image-<small/std>
 
-3. Copy the firmware file "s32g_pfe_class.fw" to the sdcard first boot partition
+3. Copy the firmware files "s32g_pfe_class.fw" and "s32g_pfe_util.fw" to the sdcard first boot partition
 
 Normally the PFE feature should use the WIC booting system to verify instead of
 using NFS, the u-boot will default use the eth_pfeng Ethernet port mode and boot
@@ -333,7 +334,7 @@ in the wrlinux. More complex usage and testing can refer to the document
 "S32G Linux PFE Driver User’s Manual".
 
 About the detailed pfe port map information can refer to the chapter "Ethernet Hardware Support on S32G274A"
-of the document "Linux BSP 26.0.1 User Manual for S32G274A".
+of the document "Linux BSP 27.0 User Manual for S32G274A".
 
 Note:
 
@@ -342,7 +343,7 @@ Note:
 connected with "SJA1105Q" or "SJA1110A" don't work.
 
 2. In order to use the Ethernet port with GMAC active instead of pfe in u-boot, you can
-remove the s32g_pfe_class.fw from sdcard first boot partition,
+remove the s32g_pfe_class.fw and s32g_pfe_util.fw from sdcard first boot partition,
 
 3. For S32G274A-EVB board, since the "pfe1" and GMAC Ethernet port share the same physical
 port, and u-boot will force the GMAC to be disabled if detecting the pfe
