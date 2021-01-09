@@ -34,6 +34,8 @@ This BSP supports the following boards:
 			   SDK v5.4.24_bsp26.0.1.
   - 2020/12 (LINUXPG-602): WindRiver CI/CD branch support. Support S32G274A-RDB2 board
 			   based on SDK v5.4.24_bsp26.0.1.
+  - 2021/01 (LINUXPG-651): WindRiver CI/CD branch support. Standard support based on NXP
+			   SDK v5.4.69_bsp27.0.
 3. BSP Features
 ===============
 
@@ -48,6 +50,7 @@ The following BSP features are validated and supported.
 	+ uSDHC: On-Chip ultra secured digital host controller
 	+ PCIe: On-Chip PCIe controller (Only S32G274A-EVB)
 	+ QSPI: On-Chip Quad-SPI flash controller
+	+ USB: On-Chip USB 2.0 controller with host mode
 
   o Network
 	+ Ethernet: DWMAC ethernet controller, KSZ9021 Gigabit PHY
