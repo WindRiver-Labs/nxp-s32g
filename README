@@ -320,12 +320,14 @@ following line in your local.conf:
 	IMAGE_INSTALL_append_nxp-s32g2xx = " pfe"
 	PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN = "<The class firmware fully directory path and file, eg: lib/firmware/s32g_pfe_class.fw>"
 	PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN = "<The util firmware fully directory path and file, eg: lib/firmware/s32g_pfe_util.fw>"
+   These two variables indicate the location where can get the firmwares
+   s32g_pfe_class.fw and s32g_pfe_util.fw respectively. And after setting
+   the above variables, the firmwares can be installed into WIC image's
+   first boot partition automatically when build WIC image.
 
 2. Built and install them:
 
 	# bitbake wrlinux-image-<small/std>
-
-3. Copy the firmware files "s32g_pfe_class.fw" and "s32g_pfe_util.fw" to the sdcard first boot partition
 
 Normally the PFE feature should use the WIC booting system to verify instead of
 using NFS, the u-boot will default use the eth_pfeng Ethernet port mode and boot
