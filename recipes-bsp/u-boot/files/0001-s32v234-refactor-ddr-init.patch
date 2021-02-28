@@ -1,0 +1,132 @@
+From 22ec72571560907324677ac07a6426694ee01bce Mon Sep 17 00:00:00 2001
+From: Radu Pirea <radu-nicolae.pirea@nxp.com>
+Date: Thu, 19 Nov 2020 16:36:04 +0200
+Subject: [PATCH 01/76] s32v234: refactor ddr init
+
+Refactor ddr init.
+
+Issue: ALB-5671
+
+Signed-off-by: Radu Pirea <radu-nicolae.pirea@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/s32v234/clock.c        | 69 +++++++++----------
+ .../asm/arch-s32/s32v234/mc_cgm_regs.h        |  5 ++
+ 2 files changed, 37 insertions(+), 37 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32v234/clock.c b/arch/arm/cpu/armv8/s32/s32v234/clock.c
+index 82db6f1472..2a77997a57 100644
+--- a/arch/arm/cpu/armv8/s32/s32v234/clock.c
++++ b/arch/arm/cpu/armv8/s32/s32v234/clock.c
+@@ -16,6 +16,14 @@
+ #include <campps32v2.h>
+ #endif
+ 
++struct ddr_clk_params {
++	u32 phi0_freq;
++	u32 phi1_freq;
++	u32 prediv;
++	u32 mfd;
++	u32 mfn;
++};
++
+ /* System Reset Controller is not yet available on VirtualPlatform */
+ /*
+  * Select the clock reference for required pll.
+@@ -366,47 +374,34 @@ static void enable_modules_clock( void )
+ 	entry_to_target_mode( MC_ME_MCTL_RUN0 );
+ }
+ 
+-void ddr_program_pll(u32 ddr_dfs[][DFS_PARAMS_Nr])
++#ifndef CONFIG_TARGET_CAMPPS32V2
++static void initialize_ddr_clk_params(struct ddr_clk_params *params)
+ {
+-#ifdef CONFIG_TARGET_CAMPPS32V2
+-
+-	int prediv;
+-	int mfd;
+-	int mfn;
+-	int phi0_freq;
+-	int phi1_freq;
+-
+-	switch (campps32v2_get_device_id()) {
+-	case 2:
+-	case 3:
+-	case 4:
+-		printf("DDR: Frequency: 400\n");
+-		prediv = 1;
+-		mfd  = 20;
+-		mfn = 0;
+-		phi0_freq = 400000000;
+-		phi1_freq = 800000000;
+-		break;
+-	default:
+-		printf("DDR: Frequency: 533\n");
+-		prediv = DDR_PLL_PLLDV_PREDIV;
+-		mfd = DDR_PLL_PLLDV_MFD;
+-		mfn = DDR_PLL_PLLDV_MFN;
+-		phi0_freq = DDR_PLL_PHI0_FREQ;
+-		phi1_freq = DDR_PLL_PHI1_FREQ;
+-	}
+-
+-	program_pll(DDR_PLL, XOSC_CLK_FREQ, phi0_freq,
+-		    phi1_freq, DDR_PLL_PHI1_DFS_Nr, ddr_dfs,
+-		    prediv, mfd, mfn);
+-
++	params->phi0_freq = DDR_PLL_PHI0_FREQ;
++	params->phi1_freq = DDR_PLL_PHI1_FREQ;
++	params->prediv = DDR_PLL_PLLDV_PREDIV;
++	params->mfd = DDR_PLL_PLLDV_MFD;
++	params->mfn = DDR_PLL_PLLDV_MFN;
++}
+ #else
++static void initialize_ddr_clk_params(struct ddr_clk_params *params)
++{
++	params->phi0_freq = DDR_PLL_PHI0_FREQ_400MHZ;
++	params->phi1_freq = DDR_PLL_PHI1_FREQ_400MHZ;
++	params->prediv = DDR_PLL_PLLDV_PREDIV_400MHZ;
++	params->mfd = DDR_PLL_PLLDV_MFD_400MHZ;
++	params->mfn = DDR_PLL_PLLDV_MFN_400MHZ;
++}
++#endif
+ 
+-	program_pll(DDR_PLL, XOSC_CLK_FREQ, DDR_PLL_PHI0_FREQ,
+-		    DDR_PLL_PHI1_FREQ, DDR_PLL_PHI1_DFS_Nr, ddr_dfs,
+-		    DDR_PLL_PLLDV_PREDIV, DDR_PLL_PLLDV_MFD, DDR_PLL_PLLDV_MFN);
++void ddr_program_pll(u32 ddr_dfs[][DFS_PARAMS_Nr])
++{
++	struct ddr_clk_params params;
+ 
+-#endif
++	initialize_ddr_clk_params(&params);
++	program_pll(DDR_PLL, XOSC_CLK_FREQ, params.phi0_freq,
++		    params.phi1_freq, DDR_PLL_PHI1_DFS_Nr, ddr_dfs,
++		    params.prediv, params.mfd, params.mfn);
+ }
+ 
+ void clock_init(void)
+diff --git a/arch/arm/include/asm/arch-s32/s32v234/mc_cgm_regs.h b/arch/arm/include/asm/arch-s32/s32v234/mc_cgm_regs.h
+index 62d64d4a91..7c17d88b45 100644
+--- a/arch/arm/include/asm/arch-s32/s32v234/mc_cgm_regs.h
++++ b/arch/arm/include/asm/arch-s32/s32v234/mc_cgm_regs.h
+@@ -336,6 +336,8 @@
+ 
+ #define DDR_PLL_PHI0_FREQ		(533000000)
+ #define DDR_PLL_PHI1_FREQ		(1066000000)
++#define DDR_PLL_PHI0_FREQ_400MHZ	(400000000)
++#define DDR_PLL_PHI1_FREQ_400MHZ	(800000000)
+ /* DDR_PLL_PHI1_DFS1_FREQ - 500 Mhz */
+ #define DDR_PLL_PHI1_DFS1_EN		(1)
+ #define DDR_PLL_PHI1_DFS1_MFI		(2)
+@@ -352,6 +354,9 @@
+ #define DDR_PLL_PLLDV_PREDIV		(2)
+ #define DDR_PLL_PLLDV_MFD		(53)
+ #define DDR_PLL_PLLDV_MFN		(6144)
++#define DDR_PLL_PLLDV_PREDIV_400MHZ	(1)
++#define DDR_PLL_PLLDV_MFD_400MHZ	(20)
++#define DDR_PLL_PLLDV_MFN_400MHZ	(0)
+ 
+ #define VIDEO_PLL_PHI0_FREQ		(600000000)
+ #define VIDEO_PLL_PHI1_FREQ		(0)
+-- 
+2.17.1
+

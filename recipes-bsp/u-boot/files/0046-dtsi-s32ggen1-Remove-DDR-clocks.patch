@@ -1,0 +1,79 @@
+From 86b4d86512d73e9d09655345ed357a25bb406d50 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Fri, 22 Jan 2021 17:09:21 +0200
+Subject: [PATCH 46/76] dtsi: s32ggen1: Remove DDR clocks
+
+These clocks are optional since all of them are early clocks
+and are already set from C code.
+
+Issue: ALB-6348
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi                | 21 -------------------
+ .../dt-bindings/clock/s32gen1-clock-freq.h    |  5 +++--
+ 2 files changed, 3 insertions(+), 23 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index 603341ad22..5869f3c1d3 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -265,17 +265,6 @@
+ 		ddrpll: ddrpll@40044000 {
+ 			compatible = "fsl,s32gen1-ddrpll";
+ 			reg = <0x0 0x40044000 0x0 0x3000>;
+-
+-			assigned-clocks =
+-				<&clks S32GEN1_CLK_DDR_PLL_MUX>,
+-				<&clks S32GEN1_CLK_DDR_PLL_VCO>,
+-				<&clks S32GEN1_CLK_DDR_PLL_PHI0>;
+-			assigned-clock-parents =
+-				<&clks S32GEN1_CLK_FXOSC>;
+-			assigned-clock-rates =
+-				<0>,
+-				<S32GEN1_DDR_PLL_VCO_FREQ>,
+-				<S32GEN1_DDR_FREQ>;
+ 		};
+ 
+ 		mc_me: mc_me@40088000 {
+@@ -379,16 +368,6 @@
+ 		mc_cgm5: mc_cgm5@40068000 {
+ 			compatible = "fsl,s32gen1-mc_cgm5";
+ 			reg = <0x0 0x40068000 0x0 0x3000>;
+-
+-			assigned-clocks =
+-				<&clks S32GEN1_CLK_MC_CGM5_MUX0>,
+-				<&clks S32GEN1_CLK_DDR>;
+-			assigned-clock-parents =
+-				<&clks S32GEN1_CLK_DDR_PLL_PHI0>,
+-				<0>;
+-			assigned-clock-rates =
+-				<0>,
+-				<S32GEN1_DDR_FREQ>;
+ 		};
+ 	};
+ 
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index d51340ae4a..b80d57f581 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: BSD-3-Clause */
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef S32GEN1_CLOCK_FREQ_H
+ #define S32GEN1_CLOCK_FREQ_H
+@@ -26,7 +26,8 @@
+ #define S32G274A_REV1_QSPI_MAX_FREQ		(133333333UL)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1333333333UL)
+ #define S32GEN1_DDR_FREQ			(666666666)
+-
++#define S32G274A_REV2_DDR_PLL_VCO_FREQ		(1600 * MHZ)
++#define S32G274A_REV2_DDR_FREQ			(800 * MHZ)
+ #elif defined(CONFIG_S32R45)
+ #define S32GEN1_A53_MAX_FREQ			(800 * MHZ)
+ #define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(1600 * MHZ)
+-- 
+2.17.1
+

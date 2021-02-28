@@ -1,0 +1,72 @@
+From 3bd96e1e441f240728faac90aad9afea899c7d38 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 28 Jan 2021 13:36:13 +0200
+Subject: [PATCH 71/78] s32gen1: mmc: Enable MMC_HS400 mode
+
+Issue: ALB-5955
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi    | 1 +
+ arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts | 1 +
+ drivers/mmc/host/sdhci-esdhc-imx.c                 | 7 ++++---
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+index 287285123b93..61bec4ace562 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+@@ -720,6 +720,7 @@
+ 			 <&clks S32GEN1_SCMI_CLK_USDHC_CORE>;
+ 		clock-names = "ipg", "ahb", "per";
+ 		bus-width = <8>;
++		no-1-8-v;
+ 		status = "disabled";
+ 	};
+ 
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
+index 42b9b5a181af..301819023509 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
+@@ -212,6 +212,7 @@
+ &i2c4 {
+ 	status = "okay";
+ };
++
+ &usdhc0 {
+ 	status = "okay";
+ };
+diff --git a/drivers/mmc/host/sdhci-esdhc-imx.c b/drivers/mmc/host/sdhci-esdhc-imx.c
+index 359b9278f633..255b500fb0e1 100755
+--- a/drivers/mmc/host/sdhci-esdhc-imx.c
++++ b/drivers/mmc/host/sdhci-esdhc-imx.c
+@@ -5,7 +5,7 @@
+  * derived from the OF-version.
+  *
+  * Copyright (c) 2010 Pengutronix e.K.
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *   Author: Wolfram Sang <kernel@pengutronix.de>
+  */
+ 
+@@ -227,7 +227,8 @@ static struct esdhc_soc_data usdhc_s32v234_data = {
+ 
+ static struct esdhc_soc_data usdhc_s32gen1_data = {
+ 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_HS400_ES
+-			| ESDHC_FLAG_HS200,
++			| ESDHC_FLAG_HS200 | ESDHC_FLAG_HS400
++			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_MAN_TUNING,
+ };
+ 
+ static struct esdhc_soc_data usdhc_imx7ulp_data = {
+@@ -1664,7 +1665,7 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
+ 
+ 	sdhci_esdhc_imx_hwinit(host);
+ 
+-	if (is_s32v234_usdhc(imx_data) || is_s32gen1_usdhc(imx_data))
++	if (is_s32v234_usdhc(imx_data))
+ 		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+ 
+ 	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
+-- 
+2.25.1
+

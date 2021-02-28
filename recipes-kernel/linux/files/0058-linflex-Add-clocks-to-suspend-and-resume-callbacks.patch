@@ -1,0 +1,49 @@
+From ad32b38160a2acd86b158654cd2d5c5877ffdea9 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 3 Feb 2021 17:25:56 +0200
+Subject: [PATCH 58/78] linflex: Add clocks to suspend and resume callbacks
+
+Issue: ALB-5269
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/tty/serial/fsl_linflexuart.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/drivers/tty/serial/fsl_linflexuart.c b/drivers/tty/serial/fsl_linflexuart.c
+index bca0375aaa1b..0d2c376766f5 100644
+--- a/drivers/tty/serial/fsl_linflexuart.c
++++ b/drivers/tty/serial/fsl_linflexuart.c
+@@ -1695,13 +1695,30 @@ static int linflex_suspend(struct device *dev)
+ 
+ 	uart_suspend_port(&linflex_reg, &sport->port);
+ 
++	clk_disable_unprepare(sport->clk);
++	clk_disable_unprepare(sport->clk_ipg);
++
+ 	return 0;
+ }
+ 
+ static int linflex_resume(struct device *dev)
+ {
++	int ret;
+ 	struct linflex_port *sport = dev_get_drvdata(dev);
+ 
++	ret = clk_prepare_enable(sport->clk);
++	if (ret) {
++		dev_err(dev, "failed to enable uart clk: %d\n", ret);
++		return ret;
++	}
++
++	ret = clk_prepare_enable(sport->clk_ipg);
++	if (ret) {
++		clk_disable_unprepare(sport->clk);
++		dev_err(dev, "failed to enable ipg uart clk: %d\n", ret);
++		return ret;
++	}
++
+ 	uart_resume_port(&linflex_reg, &sport->port);
+ 
+ 	return 0;
+-- 
+2.25.1
+

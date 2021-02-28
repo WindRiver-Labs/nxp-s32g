@@ -1,0 +1,26 @@
+From 09bed7f54d1d6aef48b603ff7423700f6cb549f3 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 25 Jan 2021 11:45:38 +0200
+Subject: [PATCH 10/22] s32g274a-rev2: clock: Use 800 MHZ for DDR_CLK
+
+Issue: ALB-6348
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ include/dt-bindings/clock/s32gen1-clock-freq.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index 9076cc898..7de3b1e27 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -23,5 +23,7 @@
+ #define S32GEN1_QSPI_MAX_FREQ			(200 * MHZ)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1333333333UL)
+ #define S32GEN1_DDR_FREQ			(666666666UL)
++#define S32G274A_REV2_DDR_PLL_VCO_FREQ		(1600 * MHZ)
++#define S32G274A_REV2_DDR_FREQ			(800 * MHZ)
+ 
+ #endif
+-- 
+2.17.1
+

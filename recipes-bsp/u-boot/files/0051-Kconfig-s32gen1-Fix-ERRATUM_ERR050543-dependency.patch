@@ -1,0 +1,30 @@
+From d0fb78d72e3662b7b95fcad044d957c5caf82667 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Thu, 19 Nov 2020 13:16:43 +0200
+Subject: [PATCH 51/76] Kconfig: s32gen1: Fix ERRATUM_ERR050543 dependency
+
+In the current form, emulator build fails.
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ board/freescale/s32-gen1/Kconfig | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index a135ac9cb4..fa4228f0db 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -55,7 +55,8 @@ config SYS_CONFIG_NAME
+ 
+ config SYS_ERRATUM_ERR050543
+ 	bool "Workaround for NXP Erratum ERR050543"
+-	default y if S32_LPDDR4 || NXP_S32G2XX || NXP_S32R45
++	default y if S32_LPDDR4 && (NXP_S32G2XX || NXP_S32R45) && \
++			!TARGET_TYPE_S32GEN1_EMULATOR
+ 	help
+ 	  This option enables a workaround for NXP Erratum ERR050543
+ 	  (This erratum applies for LPDDR4 memories only. The memories require
+-- 
+2.17.1
+

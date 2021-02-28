@@ -1,0 +1,27 @@
+From f3a027fb4aa982d324ae999249e6159f116c7b6c Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Fri, 8 Jan 2021 15:12:23 +0200
+Subject: [PATCH 36/78] drivers/clocksource: Include FSL STM driver timer in
+ Makefile
+
+Issue: ALB-5454
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/clocksource/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/clocksource/Makefile b/drivers/clocksource/Makefile
+index 26c21e6393a2..c89923ab2066 100644
+--- a/drivers/clocksource/Makefile
++++ b/drivers/clocksource/Makefile
+@@ -49,6 +49,7 @@ obj-$(CONFIG_CLKSRC_LPC32XX)	+= timer-lpc32xx.o
+ obj-$(CONFIG_CLKSRC_MPS2)	+= mps2-timer.o
+ obj-$(CONFIG_CLKSRC_SAMSUNG_PWM)	+= samsung_pwm_timer.o
+ obj-$(CONFIG_FSL_FTM_TIMER)	+= timer-fsl-ftm.o
++obj-$(CONFIG_FSL_STM_TIMER)     += fsl_stm_timer.o
+ obj-$(CONFIG_VF_PIT_TIMER)	+= timer-vf-pit.o
+ obj-$(CONFIG_FSL_GLOBAL_TIME_STM) += fsl_global_time.o
+ obj-$(CONFIG_FSL_STM_TIMER)	+= fsl_stm_timer.o
+-- 
+2.25.1
+

@@ -1,0 +1,26 @@
+From 18e79d434110ec5d578bc649e96b543a1aa15592 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 21 Jan 2021 12:20:17 +0200
+Subject: [PATCH 38/76] configs: Use one config for all S32G274A derivatives on
+ EVB boards
+
+Issue: ALB-6338
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ configs/{s32g274aevb_defconfig => s32g2xxaevb_defconfig}          | 0
+ .../{s32g274aevb_qspi_defconfig => s32g2xxaevb_qspi_defconfig}    | 0
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+ rename configs/{s32g274aevb_defconfig => s32g2xxaevb_defconfig} (100%)
+ rename configs/{s32g274aevb_qspi_defconfig => s32g2xxaevb_qspi_defconfig} (100%)
+
+diff --git a/configs/s32g274aevb_defconfig b/configs/s32g2xxaevb_defconfig
+similarity index 100%
+rename from configs/s32g274aevb_defconfig
+rename to configs/s32g2xxaevb_defconfig
+diff --git a/configs/s32g274aevb_qspi_defconfig b/configs/s32g2xxaevb_qspi_defconfig
+similarity index 100%
+rename from configs/s32g274aevb_qspi_defconfig
+rename to configs/s32g2xxaevb_qspi_defconfig
+-- 
+2.17.1
+

@@ -1,0 +1,31 @@
+From 249ed3e61ae86774f3f190df77f1e384b847497e Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 24 Nov 2020 10:13:31 +0200
+Subject: [PATCH 14/78] clk: s32g274a: Add LLCE clocks
+
+Issue: ALB-5829
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/clk/s32/s32-gen1/clk.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/clk/s32/s32-gen1/clk.c b/drivers/clk/s32/s32-gen1/clk.c
+index 8fd620a45cd2..7d79017c3ad4 100644
+--- a/drivers/clk/s32/s32-gen1/clk.c
++++ b/drivers/clk/s32/s32-gen1/clk.c
+@@ -804,6 +804,12 @@ void s32gen1_scmi_clocks_init(void)
+ 
+ static void s32g274a_scmi_clocks_init(void)
+ {
++	/* LLCE */
++	scmi_clk[S32G274A_SCMI_CLK_LLCE_SYS] =
++		get_plat_clk(S32GEN1_CLK_XBAR_DIV2);
++	scmi_clk[S32G274A_SCMI_CLK_LLCE_CAN_PE] =
++		get_plat_clk(S32GEN1_CLK_CAN);
++
+ 	scmi_clk[S32G274A_SCMI_CLK_USB_MEM] =
+ 		get_plat_clk(S32GEN1_CLK_XBAR_DIV4);
+ 	scmi_clk[S32G274A_SCMI_CLK_USB_LOW] =
+-- 
+2.25.1
+

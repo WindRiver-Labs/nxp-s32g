@@ -1,0 +1,30 @@
+From 95a8d4672793a9c643092f6241bc088d1dc2fe76 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Wed, 20 Jan 2021 13:05:39 +0200
+Subject: [PATCH 54/76] s32: Make sure MMU is disabled before early_mmu_setup
+
+MMU should be disabled before early_mmu_setup and tlb
+invalidation.
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index 32e1815b7c..0b7acc9b39 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -438,7 +438,7 @@ int arch_cpu_init(void)
+ 
+ 	ncore_init(0x1);
+ #endif
+-
++	set_sctlr(get_sctlr() & ~CR_M);
+ 	icache_enable();
+ 	__asm_invalidate_dcache_all();
+ 	__asm_invalidate_tlb_all();
+-- 
+2.17.1
+

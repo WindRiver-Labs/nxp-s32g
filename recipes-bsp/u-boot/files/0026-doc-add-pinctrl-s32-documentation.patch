@@ -1,0 +1,47 @@
+From 38538074c628092f2929e8a8cfb060bcac014d37 Mon Sep 17 00:00:00 2001
+From: Radu Pirea <radu-nicolae.pirea@nxp.com>
+Date: Wed, 16 Dec 2020 14:23:06 +0200
+Subject: [PATCH 26/76] doc: add pinctrl-s32 documentation
+
+Add pinctrl-s32 documentation.
+
+Issue: ALB-5668
+
+Signed-off-by: Radu Pirea <radu-nicolae.pirea@nxp.com>
+---
+ .../pinctrl/pinctrl-s32.txt                   | 23 +++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+ create mode 100644 doc/device-tree-bindings/pinctrl/pinctrl-s32.txt
+
+diff --git a/doc/device-tree-bindings/pinctrl/pinctrl-s32.txt b/doc/device-tree-bindings/pinctrl/pinctrl-s32.txt
+new file mode 100644
+index 0000000000..bd72ebb74e
+--- /dev/null
++++ b/doc/device-tree-bindings/pinctrl/pinctrl-s32.txt
+@@ -0,0 +1,23 @@
++* NXP S32 SIUL2 PIN controller
++
++Required properties:
++- compatible : "fsl,s32-gen1-siul2-pinctrl"
++- #pinctrl-cells : Should be 2 (pin range)
++- pins: A list of phandles to self with associated cells.
++
++Example:
++siul2_1@44010000 {
++	compatible = "simple-mfd";
++	status = "okay";
++	reg = <0x0 0x44010000 0x0 0x2000>;
++
++	pinctrl1: siul2-pinctrl1 {
++			compatible = "fsl,s32-gen1-siul2-pinctrl";
++			#pinctrl-cells = <2>;
++			/* MSCR range */
++			pins = <&pinctrl1 112 190>,
++			/* IMCR range */
++			<&pinctrl1 631 1023>;
++			status = "okay";
++	};
++};
+-- 
+2.17.1
+

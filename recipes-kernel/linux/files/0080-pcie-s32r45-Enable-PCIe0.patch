@@ -1,0 +1,25 @@
+From 7a41a46027c6a3e68b3ddd358df37596d651d39a Mon Sep 17 00:00:00 2001
+From: Ionut Vicovan <Ionut.Vicovan@nxp.com>
+Date: Thu, 18 Feb 2021 18:40:13 +0200
+Subject: [PATCH 80/84] pcie:s32r45: Enable PCIe0
+
+Issue: ALB-4529
+---
+ arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi
+index 9a4e8c9c81e6..57f8f92a2065 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi
+@@ -257,3 +257,7 @@
+ 		};
+ 	};
+ };
++
++&pcie0 {
++       status = "okay";
++};
+-- 
+2.17.1
+

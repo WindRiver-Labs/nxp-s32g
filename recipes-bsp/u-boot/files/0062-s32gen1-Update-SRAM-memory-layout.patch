@@ -1,0 +1,41 @@
+From 2091ffcef6c9ccab7bbf6c106f549b7458495860 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Mon, 25 Jan 2021 12:40:04 +0200
+Subject: [PATCH 62/76] s32gen1: Update SRAM memory layout
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/memory_map.txt | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/memory_map.txt b/arch/arm/cpu/armv8/s32/s32-gen1/memory_map.txt
+index b31c7501ed..0d4e4ae61b 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/memory_map.txt
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/memory_map.txt
+@@ -1,7 +1,7 @@
+ # SPDX-License-Identifier:      GPL-2.0+
+ #
+ # Copyright 2016 Freescale Semiconductor
+-# Copyright 2017,2020 NXP
++# Copyright 2017,2020-2021 NXP
+ #
+ 
+ SRAM Layout
+@@ -16,9 +16,11 @@ SRAM is from 0x34000000 to 0x34800000 (8 MB)
+ |=================|================|==============|================|==============|================|==============|
+ |Stack            |   0x34000000   |  0x34004000  |      -         |      -       |       -        |     -        |
+ |-----------------|----------------|--------------|----------------|--------------|----------------|--------------|
+-|MMU Tables       |   0x34004000   |  0x3401c000  |      -         |      -       |       -        |     -        |
++|MMU Tables       |   0x34004000   |  0x3408ffff  |      -         |      -       |       -        |     -        |
+ |-----------------|----------------|--------------|----------------|--------------|----------------|--------------|
+-|u-boot           |   0x34020000   |  variable**  |   0x34020000   |  variable**  |       -        |      -       |
++|DTB              |   0x34090000   |  variable**  |   0x34090000   |  variable**  |       -        |      -       |
++|-----------------|----------------|--------------|----------------|--------------|----------------|--------------|
++|u-boot           |   0x340a0000   |  variable**  |   0x340a0000   |  variable**  |       -        |      -       |
+ ===================================================================================================================
+ 
+ ** u-boot size is variable (depends on configuration).
+-- 
+2.17.1
+

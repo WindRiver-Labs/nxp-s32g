@@ -1,0 +1,63 @@
+From d45c94a617244db96ea5c62e9c75858e753834fb Mon Sep 17 00:00:00 2001
+From: Larisa Ileana Grigore <larisa.grigore@nxp.com>
+Date: Fri, 22 Jan 2021 03:40:52 -0600
+Subject: [PATCH 58/76] s32g_emu: Remove periph clock initialization
+
+Remove periph clock initialization which takes too
+long on emulator.
+
+Issue: ALB-6137
+Signed-off-by: Larisa Ileana Grigore <larisa.grigore@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c | 4 ++++
+ drivers/mmc/fsl_esdhc_imx.c  | 4 +++-
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index c589f34724..9d9a3427d3 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -276,6 +276,7 @@ static inline void final_mmu_setup(void)
+ }
+ 
+ #if defined(CONFIG_S32_GEN1) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
++#ifndef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+ /*
+  * This function is a temporary fix for drivers without clock bindings.
+  *
+@@ -312,6 +313,7 @@ static int enable_periph_clocks(void)
+ 	return 0;
+ }
+ #endif
++#endif
+ 
+ #if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
+ static inline int clear_after_bss(void)
+@@ -501,7 +503,9 @@ int arch_early_init_r(void)
+ #endif
+ 
+ #if defined(CONFIG_S32_GEN1) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
++#ifndef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+ 	return enable_periph_clocks();
++#endif
+ #endif
+ 
+ 	return rv;
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index 09170f5579..2aeea4e802 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -1614,7 +1614,9 @@ static int fsl_esdhc_probe(struct udevice *dev)
+ 
+ 	init_clk_usdhc(dev->seq);
+ 
+-#if CONFIG_IS_ENABLED(CLK)
++#ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
++	priv->sdhc_clk = 400000000;
++#elif CONFIG_IS_ENABLED(CLK)
+ 	/* Assigned clock already set clock */
+ 	ret = clk_get_by_name(dev, "per", &priv->per_clk);
+ 	if (ret) {
+-- 
+2.17.1
+

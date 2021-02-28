@@ -1,0 +1,254 @@
+From 4b11f5a97069569193d9f3c57b0d6a7f63c4499d Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Wed, 20 Jan 2021 15:43:58 +0200
+Subject: [PATCH 55/76] s32g274: Replace CONFIG_S32G274A with
+ CONFIG_NXP_S32G2XX
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/fdt.c                           | 6 +++---
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c                  | 2 +-
+ arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h | 7 +++----
+ arch/arm/include/asm/arch-s32/siul-s32-gen1.h          | 7 +++----
+ board/freescale/s32-gen1/board_common.h                | 7 +++----
+ drivers/clk/s32/Makefile                               | 4 ++--
+ drivers/clk/s32/clk_dump/Makefile                      | 4 ++--
+ drivers/serial/serial_linflexuart.c                    | 6 +++---
+ include/configs/s32g274a.h                             | 4 +---
+ include/dt-bindings/clock/s32gen1-clock-freq.h         | 2 +-
+ scripts/config_whitelist.txt                           | 1 -
+ 11 files changed, 22 insertions(+), 28 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index beacdb1319..2596df2248 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier:     GPL-2.0+
+ /*
+  * Copyright 2014-2016 Freescale Semiconductor, Inc.
+- * (C) Copyright 2017,2019-2020 NXP
++ * (C) Copyright 2017,2019-2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -227,7 +227,7 @@ static void hide_sram(bd_t *bd)
+ 	}
+ }
+ 
+-#if defined(CONFIG_S32G274A) && defined(CONFIG_PRAM)
++#if defined(CONFIG_NXP_S32G2XX) && defined(CONFIG_PRAM)
+ /* Fixup the DDR node in order to reserve "pram" amount of KB somewhere in the
+  * available physical memory. This would typically be used by TF-A as a secure
+  * memory, and enforced through XRDC. Making it "invisible" to Linux is only a
+@@ -320,7 +320,7 @@ static void ft_fixup_memory(void *blob, bd_t *bd)
+ {
+ 	hide_sram(bd);
+ 
+-#if defined(CONFIG_S32G274A) && defined(CONFIG_PRAM)
++#if defined(CONFIG_NXP_S32G2XX) && defined(CONFIG_PRAM)
+ 	exclude_pram(bd);
+ #endif
+ 	apply_ddr_limits(bd);
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 17a62bfaac..5de9068a4d 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -140,7 +140,7 @@ void reset_cpu(ulong addr)
+ 
+ int print_cpuinfo(void)
+ {
+-#ifdef CONFIG_S32G274A
++#ifdef CONFIG_NXP_S32G2XX
+ 	printf("CPU: NXP %s", get_s32g2_deriv_name());
+ 	#ifdef CONFIG_TARGET_TYPE_S32GEN1_SIMULATOR
+ 	printf("\n");
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
+index fafed080f9..a8a3915782 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
+@@ -1,7 +1,6 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2017-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
++ * Copyright 2017-2021 NXP
+  */
+ 
+ #ifndef __ASM_ARCH_S32_GEN1_REGS_H__
+@@ -115,7 +114,7 @@
+ #ifdef CONFIG_S32R45
+ #define CAN_FD0_BASE_ADDR			(PER_GROUP1_BASE + 0x000B4000)
+ #define CAN_FD1_BASE_ADDR			(PER_GROUP1_BASE + 0x000BE000)
+-#elif defined(CONFIG_S32G274A)
++#elif defined(CONFIG_NXP_S32G2XX)
+ #define CAN_FD0_BASE_ADDR			(PER_GROUP1_BASE + 0x000B8000)
+ #define CAN_FD1_BASE_ADDR			(PER_GROUP1_BASE + 0x000BC000)
+ #endif
+diff --git a/arch/arm/include/asm/arch-s32/siul-s32-gen1.h b/arch/arm/include/asm/arch-s32/siul-s32-gen1.h
+index 511503c849..18625e1e4a 100644
+--- a/arch/arm/include/asm/arch-s32/siul-s32-gen1.h
++++ b/arch/arm/include/asm/arch-s32/siul-s32-gen1.h
+@@ -1,7 +1,6 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2017-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
++ * Copyright 2017-2021 NXP
+  */
+ 
+ #ifndef __ARCH_ARM_MACH_S32G1_SIUL_H__
+@@ -945,7 +944,7 @@
+ #define SIUL2_0_MAX_GPIO		SIUL2_0_S32R45_MAX_GPIO
+ #endif
+ 
+-#ifdef CONFIG_S32G274A
++#ifdef CONFIG_NXP_S32G2XX
+ #define SIUL2_0_MAX_GPIO		SIUL2_0_S32G274A_MAX_GPIO
+ #endif
+ 
+diff --git a/board/freescale/s32-gen1/board_common.h b/board/freescale/s32-gen1/board_common.h
+index dfe3033328..901edcf4a2 100644
+--- a/board/freescale/s32-gen1/board_common.h
++++ b/board/freescale/s32-gen1/board_common.h
+@@ -1,7 +1,6 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2018-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
++ * Copyright 2018-2021 NXP
+  */
+ 
+ #ifndef __S32_GEN1_BOARD_COMMON_H__
+@@ -17,7 +16,7 @@ void setup_iomux_uart(void);
+ 	void setup_iomux_dspi(void);
+ #endif
+ 
+-#if defined(CONFIG_S32G274A) || defined(CONFIG_S32R45)
++#if defined(CONFIG_NXP_S32G2XX) || defined(CONFIG_S32R45)
+ void setup_iomux_uart0_pc09_pc10(void);
+ #endif
+ 
+diff --git a/drivers/clk/s32/Makefile b/drivers/clk/s32/Makefile
+index ae57498a69..239da0d97d 100644
+--- a/drivers/clk/s32/Makefile
++++ b/drivers/clk/s32/Makefile
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier:	GPL-2.0+
+ #
+-# Copyright 2020 NXP
++# Copyright 2020-2021 NXP
+ #
+ obj-y += s32gen1_clk_drv.o
+ obj-y += enable_clk.o
+@@ -11,7 +11,7 @@ obj-y += early_clocks.o
+ obj-y += clk_utils.o
+ obj-y += s32gen1_scmi_ids.o
+ obj-y += s32gen1_scmi_clk.o
+-obj-$(CONFIG_S32G274A) += s32g274a_clk.o s32g274a_scmi_ids.o
++obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk.o s32g274a_scmi_ids.o
+ obj-$(CONFIG_S32R45) += s32r45_clk.o s32r45_scmi_ids.o
+ obj-$(CONFIG_CMD_CLK) += clk_dump/
+ 
+diff --git a/drivers/clk/s32/clk_dump/Makefile b/drivers/clk/s32/clk_dump/Makefile
+index 7551f9fa90..52142a897a 100644
+--- a/drivers/clk/s32/clk_dump/Makefile
++++ b/drivers/clk/s32/clk_dump/Makefile
+@@ -1,11 +1,11 @@
+ #
+-# Copyright 2020 NXP
++# Copyright 2020-2021 NXP
+ #
+ # SPDX-License-Identifier:	GPL-2.0+
+ #
+ obj-y += clk_dump.o
+ obj-y += s32gen1_clk_names.o
+-obj-$(CONFIG_S32G274A) += s32g274a_clk_names.o
++obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk_names.o
+ obj-$(CONFIG_S32R45) += s32r45_clk_names.o
+ 
+ ccflags-y += -Idrivers/clk/s32/include
+diff --git a/drivers/serial/serial_linflexuart.c b/drivers/serial/serial_linflexuart.c
+index 48a57c5f5a..03728e7d4c 100644
+--- a/drivers/serial/serial_linflexuart.c
++++ b/drivers/serial/serial_linflexuart.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * (C) Copyright 2013-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017, 2019 NXP
++ * Copyright 2017, 2019, 2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -17,7 +17,7 @@
+ #define LINCR1_INIT			BIT(0)
+ #define LINCR1_MME			BIT(4)
+ /* This bit is marked as Reserved on S32G274A */
+-#ifndef CONFIG_S32G274A
++#ifndef CONFIG_NXP_S32G2XX
+ #define LINCR1_BF			BIT(7)
+ #endif
+ #define LINSR_LINS_INITMODE		(0x00001000)
+@@ -101,7 +101,7 @@ static int _linflex_serial_init(struct linflex_fsl *base)
+ 	/* set the Linflex in master|init mode and activate by-pass filter
+ 	 * (where supported) */
+ 	ctrl = LINCR1_MME | LINCR1_INIT;
+-#ifndef CONFIG_S32G274A
++#ifndef CONFIG_NXP_S32G2XX
+ 	ctrl |= LINCR1_BF;
+ #endif
+ 	__raw_writel(ctrl, &base->lincr1);
+diff --git a/include/configs/s32g274a.h b/include/configs/s32g274a.h
+index d46cff7f57..c56b014a62 100644
+--- a/include/configs/s32g274a.h
++++ b/include/configs/s32g274a.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+- * Copyright 2017-2020 NXP
++ * Copyright 2017-2021 NXP
+  */
+ 
+ /*
+@@ -10,8 +10,6 @@
+ #ifndef __S32G274A_H
+ #define __S32G274A_H
+ 
+-#define CONFIG_S32G274A
+-
+ #include <configs/s32-gen1.h>
+ 
+ #if !defined(CONFIG_PRAM) && !defined(CONFIG_S32_SKIP_RELOC)
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index b80d57f581..2cd6b62b02 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -16,7 +16,7 @@
+ #define S32GEN1_XBAR_2X_FREQ			(800 * MHZ)
+ #define S32GEN1_LIN_BAUD_CLK_FREQ		(125 * MHZ)
+ 
+-#if defined(CONFIG_S32G274A)
++#if defined(CONFIG_NXP_S32G2XX)
+ #define S32GEN1_A53_MAX_FREQ			(1000 * MHZ)
+ #define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(2000 * MHZ)
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1000 * MHZ)
+diff --git a/scripts/config_whitelist.txt b/scripts/config_whitelist.txt
+index 87689734ad..0bbb4535c4 100644
+--- a/scripts/config_whitelist.txt
++++ b/scripts/config_whitelist.txt
+@@ -1503,7 +1503,6 @@ CONFIG_RTC_PT7C4338
+ CONFIG_RUN_FROM_IRAM_ONLY
+ CONFIG_RX_DESCR_NUM
+ CONFIG_S32
+-CONFIG_S32G274A
+ CONFIG_S32R45
+ CONFIG_S32V234
+ CONFIG_S32V234_FLASH
+-- 
+2.17.1
+

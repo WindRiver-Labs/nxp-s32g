@@ -1,0 +1,415 @@
+From 2cbf797b8c479b705d24394826662b5a42249562 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 26 Nov 2020 13:51:56 +0200
+Subject: [PATCH 07/76] s32: Make SYS_TEXT_BASE and SYS_DATA_BASE part of
+ Kconfig
+
+Issue: ALB-5304
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ board/freescale/Kconfig             |  5 +++++
+ board/freescale/s32-gen1/Kconfig    | 28 ++++++++++++++++------------
+ configs/s32g274a_emu_defconfig      |  3 ---
+ configs/s32g274a_sim_defconfig      |  2 --
+ configs/s32g274abluebox3_defconfig  |  1 -
+ configs/s32g274aevb_defconfig       |  2 --
+ configs/s32g274aevb_qspi_defconfig  |  2 --
+ configs/s32g274ardb2_defconfig      |  2 --
+ configs/s32g274ardb2_qspi_defconfig |  2 --
+ configs/s32g274ardb_defconfig       |  2 --
+ configs/s32g274ardb_qspi_defconfig  |  2 --
+ configs/s32r45_emu_defconfig        |  2 --
+ configs/s32r45_sim_defconfig        |  2 --
+ configs/s32r45evb_defconfig         |  2 --
+ configs/s32r45evb_qspi_defconfig    |  2 --
+ configs/s32v234bbmini_defconfig     |  1 -
+ configs/s32v234campp_defconfig      |  1 -
+ configs/s32v234ccpb_defconfig       |  1 -
+ configs/s32v234evb28899_defconfig   |  1 -
+ configs/s32v234evb29288_defconfig   |  1 -
+ configs/s32v234evb_flash_defconfig  |  1 -
+ configs/s32v234evbbcm_defconfig     |  1 -
+ configs/s32v234pcie_defconfig       |  1 -
+ configs/s32v234pciebcm_defconfig    |  1 -
+ configs/s32v234sbc_defconfig        |  1 -
+ configs/s32v344_sim_defconfig       |  2 --
+ 26 files changed, 21 insertions(+), 50 deletions(-)
+
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 0bc9b343d1..d93d1c930b 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -4,8 +4,10 @@ config S32V2
+ 
+ config S32_GEN1
+ 	bool "S32 GEN1 Common Chassis"
++	select ARM_SMCCC
+ 	select CLK
+ 	select CLK_SCMI
++	select OF_CONTROL
+ 	select OF_SEPARATE
+ 	select SCMI_FIRMWARE
+ 	help
+@@ -63,6 +65,9 @@ config SYS_DATA_BASE
+ 	help
+ 	  U-boot data base address (normally SRAM base address)
+ 
++config SYS_TEXT_BASE
++	default 0x3E820000
++
+ config SYS_MEM_SIZE
+ 	hex "RAM Memory Size"
+ 	default 0x00400000
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index 755a73feef..505003a880 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -1,15 +1,3 @@
+-config SYS_DATA_BASE
+-	hex "Data Base"
+-	default 0x34000000
+-	help
+-	  U-boot data base address (normally SRAM base address)
+-
+-config SYS_MEM_SIZE
+-	hex "RAM Memory Size"
+-	default 0x00800000
+-	help
+-	  U-boot SRAM size (8 MB for Gen1, 4 MB for older architectures)
+-
+ if TARGET_S32G274AEMU || TARGET_S32R45EMU
+ 
+ config TARGET_TYPE_S32GEN1_EMULATOR
+@@ -30,6 +18,22 @@ config TARGET_TYPE_S32GEN1_SIMULATOR
+ 
+ endif
+ 
++config SYS_DATA_BASE
++	hex "Data Base"
++	default 0x34000000
++	help
++	  U-boot data base address (normally SRAM base address)
++
++config SYS_TEXT_BASE
++	hex
++	default 0x340a0000
++
++config SYS_MEM_SIZE
++	hex "RAM Memory Size"
++	default 0x00800000
++	help
++	  U-boot SRAM size (8 MB for Gen1, 4 MB for older architectures)
++
+ if TARGET_S32V344EVB || TARGET_S32G274AEVB || TARGET_S32G274ARDB || \
+ 	TARGET_S32G274ABLUEBOX3 || TARGET_S32R45EVB || \
+ 	TARGET_TYPE_S32GEN1_EMULATOR || \
+diff --git a/configs/s32g274a_emu_defconfig b/configs/s32g274a_emu_defconfig
+index 9be3f303b9..62bb1c7d2b 100644
+--- a/configs/s32g274a_emu_defconfig
++++ b/configs/s32g274a_emu_defconfig
+@@ -1,7 +1,5 @@
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32G274AEMU=y
+@@ -24,4 +22,3 @@ CONFIG_DM=y
+ CONFIG_FSL_USDHC=y
+ CONFIG_FSL_LINFLEXUART=y
+ CONFIG_FSL_LINFLEX_MODULE=1
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32g274a_sim_defconfig b/configs/s32g274a_sim_defconfig
+index 2d17b6852c..64f72a38ae 100644
+--- a/configs/s32g274a_sim_defconfig
++++ b/configs/s32g274a_sim_defconfig
+@@ -5,7 +5,6 @@ CONFIG_ENV_SIZE=0x2000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32G274ASIM=y
+ CONFIG_S32_LPDDR4=y
+-CONFIG_SYS_DATA_BASE=0x38000000
+ CONFIG_DISTRO_DEFAULTS=y
+ # CONFIG_SYS_MALLOC_F is not set
+ CONFIG_FIT=y
+@@ -20,4 +19,3 @@ CONFIG_DM=y
+ CONFIG_DM_ETH=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_FSL_LINFLEXUART=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32g274abluebox3_defconfig b/configs/s32g274abluebox3_defconfig
+index 5c836e59cf..7c658df089 100644
+--- a/configs/s32g274abluebox3_defconfig
++++ b/configs/s32g274abluebox3_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32g274aevb_defconfig b/configs/s32g274aevb_defconfig
+index 6048f8a487..51f4c05d6a 100644
+--- a/configs/s32g274aevb_defconfig
++++ b/configs/s32g274aevb_defconfig
+@@ -1,7 +1,5 @@
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32g274aevb_qspi_defconfig b/configs/s32g274aevb_qspi_defconfig
+index e224cbcfff..3d7f9c0fea 100644
+--- a/configs/s32g274aevb_qspi_defconfig
++++ b/configs/s32g274aevb_qspi_defconfig
+@@ -1,8 +1,6 @@
+ CONFIG_FLASH_BOOT=y
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x10000
+ CONFIG_ENV_SECT_SIZE=0x10000
+ CONFIG_ENV_OFFSET=0x1e0000
+diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
+index 3d5bb8de17..5ef108e81d 100644
+--- a/configs/s32g274ardb2_defconfig
++++ b/configs/s32g274ardb2_defconfig
+@@ -1,7 +1,5 @@
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32g274ardb2_qspi_defconfig b/configs/s32g274ardb2_qspi_defconfig
+index e670c02f45..d075312ec4 100644
+--- a/configs/s32g274ardb2_qspi_defconfig
++++ b/configs/s32g274ardb2_qspi_defconfig
+@@ -1,8 +1,6 @@
+ CONFIG_FLASH_BOOT=y
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x10000
+ CONFIG_ENV_SECT_SIZE=0x10000
+ CONFIG_ENV_OFFSET=0x1e0000
+diff --git a/configs/s32g274ardb_defconfig b/configs/s32g274ardb_defconfig
+index 80ade28673..8f9656c905 100644
+--- a/configs/s32g274ardb_defconfig
++++ b/configs/s32g274ardb_defconfig
+@@ -1,7 +1,5 @@
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32g274ardb_qspi_defconfig b/configs/s32g274ardb_qspi_defconfig
+index b5df1850e7..1c55909541 100644
+--- a/configs/s32g274ardb_qspi_defconfig
++++ b/configs/s32g274ardb_qspi_defconfig
+@@ -1,8 +1,6 @@
+ CONFIG_FLASH_BOOT=y
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x10000
+ CONFIG_ENV_SECT_SIZE=0x10000
+ CONFIG_ENV_OFFSET=0x1e0000
+diff --git a/configs/s32r45_emu_defconfig b/configs/s32r45_emu_defconfig
+index 32439deb19..0ac7f5bcf7 100644
+--- a/configs/s32r45_emu_defconfig
++++ b/configs/s32r45_emu_defconfig
+@@ -1,7 +1,6 @@
+ CONFIG_FLASH_BOOT=y
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32R45EMU=y
+@@ -22,4 +21,3 @@ CONFIG_FSL_LINFLEXUART=y
+ CONFIG_FSL_LINFLEX_MODULE=1
+ CONFIG_SPI=y
+ CONFIG_FSL_DSPI=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32r45_sim_defconfig b/configs/s32r45_sim_defconfig
+index 0b14f1ec7d..7a563c7452 100644
+--- a/configs/s32r45_sim_defconfig
++++ b/configs/s32r45_sim_defconfig
+@@ -5,7 +5,6 @@ CONFIG_ENV_SIZE=0x2000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32R45SIM=y
+ CONFIG_S32_LPDDR4=y
+-CONFIG_SYS_DATA_BASE=0x38000000
+ CONFIG_DISTRO_DEFAULTS=y
+ # CONFIG_SYS_MALLOC_F is not set
+ CONFIG_FIT=y
+@@ -20,4 +19,3 @@ CONFIG_DM=y
+ CONFIG_DM_ETH=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_FSL_LINFLEXUART=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32r45evb_defconfig b/configs/s32r45evb_defconfig
+index e8572d85df..79171fb002 100644
+--- a/configs/s32r45evb_defconfig
++++ b/configs/s32r45evb_defconfig
+@@ -1,7 +1,5 @@
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32r45evb_qspi_defconfig b/configs/s32r45evb_qspi_defconfig
+index 1319246eaf..43a397fd9b 100644
+--- a/configs/s32r45evb_qspi_defconfig
++++ b/configs/s32r45evb_qspi_defconfig
+@@ -1,8 +1,6 @@
+ CONFIG_FLASH_BOOT=y
+ CONFIG_ARM=y
+-CONFIG_ARM_SMCCC=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x340a0000
+ CONFIG_ENV_SIZE=0x10000
+ CONFIG_ENV_SECT_SIZE=0x10000
+ CONFIG_ENV_OFFSET=0x1e0000
+diff --git a/configs/s32v234bbmini_defconfig b/configs/s32v234bbmini_defconfig
+index 7ee6e10294..71abba186a 100644
+--- a/configs/s32v234bbmini_defconfig
++++ b/configs/s32v234bbmini_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234campp_defconfig b/configs/s32v234campp_defconfig
+index d3bf9539b6..e0beee81f8 100644
+--- a/configs/s32v234campp_defconfig
++++ b/configs/s32v234campp_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234ccpb_defconfig b/configs/s32v234ccpb_defconfig
+index 7cc31d327b..280b34caaf 100644
+--- a/configs/s32v234ccpb_defconfig
++++ b/configs/s32v234ccpb_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234evb28899_defconfig b/configs/s32v234evb28899_defconfig
+index e1ff111166..fe26a19f5d 100644
+--- a/configs/s32v234evb28899_defconfig
++++ b/configs/s32v234evb28899_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234evb29288_defconfig b/configs/s32v234evb29288_defconfig
+index 28a336851e..f5e54f0317 100644
+--- a/configs/s32v234evb29288_defconfig
++++ b/configs/s32v234evb29288_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234evb_flash_defconfig b/configs/s32v234evb_flash_defconfig
+index 0f11ff70fc..7f128a60ee 100644
+--- a/configs/s32v234evb_flash_defconfig
++++ b/configs/s32v234evb_flash_defconfig
+@@ -1,7 +1,6 @@
+ CONFIG_FLASH_BOOT=y
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_SECT_SIZE=0x40000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234evbbcm_defconfig b/configs/s32v234evbbcm_defconfig
+index 2bb86de3d7..543588cfff 100644
+--- a/configs/s32v234evbbcm_defconfig
++++ b/configs/s32v234evbbcm_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234pcie_defconfig b/configs/s32v234pcie_defconfig
+index ecbe752234..a306a5bbde 100644
+--- a/configs/s32v234pcie_defconfig
++++ b/configs/s32v234pcie_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234pciebcm_defconfig b/configs/s32v234pciebcm_defconfig
+index 1c9225841c..7e23e9055c 100644
+--- a/configs/s32v234pciebcm_defconfig
++++ b/configs/s32v234pciebcm_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v234sbc_defconfig b/configs/s32v234sbc_defconfig
+index 7fd578987e..be5cbdbb76 100644
+--- a/configs/s32v234sbc_defconfig
++++ b/configs/s32v234sbc_defconfig
+@@ -1,6 +1,5 @@
+ CONFIG_ARM=y
+ CONFIG_ARCH_S32=y
+-CONFIG_SYS_TEXT_BASE=0x3E820000
+ CONFIG_ENV_SIZE=0x2000
+ CONFIG_ENV_OFFSET=0x100000
+ CONFIG_NR_DRAM_BANKS=3
+diff --git a/configs/s32v344_sim_defconfig b/configs/s32v344_sim_defconfig
+index 2722296ccb..638612b166 100644
+--- a/configs/s32v344_sim_defconfig
++++ b/configs/s32v344_sim_defconfig
+@@ -5,7 +5,6 @@ CONFIG_ENV_SIZE=0x2000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32V344SIM=y
+ CONFIG_S32_LPDDR4=y
+-CONFIG_SYS_DATA_BASE=0x38000000
+ CONFIG_DISTRO_DEFAULTS=y
+ CONFIG_FIT=y
+ CONFIG_USE_BOOTARGS=y
+@@ -13,4 +12,3 @@ CONFIG_ARCH_EARLY_INIT_R=y
+ CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MEMTEST=y
+ CONFIG_FSL_LINFLEXUART=y
+-CONFIG_OF_LIBFDT=y
+-- 
+2.17.1
+

@@ -1,0 +1,84 @@
+From f6faa4386ca364526134b6cea5808876b0ae2387 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Wed, 20 Jan 2021 11:24:52 +0200
+Subject: [PATCH 70/76] efi_loader: Make sure copy_fdt will use valid address
+
+On S32 platforms, SRAM is added to bi_dram array. SRAM has
+the lowest start address but has only a few MB. As a result,
+the new computed fdt address will be an invalid address.
+
+Issue: ALB-6332
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ cmd/bootefi.c | 27 ++++++++++++++++-----------
+ 1 file changed, 16 insertions(+), 11 deletions(-)
+
+diff --git a/cmd/bootefi.c b/cmd/bootefi.c
+index aaed575505..4ceb836386 100644
+--- a/cmd/bootefi.c
++++ b/cmd/bootefi.c
+@@ -3,6 +3,7 @@
+  *  EFI application loader
+  *
+  *  Copyright (c) 2016 Alexander Graf
++ *  Copyright 2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -23,6 +24,8 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++#define SAFE_FDT_LOCATION	0x7f00000
++
+ static struct efi_device_path *bootefi_image_path;
+ static struct efi_device_path *bootefi_device_path;
+ 
+@@ -101,6 +104,14 @@ static efi_status_t copy_fdt(void **fdtp)
+ 	uint fdt_size;
+ 	int i;
+ 
++	/*
++	 * Give us at least 12 KiB of breathing room in case the device tree
++	 * needs to be expanded later.
++	 */
++	fdt = *fdtp;
++	fdt_pages = efi_size_in_pages(fdt_totalsize(fdt) + 0x3000);
++	fdt_size = fdt_pages << EFI_PAGE_SHIFT;
++
+ 	for (i = 0; i < CONFIG_NR_DRAM_BANKS; i++) {
+ 		u64 ram_start = gd->bd->bi_dram[i].start;
+ 		u64 ram_size = gd->bd->bi_dram[i].size;
+@@ -108,24 +119,18 @@ static efi_status_t copy_fdt(void **fdtp)
+ 		if (!ram_size)
+ 			continue;
+ 
+-		if (ram_start < fdt_ram_start)
++		if (ram_start < fdt_ram_start && ram_size >
++			(SAFE_FDT_LOCATION + fdt_size))
+ 			fdt_ram_start = ram_start;
+ 	}
+ 
+-	/*
+-	 * Give us at least 12 KiB of breathing room in case the device tree
+-	 * needs to be expanded later.
+-	 */
+-	fdt = *fdtp;
+-	fdt_pages = efi_size_in_pages(fdt_totalsize(fdt) + 0x3000);
+-	fdt_size = fdt_pages << EFI_PAGE_SHIFT;
+-
+ 	/*
+ 	 * Safe fdt location is at 127 MiB.
+ 	 * On the sandbox convert from the sandbox address space.
+ 	 */
+-	new_fdt_addr = (uintptr_t)map_sysmem(fdt_ram_start + 0x7f00000 +
+-					     fdt_size, 0);
++	new_fdt_addr = (uintptr_t)map_sysmem(fdt_ram_start +
++					     SAFE_FDT_LOCATION + fdt_size, 0);
++
+ 	ret = efi_allocate_pages(EFI_ALLOCATE_MAX_ADDRESS,
+ 				 EFI_BOOT_SERVICES_DATA, fdt_pages,
+ 				 &new_fdt_addr);
+-- 
+2.17.1
+

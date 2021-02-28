@@ -1,0 +1,52 @@
+From ef477f809c08782afa4c94da5552f17fc5498872 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Fri, 5 Feb 2021 17:20:56 +0200
+Subject: [PATCH 69/78] serial:linflex: Check FIFO full before writing
+
+In FIFO mode, it is more cleaner to check if FIFO is
+full before writing a character.
+
+Issue: ALB-6257
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/tty/serial/fsl_linflexuart.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/tty/serial/fsl_linflexuart.c b/drivers/tty/serial/fsl_linflexuart.c
+index 9b6cd3e0e2b7..114744bfc418 100644
+--- a/drivers/tty/serial/fsl_linflexuart.c
++++ b/drivers/tty/serial/fsl_linflexuart.c
+@@ -1365,22 +1365,24 @@ static struct linflex_port *linflex_ports[UART_NR];
+ static void linflex_console_putchar(struct uart_port *port, int ch)
+ {
+ 	unsigned long cr;
++	bool fifo_mode;
+ 
+ 	cr = readl(port->membase + UARTCR);
++	fifo_mode = cr & LINFLEXD_UARTCR_TFBM;
++
++	if (fifo_mode)
++		while (readl(port->membase + UARTSR) &
++					LINFLEXD_UARTSR_DTFTFF)
++			;
+ 
+ 	writeb(ch, port->membase + BDRL);
+ 
+-	if (!(cr & LINFLEXD_UARTCR_TFBM))
++	if (!fifo_mode) {
+ 		while ((readl(port->membase + UARTSR) &
+ 					LINFLEXD_UARTSR_DTFTFF)
+ 				!= LINFLEXD_UARTSR_DTFTFF)
+ 			;
+-	else
+-		while (readl(port->membase + UARTSR) &
+-					LINFLEXD_UARTSR_DTFTFF)
+-			;
+ 
+-	if (!(cr & LINFLEXD_UARTCR_TFBM)) {
+ 		writel((readl(port->membase + UARTSR) |
+ 					LINFLEXD_UARTSR_DTFTFF),
+ 					port->membase + UARTSR);
+-- 
+2.25.1
+

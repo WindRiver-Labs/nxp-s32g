@@ -1,0 +1,1444 @@
+From 30874fc427152b803e40933b23b68594f286d1d0 Mon Sep 17 00:00:00 2001
+From: Radu Pirea <radu-nicolae.pirea@nxp.com>
+Date: Tue, 15 Dec 2020 10:49:13 +0200
+Subject: [PATCH 34/76] s32-gen1: remove hardcoded pinmuxing
+
+Remove the pinctrl for i2c, spi, qspi, usdhc, usb, gmac and pinctrl from
+the C files. Pinctrl for simulators and emulators is still in the c files.
+
+Issue: ALB-5668
+
+Signed-off-by: Radu Pirea <radu-nicolae.pirea@nxp.com>
+---
+ board/freescale/s32-gen1/Makefile             |   3 -
+ board/freescale/s32-gen1/common.c             | 143 ++---------
+ board/freescale/s32-gen1/eth.c                |  71 +-----
+ board/freescale/s32-gen1/s32g274a.c           | 209 ----------------
+ board/freescale/s32-gen1/s32g274abluebox3.c   |  57 +----
+ board/freescale/s32-gen1/s32g274aemu.c        |  10 +-
+ board/freescale/s32-gen1/s32g274aevb.c        | 117 +--------
+ board/freescale/s32-gen1/s32g274ardb.c        |  36 +--
+ board/freescale/s32-gen1/s32g274asim.c        |  10 +-
+ board/freescale/s32-gen1/s32gen1_gmac_utils.h |   4 +-
+ board/freescale/s32-gen1/s32r45.c             |  88 -------
+ board/freescale/s32-gen1/s32r45emu.c          |  10 +-
+ board/freescale/s32-gen1/s32r45evb.c          |  93 +------
+ board/freescale/s32-gen1/s32r45sim.c          |   7 +-
+ drivers/net/dwc_eth_qos_s32cc.c               |   6 +-
+ drivers/net/pfeng/pfeng_cmd.c                 | 229 +-----------------
+ 16 files changed, 58 insertions(+), 1035 deletions(-)
+ delete mode 100644 board/freescale/s32-gen1/s32g274a.c
+ delete mode 100644 board/freescale/s32-gen1/s32r45.c
+
+diff --git a/board/freescale/s32-gen1/Makefile b/board/freescale/s32-gen1/Makefile
+index ed55b233b1..68ead86f10 100644
+--- a/board/freescale/s32-gen1/Makefile
++++ b/board/freescale/s32-gen1/Makefile
+@@ -10,9 +10,6 @@ ccflags-$(CONFIG_S32_GEN1) += -Iboard/freescale/s32-gen1
+ ccflags-$(CONFIG_S32_GEN1) += -Idrivers/clk/s32/include
+ obj-y := common.o
+ 
+-obj-$(CONFIG_S32G274A) += s32g274a.o
+-obj-$(CONFIG_S32R45) += s32r45.o
+-
+ ifeq (,$(CONFIG_OF_EMBED)$(CONFIG_OF_SEPARATE))
+ 	obj-y	+= ../../../drivers/core/ofnode.o
+ endif
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index 52659232e1..56861e2f10 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -1,7 +1,6 @@
++// SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2017-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
++ * Copyright 2017-2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -36,110 +35,11 @@ int board_phy_config(struct phy_device *phydev)
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_FSL_QSPI
+-static void setup_iomux_qspi(void)
+-{
+-	/* QSPI_DATA_A[0] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF5__QSPI_A_DATA0_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF5__QSPI_A_DATA0_IN));
+-
+-	/* QSPI_DATA_A[1] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF6__QSPI_A_DATA1_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF6__QSPI_A_DATA1_IN));
+-
+-	/* QSPI_DATA_A[2] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF7__QSPI_A_DATA2_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF7__QSPI_A_DATA2_IN));
+-
+-	/* QSPI_DATA_A[3] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF8__QSPI_A_DATA3_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF8__QSPI_A_DATA3_IN));
+-
+-	/* QSPI_DATA_A[4] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF9__QSPI_A_DATA4_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF9__QSPI_A_DATA4_IN));
+-
+-	/* QSPI_DATA_A[5] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF10__QSPI_A_DATA5_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF10__QSPI_A_DATA5_IN));
+-
+-	/* QSPI_DATA_A[6] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF11__QSPI_A_DATA6_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF11__QSPI_A_DATA6_IN));
+-
+-	/* QSPI_DATA_A[7] */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DATA0_7,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF12__QSPI_A_DATA7_OUT));
+-	writel(SIUL2_IMCR_S32_G1_QSPI_A_DATA_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF12__QSPI_A_DATA7_IN));
+-
+-	/* QSPI_DQS_A */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DQS,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF13__QSPI_A_DQS_OUT));
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_DQS_MUX,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF13__QSPI_A_DQS_IN));
+-
+-	/* QSPI_CK_A */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_CLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PG0__QSPI_A_SCK));
+-
+-	/* QSPI_CK_A_b */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_CLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PG1__QSPI_A_B_SCK));
+-
+-	/* QSPI_CK_2A */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_CLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PG2__QSPI_2A_SCK));
+-
+-	/* QSPI_CK_2A_b */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_CLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PG2__QSPI_2A_B_SCK));
+-
+-	/* QSPI_CS_A0 */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_CS,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PG4__QSPI_A_CS0));
+-
+-	/* QSPI_CS_A1 */
+-	writel(SIUL2_MSCR_S32_G1_QSPI_A_CS,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PG5__QSPI_A_CS1));
+-}
+-#endif
+-
+ int board_early_init_f(void)
+ {
+ 	mscm_init();
+-
+-#ifdef CONFIG_S32_STANDALONE_BOOT_FLOW
+-	/* Do these only if TF-A hasn't already. */
+-	setup_iomux_i2c();
+ 	setup_iomux_uart();
+-#endif
+-#ifdef CONFIG_DM_MMC
+-	setup_iomux_sdhc();
+-#endif
+-#ifdef CONFIG_FSL_DSPI
+-	setup_iomux_dspi();
+-#endif
+-#ifdef CONFIG_FSL_QSPI
+-	setup_iomux_qspi();
+-#endif
+-#ifdef CONFIG_SAF1508BET_USB_PHY
+-	setup_iomux_usb();
+-#endif
++
+ 	return 0;
+ }
+ 
+@@ -190,9 +90,25 @@ int ft_board_setup(void *blob, bd_t *bd)
+ }
+ #endif /* defined(CONFIG_OF_FDT) && defined(CONFIG_OF_BOARD_SETUP) */
+ 
+-/* Pinmuxing code which is common between at least two boards */
++#if defined(CONFIG_TARGET_S32G274ASIM) || defined(CONFIG_TARGET_S32G274AEMU)
++void setup_iomux_uart1_pb09_pb10(void)
++{
++	/* Muxing for linflex1 */
++
++	/* set PB09 - MSCR[25] - for UART1 TXD */
++	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD,
++	       SIUL2_0_MSCRn(SIUL2_PB09_MSCR_S32_G1_UART1));
++
++	/* set PB10 - MSCR[26] - for UART1 RXD */
++	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
++	       SIUL2_0_MSCRn(SIUL2_PB10_MSCR_S32_G1_UART1));
++
++	/* set PB10 - MSCR[736]/IMCR[224] - for UART1 RXD */
++	writel(SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad,
++	       SIUL2_1_IMCRn(SIUL2_PB10_IMCR_S32_G1_UART1));
++}
++#endif
+ 
+-#ifdef CONFIG_S32G274A
+ void setup_iomux_uart0_pc09_pc10(void)
+ {
+ 	/* Muxing for linflex0 */
+@@ -209,21 +125,4 @@ void setup_iomux_uart0_pc09_pc10(void)
+ 	writel(SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad,
+ 	       SIUL2_0_IMCRn(SIUL2_PC10_IMCR_S32_G1_UART0));
+ }
+-#elif defined(CONFIG_S32R45)
+-void setup_iomux_uart0_pc09_pc10(void)
+-{
+-	/* Muxing for linflex0 */
+-
+-	/* Set PC_10 - MSCR[42] - for LIN0_RX */
+-	writel(SIUL2_MSCR_S32R45_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PC10_MSCR_S32R45_UART0));
+ 
+-	/* Set LIN0_RX - IMCR[512] - to link to PC_10 */
+-	writel(SIUL2_IMCR_S32R45_UART_RXD_to_pad,
+-	       SIUL2_0_IMCRn(SIUL2_PC10_IMCR_S32R45_UART0));
+-
+-	/* Set PC_09 - MSCR[41] - for LIN0_TX */
+-	writel(SIUL2_MSCR_S32R45_PORT_CTRL_UART0_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PC09_MSCR_S32R45_UART0));
+-}
+-#endif
+diff --git a/board/freescale/s32-gen1/eth.c b/board/freescale/s32-gen1/eth.c
+index 6b3cf13983..22d91de744 100644
+--- a/board/freescale/s32-gen1/eth.c
++++ b/board/freescale/s32-gen1/eth.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  */
+ #include <common.h>
+ #include <dm.h>
+@@ -25,6 +25,7 @@
+ #include <s32gen1_clk_utils.h>
+ #include <s32gen1_gmac_utils.h>
+ #include <dm/device_compat.h>
++#include <dm/pinctrl.h>
+ 
+ static void ft_update_eth_addr_by_name(const char *name, const u8 idx,
+ 				       void *fdt, int nodeoff)
+@@ -175,78 +176,16 @@ static struct eqos_pdata dwmac_pdata = {
+ 
+ /* GMAC platform specific setup */
+ 
+-void setup_iomux_enet_gmac(int intf)
++void setup_iomux_enet_gmac(struct udevice *dev, int intf)
+ {
+ 	/* configure interface specific pins */
+ 	switch (intf) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+-		/* GMAC_MDC */
+-		writel(SIUL2_MSCR_S32_G1_ENET_MDC,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PD12));
+-		/* GMAC_MDIO */
+-		writel(SIUL2_MSCR_S32_G1_ENET_MDIO,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PD13));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D3_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_MDI_IN));
++		pinctrl_select_state(dev, "gmac_sgmii");
+ 		break;
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+-		/* set PE2 - MSCR[66] - for TX CLK */
+-		writel(SIUL2_MSCR_S32_G1_ENET_TX_CLK,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_TX_CLK));
+-		/* set PE3 - MSCR[67] - for TX_EN */
+-		writel(SIUL2_MSCR_S32_G1_ENET_TX_EN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE3));
+-		/* set PE4 - MSCR[68] - for TX_D0 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_TX_D0,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE4));
+-		/* set PE5 - MSCR[69] - for TX_D1 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_TX_D1,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE5));
+-		/* set PE6 - MSCR[70] - for TX_D2 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_TX_D2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE6));
+-		/* set PE7 - MSCR[71] - for TX_D3 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_TX_D3,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE7));
+-		/* set PE8 - MSCR[72] - for RX_CLK */
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_CLK,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE8));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_CLK_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_RX_CLK_IN));
+-		/* set PD9 - MSCR[73] - for RX_DV */
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_DV,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE9));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_DV_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_RXDV_IN));
+-		/* set PE10 - MSCR[74] - for RX_D0 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D0,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE10));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D0_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_RXD0_IN));
+-		/* set PE11 - MSCR[75] - for RX_D1 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D1,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE11));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D1_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_RXD1_IN));
+-		/* set PE12 - MSCR[76] - for RX_D2 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE12));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D2_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_RXD2_IN));
+-		/* set PE13 - MSCR[77] - for RX_D3 */
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D3,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE13));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D3_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_RXD3_IN));
+-		/* GMAC_MDC */
+-		writel(SIUL2_MSCR_S32_G1_ENET_MDC,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PD12));
+-		/* GMAC_MDIO */
+-		writel(SIUL2_MSCR_S32_G1_ENET_MDIO,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PD13));
+-		writel(SIUL2_MSCR_S32_G1_ENET_RX_D3_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_GMAC0_MDI_IN));
++		pinctrl_select_state(dev, "gmac_rgmii");
+ 		break;
+ 
+ 	case PHY_INTERFACE_MODE_RMII:
+diff --git a/board/freescale/s32-gen1/s32g274a.c b/board/freescale/s32-gen1/s32g274a.c
+deleted file mode 100644
+index 9e5f5a0396..0000000000
+--- a/board/freescale/s32-gen1/s32g274a.c
++++ /dev/null
+@@ -1,209 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+-/*
+- * Copyright 2019-2020 NXP
+- */
+-
+-#include <config.h>
+-#include <asm/io.h>
+-#include <asm/arch/soc.h>
+-#include <s32g274a_common.h>
+-
+-#if defined(CONFIG_TARGET_S32G274ASIM) || defined(CONFIG_TARGET_S32G274AEMU)
+-void setup_iomux_uart1_pb09_pb10(void)
+-{
+-	/* Muxing for linflex1 */
+-
+-	/* set PB09 - MSCR[25] - for UART1 TXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PB09_MSCR_S32_G1_UART1));
+-
+-	/* set PB10 - MSCR[26] - for UART1 RXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PB10_MSCR_S32_G1_UART1));
+-
+-	/* set PB10 - MSCR[736]/IMCR[224] - for UART1 RXD */
+-	writel(SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad,
+-	       SIUL2_1_IMCRn(SIUL2_PB10_IMCR_S32_G1_UART1));
+-}
+-#endif
+-
+-#if defined(CONFIG_TARGET_S32G274AEVB) || \
+-	defined(CONFIG_TARGET_S32G274ARDB) || \
+-	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+-void setup_iomux_i2c_pb00_pb01(void)
+-{
+-	/* I2C0 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_00));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SDA,
+-	       SIUL2_0_IMCRn(SIUL2_PB_00_IMCR_S32G_I2C0_SDA));
+-
+-	/* I2C0 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_01));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_IMCRn(SIUL2_PB_01_IMCR_S32G_I2C0_SCLK));
+-}
+-
+-void setup_iomux_i2c_pb03_pb04(void)
+-{
+-	/* I2C1 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_04));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SDA,
+-	       SIUL2_1_IMCRn(SIUL2_PB_04_IMCR_S32G_I2C1_SDA));
+-
+-	/* I2C1 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_03));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SCLK,
+-	       SIUL2_1_IMCRn(SIUL2_PB_03_IMCR_S32G_I2C1_SCLK));
+-}
+-
+-void setup_iomux_i2c_pb05_pb06(void)
+-{
+-	/* I2C2 - Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C2_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_06));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C2_SDA,
+-	       SIUL2_1_IMCRn(SIUL2_PB_06_IMCR_S32G_I2C2_SDA));
+-
+-	/* I2C2 - Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C2_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_05));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C2_SCLK,
+-	       SIUL2_1_IMCRn(SIUL2_PB_05_IMCR_S32G_I2C2_SCLK));
+-}
+-
+-void setup_iomux_i2c_pc01_pc02(void)
+-{
+-	/* PMIC */
+-	/* I2C4 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C4_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PC_01));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SDA,
+-	       SIUL2_1_IMCRn(SIUL2_PC_01_IMCR_S32G_I2C4_SDA));
+-
+-	/* I2C4 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C4_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PC_02));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SCLK,
+-	       SIUL2_1_IMCRn(SIUL2_PC_02_IMCR_S32G_I2C4_SCLK));
+-}
+-
+-void setup_iomux_i2c_pc05_pc06(void)
+-{
+-	/* I2C2 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C2_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_06));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C2_SDA,
+-	       SIUL2_1_IMCRn(SIUL2_PB_06_IMCR_S32G_I2C2_SDA));
+-
+-	/* I2C2 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C2_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_05));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C2_SCLK,
+-	       SIUL2_1_IMCRn(SIUL2_PB_05_IMCR_S32G_I2C2_SCLK));
+-}
+-
+-#if defined(CONFIG_FSL_DSPI)
+-__weak void setup_iomux_dspi(void)
+-{
+-	/* Muxing for DSPI1 */
+-
+-	/* Configure Chip Select Pins */
+-	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI1_CS0,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_07));
+-
+-	/* MSCR */
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_06));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PF_15));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_08));
+-
+-	/* IMCR */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_SPI1_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PF_15_IMCR_S32G_SPI1_SIN));
+-
+-	/* Muxing for DSPI5 */
+-
+-	/* Configure Chip Select Pins */
+-	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI5_CS0,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_12));
+-
+-	/* MSCR */
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI5_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_11));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI5_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_10));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI5_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_09));
+-
+-	/* IMCR */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_SPI5_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PA_10_IMCR_S32G_SPI5_SIN));
+-}
+-#endif
+-
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-void setup_iomux_sdhc(void)
+-{
+-	/* Set iomux PADS for USDHC */
+-	/* PC14 pad: uSDHC SD0_CLK_O  */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_CLK, SIUL2_0_MSCRn(46));
+-
+-	/* PC15 pad: uSDHC SDO_CMD_0 */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_CMD, SIUL2_0_MSCRn(47));
+-	writel(0x2, SIUL2_0_MSCRn(515));
+-
+-	/* PD00 pad: uSDHC SD0_D_O[0] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(48));
+-	writel(0x2, SIUL2_0_MSCRn(516));
+-
+-	/* PD01 pad: uSDHC SD0_D_O[1] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(49));
+-	writel(0x2, SIUL2_0_MSCRn(517));
+-
+-	/* PD02 pad: uSDHC SD0_D_O[2] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(50));
+-	writel(0x2, SIUL2_0_MSCRn(520));
+-
+-	/* PD03 pad: uSDHC SD0_D_O[3] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(51));
+-	writel(0x2, SIUL2_0_MSCRn(521));
+-
+-	/* PD04 pad: uSDHC SD0_D_O[4] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(52));
+-	writel(0x2, SIUL2_0_MSCRn(522));
+-
+-	/* PD05 pad: uSDHC SD0_D_O[5] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(53));
+-	writel(0x2, SIUL2_0_MSCRn(523));
+-
+-	/* PD06 pad: uSDHC SD0_D_O[6] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(54));
+-	writel(0x2, SIUL2_0_MSCRn(519));
+-
+-	/* PD07 pad: uSDHC SD0_D_O[7] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(55));
+-	writel(0x2, SIUL2_0_MSCRn(518));
+-
+-	/* PD08 pad: uSDHC SDO_RST */
+-	writel(SIUL2_USDHC_S32_G1_PAD_RST, SIUL2_0_MSCRn(56));
+-
+-	/* PD10 pad: uSDHC SD0_DQS_I */
+-	writel(0x2, SIUL2_0_MSCRn(524));
+-}
+-#else
+-/* The previous-stage bootloader (TF-A) is expected to have handled this. */
+-void setup_iomux_sdhc(void)
+-{
+-}
+-#endif /* CONFIG_S32_STANDALONE_BOOT_FLOW */
+-#endif
+diff --git a/board/freescale/s32-gen1/s32g274abluebox3.c b/board/freescale/s32-gen1/s32g274abluebox3.c
+index 754037234a..efb9f7dac6 100644
+--- a/board/freescale/s32-gen1/s32g274abluebox3.c
++++ b/board/freescale/s32-gen1/s32g274abluebox3.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2020 NXP
++ * Copyright 2018-2021 NXP
+  */
+ #include <asm/arch/soc.h>
+ #include <board_common.h>
+@@ -60,61 +60,6 @@ void setup_iomux_uart(void)
+ #endif
+ }
+ 
+-void setup_iomux_i2c(void)
+-{
+-	setup_iomux_i2c_pb00_pb01();
+-	setup_iomux_i2c_pb03_pb04();
+-	setup_iomux_i2c_pb05_pb06();
+-	setup_iomux_i2c_pc01_pc02();
+-}
+-
+-#ifdef CONFIG_FSL_DSPI
+-void setup_iomux_dspi(void)
+-{
+-	/* DSPI0 */
+-	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI0_CS1,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_09));
+-
+-	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI0_CS2,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_10));
+-
+-	/* MSCR */
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI0_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_15));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI0_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_14));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI0_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_13));
+-
+-	/* IMCR */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_SPI0_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PA_14_IMCR_S32G_SPI0_SIN));
+-
+-	/* DSPI1 */
+-	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI1_CS0,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_07));
+-
+-	writel(SUIL2_MSCR_S32G_PAD_CTL_SPI1_CS3,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PE_05));
+-
+-	/* MSCR */
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_06));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PF_15));
+-
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_SPI1_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PA_08));
+-
+-	/* IMCR */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_SPI1_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PF_15_IMCR_S32G_SPI1_SIN));
+-}
+-#endif
+-
+ static void setup_iomux_mdio(void)
+ {
+ 	/* set PF2 - MSCR[82] - for PFE MAC0 MDC*/
+diff --git a/board/freescale/s32-gen1/s32g274aemu.c b/board/freescale/s32-gen1/s32g274aemu.c
+index 9383c1e5d2..dbfb09e749 100644
+--- a/board/freescale/s32-gen1/s32g274aemu.c
++++ b/board/freescale/s32-gen1/s32g274aemu.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2019 NXP
++ * Copyright 2018-2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -19,11 +19,3 @@ void setup_iomux_uart(void)
+ #error "Unsupported UART pinmuxing configuration"
+ #endif
+ }
+-
+-void setup_iomux_i2c(void) {}
+-
+-#ifdef CONFIG_FSL_DSPI
+-void setup_iomux_dspi(void) {}
+-#endif
+-
+-void setup_iomux_sdhc(void) {}
+diff --git a/board/freescale/s32-gen1/s32g274aevb.c b/board/freescale/s32-gen1/s32g274aevb.c
+index e8339d5795..02805991c3 100644
+--- a/board/freescale/s32-gen1/s32g274aevb.c
++++ b/board/freescale/s32-gen1/s32g274aevb.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2020 NXP
++ * Copyright 2018-2021 NXP
+  */
+ #include <asm/arch/soc.h>
+ #include <board_common.h>
+@@ -33,118 +33,3 @@ void setup_iomux_uart(void)
+ #endif
+ }
+ 
+-void setup_iomux_i2c(void)
+-{
+-	/* Plaftorm board - PCI X16 Express (J99) */
+-	/* I2C1 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_04));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SDA,
+-	       SIUL2_1_IMCRn(SIUL2_PB_04_IMCR_S32G_I2C1_SDA));
+-
+-	/* I2C1 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_03));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SCLK,
+-	       SIUL2_1_IMCRn(SIUL2_PB_03_IMCR_S32G_I2C1_SCLK));
+-
+-	/* EEPROM - AT24C01B */
+-	/* I2C0 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_00));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SDA,
+-	       SIUL2_0_IMCRn(SIUL2_PB_00_IMCR_S32G_I2C0_SDA));
+-
+-	/* I2C0 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_01));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_IMCRn(SIUL2_PB_01_IMCR_S32G_I2C0_SCLK));
+-
+-	/* Plaftorm board - Arduino connector (J56) */
+-	setup_iomux_i2c_pc05_pc06();
+-
+-	/* PMIC - I2C4 */
+-	setup_iomux_i2c_pc01_pc02();
+-}
+-
+-#ifdef CONFIG_SAF1508BET_USB_PHY
+-struct usb_data_iomux {
+-	u32 mscr;
+-	u32 imcr;
+-};
+-
+-static const struct usb_data_iomux usb_data_pins[] = {
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PD14_USB_ULPI_DATA_O0,
+-		.imcr = SIUL2_MSCR_S32_G1_PD14_USB_ULPI_DATA_I0_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PD15_USB_ULPI_DATA_O1,
+-		.imcr = SIUL2_MSCR_S32_G1_PD15_USB_ULPI_DATA_I1_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PE0_USB_ULPI_DATA_O2,
+-		.imcr = SIUL2_MSCR_S32_G1_PE0_USB_ULPI_DATA_I2_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PE1_USB_ULPI_DATA_O3,
+-		.imcr = SIUL2_MSCR_S32_G1_PE1_USB_ULPI_DATA_I3_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PL12_USB_ULPI_DATA_O4,
+-		.imcr = SIUL2_MSCR_S32_G1_PL12_USB_ULPI_DATA_I4_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PL13_USB_ULPI_DATA_O5,
+-		.imcr = SIUL2_MSCR_S32_G1_PL13_USB_ULPI_DATA_I5_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PL14_USB_ULPI_DATA_O6,
+-		.imcr = SIUL2_MSCR_S32_G1_PL14_USB_ULPI_DATA_I6_IN,
+-	},
+-	{
+-		.mscr = SIUL2_MSCR_S32_G1_PH0_USB_ULPI_DATA_O7,
+-		.imcr = SIUL2_MSCR_S32_G1_PH0_USB_ULPI_DATA_I7_IN,
+-	},
+-};
+-
+-void setup_iomux_usb(void)
+-{
+-	size_t i;
+-	const struct usb_data_iomux *data_pin;
+-
+-	for (i = 0; i < ARRAY_SIZE(usb_data_pins); i++) {
+-		data_pin = &usb_data_pins[i];
+-		if (i < 4)
+-			writel(SIUL2_MSCR_S32G_PAD_CTL_USB_DATA,
+-			       SIUL2_0_MSCRn(data_pin->mscr));
+-		else
+-			writel(SIUL2_MSCR_S32G_PAD_CTL_USB_DATA,
+-			       SIUL2_1_MSCRn(data_pin->mscr));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2, SIUL2_1_IMCRn(data_pin->imcr));
+-	}
+-
+-	/* USB ULPI Clock In */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_USB_DATA,
+-	       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PL8_USB_ULPI_CLK_OUT));
+-	writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-	       SIUL2_1_IMCRn(SIUL2_MSCR_S32_G1_PL8_USB_ULPI_CLK_IN));
+-
+-	/* USB ULPI Bus Direction */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_USB_DATA,
+-	       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PL9_USB_ULPI_DIR_OUT));
+-	writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-	       SIUL2_1_IMCRn(SIUL2_MSCR_S32_G1_PL9_USB_ULPI_DIR_IN));
+-
+-	/* USB ULPI End Transfer */
+-	writel(SIUL2_MSCR_S32G_PAD_CTL_USB_STP,
+-	       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PL10_USB_ULPI_STP));
+-
+-	/* USB ULPI Data Flow Control */
+-	writel(SIUL2_IMCR_S32G_PAD_CTL_USB_DATA,
+-	       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PL11_USB_ULPI_NXT_OUT));
+-	writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-	       SIUL2_1_IMCRn(SIUL2_MSCR_S32_G1_PL11_USB_ULPI_NXT_IN));
+-}
+-#endif
+diff --git a/board/freescale/s32-gen1/s32g274ardb.c b/board/freescale/s32-gen1/s32g274ardb.c
+index 34878c9d27..d0a03ab895 100644
+--- a/board/freescale/s32-gen1/s32g274ardb.c
++++ b/board/freescale/s32-gen1/s32g274ardb.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2020 NXP
++ * Copyright 2018-2021 NXP
+  */
+ #include <asm/arch/soc.h>
+ #include <board_common.h>
+@@ -33,37 +33,3 @@ void setup_iomux_uart(void)
+ #endif
+ }
+ 
+-void setup_iomux_i2c(void)
+-{
+-	/* IO Expander */
+-	/* I2C0 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SDA_ALT2,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_15));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SDA_ALT3,
+-	       SIUL2_0_IMCRn(SIUL2_PB_15_IMCR_S32G_I2C1_SDA));
+-
+-	/* I2C0 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PC_00));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SCLK_ALT3,
+-	       SIUL2_0_IMCRn(SIUL2_PC_00_IMCR_S32G_I2C1_SCLK));
+-
+-	/* PCIe X1 (P1) */
+-	/* I2C1 Serial Data Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SDA_ALT3,
+-	       SIUL2_1_MSCRn(SIUL2_MSCR_S32G_PK_05));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SDA_ALT4,
+-	       SIUL2_1_IMCRn(SIUL2_PK_05_IMCR_S32G_I2C1_SDA));
+-
+-	/* I2C1 Serial Clock Input */
+-	writel(SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SCLK_ALT3,
+-	       SIUL2_1_MSCRn(SIUL2_MSCR_S32G_PK_03));
+-	writel(SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SCLK_ALT5,
+-	       SIUL2_1_IMCRn(SIUL2_PK_03_IMCR_S32G_I2C1_SCLK));
+-
+-	/* FLEXRAY connector (J5) */
+-	setup_iomux_i2c_pc05_pc06();
+-
+-	/* PMIC - I2C4 */
+-	setup_iomux_i2c_pc01_pc02();
+-}
+diff --git a/board/freescale/s32-gen1/s32g274asim.c b/board/freescale/s32-gen1/s32g274asim.c
+index 7b0842cd1e..c4fa92dfae 100644
+--- a/board/freescale/s32-gen1/s32g274asim.c
++++ b/board/freescale/s32-gen1/s32g274asim.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2019 NXP
++ * Copyright 2018-2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -113,4 +113,10 @@ void setup_iomux_dspi(void)
+ }
+ #endif
+ 
+-void setup_iomux_sdhc(void) {}
++int board_early_init_r(void)
++{
++	setup_iomux_i2c();
++	setup_iomux_dspi();
++
++	return 0;
++}
+diff --git a/board/freescale/s32-gen1/s32gen1_gmac_utils.h b/board/freescale/s32-gen1/s32gen1_gmac_utils.h
+index 9c9e694399..94ec13c860 100644
+--- a/board/freescale/s32-gen1/s32gen1_gmac_utils.h
++++ b/board/freescale/s32-gen1/s32gen1_gmac_utils.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: BSD-3-Clause */
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  */
+ #ifndef S32GEN1_GMAC_UTILS_H
+@@ -9,7 +9,7 @@
+ #include <dm/device.h>
+ #include <phy_interface.h>
+ 
+-void setup_iomux_enet_gmac(int intf);
++void setup_iomux_enet_gmac(struct udevice *dev, int intf);
+ void setup_clocks_enet_gmac(int intf, struct udevice *gmac_dev);
+ int set_tx_clk_enet_gmac(struct udevice *gmac_dev, u32 speed);
+ phy_interface_t eqos_get_interface_s32cc(struct udevice *dev);
+diff --git a/board/freescale/s32-gen1/s32r45.c b/board/freescale/s32-gen1/s32r45.c
+deleted file mode 100644
+index c301f88454..0000000000
+--- a/board/freescale/s32-gen1/s32r45.c
++++ /dev/null
+@@ -1,88 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+-/*
+- * Copyright 2019-2020 NXP
+- */
+-
+-#include <config.h>
+-#include <asm/io.h>
+-#include <asm/arch/soc.h>
+-#include <asm/arch/siul-s32r45.h>
+-
+-#if defined(CONFIG_TARGET_S32R45EVB) || defined(CONFIG_TARGET_S32R45SIM)
+-void setup_iomux_i2c(void)
+-{
+-	/* I2C0 - Serial Data Input */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTRL_I2C0_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32R45_PB_00));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTRL_I2C0_SDA,
+-	       SIUL2_0_IMCRn(SIUL2_PB_00_IMCR_S32R45_I2C0_SDA));
+-
+-	/* I2C0 - Serial Clock Input */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32R45_PB_01));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTRL_I2C0_SCLK,
+-	       SIUL2_0_IMCRn(SIUL2_PB_01_IMCR_S32R45_I2C0_SCLK));
+-
+-	/* I2C1 - Serial Data Input */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTRL_I2C1_SDA,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32R45_PA_15));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTRL_I2C1_SDA,
+-	       SIUL2_1_IMCRn(SIUL2_PA_15_IMCR_S32R45_I2C1_SDA));
+-
+-	/* I2C1 - Serial Clock Input */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTRL_I2C1_SCLK,
+-	       SIUL2_0_MSCRn(SIUL2_MSCR_S32R45_PA_14));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTRL_I2C1_SCLK,
+-	       SIUL2_1_IMCRn(SIUL2_PA_14_IMCR_S32R45_I2C1_SCLK));
+-}
+-#endif
+-
+-#if defined(CONFIG_TARGET_S32R45EVB)
+-void setup_iomux_sdhc(void)
+-{
+-	/* Set iomux PADS for USDHC */
+-
+-	/* PC14 pad: uSDHC SD0_CLK_O  */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_CLK, SIUL2_0_MSCRn(46));
+-
+-	/* PC15 pad: uSDHC SDO_CMD_0 */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_CMD, SIUL2_0_MSCRn(47));
+-	writel(0x2, SIUL2_0_MSCRn(515));
+-
+-	/* PD00 pad: uSDHC SD0_D_O[0] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(48));
+-	writel(0x2, SIUL2_0_MSCRn(516));
+-
+-	/* PD01 pad: uSDHC SD0_D_O[1] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(49));
+-	writel(0x2, SIUL2_0_MSCRn(517));
+-
+-	/* PD02 pad: uSDHC SD0_D_O[2] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(50));
+-	writel(0x2, SIUL2_0_MSCRn(520));
+-
+-	/* PD03 pad: uSDHC SD0_D_O[3] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(51));
+-	writel(0x2, SIUL2_0_MSCRn(521));
+-
+-	/* PD04 pad: uSDHC SD0_D_O[4] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(52));
+-	writel(0x2, SIUL2_0_MSCRn(522));
+-
+-	/* PD05 pad: uSDHC SD0_D_O[5] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(53));
+-	writel(0x2, SIUL2_0_MSCRn(523));
+-
+-	/* PD06 pad: uSDHC SD0_D_O[6] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(54));
+-	writel(0x2, SIUL2_0_MSCRn(519));
+-
+-	/* PD07 pad: uSDHC SD0_D_O[7] */
+-	writel(SIUL2_USDHC_S32_G1_PAD_CTRL_DATA, SIUL2_0_MSCRn(55));
+-	writel(0x2, SIUL2_0_MSCRn(518));
+-
+-	/* PD08 pad: uSDHC SD0_RST */
+-	writel(SIUL2_USDHC_S32_G1_PAD_RST, SIUL2_0_MSCRn(56));
+-}
+-#endif
+-
+diff --git a/board/freescale/s32-gen1/s32r45emu.c b/board/freescale/s32-gen1/s32r45emu.c
+index d1c67dfc6a..dad8bb1ffb 100644
+--- a/board/freescale/s32-gen1/s32r45emu.c
++++ b/board/freescale/s32-gen1/s32r45emu.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2019 NXP
++ * Copyright 2018-2021 NXP
+  */
+ 
+ #include "asm/arch-s32/siul-s32r45.h"
+@@ -26,11 +26,3 @@ void setup_iomux_uart(void)
+ #error "Unsupported UART pinmuxing configuration"
+ #endif
+ }
+-
+-void setup_iomux_sdhc(void) {}
+-
+-void setup_iomux_i2c(void) {}
+-
+-#ifdef CONFIG_FSL_DSPI
+-void setup_iomux_dspi(void) {}
+-#endif
+diff --git a/board/freescale/s32-gen1/s32r45evb.c b/board/freescale/s32-gen1/s32r45evb.c
+index 98857434d9..68f046a85c 100644
+--- a/board/freescale/s32-gen1/s32r45evb.c
++++ b/board/freescale/s32-gen1/s32r45evb.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2020 NXP
++ * Copyright 2018-2021 NXP
+  */
+ 
+ #include "asm/arch-s32/siul-s32r45.h"
+@@ -19,94 +19,3 @@ void setup_iomux_uart(void)
+ #error "Unsupported UART pinmuxing configuration"
+ #endif
+ }
+-
+-#ifdef CONFIG_FSL_DSPI
+-void setup_iomux_dspi(void)
+-{
+-	/* DSPI 1*/
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI1_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_PB04_MSCR_S32R45_DSPI1_SCK));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI1_SCK,
+-	       SIUL2_1_IMCRn(SIUL2_PB04_IMCR_S32R45_DSPI1_SCK));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_PB05_MSCR_S32R45_DSPI1_SIN));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI1_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PB05_IMCR_S32R45_DSPI1_SIN));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI1_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_PB06_MSCR_S32R45_DSPI1_SOUT));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI1_PCS0,
+-	       SIUL2_0_MSCRn(SIUL2_PB07_MSCR_S32R45_DSPI1_PCS0));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI1_PCS1,
+-	       SIUL2_0_MSCRn(SIUL2_PB08_MSCR_S32R45_DSPI1_PCS1));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI1_PCS2,
+-	       SIUL2_0_MSCRn(SIUL2_PC03_MSCR_S32R45_DSPI1_PCS2));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI1_PCS3,
+-	       SIUL2_0_MSCRn(SIUL2_PB10_MSCR_S32R45_DSPI1_PCS3));
+-
+-	/* DSPI 2 */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI2_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_PB11_MSCR_S32R45_DSPI2_SCK));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI2_SCK,
+-	       SIUL2_1_IMCRn(SIUL2_PB11_IMCR_S32R45_DSPI2_SCK));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_PC01_MSCR_S32R45_DSPI2_SIN));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI2_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PC01_IMCR_S32R45_DSPI2_SIN));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI2_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_PB13_MSCR_S32R45_DSPI2_SOUT));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI2_PCS0,
+-	       SIUL2_0_MSCRn(SIUL2_PB14_MSCR_S32R45_DSPI2_PCS0));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI2_PCS1,
+-	       SIUL2_0_MSCRn(SIUL2_PB15_MSCR_S32R45_DSPI2_PCS1));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI2_PCS2,
+-	       SIUL2_0_MSCRn(SIUL2_PB09_MSCR_S32R45_DSPI2_PCS2));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI2_PCS3,
+-	       SIUL2_0_MSCRn(SIUL2_PC02_MSCR_S32R45_DSPI2_PCS3));
+-
+-	/* DSPI 3 */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI3_SCK,
+-	       SIUL2_0_MSCRn(SIUL2_PC04_MSCR_S32R45_DSPI3_SCK));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI3_SCK,
+-	       SIUL2_1_IMCRn(SIUL2_PC04_IMCR_S32R45_DSPI3_SCK));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI_SIN,
+-	       SIUL2_0_MSCRn(SIUL2_PC06_MSCR_S32R45_DSPI3_SIN));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI3_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PC06_IMCR_S32R45_DSPI3_SIN));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI3_SOUT,
+-	       SIUL2_0_MSCRn(SIUL2_PC13_MSCR_S32R45_DSPI3_SOUT));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI3_PCS0,
+-	       SIUL2_0_MSCRn(SIUL2_PC07_MSCR_S32R45_DSPI3_PCS0));
+-
+-	/* DSPI 5 */
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI5_SCK,
+-	       SIUL2_1_MSCRn(SIUL2_PK00_MSCR_S32R45_DSPI5_SCK));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI5_SCK,
+-	       SIUL2_1_IMCRn(SIUL2_PK00_IMCR_S32R45_DSPI5_SCK));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI_SIN,
+-	       SIUL2_1_MSCRn(SIUL2_PK04_MSCR_S32R45_DSPI5_SIN));
+-	writel(SIUL2_IMCR_S32R45_PAD_CTL_DSPI5_SIN,
+-	       SIUL2_1_IMCRn(SIUL2_PK04_IMCR_S32R45_DSPI5_SIN));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI5_SOUT,
+-	       SIUL2_1_MSCRn(SIUL2_PK05_MSCR_S32R45_DSPI5_SOUT));
+-
+-	writel(SIUL2_MSCR_S32R45_PAD_CTL_DSPI5_PCS0,
+-	       SIUL2_1_MSCRn(SIUL2_PK03_MSCR_S32R45_DSPI5_PCS0));
+-}
+-#endif
+diff --git a/board/freescale/s32-gen1/s32r45sim.c b/board/freescale/s32-gen1/s32r45sim.c
+index 3d61281c25..b377be8d75 100644
+--- a/board/freescale/s32-gen1/s32r45sim.c
++++ b/board/freescale/s32-gen1/s32r45sim.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2019 NXP
++ * Copyright 2018-2021 NXP
+  */
+ 
+ #include "asm/arch-s32/siul-s32r45.h"
+@@ -20,8 +20,3 @@ void setup_iomux_uart(void)
+ #endif
+ }
+ 
+-void setup_iomux_sdhc(void) {}
+-
+-#ifdef CONFIG_FSL_DSPI
+-void setup_iomux_dspi(void) {}
+-#endif
+diff --git a/drivers/net/dwc_eth_qos_s32cc.c b/drivers/net/dwc_eth_qos_s32cc.c
+index 005ea55c11..59b560f9e6 100644
+--- a/drivers/net/dwc_eth_qos_s32cc.c
++++ b/drivers/net/dwc_eth_qos_s32cc.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  */
+ 
+@@ -116,7 +116,7 @@ static const char *s32ccgmac_cfg_get_interface_mode_str(void)
+ 
+ static bool s32ccgmac_set_interface(struct udevice *dev, u32 mode)
+ {
+-	setup_iomux_enet_gmac(mode);
++	setup_iomux_enet_gmac(dev, mode);
+ 	setup_clocks_enet_gmac(mode, dev);
+ 
+ 	mac_intf = mode;
+@@ -138,7 +138,7 @@ static int eqos_start_clks_s32cc(struct udevice *dev)
+ {
+ 	u32 mode = eqos_get_interface_s32cc(dev);
+ 
+-	setup_iomux_enet_gmac(mode);
++	setup_iomux_enet_gmac(dev, mode);
+ 	setup_clocks_enet_gmac(mode, dev);
+ 
+ 	return 0;
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index b13345e3fc..0c56d6a526 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (c) 2020 Imagination Technologies Limited
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  */
+ 
+@@ -23,6 +23,7 @@
+ #include <dt-bindings/clock/s32g274a-clock.h>
+ #include <s32gen1_clk_utils.h>
+ #include <dm/device_compat.h>
++#include <dm/pinctrl.h>
+ 
+ #include "pfeng.h"
+ 
+@@ -416,88 +417,20 @@ static void setup_pfe_clocks(int intf0, int intf1, int intf2,
+ 	}
+ }
+ 
+-static void setup_iomux_pfe(int intf0, int intf1, int intf2)
++static void setup_iomux_pfe(struct udevice *dev,
++			    int intf0, int intf1, int intf2)
+ {
+ 	/* EMAC 0 */
+ 
+ 	switch (intf0) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+-		/* SerDes_1 lane_0 */
++		pinctrl_select_state(dev, "pfe0_sgmii");
+ 		break;
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+-		/* set PF2 - MSCR[82] - for PFE MAC0 MDC*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF2));
+-
+-		/* set PE15 - MSCR[79] - for PFE MAC0 MDO*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_S32_G1_PFE_IN
+-		       | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE15));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_MDO_IN));
+-
+-		/* set PH6 - MSCR[118] - for PFE MAC0 RXD0*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH6));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_RXD0_IN));
+-
+-		/* set PH7 - MSCR[119] - for PFE MAC0 RXD1*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH7));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_RXD1_IN));
+-
+-		/* set PH8 - MSCR[120] - for PFE MAC0 RXD2*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH8));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_RXD2_IN));
+-
+-		/* set PH9 - MSCR[121] - for PFE MAC0 RXD3*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH9));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_RXD3_IN));
+-
+-		/* set PH5 - MSCR[117] - for PFE MAC0 RX CTRL*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH5));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_RXDV_IN));
+-
+-		/* set PH4 - MSCR[116] - for PFE MAC0 RX CLK*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH4));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC0_RX_CLK_IN));
+-
+-		/* set PJ0 - MSCR[144] - for PFE MAC0 TXD0*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PJ0));
+-
+-		/* set PH1 - MSCR[113] - for PFE MAC0 TXD1*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH1));
+-
+-		/* set PH2 - MSCR[114] - for PFE MAC0 TXD2*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH2));
+-
+-		/* set PH3 - MSCR[115] - for PFE MAC0 TXD3*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH3));
+-
+-		/* set PH10 - MSCR[122] - for PFE MAC0 TX CLK*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH10));
+-
+-		/* set PE14 - MSCR[78] - for PFE MAC0 TX EN*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT1,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE14));
++		pinctrl_select_state(dev, "pfe0_rgmii");
+ #endif
+ #endif
+ 		break;
+@@ -518,82 +451,13 @@ static void setup_iomux_pfe(int intf0, int intf1, int intf2)
+ 
+ 	switch (intf1) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+-		/* SerDes_1 lane_1 */
++		pinctrl_select_state(dev, "pfe1_sgmii");
+ 		break;
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+-		/* set PD12 - MSCR[60] - for PFE MAC1 MDC*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PD12));
+-
+-		/* set PD13 - MSCR[61] - for PFE MAC1 MDO*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_S32_G1_PFE_IN
+-		       | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PD13));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_MDI_IN));
+-
+-		/* set PE10 - MSCR[74] - for PFE MAC1 RXD0*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE10));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_RXD0_IN));
+-
+-		/* set PE11 - MSCR[75] - for PFE MAC1 RXD1*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE11));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_RXD1_IN));
+-
+-		/* set PE12 - MSCR[76] - for PFE MAC1 RXD2*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE12));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_RXD2_IN));
+-
+-		/* set PE13 - MSCR[77] - for PFE MAC1 RXD3*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE13));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_RXD3_IN));
+-
+-		/* set PE9 - MSCR[73] - for PFE MAC1 RX CTRL*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE9));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_RXDV_IN));
+-
+-		/* set PE8 - MSCR[72] - for PFE MAC1 RX CLK*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE8));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC1_RX_CLK_IN));
+-
+-		/* set PE4 - MSCR[68] - for PFE MAC1 TXD0*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE4));
+-
+-		/* set PE5 - MSCR[69] - for PFE MAC1 TXD1*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE5));
+-
+-		/* set PE6 - MSCR[70] - for PFE MAC1 TXD2*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE6));
+-
+-		/* set PE7 - MSCR[71] - for PFE MAC1 TXD3*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE7));
+-
+-		/* set PE2 - MSCR[66] - for PFE MAC1 TX CLK*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE2));
+-
+-		/* set PE3 - MSCR[67] - for PFE MAC1 TX EN*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE3));
++		pinctrl_select_state(dev, "pfe1_rgmii");
+ #endif
+ #endif
+ 		break;
+@@ -614,82 +478,13 @@ static void setup_iomux_pfe(int intf0, int intf1, int intf2)
+ 
+ 	switch (intf2) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+-		/* SerDes_0 lane_1 */
++		pinctrl_select_state(dev, "pfe2_sgmii");
+ 		break;
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G274AEVB) || CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
+ #if !CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+-		/* set PF2 - MSCR[82] - for PFE MAC2 MDC*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PF2));
+-
+-		/* set PE15 - MSCR[79] - for PFE MAC2 MDO*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_S32_G1_PFE_IN
+-		       | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE15));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_MDO_IN));
+-
+-		/* set PH6 - MSCR[118] - for PFE MAC2 RXD0*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH6));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_RXD0_IN));
+-
+-		/* set PH7 - MSCR[119] - for PFE MAC2 RXD1*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH7));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_RXD1_IN));
+-
+-		/* set PH8 - MSCR[120] - for PFE MAC2 RXD2*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH8));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_RXD2_IN));
+-
+-		/* set PH9 - MSCR[121] - for PFE MAC2 RXD3*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH9));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_RXD3_IN));
+-
+-		/* set PH5 - MSCR[117] - for PFE MAC2 RX CTRL*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH5));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_RXDV_IN));
+-
+-		/* set PH4 - MSCR[116] - for PFE MAC2 RX CLK*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_IN,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH4));
+-		writel(SIUL2_MSCR_MUX_MODE_ALT3,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PFE_MAC2_RX_CLK_IN));
+-
+-		/* set PJ0 - MSCR[144] - for PFE MAC2 TXD0*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PJ0));
+-
+-		/* set PH1 - MSCR[113] - for PFE MAC2 TXD1*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH1));
+-
+-		/* set PH2 - MSCR[114] - for PFE MAC2 TXD2*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH2));
+-
+-		/* set PH3 - MSCR[115] - for PFE MAC2 TXD3*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH3));
+-
+-		/* set PH10 - MSCR[122] - for PFE MAC2 TX CLK*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_1_MSCRn(SIUL2_MSCR_S32_G1_PH10));
+-
+-		/* set PE14 - MSCR[78] - for PFE MAC2 TX EN*/
+-		writel(SIUL2_MSCR_S32_G1_PFE_OUT | SIUL2_MSCR_MUX_MODE_ALT2,
+-		       SIUL2_0_MSCRn(SIUL2_MSCR_S32_G1_PE14));
++		pinctrl_select_state(dev, "pfe2_rgmii");
+ #endif
+ #endif
+ 		break;
+@@ -772,7 +567,7 @@ static int pfeng_cfg_mode_enable(struct udevice *pfe_dev)
+ 	writel(PFE_COH_PORTS_MASK_HIF_0_3, S32G_PFE_COH_EN);
+ 
+ 	/* Setup pins */
+-	setup_iomux_pfe(emac_intf[0], emac_intf[1], emac_intf[2]);
++	setup_iomux_pfe(pfe_dev, emac_intf[0], emac_intf[1], emac_intf[2]);
+ 
+ 	/* Setup clocks */
+ 	priv->clocks_done = false;
+@@ -957,7 +752,7 @@ static int do_pfeng_cmd(cmd_tbl_t *cmdtp, int flag,
+ 			print_emacs_mode("  ");
+ 			return 0;
+ 		} else if (!strcmp(argv[2], "reapply-clocks")) {
+-			setup_iomux_pfe(emac_intf[0], emac_intf[1],
++			setup_iomux_pfe(pfe_dev, emac_intf[0], emac_intf[1],
+ 					emac_intf[2]);
+ 			pfeng_apply_clocks(pfe_dev);
+ 			printf("PFE reapply clocks\n");
+-- 
+2.17.1
+

@@ -1,0 +1,113 @@
+From 167b62314148bcfcb5600f56a342572ada51f441 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 10 Dec 2020 11:14:06 +0200
+Subject: [PATCH 06/77] gpio: s32-gen1: Fix double free
+
+This commits avoids a bug in regmap_debugfs_init. It can reproduced when
+a regmap is reinitialized using NULL pointer as name.
+
+The problem was reported by KASAN:
+
+BUG: KASAN: double-free or invalid-free in regmap_debugfs_init+0x2d8/0x3c0
+
+CPU: 0 PID: 1 Comm: swapper/0 Not tainted 5.4.69-rt39-00006-g7e92623 #733
+Hardware name: Freescale S32G274 (DT)
+Call trace:
+ dump_backtrace+0x0/0x200
+ show_stack+0x14/0x20
+ dump_stack+0xd8/0x144
+ print_address_description.isra.7+0x70/0x360
+ kasan_report_invalid_free+0x78/0xb8
+ __kasan_slab_free+0x138/0x168
+ kasan_slab_free+0x10/0x18
+ kfree+0x94/0x108
+ regmap_debugfs_init+0x2d8/0x3c0
+ regmap_reinit_cache+0xf8/0x130
+ reinit_regmap_conf+0xbc/0xf0
+ siul2_gpio_probe+0xec/0x608
+ platform_drv_probe+0x6c/0xd0
+ really_probe+0x2d4/0x488
+ driver_probe_device+0x78/0x140
+ device_driver_attach+0x94/0xa0
+ __driver_attach+0xd0/0x120
+ bus_for_each_dev+0xdc/0x150
+ driver_attach+0x30/0x40
+ bus_add_driver+0x238/0x2d8
+ driver_register+0xb4/0x1c8
+ __platform_driver_register+0x7c/0x88
+ siul2_gpio_init+0x18/0x20
+
+Issue: ALB-6099
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/gpio/gpio-siul2-s32gen1.c | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpio/gpio-siul2-s32gen1.c b/drivers/gpio/gpio-siul2-s32gen1.c
+index 76caa9df6f1f..75fb76d23261 100644
+--- a/drivers/gpio/gpio-siul2-s32gen1.c
++++ b/drivers/gpio/gpio-siul2-s32gen1.c
+@@ -466,10 +466,17 @@ static const struct regmap_config siul2_regmap_conf = {
+ 	.cache_type = REGCACHE_FLAT,
+ };
+ 
+-static int common_regmap_conf(struct regmap *map, struct regmap_config *conf)
++static int common_regmap_conf(struct device *dev, struct regmap *map,
++			      struct regmap_config *conf, const char *name)
+ {
+ 	conf->max_register = regmap_get_max_register(map);
+ 	conf->reg_stride = regmap_get_reg_stride(map);
++	conf->name = devm_kasprintf(dev, GFP_KERNEL, "%s-%s",
++					   dev_name(dev), name);
++	if (!conf->name) {
++		dev_err(dev, "Failed to allocated regmap name\n");
++		return -ENOMEM;
++	}
+ 
+ 	return regmap_reinit_cache(map, conf);
+ }
+@@ -488,19 +495,19 @@ static bool irqregmap_writeable(struct device *dev, unsigned int reg)
+ 	};
+ }
+ 
+-static int reinit_irqregmap_conf(struct regmap *map)
++static int reinit_irqregmap_conf(struct device *dev, struct regmap *map)
+ {
+ 	struct regmap_config regmap_conf = siul2_regmap_conf;
+ 
+ 	regmap_conf.writeable_reg = irqregmap_writeable;
+-	return common_regmap_conf(map, &regmap_conf);
++	return common_regmap_conf(dev, map, &regmap_conf, "irq");
+ }
+ 
+-static int reinit_regmap_conf(struct regmap *map)
++static int reinit_opadregmap_conf(struct device *dev, struct regmap *map)
+ {
+ 	struct regmap_config regmap_conf = siul2_regmap_conf;
+ 
+-	return common_regmap_conf(map, &regmap_conf);
++	return common_regmap_conf(dev, map, &regmap_conf, "opad");
+ }
+ 
+ static int siul2_irq_setup(struct platform_device *pdev,
+@@ -527,7 +534,7 @@ static int siul2_irq_setup(struct platform_device *pdev,
+ 	if (IS_ERR(gpio_dev->irqmap))
+ 		return PTR_ERR(gpio_dev->irqmap);
+ 
+-	ret = reinit_irqregmap_conf(gpio_dev->irqmap);
++	ret = reinit_irqregmap_conf(&pdev->dev, gpio_dev->irqmap);
+ 	if (ret) {
+ 		dev_err(&pdev->dev,
+ 			"Failed to reinitialize regmap configuration\n");
+@@ -749,7 +756,7 @@ static int siul2_gpio_pads_init(struct platform_device *pdev,
+ 		return PTR_ERR(gpio_dev->opadmap);
+ 	}
+ 
+-	ret = reinit_regmap_conf(gpio_dev->opadmap);
++	ret = reinit_opadregmap_conf(&pdev->dev, gpio_dev->opadmap);
+ 	if (ret) {
+ 		dev_err(&pdev->dev,
+ 			"Failed to reinitialize regmap configuration\n");
+-- 
+2.17.1
+

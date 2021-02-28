@@ -1,0 +1,37 @@
+From f04bdd901acdc2098ceba1de43371f26924b60fc Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 28 Jan 2021 10:08:59 +0200
+Subject: [PATCH 64/76] s32g: clk: Add SAR_ADC clock
+
+Issue: ALB-6381
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ include/dt-bindings/clock/s32gen1-scmi-clock.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/include/dt-bindings/clock/s32gen1-scmi-clock.h b/include/dt-bindings/clock/s32gen1-scmi-clock.h
+index 106d5cd169..2ee06823cc 100644
+--- a/include/dt-bindings/clock/s32gen1-scmi-clock.h
++++ b/include/dt-bindings/clock/s32gen1-scmi-clock.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: BSD-3-Clause */
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef __DT_BINDINGS_SCMI_CLOCK_S32GEN1_H
+ #define __DT_BINDINGS_SCMI_CLOCK_S32GEN1_H
+@@ -111,7 +111,9 @@
+ /* eDMA */
+ #define S32GEN1_SCMI_CLK_EDMA_MODULE	S32GEN1_SCMI_CLK(67)
+ #define S32GEN1_SCMI_CLK_EDMA_AHB	S32GEN1_SCMI_CLK(68)
++/* ADC */
++#define S32GEN1_SCMI_CLK_SAR_ADC_BUS	S32GEN1_SCMI_CLK(69)
+ 
+-#define S32GEN1_SCMI_PLAT_CLK_BASE_ID	S32GEN1_SCMI_CLK(69)
++#define S32GEN1_SCMI_PLAT_CLK_BASE_ID	S32GEN1_SCMI_CLK(70)
+ 
+ #endif
+-- 
+2.17.1
+

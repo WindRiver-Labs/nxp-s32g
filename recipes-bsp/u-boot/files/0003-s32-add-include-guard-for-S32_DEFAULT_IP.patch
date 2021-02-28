@@ -1,0 +1,31 @@
+From 3f9f66d5f0db4e551535db7f63b4f40b9036bc30 Mon Sep 17 00:00:00 2001
+From: Radu Pirea <radu-nicolae.pirea@nxp.com>
+Date: Thu, 19 Nov 2020 17:46:46 +0200
+Subject: [PATCH 03/76] s32: add include guard for S32_DEFAULT_IP
+
+Add include guard for S32_DEFAULT_IP.
+
+Issue: ALB-5671
+
+Signed-off-by: Radu Pirea <radu-nicolae.pirea@nxp.com>
+---
+ include/configs/s32.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index c75361f258..6e9ce34e86 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -297,7 +297,9 @@
+ #define FEC_EXTRA_ENV_SETTINGS	""
+ #endif
+ 
++#ifndef S32_DEFAULT_IP
+ #define S32_DEFAULT_IP "10.0.0.100\0"
++#endif
+ 
+ /*
+  * Enable CONFIG_BOARD_USE_RAMFS_IN_NFSBOOT if u-boot should use a ramdisk
+-- 
+2.17.1
+

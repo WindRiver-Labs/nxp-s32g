@@ -1,0 +1,37 @@
+From feacf4ae2602a824948945d04cfbadf50340f96c Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Fri, 5 Feb 2021 17:24:05 +0200
+Subject: [PATCH 68/78] serial:linflex: Revert restart workaround
+
+The workaround is not necessary anymore since we are now
+waiting for the fifo to be empty before entering INITM.
+
+Issue: ALB-6257, ALB-6375
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/tty/serial/fsl_linflexuart.c | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/drivers/tty/serial/fsl_linflexuart.c b/drivers/tty/serial/fsl_linflexuart.c
+index 9a292b196222..9b6cd3e0e2b7 100644
+--- a/drivers/tty/serial/fsl_linflexuart.c
++++ b/drivers/tty/serial/fsl_linflexuart.c
+@@ -1153,15 +1153,6 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
+ 	cr |= (LINFLEXD_UARTCR_TXEN) | (LINFLEXD_UARTCR_RXEN);
+ 	writel(cr, sport->port.membase + UARTCR);
+ 
+-	/* Workaround for driver hanging when running the 'reboot'
+-	 * command because of the DTFTFF bit in UARTSR not being cleared.
+-	 * The issue is assumed to be caused by a hardware bug.
+-	 * Only apply the workaround after the boot sequence is
+-	 * assumed to be complete.
+-	 */
+-	if ((jiffies - INITIAL_JIFFIES) / HZ > 10)
+-		linflex_string_write(sport, "", 1);
+-
+ 	/* Re-enable the interrupts if case. */
+ 	ier = readl(sport->port.membase + LINIER);
+ 	if (!sport->dma_rx_use)
+-- 
+2.25.1
+

@@ -1,0 +1,73 @@
+From fbeef74a7a7e09daab3284cee3402857ccb56753 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 26 Nov 2020 10:06:25 +0200
+Subject: [PATCH 26/78] driver: llce-can: Add power management operations
+
+Issue: ALB-5829
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/net/can/llce_can.c | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/drivers/net/can/llce_can.c b/drivers/net/can/llce_can.c
+index 807c81ed5dea..4dc2ea0ee4dd 100644
+--- a/drivers/net/can/llce_can.c
++++ b/drivers/net/can/llce_can.c
+@@ -762,6 +762,38 @@ static int llce_can_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++static int __maybe_unused llce_can_suspend(struct device *device)
++{
++	struct net_device *dev = dev_get_drvdata(device);
++	struct llce_can *llce = netdev_priv(dev);
++	int ret = 0;
++
++	if (netif_running(dev)) {
++		ret = llce_can_close(dev);
++		netif_device_detach(dev);
++	}
++
++	llce->can.state = CAN_STATE_SLEEPING;
++
++	return ret;
++}
++
++static int __maybe_unused llce_can_resume(struct device *device)
++{
++	struct net_device *dev = dev_get_drvdata(device);
++	struct llce_can *llce = netdev_priv(dev);
++	int ret = 0;
++
++	llce->can.state = CAN_STATE_ERROR_ACTIVE;
++
++	if (netif_running(dev)) {
++		netif_device_attach(dev);
++		ret = llce_can_open(dev);
++	}
++
++	return ret;
++}
++
+ static const struct of_device_id llce_can_match[] = {
+ 	{
+ 		.compatible = "nxp,s32g274a-llce-can",
+@@ -770,12 +802,15 @@ static const struct of_device_id llce_can_match[] = {
+ };
+ MODULE_DEVICE_TABLE(of, llce_can_match);
+ 
++static SIMPLE_DEV_PM_OPS(llce_can_pm_ops, llce_can_suspend, llce_can_resume);
++
+ static struct platform_driver llce_can_driver = {
+ 	.probe = llce_can_probe,
+ 	.remove = llce_can_remove,
+ 	.driver = {
+ 		.name = "llce_can",
+ 		.of_match_table = llce_can_match,
++		.pm = &llce_can_pm_ops,
+ 	},
+ };
+ module_platform_driver(llce_can_driver)
+-- 
+2.25.1
+

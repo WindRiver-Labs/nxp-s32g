@@ -1,0 +1,82 @@
+From 1d302335ec3a160d86dafad3d194d98d78e03a64 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 10 Dec 2020 12:07:30 +0200
+Subject: [PATCH 16/76] s32g2xx: siul2: Add ids for S32G254A and S32G233A
+
+Issue: ALB-6004, ALB-6005
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ arch/arm/include/asm/arch-s32/siul.h | 50 ++++++++++++++++++++++++++++
+ 1 file changed, 50 insertions(+)
+
+diff --git a/arch/arm/include/asm/arch-s32/siul.h b/arch/arm/include/asm/arch-s32/siul.h
+index 59c5c4e875..53c1452b1a 100644
+--- a/arch/arm/include/asm/arch-s32/siul.h
++++ b/arch/arm/include/asm/arch-s32/siul.h
+@@ -57,6 +57,8 @@
+ #ifdef CONFIG_S32_GEN1
+ #define SIUL2_MIDR2_SUBMINOR_SHIFT	(26)
+ #define SIUL2_MIDR2_SUBMINOR_MASK	(0xF << SIUL2_MIDR2_SUBMINOR_SHIFT)
++#define SIUL2_MIDR1_DERIV_MASK		(0xFFFF0000U)
++#define SIUL2_MIDR1_OFF			(16U)
+ #endif  /* CONFIG_S32_GEN1 */
+ 
+ #define TREERUNNER_GENERATION_2_MAJOR	1
+@@ -69,6 +71,54 @@
+ #error "Incomplete platform definition"
+ #endif
+ 
++#ifdef CONFIG_NXP_S32G2XX
++enum s32g2_derivative {
++	S32G274A_DERIV,
++	S32G254A_DERIV,
++	S32G233A_DERIV,
++	S32G2_INVAL_DERIV,
++};
++
++static inline enum s32g2_derivative get_s32g2_derivative(void)
++{
++	u32 deriv;
++
++	deriv = readl(SIUL2_MIDR1) & SIUL2_MIDR1_DERIV_MASK;
++	deriv >>= SIUL2_MIDR1_OFF;
++
++	switch (deriv) {
++	case 0x1D12U:
++		return S32G274A_DERIV;
++	case 0x1CFEU:
++		return S32G254A_DERIV;
++	case 0x1CE9U:
++		return S32G233A_DERIV;
++	};
++
++	pr_err("Invalid S32G2 derivative: 0x%x\n", deriv);
++	return S32G2_INVAL_DERIV;
++}
++
++static inline const char *get_s32g2_deriv_name(void)
++{
++	enum s32g2_derivative deriv;
++
++	deriv = get_s32g2_derivative();
++	switch (deriv) {
++	case S32G274A_DERIV:
++		return "S32G274A";
++	case S32G254A_DERIV:
++		return "S32G254A";
++	case S32G233A_DERIV:
++		return "S32G233A";
++	case S32G2_INVAL_DERIV:
++		return "INVAL";
++	}
++
++	return "INVAL";
++}
++#endif
++
+ static inline int get_siul2_midr1_minor(void)
+ {
+ 	return (readl(SIUL2_MIDR1) & SIUL2_MIDR1_MINOR_MASK);
+-- 
+2.17.1
+

@@ -1,0 +1,30 @@
+From 8413d71b2697620a0745f34a26306fd04a1abe36 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Fri, 5 Feb 2021 14:39:38 +0200
+Subject: [PATCH 60/78] mailbox: llce: Limit the warning messages
+
+Spamming the console with warning messages makes the board unusable.
+
+Issue: ALB-6442
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/mailbox/llce-mailbox.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mailbox/llce-mailbox.c b/drivers/mailbox/llce-mailbox.c
+index 0677b09b69ee..19682eefef30 100644
+--- a/drivers/mailbox/llce-mailbox.c
++++ b/drivers/mailbox/llce-mailbox.c
+@@ -924,7 +924,8 @@ static void process_channel_err(struct llce_mb *mb,
+ {
+ 	enum llce_can_module module_id = error->error_info.module_id;
+ 
+-	dev_warn(mb->controller.dev, "Error module:%s Error:%s HW module:%d\n",
++	net_warn_ratelimited("%s: Error module:%s Error:%s HW module:%d\n",
++		 dev_name(mb->controller.dev),
+ 		 get_module_name(module_id),
+ 		 get_error_name(error->error_info.error_code),
+ 		 error->hw_ctrl);
+-- 
+2.25.1
+

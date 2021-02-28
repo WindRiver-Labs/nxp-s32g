@@ -1,0 +1,69 @@
+From 6ff4059a3aa997f2ca3ff2bead34c918128cfc2b Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Tue, 12 Jan 2021 13:08:07 +0200
+Subject: [PATCH 39/78] dma:fsl-edma: Disable request only when no hw request
+ available
+
+According to S32G2_RM_Rev2_DraftF, in Suspend an active DMA channel,
+"Check the DMA's Hardware Request Status (HRS) to ensure there is no
+service request to the DMA channel being suspended. Then disable
+the hardware service request by clearing the ERQ field to 0 on the
+appropriate DMA channel."
+
+Issue: ALB-5882
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/dma/fsl-edma-common.h | 5 ++++-
+ drivers/dma/fsl-edma.c        | 6 +++++-
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/dma/fsl-edma-common.h b/drivers/dma/fsl-edma-common.h
+index 96922fa9d5a7..30fef49e19ca 100644
+--- a/drivers/dma/fsl-edma-common.h
++++ b/drivers/dma/fsl-edma-common.h
+@@ -2,7 +2,7 @@
+ /*
+  * Copyright 2013-2014 Freescale Semiconductor, Inc.
+  * Copyright 2018 Angelo Dureghello <angelo@sysam.it>
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef _FSL_EDMA_COMMON_H_
+ #define _FSL_EDMA_COMMON_H_
+@@ -14,6 +14,9 @@
+ /* edma3 regs. */
+ #define EDMA3_MP_CSR			0x00
+ #define EDMA3_MP_ES			0x04
++#define EDMA3_MP_HRS			0x0C
++
++#define EDMA3_MP_HRS_CH(ch)		BIT(ch)
+ 
+ #define EDMA3_CHn_CSR(ch)	(0x4000 + (ch) * 0x1000)
+ #define EDMA3_CHn_ES(ch)	(0x4004 + (ch) * 0x1000)
+diff --git a/drivers/dma/fsl-edma.c b/drivers/dma/fsl-edma.c
+index 0689fd10b1ca..7448c20744fc 100755
+--- a/drivers/dma/fsl-edma.c
++++ b/drivers/dma/fsl-edma.c
+@@ -3,7 +3,7 @@
+  * drivers/dma/fsl-edma.c
+  *
+  * Copyright 2013-2014 Freescale Semiconductor, Inc.
+- * Copyright 2017-2020 NXP
++ * Copyright 2017-2021 NXP 
+  *
+  * Driver for the Freescale eDMA engine with flexible channel multiplexing
+  * capability for DMA request sources. The eDMA block can be found on some
+@@ -48,6 +48,10 @@ static void fsl_edma3_disable_request(struct fsl_edma_chan *fsl_chan)
+ 	void __iomem *addr = fsl_chan->edma->membase;
+ 	u32 ch = fsl_chan->vchan.chan.chan_id;
+ 
++	/* Make sure there is no hardware request in progress. */
++	while (edma_readl(fsl_chan->edma, addr + EDMA3_MP_HRS)
++		& EDMA3_MP_HRS_CH(ch))
++		;
+ 	edma_writel(fsl_chan->edma, 0, addr + EDMA3_CHn_CSR(ch));
+ }
+ 
+-- 
+2.25.1
+

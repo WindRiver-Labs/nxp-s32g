@@ -1,0 +1,56 @@
+From dcdd7687668111f81a49138f57ed45fc0e1d3870 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 7 Jan 2021 14:49:22 +0200
+Subject: [PATCH 40/76] s32gen1: mmc: Enable MMC HS400 support
+
+Issue: ALB-5955
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+---
+ board/freescale/Kconfig     |  1 +
+ drivers/mmc/fsl_esdhc_imx.c | 11 ++++++++++-
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 8d1f252a1d..5a56bd43df 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -17,6 +17,7 @@ config S32_GEN1
+ 	select SCMI_FIRMWARE
+ 	select ARCH_MISC_INIT
+ 	select S32_GPIO
++	select MMC_HS400_SUPPORT
+ 	help
+ 	  Platform Selection
+ 
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index f1c222cabc..b424e24451 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -1272,6 +1272,13 @@ static int fsl_esdhc_init(struct fsl_esdhc_priv *priv,
+ 	cfg->host_caps |= MMC_MODE_DDR_52MHz;
+ #endif
+ 
++	if (priv->flags & ESDHC_FLAG_HS200)
++		cfg->host_caps |= MMC_MODE_HS200;
++	if (priv->flags & ESDHC_FLAG_HS400)
++		cfg->host_caps |= MMC_MODE_HS400;
++	if (priv->flags & ESDHC_FLAG_HS400_ES)
++		cfg->host_caps |= MMC_MODE_HS400_ES;
++
+ 	if (priv->bus_width > 0) {
+ 		if (priv->bus_width < 8)
+ 			cfg->host_caps &= ~MMC_MODE_8BIT;
+@@ -1658,7 +1665,9 @@ static struct esdhc_soc_data usdhc_imx8qm_data = {
+ };
+ 
+ static struct esdhc_soc_data usdhc_s32gen1_data = {
+-	.flags = ESDHC_FLAG_USDHC,
++	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING |
++		ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200 |
++		ESDHC_FLAG_HS400,
+ };
+ 
+ static bool is_s32gen1_usdhc(struct fsl_esdhc_priv *priv)
+-- 
+2.17.1
+

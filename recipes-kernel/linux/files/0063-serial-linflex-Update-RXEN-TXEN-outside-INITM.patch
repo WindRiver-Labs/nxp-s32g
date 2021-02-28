@@ -1,0 +1,76 @@
+From fde4ada76a7784a6b74deca461145725cb5e0a2a Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Fri, 5 Feb 2021 17:15:38 +0200
+Subject: [PATCH 63/78] serial:linflex: Update RXEN/TXEN outside INITM
+
+Move RXEN and TXEN update outside INIT mode.
+The manual doesn't prohibit the update of these fields during INIT
+mode but INIT is entered for other kind of settings.
+
+Issue: ALB-6257
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/tty/serial/fsl_linflexuart.c | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/tty/serial/fsl_linflexuart.c b/drivers/tty/serial/fsl_linflexuart.c
+index e9dd3e53a40d..b00a7a497833 100644
+--- a/drivers/tty/serial/fsl_linflexuart.c
++++ b/drivers/tty/serial/fsl_linflexuart.c
+@@ -730,8 +730,7 @@ static void linflex_setup_watermark(struct linflex_port *sport)
+ 	/* set UART bit to allow writing other bits */
+ 	writel(LINFLEXD_UARTCR_UART, sport->port.membase + UARTCR);
+ 
+-	cr = (LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN |
+-	      LINFLEXD_UARTCR_WL0 | LINFLEXD_UARTCR_UART);
++	cr = (LINFLEXD_UARTCR_WL0 | LINFLEXD_UARTCR_UART);
+ 
+ 	/* FIFO mode enabled for DMA Rx mode. */
+ 	if (sport->dma_rx_use)
+@@ -747,6 +746,9 @@ static void linflex_setup_watermark(struct linflex_port *sport)
+ 
+ 	writel(cr1, sport->port.membase + LINCR1);
+ 
++	cr |= (LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN);
++	writel(cr, sport->port.membase + UARTCR);
++
+ 	ier = readl(sport->port.membase + LINIER);
+ 	if (!sport->dma_rx_use)
+ 		ier |= LINFLEXD_LINIER_DRIE;
+@@ -954,7 +956,11 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
+ 
+ 	spin_lock_irqsave(&sport->port.lock, flags);
+ 
+-	cr = old_cr = readl(sport->port.membase + UARTCR);
++	cr = old_cr = readl(sport->port.membase + UARTCR) &
++		~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN);
++
++	/* disable transmit and receive */
++	writel(old_cr, sport->port.membase + UARTCR);
+ 
+ 	/* Enter initialization mode by setting INIT bit */
+ 	cr1 = readl(sport->port.membase + LINCR1);
+@@ -1075,10 +1081,6 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
+ 	sport->dma_rx_timeout = msecs_to_jiffies(DIV_ROUND_UP(10000000, baud));
+ #endif
+ 
+-	/* disable transmit and receive */
+-	writel(old_cr & ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN),
+-		sport->port.membase + UARTCR);
+-
+ #if !defined(CONFIG_S32GEN1_EMULATOR)
+ 	/* skip setting baudrate; use u-boot settings */
+ 	divisr = sport->port.uartclk;	//freq in Hz
+@@ -1097,6 +1099,9 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
+ 
+ 	writel(cr1, sport->port.membase + LINCR1);
+ 
++	cr |= (LINFLEXD_UARTCR_TXEN) | (LINFLEXD_UARTCR_RXEN);
++	writel(cr, sport->port.membase + UARTCR);
++
+ 	/* Workaround for driver hanging when running the 'reboot'
+ 	 * command because of the DTFTFF bit in UARTSR not being cleared.
+ 	 * The issue is assumed to be caused by a hardware bug.
+-- 
+2.25.1
+

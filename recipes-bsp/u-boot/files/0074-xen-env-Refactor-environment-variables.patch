@@ -1,0 +1,67 @@
+From 460abac1f7055c7ceac434896a29891c2e816301 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Mon, 15 Feb 2021 18:32:42 +0200
+Subject: [PATCH 74/76] xen: env: Refactor environment variables
+
+Refactored the setting of environment variables in a Xen-enabled
+build as follows:
+
+1. Split the long 'updatexenfdt' variable into 4 different
+variables (chosen_node_setup, dom0_node_setup, clear_default_chosen
+and bootargs_setup), to avoid having one very long variable and the
+impossibility to edit it by u-boot command line.
+
+2. Added 'dom0_mem' variable which can be separately set and
+that is further used in setting up 'bootargs' variable.
+
+3. Added 'dom0_bootargs' variable which can be separately set
+and that is further used in 'dom0_node_setup'.
+
+Issue: ALB-5666
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+---
+ include/configs/s32.h | 27 +++++++++++++++++----------
+ 1 file changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 23af903902..83c02abab1 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -370,17 +370,24 @@
+ #endif
+ #define XEN_EXTRA_ENV_SETTINGS \
+ 	"dom0_addr=0x90000000\0" \
+-	"bootargs=dom0_mem=192M bootscrub=0 console=dtuart dtuart=serial0\0" \
+-	"updatexenfdt=fdt addr ${fdt_addr} 0x40000; fdt resize; fdt chosen; " \
+-		"fdt set /chosen \\\\\#address-cells <1>; " \
+-		"fdt set /chosen \\\\\#size-cells <1>; " \
+-		"fdt mknod /chosen module@0; " \
+-		"fdt set /chosen/module@0 compatible \"xen,linux-zimage\" \"xen,multiboot-module\"; " \
++	"dom0_mem=192M\0" \
++	"dom0_bootargs=\"console=hvc0 root=/dev/mmcblk0p2 rootwait rw\"\0" \
++	"bootargs_setup=setenv bootargs dom0_mem=${dom0_mem} bootscrub=0 " \
++		"console=dtuart dtuart=serial0\0" \
++	"dom0_node_setup=fdt set /chosen/module@0 compatible " \
++		"\"xen,linux-zimage\" \"xen,multiboot-module\"; " \
+ 		"fdt set /chosen/module@0 reg <${dom0_addr} 0x${filesize} >; " \
+-		"fdt set /chosen/module@0 bootargs \"console=hvc0 " \
+-			"root=/dev/mmcblk0p2 rootwait rw\" \0" \
+-	"bootcmd=" XEN_LOAD_FILES "run updatexenfdt; fdt rm /chosen stdout-path; " \
+-		"fdt rm /chosen linux,initrd-start; fdt rm /chosen linux,initrd-end; " \
++		"fdt set /chosen/module@0 bootargs ${dom0_bootargs} \0" \
++	"chosen_node_setup=fdt addr ${fdt_addr} 0x40000; fdt resize; " \
++		"fdt chosen; fdt set /chosen \\\\\#address-cells <1>; " \
++		"fdt set /chosen \\\\\#size-cells <1>; " \
++		"fdt mknod /chosen module@0;\0" \
++	"clear_default_chosen=fdt rm /chosen stdout-path; " \
++		"fdt rm /chosen linux,initrd-start; " \
++		"fdt rm /chosen linux,initrd-end; \0" \
++	"updatexenfdt=run chosen_node_setup; run dom0_node_setup; " \
++		"run bootargs_setup; run clear_default_chosen;\0" \
++	"bootcmd=" XEN_LOAD_FILES "run updatexenfdt; " \
+ 		"booti ${loadaddr} - ${fdt_addr}\0"
+ #else
+ #define XEN_EXTRA_ENV_SETTINGS  ""
+-- 
+2.17.1
+

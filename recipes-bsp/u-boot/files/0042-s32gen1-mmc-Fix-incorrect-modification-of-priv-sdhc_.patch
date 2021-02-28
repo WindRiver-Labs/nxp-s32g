@@ -1,0 +1,56 @@
+From 75aad54c7fc13dbf201605a4d0546b91f8bc0c80 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 7 Jan 2021 14:49:53 +0200
+Subject: [PATCH 42/76] s32gen1: mmc: Fix incorrect modification of
+ priv->sdhc_clk
+
+The priv->sdhc_clk variable is used to calculate the internal clock
+dividers, therefore it should hold the real frequency of SDHC_CLK. The
+code makes the wrong assumption that SDHC_CLK will never exceed 200MHz,
+which it does. Regardless, changing this variable is conceptually wrong.
+
+Issue: ALB-5955
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+---
+ drivers/mmc/fsl_esdhc_imx.c | 11 -----------
+ 1 file changed, 11 deletions(-)
+
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index b424e24451..cf67bbf15d 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -164,8 +164,6 @@ struct fsl_esdhc_priv {
+ #endif
+ };
+ 
+-static bool is_s32gen1_usdhc(struct fsl_esdhc_priv *priv);
+-
+ /* Return the XFERTYP flags for a given command and data packet */
+ static uint esdhc_xfertyp(struct mmc_cmd *cmd, struct mmc_data *data)
+ {
+@@ -1297,10 +1295,6 @@ static int fsl_esdhc_init(struct fsl_esdhc_priv *priv,
+ 	cfg->host_caps |= priv->caps;
+ 
+ 	cfg->f_min = 400000;
+-#if CONFIG_IS_ENABLED(DM_MMC)
+-	if (!is_s32gen1_usdhc(priv))
+-		priv->sdhc_clk = min(priv->sdhc_clk, (u32)200000000);
+-#endif
+ 	cfg->f_max = priv->sdhc_clk;
+ 
+ 	cfg->b_max = CONFIG_SYS_MMC_MAX_BLK_COUNT;
+@@ -1670,11 +1664,6 @@ static struct esdhc_soc_data usdhc_s32gen1_data = {
+ 		ESDHC_FLAG_HS400,
+ };
+ 
+-static bool is_s32gen1_usdhc(struct fsl_esdhc_priv *priv)
+-{
+-	return (ulong)priv == (ulong)&usdhc_s32gen1_data;
+-}
+-
+ static const struct udevice_id fsl_esdhc_ids[] = {
+ 	{ .compatible = "fsl,imx53-esdhc", },
+ 	{ .compatible = "fsl,imx6ul-usdhc", },
+-- 
+2.17.1
+

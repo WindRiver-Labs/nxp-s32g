@@ -1,0 +1,98 @@
+From a472d4f1c3396fe02bb2e08343034a5140025866 Mon Sep 17 00:00:00 2001
+From: Ionut Vicovan <Ionut.Vicovan@nxp.com>
+Date: Thu, 18 Feb 2021 15:34:03 +0200
+Subject: [PATCH 82/83] pcie: e1000: Enable E1000 support
+
+Issue: ALB-6453
+
+Signed-off-by: Ionut Vicovan <Ionut.Vicovan@nxp.com>
+---
+ configs/s32g274ardb2_defconfig      | 2 ++
+ configs/s32g274ardb2_qspi_defconfig | 2 ++
+ configs/s32g2xxaevb_defconfig       | 2 ++
+ configs/s32g2xxaevb_qspi_defconfig  | 2 ++
+ configs/s32r45evb_defconfig         | 2 ++
+ configs/s32r45evb_qspi_defconfig    | 2 ++
+ 6 files changed, 12 insertions(+)
+
+diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
+index 5ef108e81d..a2ac54309d 100644
+--- a/configs/s32g274ardb2_defconfig
++++ b/configs/s32g274ardb2_defconfig
+@@ -45,6 +45,8 @@ CONFIG_FSL_PFENG=y
+ CONFIG_FSL_PFENG_EMAC_1_RGMII=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
+ CONFIG_RGMII=y
+ CONFIG_PCI=y
+ CONFIG_DM_PCI=y
+diff --git a/configs/s32g274ardb2_qspi_defconfig b/configs/s32g274ardb2_qspi_defconfig
+index d075312ec4..0820ce7984 100644
+--- a/configs/s32g274ardb2_qspi_defconfig
++++ b/configs/s32g274ardb2_qspi_defconfig
+@@ -50,6 +50,8 @@ CONFIG_FSL_PFENG=y
+ CONFIG_FSL_PFENG_EMAC_1_RGMII=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
+ CONFIG_RGMII=y
+ CONFIG_PCI=y
+ CONFIG_DM_PCI=y
+diff --git a/configs/s32g2xxaevb_defconfig b/configs/s32g2xxaevb_defconfig
+index 9de9d2ec64..50d5c2595d 100644
+--- a/configs/s32g2xxaevb_defconfig
++++ b/configs/s32g2xxaevb_defconfig
+@@ -50,6 +50,8 @@ CONFIG_FSL_PFENG=y
+ CONFIG_FSL_PFENG_EMAC_1_RGMII=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
+ CONFIG_RGMII=y
+ CONFIG_PCI=y
+ CONFIG_DM_PCI=y
+diff --git a/configs/s32g2xxaevb_qspi_defconfig b/configs/s32g2xxaevb_qspi_defconfig
+index 2b9a1a1c4a..623ae59d6a 100644
+--- a/configs/s32g2xxaevb_qspi_defconfig
++++ b/configs/s32g2xxaevb_qspi_defconfig
+@@ -55,6 +55,8 @@ CONFIG_FSL_PFENG=y
+ CONFIG_FSL_PFENG_EMAC_1_RGMII=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
+ CONFIG_RGMII=y
+ CONFIG_PCI=y
+ CONFIG_DM_PCI=y
+diff --git a/configs/s32r45evb_defconfig b/configs/s32r45evb_defconfig
+index 79171fb002..c5bd83099a 100644
+--- a/configs/s32r45evb_defconfig
++++ b/configs/s32r45evb_defconfig
+@@ -44,6 +44,8 @@ CONFIG_SPI_FLASH_MACRONIX=y
+ CONFIG_DM_ETH=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
+ CONFIG_PCI=y
+ CONFIG_DM_PCI=y
+ CONFIG_PCIE_S32GEN1=y
+diff --git a/configs/s32r45evb_qspi_defconfig b/configs/s32r45evb_qspi_defconfig
+index 43a397fd9b..d7d5491a2b 100644
+--- a/configs/s32r45evb_qspi_defconfig
++++ b/configs/s32r45evb_qspi_defconfig
+@@ -49,6 +49,8 @@ CONFIG_SPI_FLASH_MACRONIX=y
+ CONFIG_DM_ETH=y
+ CONFIG_DWC_ETH_QOS_DEVICES=y
+ CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
+ CONFIG_PCI=y
+ CONFIG_DM_PCI=y
+ CONFIG_PCIE_S32GEN1=y
+-- 
+2.17.1
+

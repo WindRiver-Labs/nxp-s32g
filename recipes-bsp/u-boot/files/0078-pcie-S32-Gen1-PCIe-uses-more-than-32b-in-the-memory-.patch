@@ -1,0 +1,31 @@
+From 425dbb62021462ddbc724391a14383330d29702a Mon Sep 17 00:00:00 2001
+From: Heinz Wrobel <Heinz.Wrobel@nxp.com>
+Date: Fri, 29 Jan 2021 10:52:59 +0100
+Subject: [PATCH 78/83] pcie: S32 Gen1 PCIe uses more than 32b in the memory
+ map
+
+Without this define, pci-uclass.c will ignore/reject ranges >32b
+
+Issue: ALB-6468
+
+Signed-off-by: Heinz Wrobel <Heinz.Wrobel@nxp.com>
+---
+ include/configs/s32.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 83c02abab1..37ef6079be 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -613,6 +613,8 @@
+ #define CONFIG_PCI_PNP
+ #define CONFIG_PCI_SCAN_SHOW
+ #endif
++#else
++#define CONFIG_SYS_PCI_64BIT
+ #endif  /* !CONFIG_S32_GEN1 */
+ 
+ #define CONFIG_SYS_LDSCRIPT  "arch/arm/cpu/armv8/s32/u-boot.lds"
+-- 
+2.17.1
+

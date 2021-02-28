@@ -1,0 +1,52 @@
+From 444cb8d4821b2c097f39d9fa6746111b9623e45f Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Fri, 22 Jan 2021 14:51:19 +0200
+Subject: [PATCH 61/76] s32g_emu: Don't wait for DFS_PORTRESET updates
+
+On emulator, this behavior is not implemented.
+See TKT0552329 "[EMU_S250][VALIDATION][EE_MODEL]DFS
+Port status bit remains locked after PORT Reset bit"
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/clk/s32/enable_clk.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/clk/s32/enable_clk.c b/drivers/clk/s32/enable_clk.c
+index 0613b8a4d6..b519be73fb 100644
+--- a/drivers/clk/s32/enable_clk.c
++++ b/drivers/clk/s32/enable_clk.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #include <asm/arch/mc_cgm_regs.h>
+ #include <asm/arch/mc_me_regs.h>
+@@ -419,8 +419,10 @@ static int init_dfs_port(void *dfs_addr, u32 port, u32 mfi, u32 mfn)
+ 	writel(mask, DFS_PORTOLSR(dfs_addr));
+ 	writel(mask, DFS_PORTRESET(dfs_addr));
+ 
++#ifndef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+ 	while (readl(DFS_PORTSR(dfs_addr)) & mask)
+ 		;
++#endif
+ 
+ 	if (init_dfs)
+ 		writel(DFS_CTL_RESET, DFS_CTL(dfs_addr));
+@@ -436,8 +438,10 @@ static int init_dfs_port(void *dfs_addr, u32 port, u32 mfi, u32 mfn)
+ 	portreset &= ~BIT(port);
+ 	writel(portreset, DFS_PORTRESET(dfs_addr));
+ 
++#ifndef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+ 	while ((readl(DFS_PORTSR(dfs_addr)) & BIT(port)) != BIT(port))
+ 		;
++#endif
+ 
+ 	portolsr = readl(DFS_PORTOLSR(dfs_addr));
+ 	if (portolsr & DFS_PORTOLSR_LOL(port)) {
+-- 
+2.17.1
+

@@ -1,0 +1,1843 @@
+From 549b70d41b765381fd954d042ecba5207ada6bf1 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 26 Nov 2020 15:24:23 +0200
+Subject: [PATCH 04/78] Remove S32V344 platform
+
+Issue: ALB-5849
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ .../devicetree/bindings/arm/fsl.yaml          |   5 -
+ .../bindings/clock/s32gen1-clocking.txt       |   2 +-
+ .../pinctrl/nxp,s32gen1-siul2-pinctrl.txt     |   2 -
+ arch/arm64/boot/dts/freescale/Makefile        |   1 -
+ .../dts/freescale/fsl-s32v344-simulator.dts   | 529 ---------------
+ drivers/clk/s32/s32-gen1/clk.c                |   6 -
+ drivers/pinctrl/freescale/Makefile            |   1 -
+ drivers/pinctrl/freescale/pinctrl-s32v344.c   | 605 ------------------
+ include/dt-bindings/pinctrl/s32v344-pinctrl.h | 577 -----------------
+ 9 files changed, 1 insertion(+), 1727 deletions(-)
+ delete mode 100644 arch/arm64/boot/dts/freescale/fsl-s32v344-simulator.dts
+ delete mode 100644 drivers/pinctrl/freescale/pinctrl-s32v344.c
+ delete mode 100644 include/dt-bindings/pinctrl/s32v344-pinctrl.h
+
+diff --git a/Documentation/devicetree/bindings/arm/fsl.yaml b/Documentation/devicetree/bindings/arm/fsl.yaml
+index 9b23d244b577..62d419d3c3b0 100644
+--- a/Documentation/devicetree/bindings/arm/fsl.yaml
++++ b/Documentation/devicetree/bindings/arm/fsl.yaml
+@@ -351,11 +351,6 @@ properties:
+               - fsl,s32v234-tmdp
+               - fsl,s32v234-pcie
+           - const: fsl,s32v234
+-      - description: Freescale S32V344 base Simulator model
+-        items:
+-          - enum:
+-              - fsl,s32v344-simu
+-          - const: fsl,s32v344
+       - description:
+           Freescale S32G based boards
+ 
+diff --git a/Documentation/devicetree/bindings/clock/s32gen1-clocking.txt b/Documentation/devicetree/bindings/clock/s32gen1-clocking.txt
+index f71dd2a8249a..fc6cc85b6d4f 100644
+--- a/Documentation/devicetree/bindings/clock/s32gen1-clocking.txt
++++ b/Documentation/devicetree/bindings/clock/s32gen1-clocking.txt
+@@ -20,7 +20,7 @@ The DFS digital block implements registers to control the analog DFS block.
+ Required properties:
+ - compatible:
+ 	Should be:
+-	- "fsl,s32r45-clocking", "fsl,s32g274-clocking", "fsl,s32v344-clocking"
++	- "fsl,s32r45-clocking", "fsl,s32g274-clocking"
+ - reg:
+ 	Location and length of the register set
+ 
+diff --git a/Documentation/devicetree/bindings/pinctrl/nxp,s32gen1-siul2-pinctrl.txt b/Documentation/devicetree/bindings/pinctrl/nxp,s32gen1-siul2-pinctrl.txt
+index 2f12e5b8f909..123fb953ddf6 100644
+--- a/Documentation/devicetree/bindings/pinctrl/nxp,s32gen1-siul2-pinctrl.txt
++++ b/Documentation/devicetree/bindings/pinctrl/nxp,s32gen1-siul2-pinctrl.txt
+@@ -8,8 +8,6 @@ Required properties:
+ 	* "fsl,s32g274-siul2_1-pinctrl"
+ 	* "fsl,s32r45-siul2_0-pinctrl"
+ 	* "fsl,s32r45-siul2_1-pinctrl"
+-	* "fsl,s32v344-siul2_0-pinctrl"
+-	* "fsl,s32v344-siul2_1-pinctrl"
+ 	  Backward compatible string for the use cases
+ 	  when the user boots kernel with an old device tree. It's not
+ 	  recommended to use it anymore.
+diff --git a/arch/arm64/boot/dts/freescale/Makefile b/arch/arm64/boot/dts/freescale/Makefile
+index 4cb3d1bee4ba..86cd636f37a2 100644
+--- a/arch/arm64/boot/dts/freescale/Makefile
++++ b/arch/arm64/boot/dts/freescale/Makefile
+@@ -36,7 +36,6 @@ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-pciebcm.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-pcie.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-simulator.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-tmdp.dtb
+-dtb-$(CONFIG_ARCH_S32) += fsl-s32v344-simulator.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32g274-simulator.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-bluebox3.dtb
+ dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-emu.dtb
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32v344-simulator.dts b/arch/arm64/boot/dts/freescale/fsl-s32v344-simulator.dts
+deleted file mode 100644
+index 90215fc6b71e..000000000000
+--- a/arch/arm64/boot/dts/freescale/fsl-s32v344-simulator.dts
++++ /dev/null
+@@ -1,529 +0,0 @@
+-/*
+- * Copyright 2017-2019 NXP
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License as published by
+- * the Free Software Foundation; either version 2 of the License, or
+- * (at your option) any later version.
+- */
+-
+-/dts-v1/;
+-#include "fsl-s32-gen1.dtsi"
+-#include <dt-bindings/pinctrl/s32v344-pinctrl.h>
+-/ {
+-	model = "Freescale S32V344";
+-	compatible = "fsl,s32v344-simu", "fsl,s32v344",
+-				 "arm,vexpress,v2p-aarch64", "arm,vexpress";
+-
+-	chosen {
+-		linux,initrd-start = <0x84000000>;
+-		linux,initrd-end = <0x8A000000>;
+-		stdout-path = "serial0:115200n8";
+-	};
+-
+-	memory_DDR0@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR1@c0000000 {
+-		device_type = "memory";
+-		reg = <0 0xc0000000 0 0x40000000>;
+-	};
+-
+-	sysclk: clk10000000 {
+-		compatible = "fixed-clock";
+-		#clock-cells = <0>;
+-		clock-frequency = <10000000>;
+-		clock-output-names = "sysclk";
+-	};
+-
+-	virtio_block@39501000 {
+-		compatible = "virtio,mmio";
+-		reg = <0x0 0x39501000 0x0 0x1000>;
+-		interrupts = <0 68 4>;
+-	};
+-
+-	clks: clks@40038000 {
+-		compatible = "fsl,s32v344-clocking";
+-		reg = <0x0 0x40038000 0x0 0x3000>, /*armpll*/
+-		      <0x0 0x4003C000 0x0 0x3000>, /*periphpll*/
+-		      <0x0 0x40040000 0x0 0x3000>, /*accelpll*/
+-		      <0x0 0x40044000 0x0 0x3000>, /*ddrpll*/
+-		      <0x0 0x40054000 0x0 0x3000>, /*armdfs*/
+-		      <0x0 0x40058000 0x0 0x3000>; /*periphdfs*/
+-		#clock-cells = <1>;
+-	};
+-
+-	mc_cgm2@400C0000 {
+-		compatible = "fsl,s32gen1-mc_cgm2";
+-		reg = <0x0 0x400c0000 0x0 0x3000>;
+-	};
+-
+-	siul2_0 {
+-		compatible = "simple-mfd";
+-		#address-cells = <2>;
+-		#size-cells = <2>;
+-		status = "okay";
+-			  /* PINCTRL */
+-		ranges = <1 0 0x0 0x4009C240 0x0 0x198>,
+-			 /* IMCR range */
+-			 <2 0 0x0 0x4009CA40 0x0 0x150>;
+-		pinctrl0: siul2-pinctrl0@4009C000 {
+-			compatible = "fsl,s32v344-siul2_0-pinctrl";
+-			#pinctrl-cells = <2>;
+-			reg = <0x1 0x0 0x0 0x198>,
+-			<0x2 0x0 0x0 0x150>;
+-			/* MSCR range */
+-			pins = <&pinctrl0 0 101>,
+-			/* IMCR range */
+-			<&pinctrl0 512 595>;
+-			status = "okay";
+-		};
+-		/*
+-		 * Note gpio controller nodes are split into sections
+-		 * of contiguous GPIO numbering at this
+-		 * point in time, functions working with gpio chips
+-		 * assume this for many things.
+-		 */
+-		gpioother0: siul2-gpio0@4009C002 {
+-			compatible = "fsl,s32gen1-siul2-gpio";
+-			gpio-controller;
+-			#gpio-cells = <2>;
+-			gpio-ranges = <&pinctrl0 0 0 9>;
+-				/* Pad Data I/0 Registers */
+-			regmap0 = <&opad0_regs>;
+-			regmap1 = <&ipad0_regs>;
+-			status = "okay";
+-		};
+-
+-		gpioeirq0: siul2-gpio0@4009C004 {
+-			compatible = "fsl,s32gen1-siul2-gpio";
+-			gpio-controller;
+-			#gpio-cells = <2>;
+-				/* GPIO 0-15,27-32 */
+-			gpio-ranges = <&pinctrl0 0 9 32>,
+-				/* EIRQ pins */
+-				<&pinctrl1 628 628 32>;
+-				/* Pad Data I/0 Registers */
+-			regmap0 = <&opad0_regs>;
+-			regmap1 = <&ipad0_regs>;
+-			regmap2 = <&irq_regs>;
+-			interrupt-controller;
+-			interrupts = <0 0 4>;
+-			pinctrl-names = "default";
+-			pinctrl-0 = <&pinctrl_gpioeirq0>;
+-			status = "okay";
+-		};
+-
+-		gpioother1: siul2-gpio0@4009C006 {
+-			compatible = "fsl,s32gen1-siul2-gpio";
+-			gpio-controller;
+-			#gpio-cells = <2>;
+-			gpio-ranges = <&pinctrl0 0 41 61>;
+-				/* Pad Data I/0 Registers */
+-			regmap0 = <&opad0_regs>;
+-			regmap1 = <&ipad0_regs>;
+-			status = "okay";
+-		};
+-	};
+-
+-	siul2_1 {
+-		compatible = "simple-mfd";
+-		#address-cells = <2>;
+-		#size-cells = <2>;
+-		status = "okay";
+-			  /* PINCTRL */
+-		ranges = <1 0 0x0 0x440CE240 0x0 0x9C>,
+-			 /* IMCR range */
+-			 <2 0 0x0 0x440CEB04 0x0 0x180>;
+-
+-		pinctrl1: siul2-pinctrl1@440CE000 {
+-			compatible =
+-				"fsl,s32v344-siul2_1-pinctrl";
+-			#pinctrl-cells = <2>;
+-			reg = <0x1 0x0 0x0 0x9C>,
+-			<0x2 0x0 0x0 0x180>;
+-			/* MSCR range */
+-			pins = <&pinctrl1 105 143>,
+-			/* IMCR range */
+-			<&pinctrl1 561 656>;
+-			status = "okay";
+-		};
+-
+-		gpioother2: siul2-gpio0@440CE002 {
+-			compatible = "fsl,s32gen1-siul2-gpio";
+-			gpio-controller;
+-			#gpio-cells = <2>;
+-			gpio-ranges = <&pinctrl1 0 105 39>;
+-				/* Pad Data I/0 Registers */
+-			regmap0 = <&opad1_regs>;
+-			regmap1 = <&ipad1_regs>;
+-			status = "okay";
+-		};
+-	};
+-
+-	irq_regs: siul2_reg@0x440CE000 {
+-		compatible = "fsl,irq_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x440CE000 0x0 0x40>;
+-		little-endian;
+-	};
+-	opad0_regs: siul2_reg@0x4009D700 {
+-		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x4009D700 0x0 0x10>;
+-		big-endian;
+-	};
+-	ipad0_regs: siul2_reg@0x4009D740 {
+-		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x4009D740 0x0 0x10>;
+-		big-endian;
+-	};
+-	opad1_regs: siul2_reg@0x440CF70C {
+-		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x440CF70C 0x0 0x14>;
+-		big-endian;
+-	};
+-	ipad1_regs: siul2_reg@0x440CF74C {
+-		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x440CF74C 0x0 0x14>;
+-		big-endian;
+-	};
+-};
+-
+-&cluster0_l2_cache {
+-	status = "okay";
+-};
+-
+-&cluster1_l2_cache {
+-	status = "okay";
+-};
+-
+-&cpu0 {
+-	next-level-cache = <&cluster0_l2_cache>;
+-};
+-
+-&cpu1 {
+-	next-level-cache = <&cluster0_l2_cache>;
+-};
+-
+-&cpu2 {
+-	next-level-cache = <&cluster1_l2_cache>;
+-};
+-
+-&cpu3 {
+-	next-level-cache = <&cluster1_l2_cache>;
+-};
+-
+-&fxosc {
+-	clock-frequency = <40000000>;
+-};
+-
+-&generic_timer {
+-	clock-frequency = <1200000>;
+-};
+-
+-&i2c0 {
+-	status = "okay";
+-};
+-
+-&i2c1 {
+-	status = "okay";
+-};
+-
+-&i2c2 {
+-	status = "okay";
+-};
+-
+-&i2c3 {
+-	status = "okay";
+-};
+-
+-&i2c4 {
+-	status = "okay";
+-};
+-
+-&can0 {
+-	status = "okay";
+-};
+-
+-&can1 {
+-	status = "okay";
+-};
+-
+-&can2 {
+-	status = "okay";
+-};
+-
+-&can3 {
+-	status = "okay";
+-};
+-
+-&stm0 {
+-	status = "okay";
+-};
+-
+-&fccu {
+-	status = "okay";
+-};
+-
+-&stm1 {
+-	status = "okay";
+-};
+-
+-&swt3 {
+-	status = "okay";
+-};
+-
+-&swt4 {
+-	status = "okay";
+-};
+-
+-&swt5 {
+-	status = "okay";
+-};
+-
+-&swt6 {
+-	status = "okay";
+-};
+-
+-&pit0 {
+-	status = "okay";
+-};
+-
+-&pit1 {
+-	status = "okay";
+-};
+-
+-&pinctrl0 {
+-	status = "okay";
+-	s32v344-simu {
+-		pinctrl_gpio0: gpiogrp0 {
+-			fsl,pins = <
+-				S32_GEN1_PAD_PA0__SIUL_GPIO0
+-				S32_GEN1_PAD_PA1__SIUL_GPIO1
+-				S32_GEN1_PAD_PA2__SIUL_GPIO2
+-				S32_GEN1_PAD_PA3__SIUL_GPIO3
+-				S32_GEN1_PAD_PA4__SIUL_GPIO4
+-				S32_GEN1_PAD_PA5__SIUL_GPIO5
+-				S32_GEN1_PAD_PA6__SIUL_GPIO6
+-				S32_GEN1_PAD_PA7__SIUL_GPIO7
+-				S32_GEN1_PAD_PA8__SIUL_GPIO8
+-				S32_GEN1_PAD_PA9__SIUL_GPIO9
+-				S32_GEN1_PAD_PA10__SIUL_GPIO10
+-				S32_GEN1_PAD_PA11__SIUL_GPIO11
+-				S32_GEN1_PAD_PA12__SIUL_GPIO12
+-				S32_GEN1_PAD_PA13__SIUL_GPIO13
+-				S32_GEN1_PAD_PA14__SIUL_GPIO14
+-				S32_GEN1_PAD_PA15__SIUL_GPIO15
+-				S32_GEN1_PAD_PB0__SIUL_GPIO16
+-				S32_GEN1_PAD_PB1__SIUL_GPIO17
+-				S32_GEN1_PAD_PB2__SIUL_GPIO18
+-				S32_GEN1_PAD_PB3__SIUL_GPIO19
+-				S32_GEN1_PAD_PB4__SIUL_GPIO20
+-				S32_GEN1_PAD_PB5__SIUL_GPIO21
+-				S32_GEN1_PAD_PB6__SIUL_GPIO22
+-				S32_GEN1_PAD_PB7__SIUL_GPIO23
+-				S32_GEN1_PAD_PB8__SIUL_GPIO24
+-				S32_GEN1_PAD_PB9__SIUL_GPIO25
+-				S32_GEN1_PAD_PB10__SIUL_GPIO26
+-				S32_GEN1_PAD_PB11__SIUL_GPIO27
+-				S32_GEN1_PAD_PB12__SIUL_GPIO28
+-				S32_GEN1_PAD_PB13__SIUL_GPIO29
+-				S32_GEN1_PAD_PB14__SIUL_GPIO30
+-				S32_GEN1_PAD_PB15__SIUL_GPIO31
+-				S32_GEN1_PAD_PC0__SIUL_GPIO32
+-				S32_GEN1_PAD_PC1__SIUL_GPIO33
+-				S32_GEN1_PAD_PC2__SIUL_GPIO34
+-				S32_GEN1_PAD_PC3__SIUL_GPIO35
+-				S32_GEN1_PAD_PC4__SIUL_GPIO36
+-				S32_GEN1_PAD_PC5__SIUL_GPIO37
+-				S32_GEN1_PAD_PC6__SIUL_GPIO38
+-				S32_GEN1_PAD_PC7__SIUL_GPIO39
+-				S32_GEN1_PAD_PC8__SIUL_GPIO40
+-				S32_GEN1_PAD_PC9__SIUL_GPIO41
+-				S32_GEN1_PAD_PC10__SIUL_GPIO42
+-				S32_GEN1_PAD_PC11__SIUL_GPIO43
+-				S32_GEN1_PAD_PC12__SIUL_GPIO44
+-				S32_GEN1_PAD_PC13__SIUL_GPIO45
+-				S32_GEN1_PAD_PC14__SIUL_GPIO46
+-				S32_GEN1_PAD_PC15__SIUL_GPIO47
+-				S32_GEN1_PAD_PD0__SIUL_GPIO48
+-				S32_GEN1_PAD_PD1__SIUL_GPIO49
+-				S32_GEN1_PAD_PD2__SIUL_GPIO50
+-				S32_GEN1_PAD_PD3__SIUL_GPIO51
+-				S32_GEN1_PAD_PD4__SIUL_GPIO52
+-				S32_GEN1_PAD_PD5__SIUL_GPIO53
+-				S32_GEN1_PAD_PD6__SIUL_GPIO54
+-				S32_GEN1_PAD_PD7__SIUL_GPIO55
+-				S32_GEN1_PAD_PD8__SIUL_GPIO56
+-				S32_GEN1_PAD_PD9__SIUL_GPIO57
+-				S32_GEN1_PAD_PD10__SIUL_GPIO58
+-				S32_GEN1_PAD_PD11__SIUL_GPIO59
+-				S32_GEN1_PAD_PD12__SIUL_GPIO60
+-				S32_GEN1_PAD_PD13__SIUL_GPIO61
+-				S32_GEN1_PAD_PD15__SIUL_GPIO63
+-				S32_GEN1_PAD_PE0__SIUL_GPIO64
+-				S32_GEN1_PAD_PE1__SIUL_GPIO65
+-				S32_GEN1_PAD_PE2__SIUL_GPIO66
+-				S32_GEN1_PAD_PE3__SIUL_GPIO67
+-				S32_GEN1_PAD_PE4__SIUL_GPIO68
+-				S32_GEN1_PAD_PE5__SIUL_GPIO69
+-				S32_GEN1_PAD_PE6__SIUL_GPIO70
+-				S32_GEN1_PAD_PE7__SIUL_GPIO71
+-				S32_GEN1_PAD_PE8__SIUL_GPIO72
+-				S32_GEN1_PAD_PE9__SIUL_GPIO73
+-				S32_GEN1_PAD_PE10__SIUL_GPIO74
+-				S32_GEN1_PAD_PE11__SIUL_GPIO75
+-				S32_GEN1_PAD_PE12__SIUL_GPIO76
+-				S32_GEN1_PAD_PE13__SIUL_GPIO77
+-				S32_GEN1_PAD_PF1__SIUL_GPIO81
+-				S32_GEN1_PAD_PF2__SIUL_GPIO82
+-				S32_GEN1_PAD_PF3__SIUL_GPIO83
+-				S32_GEN1_PAD_PF4__SIUL_GPIO84
+-				S32_GEN1_PAD_PF5__SIUL_GPIO85
+-				S32_GEN1_PAD_PF6__SIUL_GPIO86
+-				S32_GEN1_PAD_PF7__SIUL_GPIO87
+-				S32_GEN1_PAD_PF8__SIUL_GPIO88
+-				S32_GEN1_PAD_PF9__SIUL_GPIO89
+-				S32_GEN1_PAD_PF10__SIUL_GPIO90
+-				S32_GEN1_PAD_PF11__SIUL_GPIO91
+-				S32_GEN1_PAD_PF12__SIUL_GPIO92
+-				S32_GEN1_PAD_PF13__SIUL_GPIO93
+-				S32_GEN1_PAD_PF14__SIUL_GPIO94
+-				S32_GEN1_PAD_PF15__SIUL_GPIO95
+-				S32_GEN1_PAD_PG0__SIUL_GPIO96
+-				S32_GEN1_PAD_PG1__SIUL_GPIO97
+-				S32_GEN1_PAD_PG2__SIUL_GPIO98
+-				S32_GEN1_PAD_PG3__SIUL_GPIO99
+-				S32_GEN1_PAD_PG4__SIUL_GPIO100
+-				S32_GEN1_PAD_PG5__SIUL_GPIO101
+-				>;
+-		};
+-	};
+-};
+-
+-&pinctrl1 {
+-	status = "okay";
+-	s32v344-simu {
+-		pinctrl_gpio1: gpiogrp1 {
+-			fsl,pins = <
+-				S32_GEN1_PAD_PG9__SIUL_GPIO105
+-				S32_GEN1_PAD_PG10__SIUL_GPIO106
+-				S32_GEN1_PAD_PG11__SIUL_GPIO107
+-				S32_GEN1_PAD_PG12__SIUL_GPIO108
+-				S32_GEN1_PAD_PG13__SIUL_GPIO109
+-				S32_GEN1_PAD_PG14__SIUL_GPIO110
+-				S32_GEN1_PAD_PG15__SIUL_GPIO111
+-				S32_GEN1_PAD_PH0__SIUL_GPIO112
+-				S32_GEN1_PAD_PH1__SIUL_GPIO113
+-				S32_GEN1_PAD_PH2__SIUL_GPIO114
+-				S32_GEN1_PAD_PH3__SIUL_GPIO115
+-				S32_GEN1_PAD_PH4__SIUL_GPIO116
+-				S32_GEN1_PAD_PH5__SIUL_GPIO117
+-				S32_GEN1_PAD_PH6__SIUL_GPIO118
+-				S32_GEN1_PAD_PH7__SIUL_GPIO119
+-				S32_GEN1_PAD_PH8__SIUL_GPIO120
+-				S32_GEN1_PAD_PH9__SIUL_GPIO121
+-				S32_GEN1_PAD_PH10__SIUL_GPIO122
+-				S32_GEN1_PAD_PH11__SIUL_GPIO123
+-				S32_GEN1_PAD_PH12__SIUL_GPIO124
+-				S32_GEN1_PAD_PH13__SIUL_GPIO125
+-				S32_GEN1_PAD_PH14__SIUL_GPIO126
+-				S32_GEN1_PAD_PH15__SIUL_GPIO127
+-				S32_GEN1_PAD_PJ0__SIUL_GPIO128
+-				S32_GEN1_PAD_PJ1__SIUL_GPIO129
+-				S32_GEN1_PAD_PJ2__SIUL_GPIO129
+-				S32_GEN1_PAD_PJ3__SIUL_GPIO131
+-				S32_GEN1_PAD_PJ4__SIUL_GPIO132
+-				S32_GEN1_PAD_PJ5__SIUL_GPIO133
+-				S32_GEN1_PAD_PJ6__SIUL_GPIO134
+-				S32_GEN1_PAD_PJ7__SIUL_GPIO135
+-				S32_GEN1_PAD_PJ8__SIUL_GPIO136
+-				S32_GEN1_PAD_PJ9__SIUL_GPIO137
+-				S32_GEN1_PAD_PJ10__SIUL_GPIO138
+-				S32_GEN1_PAD_PJ11__SIUL_GPIO139
+-				S32_GEN1_PAD_PJ12__SIUL_GPIO140
+-				S32_GEN1_PAD_PJ13__SIUL_GPIO141
+-				S32_GEN1_PAD_PJ14__SIUL_GPIO142
+-				S32_GEN1_PAD_PJ15__SIUL_GPIO143
+-				>;
+-		};
+-		pinctrl_gpioeirq0: gpioeirqgrp0 {
+-			fsl,pins = <
+-				S32_GEN1_PAD_PA9__SIUL_EIRQ0
+-				S32_GEN1_PAD_PA10__SIUL_EIRQ1
+-				S32_GEN1_PAD_PA11__SIUL_EIRQ2
+-				S32_GEN1_PAD_PA12__SIUL_EIRQ3
+-				S32_GEN1_PAD_PA13__SIUL_EIRQ4
+-				S32_GEN1_PAD_PA14__SIUL_EIRQ5
+-				S32_GEN1_PAD_PA15__SIUL_EIRQ6
+-				S32_GEN1_PAD_PB0__SIUL_EIRQ7
+-				S32_GEN1_PAD_PB1__SIUL_EIRQ8
+-				S32_GEN1_PAD_PB2__SIUL_EIRQ9
+-				S32_GEN1_PAD_PB3__SIUL_EIRQ10
+-				S32_GEN1_PAD_PB4__SIUL_EIRQ11
+-				S32_GEN1_PAD_PB5__SIUL_EIRQ12
+-				S32_GEN1_PAD_PB6__SIUL_EIRQ13
+-				S32_GEN1_PAD_PB7__SIUL_EIRQ14
+-				S32_GEN1_PAD_PB8__SIUL_EIRQ15
+-				S32_GEN1_PAD_PB9__SIUL_EIRQ16
+-				S32_GEN1_PAD_PB10__SIUL_EIRQ17
+-				S32_GEN1_PAD_PB11__SIUL_EIRQ18
+-				S32_GEN1_PAD_PB12__SIUL_EIRQ19
+-				S32_GEN1_PAD_PB13__SIUL_EIRQ20
+-				S32_GEN1_PAD_PB14__SIUL_EIRQ21
+-				S32_GEN1_PAD_PB15__SIUL_EIRQ22
+-				S32_GEN1_PAD_PC0__SIUL_EIRQ23
+-				S32_GEN1_PAD_PC1__SIUL_EIRQ24
+-				S32_GEN1_PAD_PC2__SIUL_EIRQ25
+-				S32_GEN1_PAD_PC3__SIUL_EIRQ26
+-				S32_GEN1_PAD_PC4__SIUL_EIRQ27
+-				S32_GEN1_PAD_PC5__SIUL_EIRQ28
+-				S32_GEN1_PAD_PC6__SIUL_EIRQ29
+-				S32_GEN1_PAD_PC7__SIUL_EIRQ30
+-				S32_GEN1_PAD_PC8__SIUL_EIRQ31
+-				>;
+-		};
+-	};
+-};
+-
+-
+-&edma0 {
+-	status = "okay";
+-};
+-
+-&edma1 {
+-	status = "okay";
+-};
+-
+-&spi0 {
+-	status = "okay";
+-};
+-
+-&spi1 {
+-	status = "okay";
+-};
+-
+-&spi2 {
+-	status = "okay";
+-};
+-
+-&spi3 {
+-	status = "okay";
+-};
+-
+-&spi4 {
+-	status = "okay";
+-};
+-
+-&spi5 {
+-	status = "okay";
+-};
+-
+-/*
+- * Temporary disables SIUL2_1 pinmuxing due to overlapping
+- * IMCR and MSCR spaces.
+- */
+-&pinctrl1 {
+-	status = "disabled";
+-};
+diff --git a/drivers/clk/s32/s32-gen1/clk.c b/drivers/clk/s32/s32-gen1/clk.c
+index 120fb2988a62..cda8987180a3 100644
+--- a/drivers/clk/s32/s32-gen1/clk.c
++++ b/drivers/clk/s32/s32-gen1/clk.c
+@@ -928,11 +928,6 @@ static struct syscore_ops s32gen1_clk_syscore_ops = {
+ 	.resume = s32gen1_clk_resume,
+ };
+ 
+-static void __init s32v344_clocks_init(struct device_node *clks_node)
+-{
+-	s32gen1_clocks_init(clks_node);
+-}
+-
+ static void __init s32g274_clocks_init(struct device_node *clks_node)
+ {
+ 	s32gen1_clocks_init(clks_node);
+@@ -951,6 +946,5 @@ static void __init s32r45_clocks_init(struct device_node *clks_node)
+ 	register_syscore_ops(&s32gen1_clk_syscore_ops);
+ }
+ 
+-CLK_OF_DECLARE(S32V344, "fsl,s32v344-clocking", s32v344_clocks_init);
+ CLK_OF_DECLARE(S32G274, "fsl,s32g274-clocking", s32g274_clocks_init);
+ CLK_OF_DECLARE(S32R45, "fsl,s32r45-clocking", s32r45_clocks_init);
+diff --git a/drivers/pinctrl/freescale/Makefile b/drivers/pinctrl/freescale/Makefile
+index 238a28c019ea..b025bef6875c 100644
+--- a/drivers/pinctrl/freescale/Makefile
++++ b/drivers/pinctrl/freescale/Makefile
+@@ -31,7 +31,6 @@ obj-$(CONFIG_PINCTRL_IMX25)	+= pinctrl-imx25.o
+ obj-$(CONFIG_PINCTRL_IMX28)	+= pinctrl-imx28.o
+ obj-$(CONFIG_PINCTRL_S32V234)	+= pinctrl-s32v234.o
+ obj-$(CONFIG_PINCTRL_S32GEN1)	+= pinctrl-s32g274.o
+-obj-$(CONFIG_PINCTRL_S32GEN1)	+= pinctrl-s32v344.o
+ obj-$(CONFIG_PINCTRL_S32GEN1)	+= pinctrl-s32r45.o
+ obj-$(CONFIG_PINCTRL_S32V_CORE)	+= pinctrl-s32v-core.o
+ obj-$(CONFIG_PINCTRL_S32_GEN1_CORE)	+= pinctrl-s32-gen1-core.o
+diff --git a/drivers/pinctrl/freescale/pinctrl-s32v344.c b/drivers/pinctrl/freescale/pinctrl-s32v344.c
+deleted file mode 100644
+index 6a89d3f7f3ea..000000000000
+--- a/drivers/pinctrl/freescale/pinctrl-s32v344.c
++++ /dev/null
+@@ -1,605 +0,0 @@
+-/*
+- * s32v344 pinctrl driver based on imx pinmux and pinconf core
+- *
+- * Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017-2018 NXP
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License as published by
+- * the Free Software Foundation; either version 2 of the License, or
+- * (at your option) any later version.
+- */
+-
+-#include <linux/err.h>
+-#include <linux/init.h>
+-#include <linux/io.h>
+-#include <linux/module.h>
+-#include <linux/of.h>
+-#include <linux/of_device.h>
+-#include <linux/pinctrl/pinctrl.h>
+-
+-#include "pinctrl-s32.h"
+-
+-enum s32_pins {
+-	S32V344_MSCR_PA_00 =  0,
+-	S32V344_MSCR_PA_01 =  1,
+-	S32V344_MSCR_PA_02 =  2,
+-	S32V344_MSCR_PA_03 =  3,
+-	S32V344_MSCR_PA_04 =  4,
+-	S32V344_MSCR_PA_05 =  5,
+-	S32V344_MSCR_PA_06 =  6,
+-	S32V344_MSCR_PA_07 =  7,
+-	S32V344_MSCR_PA_08 =  8,
+-	S32V344_MSCR_PA_09 =  9,
+-	S32V344_MSCR_PA_10 =  10,
+-	S32V344_MSCR_PA_11 =  11,
+-	S32V344_MSCR_PA_12 =  12,
+-	S32V344_MSCR_PA_13 =  13,
+-	S32V344_MSCR_PA_14 =  14,
+-	S32V344_MSCR_PA_15 =  15,
+-	S32V344_MSCR_PB_00 =  16,
+-	S32V344_MSCR_PB_01 =  17,
+-	S32V344_MSCR_PB_02 =  18,
+-	S32V344_MSCR_PB_03 =  19,
+-	S32V344_MSCR_PB_04 =  20,
+-	S32V344_MSCR_PB_05 =  21,
+-	S32V344_MSCR_PB_06 =  22,
+-	S32V344_MSCR_PB_07 =  23,
+-	S32V344_MSCR_PB_08 =  24,
+-	S32V344_MSCR_PB_09 =  25,
+-	S32V344_MSCR_PB_10 =  26,
+-	S32V344_MSCR_PB_11 =  27,
+-	S32V344_MSCR_PB_12 =  28,
+-	S32V344_MSCR_PB_13 =  29,
+-	S32V344_MSCR_PB_14 =  30,
+-	S32V344_MSCR_PB_15 =  31,
+-	S32V344_MSCR_PC_00 =  32,
+-	S32V344_MSCR_PC_01 =  33,
+-	S32V344_MSCR_PC_02 =  34,
+-	S32V344_MSCR_PC_03 =  35,
+-	S32V344_MSCR_PC_04 =  36,
+-	S32V344_MSCR_PC_05 =  37,
+-	S32V344_MSCR_PC_06 =  38,
+-	S32V344_MSCR_PC_07 =  39,
+-	S32V344_MSCR_PC_08 =  40,
+-	S32V344_MSCR_PC_09 =  41,
+-	S32V344_MSCR_PC_10 =  42,
+-	S32V344_MSCR_PC_11 =  43,
+-	S32V344_MSCR_PC_12 =  44,
+-	S32V344_MSCR_PC_13 =  45,
+-	S32V344_MSCR_PC_14 =  46,
+-	S32V344_MSCR_PC_15 =  47,
+-	S32V344_MSCR_PD_00 =  48,
+-	S32V344_MSCR_PD_01 =  49,
+-	S32V344_MSCR_PD_02 =  50,
+-	S32V344_MSCR_PD_03 =  51,
+-	S32V344_MSCR_PD_04 =  52,
+-	S32V344_MSCR_PD_05 =  53,
+-	S32V344_MSCR_PD_06 =  54,
+-	S32V344_MSCR_PD_07 =  55,
+-	S32V344_MSCR_PD_08 =  56,
+-	S32V344_MSCR_PD_09 =  57,
+-	S32V344_MSCR_PD_10 =  58,
+-	S32V344_MSCR_PD_11 =  59,
+-	S32V344_MSCR_PD_12 =  60,
+-	S32V344_MSCR_PD_13 =  61,
+-	S32V344_MSCR_PD_15 =  63,
+-	S32V344_MSCR_PE_00 =  64,
+-	S32V344_MSCR_PE_01 =  65,
+-	S32V344_MSCR_PE_02 =  66,
+-	S32V344_MSCR_PE_03 =  67,
+-	S32V344_MSCR_PE_04 =  68,
+-	S32V344_MSCR_PE_05 =  69,
+-	S32V344_MSCR_PE_06 =  70,
+-	S32V344_MSCR_PE_07 =  71,
+-	S32V344_MSCR_PE_08 =  72,
+-	S32V344_MSCR_PE_09 =  73,
+-	S32V344_MSCR_PE_10 =  74,
+-	S32V344_MSCR_PE_11 =  75,
+-	S32V344_MSCR_PE_12 =  76,
+-	S32V344_MSCR_PE_13 =  77,
+-	S32V344_MSCR_PF_01 =  81,
+-	S32V344_MSCR_PF_02 =  82,
+-	S32V344_MSCR_PF_03 =  83,
+-	S32V344_MSCR_PF_04 =  84,
+-	S32V344_MSCR_PF_05 =  85,
+-	S32V344_MSCR_PF_06 =  86,
+-	S32V344_MSCR_PF_07 =  87,
+-	S32V344_MSCR_PF_08 =  88,
+-	S32V344_MSCR_PF_09 =  89,
+-	S32V344_MSCR_PF_10 =  90,
+-	S32V344_MSCR_PF_11 =  91,
+-	S32V344_MSCR_PF_12 =  92,
+-	S32V344_MSCR_PF_13 =  93,
+-	S32V344_MSCR_PF_14 =  94,
+-	S32V344_MSCR_PF_15 =  95,
+-	S32V344_MSCR_PG_00 =  96,
+-	S32V344_MSCR_PG_01 =  97,
+-	S32V344_MSCR_PG_02 =  98,
+-	S32V344_MSCR_PG_03 =  99,
+-	S32V344_MSCR_PG_04 =  100,
+-	S32V344_MSCR_PG_05 =  101,
+-	S32V344_MSCR_PG_09 =  105,
+-	S32V344_MSCR_PG_10 =  106,
+-	S32V344_MSCR_PG_11 =  107,
+-	S32V344_MSCR_PG_12 =  108,
+-	S32V344_MSCR_PG_13 =  109,
+-	S32V344_MSCR_PG_14 =  110,
+-	S32V344_MSCR_PG_15 =  111,
+-	S32V344_MSCR_PH_00 =  112,
+-	S32V344_MSCR_PH_01 =  113,
+-	S32V344_MSCR_PH_02 =  114,
+-	S32V344_MSCR_PH_03 =  115,
+-	S32V344_MSCR_PH_04 =  116,
+-	S32V344_MSCR_PH_05 =  117,
+-	S32V344_MSCR_PH_06 =  118,
+-	S32V344_MSCR_PH_07 =  119,
+-	S32V344_MSCR_PH_08 =  120,
+-	S32V344_MSCR_PH_09 =  121,
+-	S32V344_MSCR_PH_10 =  122,
+-	S32V344_MSCR_PH_11 =  123,
+-	S32V344_MSCR_PH_12 =  124,
+-	S32V344_MSCR_PH_13 =  125,
+-	S32V344_MSCR_PH_14 =  126,
+-	S32V344_MSCR_PH_15 =  127,
+-	S32V344_MSCR_PJ_00 =  128,
+-	S32V344_MSCR_PJ_01 =  129,
+-	S32V344_MSCR_PJ_02 =  130,
+-	S32V344_MSCR_PJ_03 =  131,
+-	S32V344_MSCR_PJ_04 =  132,
+-	S32V344_MSCR_PJ_05 =  133,
+-	S32V344_MSCR_PJ_06 =  134,
+-	S32V344_MSCR_PJ_07 =  135,
+-	S32V344_MSCR_PJ_08 =  136,
+-	S32V344_MSCR_PJ_09 =  137,
+-	S32V344_MSCR_PJ_10 =  138,
+-	S32V344_MSCR_PJ_11 =  139,
+-	S32V344_MSCR_PJ_12 =  140,
+-	S32V344_MSCR_PJ_13 =  141,
+-	S32V344_MSCR_PJ_14 =  142,
+-	S32V344_MSCR_PJ_15 =  143,
+-
+-	S32V344_IMCR_QSPI_A_DATA0 = 540,
+-	S32V344_IMCR_QSPI_A_DATA1 = 541,
+-	S32V344_IMCR_QSPI_A_DATA2 = 542,
+-	S32V344_IMCR_QSPI_A_DATA3 = 543,
+-	S32V344_IMCR_QSPI_A_DATA4 = 544,
+-	S32V344_IMCR_QSPI_A_DATA5 = 545,
+-	S32V344_IMCR_QSPI_A_DATA6 = 546,
+-	S32V344_IMCR_QSPI_A_DATA7 = 547,
+-	S32V344_IMCR_QSPI_DQS_A = 548,
+-	S32V344_IMCR_QSPI_B_DATA0 = 552,
+-	S32V344_IMCR_QSPI_B_DATA1 = 554,
+-	S32V344_IMCR_QSPI_B_DATA2 = 551,
+-	S32V344_IMCR_QSPI_B_DATA3 = 553,
+-	S32V344_IMCR_QSPI_B_DATA4 = 557,
+-	S32V344_IMCR_QSPI_B_DATA5 = 550,
+-	S32V344_IMCR_QSPI_B_DATA6 = 556,
+-	S32V344_IMCR_QSPI_B_DATA7 = 555,
+-	S32V344_IMCR_QSPI_DQS_B = 558,
+-	S32V344_IMCR_BOOT_BOOTMOD0 = 560,
+-	S32V344_IMCR_BOOT_BOOTMOD1 = 561,
+-	S32V344_IMCR_FlexRay0_A_RX = 575,
+-	S32V344_IMCR_FlexRay0_B_RX = 576,
+-	S32V344_IMCR_FlexTimer0_CH0 = 577,
+-	S32V344_IMCR_FlexTimer1_CH0 = 587,
+-	S32V344_IMCR_FlexTimer0_CH1 = 578,
+-	S32V344_IMCR_FlexTimer1_CH1 = 586,
+-	S32V344_IMCR_FlexTimer0_CH2 = 579,
+-	S32V344_IMCR_FlexTimer1_CH2 = 588,
+-	S32V344_IMCR_FlexTimer0_CH3 = 580,
+-	S32V344_IMCR_FlexTimer1_CH3 = 585,
+-	S32V344_IMCR_FlexTimer0_CH4 = 581,
+-	S32V344_IMCR_FlexTimer1_CH4 = 589,
+-	S32V344_IMCR_FlexTimer0_CH5 = 582,
+-	S32V344_IMCR_FlexTimer1_CH5 = 590,
+-	S32V344_IMCR_FlexTimer0_EXTCLK = 583,
+-	S32V344_IMCR_FlexTimer1_EXTCLK = 584,
+-	S32V344_IMCR_I2C0_SCL = 566,
+-	S32V344_IMCR_I2C0_SDA = 565,
+-	S32V344_IMCR_I2C1_SCL = 600,
+-	S32V344_IMCR_I2C1_SDA = 601,
+-	S32V344_IMCR_I2C2_SCL = 602,
+-	S32V344_IMCR_I2C2_SDA = 603,
+-	S32V344_IMCR_I2C3_SCL = 604,
+-	S32V344_IMCR_I2C3_SDA = 605,
+-	S32V344_IMCR_I2C4_SCL = 607,
+-	S32V344_IMCR_I2C4_SDA = 606,
+-	S32V344_IMCR_LIN0_RX = 512,
+-	S32V344_IMCR_LIN1_RX = 608,
+-	S32V344_IMCR_DSPI0_PCS0 = 563,
+-	S32V344_IMCR_DSPI0_SCK = 561,
+-	S32V344_IMCR_DSPI0_SIN = 562,
+-	S32V344_IMCR_DSPI1_PCS0 = 566,
+-	S32V344_IMCR_DSPI1_SCK = 564,
+-	S32V344_IMCR_DSPI1_SIN = 565,
+-	S32V344_IMCR_DSPI2_PCS0 = 568,
+-	S32V344_IMCR_DSPI2_SCK = 567,
+-	S32V344_IMCR_DSPI2_SIN = 569,
+-	S32V344_IMCR_DSPI3_PCS0 = 570,
+-	S32V344_IMCR_DSPI3_SCK = 651,
+-	S32V344_IMCR_DSPI3_SIN = 571,
+-	S32V344_IMCR_USDHC_CMD = 515,
+-	S32V344_IMCR_USDHC_DAT0 = 516,
+-	S32V344_IMCR_USDHC_DAT1 = 517,
+-	S32V344_IMCR_USDHC_DAT2 = 520,
+-	S32V344_IMCR_USDHC_DAT3 = 521,
+-	S32V344_IMCR_USDHC_DAT4 = 522,
+-	S32V344_IMCR_USDHC_DAT5 = 523,
+-	S32V344_IMCR_USDHC_DAT6 = 519,
+-	S32V344_IMCR_USDHC_DAT7 = 518,
+-	S32V344_IMCR_USDHC_DQS = 524,
+-	S32V344_IMCR_CAN0_RXD = 513,
+-	S32V344_IMCR_CAN1_RXD = 572,
+-	S32V344_IMCR_CAN2_RXD = 573,
+-	S32V344_IMCR_CAN3_RXD = 574,
+-	/* GMAC0 */
+-	S32V344_IMCR_Ethernet_MDIO = 527,
+-	S32V344_IMCR_Ethernet_CRS = 526,
+-	S32V344_IMCR_Ethernet_COL = 525,
+-	S32V344_IMCR_Ethernet_RX_D0 = 531,
+-	S32V344_IMCR_Ethernet_RX_D1 = 532,
+-	S32V344_IMCR_Ethernet_RX_D2 = 533,
+-	S32V344_IMCR_Ethernet_RX_D3 = 534,
+-	S32V344_IMCR_Ethernet_RX_ER = 528,
+-	S32V344_IMCR_Ethernet_RX_CLK = 529,
+-	S32V344_IMCR_Ethernet_RX_DV = 530,
+-	S32V344_IMCR_Ethernet_TX_CLK = 538,
+-	S32V344_IMCR_Ethernet_REF_CLK = 535,
+-
+-	S32V344_IMCR_SIUL_EIRQ0 = 628,
+-	S32V344_IMCR_SIUL_EIRQ1 = 629,
+-	S32V344_IMCR_SIUL_EIRQ2 = 630,
+-	S32V344_IMCR_SIUL_EIRQ3 = 631,
+-	S32V344_IMCR_SIUL_EIRQ4 = 632,
+-	S32V344_IMCR_SIUL_EIRQ5 = 637,
+-	S32V344_IMCR_SIUL_EIRQ6 = 638,
+-	S32V344_IMCR_SIUL_EIRQ7 = 639,
+-	S32V344_IMCR_SIUL_EIRQ8 = 640,
+-	S32V344_IMCR_SIUL_EIRQ9 = 633,
+-	S32V344_IMCR_SIUL_EIRQ10 = 634,
+-	S32V344_IMCR_SIUL_EIRQ11 = 635,
+-	S32V344_IMCR_SIUL_EIRQ12 = 636,
+-	S32V344_IMCR_SIUL_EIRQ13 = 621,
+-	S32V344_IMCR_SIUL_EIRQ14 = 622,
+-	S32V344_IMCR_SIUL_EIRQ15 = 623,
+-	S32V344_IMCR_SIUL_EIRQ16 = 624,
+-	S32V344_IMCR_SIUL_EIRQ17 = 625,
+-	S32V344_IMCR_SIUL_EIRQ18 = 626,
+-	S32V344_IMCR_SIUL_EIRQ19 = 627,
+-	S32V344_IMCR_SIUL_EIRQ20 = 618,
+-	S32V344_IMCR_SIUL_EIRQ21 = 619,
+-	S32V344_IMCR_SIUL_EIRQ22 = 620,
+-	S32V344_IMCR_SIUL_EIRQ23 = 609,
+-	S32V344_IMCR_SIUL_EIRQ24 = 610,
+-	S32V344_IMCR_SIUL_EIRQ25 = 611,
+-	S32V344_IMCR_SIUL_EIRQ26 = 612,
+-	S32V344_IMCR_SIUL_EIRQ27 = 613,
+-	S32V344_IMCR_SIUL_EIRQ28 = 614,
+-	S32V344_IMCR_SIUL_EIRQ29 = 615,
+-	S32V344_IMCR_SIUL_EIRQ30 = 616,
+-	S32V344_IMCR_SIUL_EIRQ31 = 617,
+-};
+-
+-/* Pad names for the pinmux subsystem */
+-static const struct pinctrl_pin_desc s32_pinctrl_pads_siul2_0[] = {
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PA_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PB_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PC_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PD_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PE_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PF_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_05),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA4),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA5),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA6),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_A_DATA7),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_DQS_A),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA4),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA5),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA6),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_B_DATA7),
+-	S32_PINCTRL_PIN(S32V344_IMCR_QSPI_DQS_B),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C0_SCL),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C0_SDA),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_LIN0_RX),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_CMD),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT4),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT5),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT6),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DAT7),
+-	S32_PINCTRL_PIN(S32V344_IMCR_USDHC_DQS),
+-	S32_PINCTRL_PIN(S32V344_IMCR_CAN0_RXD),
+-
+-	/* GMAC0 */
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_MDIO),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_CRS),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_COL),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_D0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_D1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_D2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_D3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_ER),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_CLK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_RX_DV),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_TX_CLK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_Ethernet_REF_CLK),
+-
+-};
+-
+-
+-static const struct pinctrl_pin_desc s32_pinctrl_pads_siul2_1[] = {
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PG_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PH_15),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_00),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_01),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_02),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_03),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_04),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_05),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_06),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_07),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_08),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_09),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_10),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_11),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_12),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_13),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_14),
+-	S32_PINCTRL_PIN(S32V344_MSCR_PJ_15),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexRay0_A_RX),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexRay0_B_RX),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_CH0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_CH0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_CH1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_CH1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_CH2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_CH2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_CH3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_CH3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_CH4),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_CH4),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_CH5),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_CH5),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer0_EXTCLK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_FlexTimer1_EXTCLK),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C1_SCL),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C1_SDA),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C2_SCL),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C2_SDA),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C3_SCL),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C3_SDA),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C4_SCL),
+-	S32_PINCTRL_PIN(S32V344_IMCR_I2C4_SDA),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_LIN1_RX),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI0_PCS0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI0_SCK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI0_SIN),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI1_PCS0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI1_SCK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI1_SIN),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI2_PCS0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI2_SCK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI2_SIN),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI3_PCS0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI3_SCK),
+-	S32_PINCTRL_PIN(S32V344_IMCR_DSPI3_SIN),
+-	S32_PINCTRL_PIN(S32V344_IMCR_CAN1_RXD),
+-	S32_PINCTRL_PIN(S32V344_IMCR_CAN2_RXD),
+-	S32_PINCTRL_PIN(S32V344_IMCR_CAN3_RXD),
+-
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ0),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ1),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ2),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ3),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ4),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ5),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ6),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ7),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ8),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ9),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ10),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ11),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ12),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ13),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ14),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ15),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ16),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ17),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ18),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ19),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ20),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ21),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ22),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ23),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ24),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ25),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ26),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ27),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ28),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ29),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ30),
+-	S32_PINCTRL_PIN(S32V344_IMCR_SIUL_EIRQ31),
+-};
+-
+-static struct s32_pinctrl_soc_info s32_pinctrl_info_0 = {
+-	.pins = s32_pinctrl_pads_siul2_0,
+-	.npins = ARRAY_SIZE(s32_pinctrl_pads_siul2_0),
+-};
+-
+-static struct s32_pinctrl_soc_info s32_pinctrl_info_1 = {
+-	.pins = s32_pinctrl_pads_siul2_1,
+-	.npins = ARRAY_SIZE(s32_pinctrl_pads_siul2_1),
+-};
+-
+-static const struct of_device_id s32_pinctrl_of_match[] = {
+-	{
+-		.compatible = "fsl,s32v344-siul2_0-pinctrl",
+-		.data = (void *) &s32_pinctrl_info_0,
+-	},
+-	{
+-		.compatible = "fsl,s32v344-siul2_1-pinctrl",
+-		.data = (void *) &s32_pinctrl_info_1,
+-	},
+-	{ /* sentinel */ }
+-};
+-MODULE_DEVICE_TABLE(of, s32_pinctrl_of_match);
+-
+-static int s32v344_pinctrl_probe(struct platform_device *pdev)
+-{
+-	const struct of_device_id *of_id =
+-		of_match_device(s32_pinctrl_of_match, &pdev->dev);
+-
+-	if (!of_id)
+-		return -ENODEV;
+-
+-	return s32_pinctrl_probe(pdev, (struct s32_pinctrl_soc_info *)
+-								of_id->data);
+-}
+-
+-static struct platform_driver s32v344_pinctrl_driver = {
+-	.driver = {
+-		.name = "s32v344-siul2-pinctrl",
+-		.owner = THIS_MODULE,
+-		.of_match_table = s32_pinctrl_of_match,
+-	},
+-	.probe = s32v344_pinctrl_probe,
+-	.remove = s32_pinctrl_remove,
+-};
+-
+-module_platform_driver(s32v344_pinctrl_driver);
+-
+-MODULE_AUTHOR("Matthew Nunez <matthew.nunez@nxp.com>");
+-MODULE_DESCRIPTION("NXP S32V344 pinctrl driver");
+-MODULE_LICENSE("GPL v2");
+diff --git a/include/dt-bindings/pinctrl/s32v344-pinctrl.h b/include/dt-bindings/pinctrl/s32v344-pinctrl.h
+deleted file mode 100644
+index 67b5cc6db523..000000000000
+--- a/include/dt-bindings/pinctrl/s32v344-pinctrl.h
++++ /dev/null
+@@ -1,577 +0,0 @@
+-/*
+- * Copyright 2018-2019 NXP
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2
+- * of the License, or (at your option) any later version.
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- */
+-
+-#ifndef __DT_BINDINGS_S32V344_PINCTRL_H__
+-#define __DT_BINDINGS_S32V344_PINCTRL_H__
+-/* Reference manuals used to build this pinctrl table */
+-/* RM S32V344 - Rev1 Draft N */
+-
+-/*
+- * Use to set PAD control
+- */
+-#include "s32-gen1-pinctrl.h"
+-
+-/* UART configuration */
+-#define PAD_CTL_UART_TX		(PAD_CTL_SRE_100MHZ | PAD_CTL_OBE | \
+-				 PAD_CTL_SRC_SIG_SEL1)
+-#define PAD_CTL_UART_RX_MSCR    (PAD_CTL_IBE)
+-#define PAD_CTL_UART_RX_IMCR    (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* CAN configuration */
+-#define PAD_CTL_CAN_TX_MSCRx		(PAD_CTL_SRE_100MHZ | PAD_CTL_OBE)
+-#define PAD_CTL_CAN_RX_MSCR		(PAD_CTL_IBE)
+-#define PAD_CTL_CAN_RX_IMCR		(PAD_CTL_SRC_SIG_SEL2)
+-
+-/* USDHC configuration  */
+-#define PAD_CTL_USDHC_BASE      (PAD_CTL_SRE_208MHZ | PAD_CTL_OBE | \
+-				 PAD_CTL_PUE | PAD_CTL_PUS | PAD_CTL_IBE)
+-
+-#define PAD_CTL_USDHC		(PAD_CTL_USDHC_BASE | PAD_CTL_SRC_SIG_SEL1)
+-
+-
+-/* QSPI configuration  */
+-#define PAD_CTL_QSPI_BASE		(PAD_CTL_SRE_208MHZ | PAD_CTL_OBE | \
+-					 PAD_CTL_IBE)
+-#define PAD_CTL_QSPI_CLK_BASE		(PAD_CTL_SRE_208MHZ | PAD_CTL_OBE)
+-#define PAD_CTL_QSPI_CK2_MUX		PAD_CTL_SRC_SIG_SEL1
+-#define PAD_CTL_QSPI_A_SCK_MUX		PAD_CTL_SRC_SIG_SEL1
+-#define PAD_CTL_QSPI_B_SCK_MUX		PAD_CTL_SRC_SIG_SEL2
+-#define PAD_CTL_QSPI_A_CS0_MUX		PAD_CTL_SRC_SIG_SEL1
+-#define PAD_CTL_QSPI_B_CS0_MUX		PAD_CTL_SRC_SIG_SEL2
+-#define PAD_CTL_QSPI_A_CS1_MUX		PAD_CTL_SRC_SIG_SEL1
+-#define PAD_CTL_QSPI_B_CS1_MUX		PAD_CTL_SRC_SIG_SEL2
+-#define PAD_CTL_QSPI_A_DQS		(PAD_CTL_SRE_208MHZ | \
+-					 PAD_CTL_IBE | PAD_CTL_OBE | \
+-					 PAD_CTL_PUE)
+-#define PAD_CTL_QSPI_A_DATA0_7    (PAD_CTL_QSPI_BASE | PAD_CTL_SRC_SIG_SEL1)
+-#define PAD_CTL_QSPI_B_DATA0_7    (PAD_CTL_QSPI_BASE | PAD_CTL_SRC_SIG_SEL2)
+-
+-/* EIRQ configuration */
+-#define PAD_CTL_EIRQ            PAD_CTL_SRC_SIG_SEL2
+-
+-/* I2C0 - Serial Data Input */
+-#define PAD_CTL_I2C0_MSCR_SDA   (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C0_IMCR_SDA   (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C0 - Serial Clock Input */
+-#define  PAD_CTL_I2C0_MSCR_SCLK (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C0_IMCR_SCLK  (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C1 - Serial Data Input */
+-#define PAD_CTL_I2C1_MSCR_SDA   (PAD_CTL_SRC_SIG_SEL2 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C1_IMCR_SDA   (PAD_CTL_SRC_SIG_SEL3)
+-
+-/* I2C1 - Serial Clock Input */
+-#define  PAD_CTL_I2C1_MSCR_SCLK (PAD_CTL_SRC_SIG_SEL2 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C1_IMCR_SCLK  (PAD_CTL_SRC_SIG_SEL3)
+-
+-/* I2C2 - Serial Data Input */
+-#define PAD_CTL_I2C2_MSCR_SDA   (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C2_IMCR_SDA   (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C2 - Serial Clock Input */
+-#define  PAD_CTL_I2C2_MSCR_SCLK (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C2_IMCR_SCLK  (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C3 - Serial Data Input */
+-#define PAD_CTL_I2C3_MSCR_SDA   (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C3_IMCR_SDA   (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C3 - Serial Clock Input */
+-#define  PAD_CTL_I2C3_MSCR_SCLK (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C3_IMCR_SCLK  (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C4 - Serial Data Input */
+-#define PAD_CTL_I2C4_MSCR_SDA   (PAD_CTL_SRC_SIG_SEL2 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C4_IMCR_SDA   (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* I2C4 - Serial Clock Input */
+-#define  PAD_CTL_I2C4_MSCR_SCLK (PAD_CTL_SRC_SIG_SEL2 | PAD_CTL_OBE | \
+-				 PAD_CTL_IBE | PAD_CTL_ODE)
+-#define PAD_CTL_I2C4_IMCR_SCLK  (PAD_CTL_SRC_SIG_SEL2)
+-
+-/* ENET CFG1 */
+-#define PAD_CTL_ENET_CFG1	(PAD_CTL_PUE | PAD_CTL_PUS | \
+-				 PAD_CTL_OBE | PAD_CTL_SRC_SIG_SEL1)
+-
+-/* ENET CFG2 */
+-#define PAD_CTL_ENET_CFG2	(PAD_CTL_SRE_208MHZ | \
+-				 PAD_CTL_OBE | PAD_CTL_SRC_SIG_SEL1)
+-
+-/* ENET CFG3 */
+-#define PAD_CTL_ENET_CFG3	(PAD_CTL_SRE_208MHZ | \
+-				 PAD_CTL_OBE | PAD_CTL_IBE | \
+-				PAD_CTL_SRC_SIG_SEL1)
+-
+-/* ENET CFG4 */
+-#define PAD_CTL_ENET_CFG4	(PAD_CTL_SRE_208MHZ | PAD_CTL_IBE)
+-
+-/* DCU CFG */
+-#define PAD_CTL_DCU_CFG		(PAD_CTL_SRE_208MHZ | \
+-				PAD_CTL_OBE | PAD_CTL_IBE | \
+-				PAD_CTL_SRC_SIG_SEL1)
+-
+-/* SPI 0 */
+-#define PAD_CTL_SPI_MSCR_CSx	(PAD_CTL_OBE | PAD_CTL_PUE | \
+-				 PAD_CTL_PUS)
+-
+-#define PAD_CTL_SPI0_MSCR_SCK   (PAD_CTL_OBE | \
+-				PAD_CTL_SRC_SIG_SEL1)
+-
+-#define PAD_CTL_SPI0_MSCR_SOUT	(PAD_CTL_OBE | \
+-				 PAD_CTL_SRC_SIG_SEL1)
+-
+-#define PAD_CTL_SPI0_MSCR_SIN	(PAD_CTL_PUE | PAD_CTL_IBE | \
+-				 PAD_CTL_PUS)
+-
+-#define PAD_CTL_SPI0_IMCR_SIN	(PAD_CTL_SRC_SIG_SEL2)
+-
+-/* SPI 1 */
+-#define PAD_CTL_SPI1_MSCR_SCK   (PAD_CTL_OBE | \
+-				PAD_CTL_SRC_SIG_SEL1)
+-
+-#define PAD_CTL_SPI1_MSCR_SOUT	(PAD_CTL_OBE | \
+-				 PAD_CTL_SRC_SIG_SEL2)
+-
+-#define PAD_CTL_SPI1_MSCR_SIN	(PAD_CTL_PUE | PAD_CTL_IBE | \
+-				 PAD_CTL_PUS)
+-
+-#define PAD_CTL_SPI1_IMCR_SIN	(PAD_CTL_SRC_SIG_SEL2)
+-
+-/* UART configuration */
+-#define S32_GEN1_PAD_PC09__UART0_TXD_OUT     41  PAD_CTL_UART_TX
+-#define S32_GEN1_PAD_PC10__UART0_RXD_OUT     42  PAD_CTL_UART_RX_MSCR
+-#define S32_GEN1_PAD_PC10__UART0_RXD_IN      512 PAD_CTL_UART_RX_IMCR
+-
+-/* CAN0 configuration */
+-#define S32_GEN1_PAD_PC12__CAN0_TXD        44  (PAD_CTL_CAN_TX_MSCRx | \
+-						PAD_CTL_SRC_SIG_SEL1)
+-#define S32_GEN1_PAD_PC11__CAN0_RXD_OUT    43  PAD_CTL_CAN_RX_MSCR
+-#define S32_GEN1_PAD_PC11__CAN0_RXD_IN     513 PAD_CTL_CAN_RX_IMCR
+-
+-/* CAN1 configuration */
+-#define S32_GEN1_PAD_PB10__CAN1_TXD         26 (PAD_CTL_CAN_TX_MSCRx | \
+-						PAD_CTL_SRC_SIG_SEL1)
+-#define S32_GEN1_PAD_PB11__CAN1_RXD_OUT     27 PAD_CTL_CAN_RX_MSCR
+-#define S32_GEN1_PAD_PB11__CAN1_RXD_IN      572 PAD_CTL_CAN_RX_IMCR
+-
+-/* CAN2 configuration */
+-#define S32_GEN1_PAD_PB12__CAN2_TXD         28  (PAD_CTL_CAN_TX_MSCRx | \
+-						 PAD_CTL_SRC_SIG_SEL1)
+-#define S32_GEN1_PAD_PB13__CAN2_RXD_OUT     29  PAD_CTL_CAN_RX_MSCR
+-#define S32_GEN1_PAD_PB13__CAN2_RXD_IN      573  PAD_CTL_CAN_RX_IMCR
+-
+-/* CAN3 configuration */
+-#define S32_GEN1_PAD_PC6__CAN3_TXD         38  (PAD_CTL_CAN_TX_MSCRx | \
+-						 PAD_CTL_SRC_SIG_SEL1)
+-#define S32_GEN1_PAD_PC7__CAN3_RXD_OUT     39  PAD_CTL_CAN_RX_MSCR
+-#define S32_GEN1_PAD_PC7__CAN3_RXD_IN      574  PAD_CTL_CAN_RX_IMCR
+-
+-/* uSDHC configuration */
+-#define S32_GEN1_PAD_PC14__USDHC_CLK_OUT     46  PAD_CTL_USDHC
+-
+-#define S32_GEN1_PAD_PC15__USDHC_CMD_OUT     47  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PC15__USDHC_CMD_IN      515 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD0__USDHC_DAT0_OUT     48  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD0__USDHC_DAT0_IN      516 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD1__USDHC_DAT1_OUT     49  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD1__USDHC_DAT1_IN      517 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD2__USDHC_DAT2_OUT     50  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD2__USDHC_DAT2_IN      520 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD3__USDHC_DAT3_OUT     51  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD3__USDHC_DAT3_IN      521 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD4__USDHC_DAT4_OUT     52  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD4__USDHC_DAT4_IN      522 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD5__USDHC_DAT5_OUT     53  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD5__USDHC_DAT5_IN      523 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD6__USDHC_DAT6_OUT     54  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD6__USDHC_DAT6_IN      519 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PD7__USDHC_DAT7_OUT     55  PAD_CTL_USDHC
+-#define S32_GEN1_PAD_PD7__USDHC_DAT7_IN      518 PAD_CTL_SRC_SIG_SEL2
+-
+-/* QSPI configuration */
+-/* Note as-is DQS not enabled OR PAD_CTL_QSPI_A_DQS to enable */
+-#define S32_GEN1_PAD_PF13__QSPI_A_DQS        548 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD4__QSPI_B_DQS         558 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PF5__QSPI_A_DATA0_IN    540 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF5__QSPI_A_DATA0_OUT   85  PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF6__QSPI_A_DATA1_IN    541 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF6__QSPI_A_DATA1_OUT   86  PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF7__QSPI_A_DATA2_IN    542 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF7__QSPI_A_DATA2_OUT   87 PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF8__QSPI_A_DATA3_IN    543 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF8__QSPI_A_DATA3_OUT   88  PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF9__QSPI_A_DATA4_IN    544 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF9__QSPI_A_DATA4_OUT   89 PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF10__QSPI_A_DATA5_IN   545 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF10__QSPI_A_DATA5_OUT  90 PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF11__QSPI_A_DATA6_IN   546 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF11__QSPI_A_DATA6_OUT  91 PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PF12__QSPI_A_DATA7_IN   547 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PF12__QSPI_A_DATA7_OUT  92 PAD_CTL_QSPI_A_DATA0_7
+-
+-#define S32_GEN1_PAD_PC14__QSPI_B_DATA0_IN   552 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PC14__QSPI_B_DATA0_OUT  46 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PD3__QSPI_B_DATA1_IN    554 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD3__QSPI_B_DATA1_OUT   51 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PD9__QSPI_B_DATA2_IN    551 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD9__QSPI_B_DATA2_OUT   57 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PC15__QSPI_B_DATA3_IN   553 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PC15__QSPI_B_DATA3_OUT  47 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PD2__QSPI_B_DATA4_IN    557 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD2__QSPI_B_DATA4_OUT   50 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PD8__QSPI_B_DATA5_IN    550 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD8__QSPI_B_DATA5_OUT   56 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PD10__QSPI_B_DATA6_IN   556 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD10__QSPI_B_DATA6_OUT  58 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PD5__QSPI_B_DATA7_IN    555 PAD_CTL_SRC_SIG_SEL2
+-#define S32_GEN1_PAD_PD5__QSPI_B_DATA7_OUT   53 PAD_CTL_QSPI_B_DATA0_7
+-
+-#define S32_GEN1_PAD_PG5__QSPI_A_CS1         92  (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_A_CS1_MUX)
+-#define S32_GEN1_PAD_PD1__QSPI_B_CS1         93  (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_B_CS1_MUX)
+-
+-#define S32_GEN1_PAD_PG4__QSPI_A_CS0         100 (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_A_CS0_MUX)
+-#define S32_GEN1_PAD_PG0__QSPI_A_SCK         96  (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_A_SCK_MUX)
+-
+-#define S32_GEN1_PAD_PD0__QSPI_B_CS0         48  (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_B_CS0_MUX)
+-#define S32_GEN1_PAD_PD6__QSPI_B_SCK         54  (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_B_SCK_MUX)
+-
+-#define S32_GEN1_PAD_PG2__QSPI_CK2           98  (PAD_CTL_QSPI_CLK_BASE | \
+-						  PAD_CTL_QSPI_CK2_MUX)
+-
+-/* I2C configuration */
+-#define S32_GEN1_PAD_PB0__I2C0_DATA_OUT      16  PAD_CTL_I2C0_MSCR_SDA
+-#define S32_GEN1_PAD_PB0__I2C0_DATA_IN       565 PAD_CTL_I2C0_IMCR_SDA
+-
+-#define S32_GEN1_PAD_PB1__I2C0_SCLK_OUT      17  PAD_CTL_I2C0_MSCR_SCLK
+-#define S32_GEN1_PAD_PB1__I2C0_SCLK_IN       566 PAD_CTL_I2C0_IMCR_SCLK
+-
+-#define S32_GEN1_PAD_PA6__I2C1_DATA_OUT      6   PAD_CTL_I2C1_MSCR_SDA
+-#define S32_GEN1_PAD_PA6__I2C1_DATA_IN       601 PAD_CTL_I2C1_IMCR_SDA
+-
+-#define S32_GEN1_PAD_PA7__I2C1_SCLK_OUT      7   PAD_CTL_I2C1_MSCR_SCLK
+-#define S32_GEN1_PAD_PA7__I2C1_SCLK_IN       600 PAD_CTL_I2C1_IMCR_SCLK
+-
+-#define S32_GEN1_PAD_PA14__I2C2_DATA_OUT     14  PAD_CTL_I2C2_MSCR_SDA
+-#define S32_GEN1_PAD_PA14__I2C2_DATA_IN      603 PAD_CTL_I2C2_IMCR_SDA
+-
+-#define S32_GEN1_PAD_PA15__I2C2_SCLK_OUT     15  PAD_CTL_I2C2_MSCR_SCLK
+-#define S32_GEN1_PAD_PA15__I2C2_SCLK_IN      602 PAD_CTL_I2C2_IMCR_SCLK
+-
+-#define S32_GEN1_PAD_PB6__I2C3_DATA_OUT      22  PAD_CTL_I2C3_MSCR_SDA
+-#define S32_GEN1_PAD_PB6__I2C3_DATA_IN       605 PAD_CTL_I2C3_IMCR_SDA
+-
+-#define S32_GEN1_PAD_PB7__I2C3_SCLK_OUT      23  PAD_CTL_I2C3_MSCR_SCLK
+-#define S32_GEN1_PAD_PB7__I2C3_SCLK_IN       604 PAD_CTL_I2C3_IMCR_SCLK
+-
+-#define S32_GEN1_PAD_PD11__I2C4_DATA_OUT     59  PAD_CTL_I2C4_MSCR_SDA
+-#define S32_GEN1_PAD_PD11__I2C4_DATA_IN      606 PAD_CTL_I2C4_IMCR_SDA
+-
+-#define S32_GEN1_PAD_PC13__I2C4_SCLK_OUT     45  PAD_CTL_I2C4_MSCR_SCLK
+-#define S32_GEN1_PAD_PC13__I2C4_SCLK_IN      607 PAD_CTL_I2C4_IMCR_SCLK
+-
+-/* ENET configuration */
+-#define S32_GEN1_PAD_PD12__MDC              60  PAD_CTL_ENET_CFG2
+-
+-#define S32_GEN1_PAD_PD13__MDIO_OUT         61  PAD_CTL_ENET_CFG3
+-#define S32_GEN1_PAD_PD13__MDIO_IN          527 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE2__TXCLK_OUT         66  PAD_CTL_ENET_CFG1
+-#define S32_GEN1_PAD_PE2__TXCLK_IN          538 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE8__RXCLK_OUT         72  PAD_CTL_ENET_CFG4
+-#define S32_GEN1_PAD_PE8__RXCLK_IN          529 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE10__RX_D0_OUT        74  PAD_CTL_ENET_CFG4
+-#define S32_GEN1_PAD_PE10__RX_D0_IN         531 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE11__RX_D1_OUT        75  PAD_CTL_ENET_CFG4
+-#define S32_GEN1_PAD_PE11__RX_D1_IN         532 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE12__RX_D2_OUT        76  PAD_CTL_ENET_CFG4
+-#define S32_GEN1_PAD_PE12__RX_D2_IN         533 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE13__RX_D3_OUT        77  PAD_CTL_ENET_CFG4
+-#define S32_GEN1_PAD_PE13__RX_D3_IN         534 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE9__RX_DV_OUT          73  PAD_CTL_ENET_CFG4
+-#define S32_GEN1_PAD_PE9__RX_DV_IN           530 PAD_CTL_SRC_SIG_SEL2
+-
+-#define S32_GEN1_PAD_PE4__TX_D0_OUT	    68	PAD_CTL_ENET_CFG2
+-#define S32_GEN1_PAD_PE5__TX_D1_OUT	    69	PAD_CTL_ENET_CFG2
+-#define S32_GEN1_PAD_PE6__TX_D2_OUT	    70	PAD_CTL_ENET_CFG2
+-#define S32_GEN1_PAD_PE7__TX_D3_OUT	    71	PAD_CTL_ENET_CFG2
+-#define S32_GEN1_PAD_PE3__TX_EN_OUT	    67	PAD_CTL_ENET_CFG2
+-
+-/* DCU Settings */
+-
+-#define S32_GEN1_PAD_PG9__B0		105 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PG10__B1		106 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PG11__B2		107 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PG12__B3		108 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PG13__B4		109 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PG14__B5		110 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PG15__B6		111 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH0__B7		112 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH1__G0		113 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH2__G1		114 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH3__G2		115 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH4__G3		116 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH5__G4		117 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH6__G5		118 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH7__G6		119 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH8__G7		120 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH9__R0		121 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH10__R1		122 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH11__R2		123 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH12__R3		124 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH13__R4		125 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH14__R5		126 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PH15__R6		127 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PJ0__R7		128 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PJ1__VSYNC		129 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PJ2__HSYNC		130 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PJ3__DE		131 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PJ4__PCLK		132 PAD_CTL_DCU_CFG
+-#define S32_GEN1_PAD_PJ5__TAG		133 PAD_CTL_DCU_CFG
+-
+-/* SPI 0 */
+-#define S32_GEN1_PAD_PJ8__SPI0_SOUT_OUT		136	PAD_CTL_SPI0_MSCR_SOUT
+-#define S32_GEN1_PAD_PJ7__SPI0_SIN_OUT		135	PAD_CTL_SPI0_MSCR_SIN
+-#define S32_GEN1_PAD_PJ7__SPI0_SIN_IN		562	PAD_CTL_SPI0_IMCR_SIN
+-#define S32_GEN1_PAD_PJ6__SPI0_SCK_OUT		134	PAD_CTL_SPI0_MSCR_SCK
+-#define S32_GEN1_PAD_PJ9__SPI0_CS0_OUT		137	(PAD_CTL_SPI_MSCR_CSx | \
+-							 PAD_CTL_SRC_SIG_SEL1)
+-#define S32_GEN1_PAD_PJ10__SPI0_CS1_OUT		138	(PAD_CTL_SPI_MSCR_CSx | \
+-							 PAD_CTL_SRC_SIG_SEL1)
+-/* SPI 1 */
+-#define S32_GEN1_PAD_PA12__SPI1_SOUT_OUT	12	PAD_CTL_SPI1_MSCR_SOUT
+-#define S32_GEN1_PAD_PA11__SPI1_SIN_OUT		11	PAD_CTL_SPI1_MSCR_SIN
+-#define S32_GEN1_PAD_PA11__SPI1_SIN_IN		565	PAD_CTL_SPI1_IMCR_SIN
+-#define S32_GEN1_PAD_PA10__SPI1_SCK_OUT		10	PAD_CTL_SPI1_MSCR_SCK
+-#define S32_GEN1_PAD_PA13__SPI1_CS0_OUT		13	(PAD_CTL_SPI_MSCR_CSx | \
+-							 PAD_CTL_SRC_SIG_SEL1)
+-
+-/* SIUL2 GPIOs */
+-#define S32_GEN1_PAD_PA0__SIUL_GPIO0	 0	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA1__SIUL_GPIO1	 1	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA2__SIUL_GPIO2	 2	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA3__SIUL_GPIO3	 3	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA4__SIUL_GPIO4	 4	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA5__SIUL_GPIO5	 5	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA6__SIUL_GPIO6	 6	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA7__SIUL_GPIO7	 7	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA8__SIUL_GPIO8	 8	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA9__SIUL_GPIO9	 9	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA10__SIUL_GPIO10	 10	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA11__SIUL_GPIO11	 11	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA12__SIUL_GPIO12	 12	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA13__SIUL_GPIO13	 13	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA14__SIUL_GPIO14	 14	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PA15__SIUL_GPIO15	 15	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB0__SIUL_GPIO16	 16	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB1__SIUL_GPIO17	 17	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB2__SIUL_GPIO18	 18	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB3__SIUL_GPIO19	 19	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB4__SIUL_GPIO20	 20	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB5__SIUL_GPIO21	 21	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB6__SIUL_GPIO22	 22	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB7__SIUL_GPIO23	 23	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB8__SIUL_GPIO24	 24	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB9__SIUL_GPIO25	 25	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB10__SIUL_GPIO26	 26	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB11__SIUL_GPIO27	 27	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB12__SIUL_GPIO28	 28	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB13__SIUL_GPIO29	 29	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB14__SIUL_GPIO30	 30	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PB15__SIUL_GPIO31	 31	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC0__SIUL_GPIO32	 32	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC1__SIUL_GPIO33	 33	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC2__SIUL_GPIO34	 34	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC3__SIUL_GPIO35	 35	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC4__SIUL_GPIO36	 36	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC5__SIUL_GPIO37	 37	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC6__SIUL_GPIO38	 38	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC7__SIUL_GPIO39	 39	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC8__SIUL_GPIO40	 40	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC9__SIUL_GPIO41	 41	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC10__SIUL_GPIO42	 42	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC11__SIUL_GPIO43	 43	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC12__SIUL_GPIO44	 44	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC13__SIUL_GPIO45	 45	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC14__SIUL_GPIO46	 46	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PC15__SIUL_GPIO47	 47	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD0__SIUL_GPIO48	 48	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD1__SIUL_GPIO49	 49	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD2__SIUL_GPIO50	 50	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD3__SIUL_GPIO51	 51	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD4__SIUL_GPIO52	 52	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD5__SIUL_GPIO53	 53	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD6__SIUL_GPIO54	 54	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD7__SIUL_GPIO55	 55	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD8__SIUL_GPIO56	 56	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD9__SIUL_GPIO57	 57	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD10__SIUL_GPIO58	 58	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD11__SIUL_GPIO59	 59	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD12__SIUL_GPIO60	 60	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD13__SIUL_GPIO61	 61	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PD15__SIUL_GPIO63	 63	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE0__SIUL_GPIO64	 64	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE1__SIUL_GPIO65	 65	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE2__SIUL_GPIO66	 66	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE3__SIUL_GPIO67	 67	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE4__SIUL_GPIO68	 68	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE5__SIUL_GPIO69	 69	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE6__SIUL_GPIO70	 70	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE7__SIUL_GPIO71	 71	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE8__SIUL_GPIO72	 72	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE9__SIUL_GPIO73	 73	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE10__SIUL_GPIO74	 74	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE11__SIUL_GPIO75	 75	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE12__SIUL_GPIO76	 76	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PE13__SIUL_GPIO77	 77	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF1__SIUL_GPIO81	 81	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF2__SIUL_GPIO82	 82	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF3__SIUL_GPIO83	 83	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF4__SIUL_GPIO84	 84	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF5__SIUL_GPIO85	 85	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF6__SIUL_GPIO86	 86	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF7__SIUL_GPIO87	 87	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF8__SIUL_GPIO88	 88	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF9__SIUL_GPIO89	 89	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF10__SIUL_GPIO90	 90	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF11__SIUL_GPIO91	 91	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF12__SIUL_GPIO92	 92	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF13__SIUL_GPIO93	 93	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF14__SIUL_GPIO94	 94	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PF15__SIUL_GPIO95	 95	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG0__SIUL_GPIO96	 96	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG1__SIUL_GPIO97	 97	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG2__SIUL_GPIO98	 98	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG3__SIUL_GPIO99	 99	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG4__SIUL_GPIO100	 100	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG5__SIUL_GPIO101	 101	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG9__SIUL_GPIO105	 105	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG10__SIUL_GPIO106	 106	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG11__SIUL_GPIO107	 107	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG12__SIUL_GPIO108	 108	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG13__SIUL_GPIO109	 109	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG14__SIUL_GPIO110	 110	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PG15__SIUL_GPIO111	 111	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH0__SIUL_GPIO112	 112	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH1__SIUL_GPIO113	 113	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH2__SIUL_GPIO114	 114	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH3__SIUL_GPIO115	 115	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH4__SIUL_GPIO116	 116	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH5__SIUL_GPIO117	 117	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH6__SIUL_GPIO118	 118	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH7__SIUL_GPIO119	 119	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH8__SIUL_GPIO120	 120	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH9__SIUL_GPIO121	 121	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH10__SIUL_GPIO122	 122	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH11__SIUL_GPIO123	 123	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH12__SIUL_GPIO124	 124	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH13__SIUL_GPIO125	 125	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH14__SIUL_GPIO126	 126	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PH15__SIUL_GPIO127	 127	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ0__SIUL_GPIO128	 128	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ1__SIUL_GPIO129	 129	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ2__SIUL_GPIO129	 130	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ3__SIUL_GPIO131	 131	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ4__SIUL_GPIO132	 132	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ5__SIUL_GPIO133	 133	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ6__SIUL_GPIO134	 134	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ7__SIUL_GPIO135	 135	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ8__SIUL_GPIO136	 136	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ9__SIUL_GPIO137	 137	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ10__SIUL_GPIO138	 138	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ11__SIUL_GPIO139	 139	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ12__SIUL_GPIO140	 140	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ13__SIUL_GPIO141	 141	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ14__SIUL_GPIO142	 142	 PAD_CTL_SRC_SIG_SEL0
+-#define S32_GEN1_PAD_PJ15__SIUL_GPIO143	 143	 PAD_CTL_SRC_SIG_SEL0
+-
+-/* SIUL2 EIRQ pins */
+-#define S32_GEN1_PAD_PA9__SIUL_EIRQ0		628	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PA10__SIUL_EIRQ1		629	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PA11__SIUL_EIRQ2		630	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PA12__SIUL_EIRQ3		631	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PA13__SIUL_EIRQ4		632	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PA14__SIUL_EIRQ5		637	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PA15__SIUL_EIRQ6		638	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB0__SIUL_EIRQ7		639	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB1__SIUL_EIRQ8		640	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB2__SIUL_EIRQ9		633	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB3__SIUL_EIRQ10		634	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB4__SIUL_EIRQ11		635	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB5__SIUL_EIRQ12		636	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB6__SIUL_EIRQ13		621	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB7__SIUL_EIRQ14		622	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB8__SIUL_EIRQ15		623	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB9__SIUL_EIRQ16		624	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB10__SIUL_EIRQ17		625	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB11__SIUL_EIRQ18		626	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB12__SIUL_EIRQ19		627	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB13__SIUL_EIRQ20		618	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB14__SIUL_EIRQ21		619	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PB15__SIUL_EIRQ22		620	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC0__SIUL_EIRQ23		609	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC1__SIUL_EIRQ24		610	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC2__SIUL_EIRQ25		611	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC3__SIUL_EIRQ26		612	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC4__SIUL_EIRQ27		613	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC5__SIUL_EIRQ28		614	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC6__SIUL_EIRQ29		615	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC7__SIUL_EIRQ30		616	PAD_CTL_EIRQ
+-#define S32_GEN1_PAD_PC8__SIUL_EIRQ31		617	PAD_CTL_EIRQ
+-
+-#endif /* __DT_BINDINGS_S32V344_PINCTRL_H__ */
+-- 
+2.25.1
+

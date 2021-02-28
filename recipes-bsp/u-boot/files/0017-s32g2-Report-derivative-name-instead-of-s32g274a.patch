@@ -1,0 +1,60 @@
+From 2788afcef3ad71651173d00f5725569bd5ca26d4 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 10 Dec 2020 12:10:22 +0200
+Subject: [PATCH 17/76] s32g2: Report derivative name instead of s32g274a
+
+Issue: ALB-6004, ALB-6005
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c | 2 +-
+ arch/arm/dts/fsl-s32g274a.dtsi        | 4 ++--
+ board/freescale/s32-gen1/common.c     | 4 ++--
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 5b2dd88488..8093166f43 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -136,7 +136,7 @@ void reset_cpu(ulong addr)
+ int print_cpuinfo(void)
+ {
+ #ifdef CONFIG_S32G274A
+-	printf("CPU:\tNXP S32G274A");
++	printf("CPU: NXP %s", get_s32g2_deriv_name());
+ 	#ifdef CONFIG_TARGET_TYPE_S32GEN1_SIMULATOR
+ 	printf("\n");
+ 	#else
+diff --git a/arch/arm/dts/fsl-s32g274a.dtsi b/arch/arm/dts/fsl-s32g274a.dtsi
+index 24fbbc68c8..70fffd605b 100644
+--- a/arch/arm/dts/fsl-s32g274a.dtsi
++++ b/arch/arm/dts/fsl-s32g274a.dtsi
+@@ -13,8 +13,8 @@
+ /dts-v1/;
+ #include "fsl-s32-gen1.dtsi"
+ / {
+-	model = "NXP S32G27x";
+-	compatible = "fsl,s32g275-simu", "fsl,s32g275", "fsl,s32gen1",
++	model = "NXP S32G2XX";
++	compatible = "fsl,s32g274-simu", "fsl,s32g274", "fsl,s32gen1",
+ 				 "arm,vexpress,v2p-aarch64", "arm,vexpress";
+ 
+ 	aliases {
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index aa7bf97ea7..e43189ec10 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -154,9 +154,9 @@ int board_init(void)
+ int checkboard(void)
+ {
+ #if defined(CONFIG_TARGET_S32G274AEVB)
+-	puts("Board:\tNXP S32G274A-EVB\n");
++	printf("Board:\tNXP %s-EVB\n", get_s32g2_deriv_name());
+ #elif defined(CONFIG_TARGET_S32G274ARDB)
+-	puts("Board:\tNXP S32G274A-RDB\n");
++	puts("Board:\tNXP %s-RDB\n", get_s32g2_deriv_name());
+ #elif defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+ 	puts("Board:\tNXP S32G274A BlueBox3\n");
+ #elif defined(CONFIG_TARGET_S32G274ASIM)
+-- 
+2.17.1
+

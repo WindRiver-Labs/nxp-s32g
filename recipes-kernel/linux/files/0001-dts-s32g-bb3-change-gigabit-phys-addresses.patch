@@ -1,0 +1,37 @@
+From d623239f5ae095d8fe9a73b6cadad54398396604 Mon Sep 17 00:00:00 2001
+From: Radu Pirea <radu-nicolae.pirea@nxp.com>
+Date: Tue, 24 Nov 2020 17:54:11 +0200
+Subject: [PATCH 01/78] dts: s32g: bb3: change gigabit phys addresses
+
+Change the addresses of the gigabit PHYs according to rev B schematic.
+
+Issue:ALB-5996
+Signed-off-by: Radu Pirea <radu-nicolae.pirea@nxp.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+index d28566e4dfdd..eb83bb1eb8f7 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+@@ -128,12 +128,12 @@
+ 	pinctrl-0 = <&pinctrl0_pfe0_mdio>, <&pinctrl1_pfe0_mdio>;
+ 	status = "okay";
+ 
+-	phy1: phy@1 {
+-		reg = <1>;
++	phy5: phy@5 {
++		reg = <5>;
+ 	};
+ 
+-	phy2: phy@2 {
+-		reg = <2>;
++	phy6: phy@6 {
++		reg = <6>;
+ 	};
+ 
+ 	phy25: phy@25 {
+-- 
+2.25.1
+

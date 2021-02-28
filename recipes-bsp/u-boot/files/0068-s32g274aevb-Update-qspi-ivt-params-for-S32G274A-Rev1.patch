@@ -1,0 +1,48 @@
+From 7f9fada398d8847f24dc5eba299f257acebc6ca8 Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Mon, 1 Feb 2021 14:06:55 +0200
+Subject: [PATCH 68/76] s32g274aevb: Update qspi ivt params for S32G274A-Rev1
+
+In case of S32G274A-EVB Rev 2, qspi frequency will be set to 200 Mhz,
+but for S32G274A-EVB Rev 1, we need to use correct qspi ivt parameters.
+
+Issue: ALB-6247
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+---
+ tools/s32gen1image.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index 2a1945a508..31253bfaf4 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -1,5 +1,5 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+-/* Copyright 2019-2020 NXP */
++/* Copyright 2019-2021 NXP */
+ 
+ #include <image.h>
+ #include <generated/autoconf.h>
+@@ -186,7 +186,8 @@ static struct qspi_params s32g2xx_qspi_conf = {
+ 	},
+ };
+ 
+-#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB)
++#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
++	defined(CONFIG_TARGET_S32G274AEVB)
+ static void adjust_qspi_params(struct qspi_params *qspi_params)
+ {
+ 	qspi_params->dllcr = 0x8280000c;
+@@ -203,7 +204,8 @@ static struct qspi_params *get_qspi_params(struct program_image *image)
+ static void s32gen1_set_qspi_params(struct qspi_params *qspi_params)
+ {
+ 	memcpy(qspi_params, &s32g2xx_qspi_conf, sizeof(*qspi_params));
+-#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB)
++#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
++	defined(CONFIG_TARGET_S32G274AEVB)
+ 	adjust_qspi_params(qspi_params);
+ #endif
+ }
+-- 
+2.17.1
+

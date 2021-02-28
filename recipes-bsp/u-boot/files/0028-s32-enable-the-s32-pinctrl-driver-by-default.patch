@@ -1,0 +1,31 @@
+From ccf9a87efac737a051625edd1afb2c0a3ae3aa94 Mon Sep 17 00:00:00 2001
+From: Radu Pirea <radu-nicolae.pirea@nxp.com>
+Date: Mon, 14 Dec 2020 11:21:04 +0200
+Subject: [PATCH 28/76] s32: enable the s32 pinctrl driver by default
+
+Enable the s32 pinctrl driver by default on all the s32-gen1 boards.
+
+Issue: ALB-5668
+
+Signed-off-by: Radu Pirea <radu-nicolae.pirea@nxp.com>
+---
+ board/freescale/Kconfig | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index b2ab272856..36adacfe5d 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -9,6 +9,9 @@ config S32_GEN1
+ 	select CLK_SCMI
+ 	select OF_CONTROL
+ 	select OF_SEPARATE
++	select PINCTRL
++	select PINCTRL_FULL
++	select PINCTRL_S32
+ 	select SCMI_FIRMWARE
+ 	select ARCH_MISC_INIT
+ 	help
+-- 
+2.17.1
+

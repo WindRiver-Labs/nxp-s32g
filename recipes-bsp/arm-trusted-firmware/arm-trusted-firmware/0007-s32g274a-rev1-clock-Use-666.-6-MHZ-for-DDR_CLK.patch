@@ -1,0 +1,36 @@
+From 5e70e44ed1079e0b5267ffb330dafa6a677c3b82 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 25 Jan 2021 11:51:42 +0200
+Subject: [PATCH 07/22] s32g274a-rev1: clock: Use 666.(6) MHZ for DDR_CLK
+
+Issue: ALB-5722
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ include/dt-bindings/clock/s32gen1-clock-freq.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index bcce5b9e6..9076cc898 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: BSD-3-Clause */
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef S32GEN1_CLOCK_FREQ_H
+ #define S32GEN1_CLOCK_FREQ_H
+@@ -21,7 +21,7 @@
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
+ #define S32GEN1_PERIPH_DFS3_FREQ		(800 * MHZ)
+ #define S32GEN1_QSPI_MAX_FREQ			(200 * MHZ)
+-#define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+-#define S32GEN1_DDR_FREQ			(400 * MHZ)
++#define S32GEN1_DDR_PLL_VCO_FREQ		(1333333333UL)
++#define S32GEN1_DDR_FREQ			(666666666UL)
+ 
+ #endif
+-- 
+2.17.1
+

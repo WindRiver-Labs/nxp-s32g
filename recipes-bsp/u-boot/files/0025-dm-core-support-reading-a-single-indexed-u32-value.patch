@@ -1,0 +1,394 @@
+From 0ade274a3698dfafef8fd40e9987d3d821fcfc5c Mon Sep 17 00:00:00 2001
+From: Dario Binacchi <dariobin@libero.it>
+Date: Sun, 29 Mar 2020 18:04:41 +0200
+Subject: [PATCH 25/76] dm: core: support reading a single indexed u32 value
+
+The patch adds helper functions to allow reading a single indexed u32
+value from a device-tree property containing multiple u32 values, that
+is an array of integers.
+
+commit 4bb7075c830c6f4e4512fe0277ff1f08c5a9e084 ("dm: core: support reading a single indexed u32 value")
+Remote: https://github.com/u-boot/u-boot/commit/4bb7075c830c6f4e4512fe0277ff1f08c5a9e084
+Issue: ALB-5669
+
+Signed-off-by: Dario Binacchi <dariobin@libero.it>
+Reviewed-by: Simon Glass <sjg@chromium.org>
+---
+ arch/sandbox/dts/test.dts |  6 ++++++
+ drivers/core/of_access.c  | 24 +++++++++++++++++++++
+ drivers/core/ofnode.c     | 44 ++++++++++++++++++++++++++++++++++++++-
+ drivers/core/read.c       | 15 +++++++++++++
+ include/dm/of_access.h    | 21 +++++++++++++++++++
+ include/dm/ofnode.h       | 27 ++++++++++++++++++++++++
+ include/dm/read.h         | 42 +++++++++++++++++++++++++++++++++++++
+ test/dm/test-fdt.c        | 31 +++++++++++++++++++++++++++
+ 8 files changed, 209 insertions(+), 1 deletion(-)
+
+diff --git a/arch/sandbox/dts/test.dts b/arch/sandbox/dts/test.dts
+index 4a277934a7..c7088acce1 100644
+--- a/arch/sandbox/dts/test.dts
++++ b/arch/sandbox/dts/test.dts
+@@ -1,3 +1,8 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2021 NXP
++ */
++
+ /dts-v1/;
+ 
+ / {
+@@ -93,6 +98,7 @@
+ 			<&gpio_b 9 0xc 3 2 1>;
+ 		int-value = <1234>;
+ 		uint-value = <(-1234)>;
++		int-array = <5678 9123 4567>;
+ 		interrupts-extended = <&irq 3 0>;
+ 	};
+ 
+diff --git a/drivers/core/of_access.c b/drivers/core/of_access.c
+index acd745c121..55fc7c7f29 100644
+--- a/drivers/core/of_access.c
++++ b/drivers/core/of_access.c
+@@ -17,6 +17,8 @@
+  *
+  * This file follows drivers/of/base.c with functions in the same order as the
+  * Linux version.
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -485,6 +487,28 @@ int of_read_u32_array(const struct device_node *np, const char *propname,
+ 	return 0;
+ }
+ 
++int of_read_u32_index(const struct device_node *np, const char *propname,
++		      int index, u32 *outp)
++{
++	const __be32 *val;
++
++	debug("%s: %s: ", __func__, propname);
++	if (!np)
++		return -EINVAL;
++
++	val = of_find_property_value_of_size(np, propname,
++					     sizeof(*outp) * (index + 1));
++	if (IS_ERR(val)) {
++		debug("(not found)\n");
++		return PTR_ERR(val);
++	}
++
++	*outp = be32_to_cpup(val + index);
++	debug("%#x (%d)\n", *outp, *outp);
++
++	return 0;
++}
++
+ int of_read_u64(const struct device_node *np, const char *propname, u64 *outp)
+ {
+ 	const __be64 *val;
+diff --git a/drivers/core/ofnode.c b/drivers/core/ofnode.c
+index 96a5dd20bd..7f35d2bbd7 100644
+--- a/drivers/core/ofnode.c
++++ b/drivers/core/ofnode.c
+@@ -1,7 +1,9 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * Copyright (c) 2017 Google, Inc
+- * Written by Simon Glass <sjg@chromium.org>
++ * Written by Simon Glass <sjg@chromium.org
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -48,6 +50,46 @@ u32 ofnode_read_u32_default(ofnode node, const char *propname, u32 def)
+ 	return def;
+ }
+ 
++int ofnode_read_u32_index(ofnode node, const char *propname, int index,
++			  u32 *outp)
++{
++	const fdt32_t *cell;
++	int len;
++
++	assert(ofnode_valid(node));
++	debug("%s: %s: ", __func__, propname);
++
++	if (ofnode_is_np(node))
++		return of_read_u32_index(ofnode_to_np(node), propname, index,
++					 outp);
++
++	cell = fdt_getprop(gd->fdt_blob, ofnode_to_offset(node), propname,
++			   &len);
++	if (!cell) {
++		debug("(not found)\n");
++		return -EINVAL;
++	}
++
++	if (len < (sizeof(int) * (index + 1))) {
++		debug("(not large enough)\n");
++		return -EOVERFLOW;
++	}
++
++	*outp = fdt32_to_cpu(cell[index]);
++	debug("%#x (%d)\n", *outp, *outp);
++
++	return 0;
++}
++
++u32 ofnode_read_u32_index_default(ofnode node, const char *propname, int index,
++				  u32 def)
++{
++	assert(ofnode_valid(node));
++	ofnode_read_u32_index(node, propname, index, &def);
++
++	return def;
++}
++
+ int ofnode_read_s32_default(ofnode node, const char *propname, s32 def)
+ {
+ 	assert(ofnode_valid(node));
+diff --git a/drivers/core/read.c b/drivers/core/read.c
+index 1f999b1b31..149e3f70b9 100644
+--- a/drivers/core/read.c
++++ b/drivers/core/read.c
+@@ -2,6 +2,8 @@
+ /*
+  * Copyright (c) 2017 Google, Inc
+  * Written by Simon Glass <sjg@chromium.org>
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #include <asm/types.h>
+@@ -22,6 +24,19 @@ int dev_read_u32_default(const struct udevice *dev, const char *propname,
+ 	return ofnode_read_u32_default(dev_ofnode(dev), propname, def);
+ }
+ 
++int dev_read_u32_index(struct udevice *dev, const char *propname, int index,
++		       u32 *outp)
++{
++	return ofnode_read_u32_index(dev_ofnode(dev), propname, index, outp);
++}
++
++u32 dev_read_u32_index_default(struct udevice *dev, const char *propname,
++			       int index, u32 def)
++{
++	return ofnode_read_u32_index_default(dev_ofnode(dev), propname, index,
++					     def);
++}
++
+ int dev_read_s32(const struct udevice *dev, const char *propname, s32 *outp)
+ {
+ 	return ofnode_read_u32(dev_ofnode(dev), propname, (u32 *)outp);
+diff --git a/include/dm/of_access.h b/include/dm/of_access.h
+index 13fedb7cf5..36d4d028a5 100644
+--- a/include/dm/of_access.h
++++ b/include/dm/of_access.h
+@@ -12,6 +12,8 @@
+  *
+  * Modified for U-Boot
+  * Copyright (c) 2017 Google, Inc
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #ifndef _DM_OF_ACCESS_H
+@@ -234,6 +236,25 @@ struct device_node *of_find_node_by_phandle(phandle handle);
+  */
+ int of_read_u32(const struct device_node *np, const char *propname, u32 *outp);
+ 
++/**
++ * of_read_u32_index() - Find and read a 32-bit value from a multi-value
++ *                       property
++ *
++ * Search for a property in a device node and read a 32-bit value from
++ * it.
++ *
++ * @np:		device node from which the property value is to be read.
++ * @propname:	name of the property to be searched.
++ * @index:	index of the u32 in the list of values
++ * @outp:	pointer to return value, modified only if return value is 0.
++ *
++ * @return 0 on success, -EINVAL if the property does not exist,
++ * -ENODATA if property does not have a value, and -EOVERFLOW if the
++ * property data isn't large enough.
++ */
++int of_read_u32_index(const struct device_node *np, const char *propname,
++		      int index, u32 *outp);
++
+ /**
+  * of_read_u64() - Find and read a 64-bit integer from a property
+  *
+diff --git a/include/dm/ofnode.h b/include/dm/ofnode.h
+index b5a50e8849..7962386c64 100644
+--- a/include/dm/ofnode.h
++++ b/include/dm/ofnode.h
+@@ -2,6 +2,8 @@
+ /*
+  * Copyright (c) 2017 Google, Inc
+  * Written by Simon Glass <sjg@chromium.org>
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #ifndef _DM_OFNODE_H
+@@ -202,6 +204,18 @@ static inline ofnode ofnode_null(void)
+  */
+ int ofnode_read_u32(ofnode node, const char *propname, u32 *outp);
+ 
++/**
++ * ofnode_read_u32_index() - Read a 32-bit integer from a multi-value property
++ *
++ * @ref:	valid node reference to read property from
++ * @propname:	name of the property to read from
++ * @index:	index of the integer to return
++ * @outp:	place to put value (if found)
++ * @return 0 if OK, -ve on error
++ */
++int ofnode_read_u32_index(ofnode node, const char *propname, int index,
++			  u32 *outp);
++
+ /**
+  * ofnode_read_s32() - Read a 32-bit integer from a property
+  *
+@@ -226,6 +240,19 @@ static inline int ofnode_read_s32(ofnode node, const char *propname,
+  */
+ u32 ofnode_read_u32_default(ofnode ref, const char *propname, u32 def);
+ 
++/**
++ * ofnode_read_u32_index_default() - Read a 32-bit integer from a multi-value
++ *                                   property
++ *
++ * @ref:	valid node reference to read property from
++ * @propname:	name of the property to read from
++ * @index:	index of the integer to return
++ * @def:	default value to return if the property has no value
++ * @return property value, or @def if not found
++ */
++u32 ofnode_read_u32_index_default(ofnode ref, const char *propname, int index,
++				  u32 def);
++
+ /**
+  * ofnode_read_s32_default() - Read a 32-bit integer from a property
+  *
+diff --git a/include/dm/read.h b/include/dm/read.h
+index da8c7f25e7..1bc1cd59b5 100644
+--- a/include/dm/read.h
++++ b/include/dm/read.h
+@@ -4,6 +4,8 @@
+  *
+  * Copyright (c) 2017 Google, Inc
+  * Written by Simon Glass <sjg@chromium.org>
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #ifndef _DM_READ_H
+@@ -66,6 +68,32 @@ int dev_read_u32(const struct udevice *dev, const char *propname, u32 *outp);
+ int dev_read_u32_default(const struct udevice *dev, const char *propname,
+ 			 int def);
+ 
++/**
++ * dev_read_u32_index() - read an indexed 32-bit integer from a device's DT
++ *                        property
++ *
++ * @dev:	device to read DT property from
++ * @propname:	name of the property to read from
++ * @index:	index of the integer to return
++ * @outp:	place to put value (if found)
++ * @return 0 if OK, -ve on error
++ */
++int dev_read_u32_index(struct udevice *dev, const char *propname, int index,
++		       u32 *outp);
++
++/**
++ * dev_read_u32_index_default() - read an indexed 32-bit integer from a device's
++ *                                DT property
++ *
++ * @dev:	device to read DT property from
++ * @propname:	name of the property to read from
++ * @index:	index of the integer to return
++ * @def:	default value to return if the property has no value
++ * @return property value, or @def if not found
++ */
++u32 dev_read_u32_index_default(struct udevice *dev, const char *propname,
++			       int index, u32 def);
++
+ /**
+  * dev_read_s32() - read a signed 32-bit integer from a device's DT property
+  *
+@@ -621,6 +649,20 @@ static inline int dev_read_u32_default(const struct udevice *dev,
+ 	return ofnode_read_u32_default(dev_ofnode(dev), propname, def);
+ }
+ 
++static inline int dev_read_u32_index(struct udevice *dev,
++				     const char *propname, int index, u32 *outp)
++{
++	return ofnode_read_u32_index(dev_ofnode(dev), propname, index, outp);
++}
++
++static inline u32 dev_read_u32_index_default(struct udevice *dev,
++					     const char *propname, int index,
++					     u32 def)
++{
++	return ofnode_read_u32_index_default(dev_ofnode(dev), propname, index,
++					     def);
++}
++
+ static inline int dev_read_s32(const struct udevice *dev,
+ 			       const char *propname, s32 *outp)
+ {
+diff --git a/test/dm/test-fdt.c b/test/dm/test-fdt.c
+index 75ae08081c..7b4f9791f2 100644
+--- a/test/dm/test-fdt.c
++++ b/test/dm/test-fdt.c
+@@ -1,6 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * Copyright (c) 2013 Google, Inc
++ *
++ * Copyright 2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -895,6 +897,35 @@ static int dm_test_read_int(struct unit_test_state *uts)
+ }
+ DM_TEST(dm_test_read_int, DM_TESTF_SCAN_PDATA | DM_TESTF_SCAN_FDT);
+ 
++static int dm_test_read_int_index(struct unit_test_state *uts)
++{
++	struct udevice *dev;
++	u32 val32;
++
++	ut_assertok(uclass_first_device_err(UCLASS_TEST_FDT, &dev));
++	ut_asserteq_str("a-test", dev->name);
++
++	ut_asserteq(-EINVAL, dev_read_u32_index(dev, "missing", 0, &val32));
++	ut_asserteq(19, dev_read_u32_index_default(dev, "missing", 0, 19));
++
++	ut_assertok(dev_read_u32_index(dev, "int-array", 0, &val32));
++	ut_asserteq(5678, val32);
++	ut_assertok(dev_read_u32_index(dev, "int-array", 1, &val32));
++	ut_asserteq(9123, val32);
++	ut_assertok(dev_read_u32_index(dev, "int-array", 2, &val32));
++	ut_asserteq(4567, val32);
++	ut_asserteq(-EOVERFLOW, dev_read_u32_index(dev, "int-array", 3,
++						   &val32));
++
++	ut_asserteq(5678, dev_read_u32_index_default(dev, "int-array", 0, 2));
++	ut_asserteq(9123, dev_read_u32_index_default(dev, "int-array", 1, 2));
++	ut_asserteq(4567, dev_read_u32_index_default(dev, "int-array", 2, 2));
++	ut_asserteq(2, dev_read_u32_index_default(dev, "int-array", 3, 2));
++
++	return 0;
++}
++DM_TEST(dm_test_read_int_index, DM_TESTF_SCAN_PDATA | DM_TESTF_SCAN_FDT);
++
+ /* Test iteration through devices by drvdata */
+ static int dm_test_uclass_drvdata(struct unit_test_state *uts)
+ {
+-- 
+2.17.1
+

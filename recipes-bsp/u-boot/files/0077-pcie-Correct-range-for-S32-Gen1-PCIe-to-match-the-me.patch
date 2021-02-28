@@ -1,0 +1,34 @@
+From eb37f1a5e355729fc3dbafead6a4499818720b6a Mon Sep 17 00:00:00 2001
+From: Heinz Wrobel <Heinz.Wrobel@nxp.com>
+Date: Fri, 29 Jan 2021 10:51:45 +0100
+Subject: [PATCH 77/83] pcie: Correct range for S32 Gen1 PCIe to match the
+ memory map
+
+This is needed for proper MMU settings or PCIe code will fail on
+complex mappings by exceeding the MMU range.
+
+Issue: ALB-6468
+
+Signed-off-by: Heinz Wrobel <Heinz.Wrobel@nxp.com>
+---
+ arch/arm/include/asm/arch-s32/cpu.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/include/asm/arch-s32/cpu.h b/arch/arm/include/asm/arch-s32/cpu.h
+index b84af21773..67197d3736 100644
+--- a/arch/arm/include/asm/arch-s32/cpu.h
++++ b/arch/arm/include/asm/arch-s32/cpu.h
+@@ -31,8 +31,8 @@
+ #define CONFIG_SYS_PCIE1_PHYS_SIZE_LO		0x1000000
+ #define CONFIG_SYS_PCIE0_PHYS_ADDR_HI		0x5800000000ULL
+ #define CONFIG_SYS_PCIE1_PHYS_ADDR_HI		0x4800000000ULL
+-#define CONFIG_SYS_PCIE0_PHYS_SIZE_HI		0x200000000
+-#define CONFIG_SYS_PCIE1_PHYS_SIZE_HI		0x200000000
++#define CONFIG_SYS_PCIE0_PHYS_SIZE_HI		0x0800000000ULL
++#define CONFIG_SYS_PCIE1_PHYS_SIZE_HI		0x0800000000ULL
+ #endif
+ 
+ #endif
+-- 
+2.17.1
+

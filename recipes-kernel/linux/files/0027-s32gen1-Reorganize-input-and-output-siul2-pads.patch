@@ -1,0 +1,88 @@
+From a49c223f238186bbb4fdf800cbc1aa9d211de274 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 14 Dec 2020 12:28:53 +0200
+Subject: [PATCH 27/78] s32gen1: Reorganize input and output siul2 pads
+
+This reorganizes the base addresses of the in/out pads to simplify
+the driver and cover s32r & s32g in an uniform way.
+
+Issue: ALB-6155
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi | 16 ++++++++--------
+ arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi   | 16 ++++++++--------
+ 2 files changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
+index 5631687ab30b..28c81fcd62b7 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
+@@ -266,22 +266,22 @@
+ 	opad0_regs: siul2_reg@0x4009D700 {
+ 		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+ 		reg = <0x0 0x4009D700 0x0 0x10>;
+-		big-endian;
++		reg-io-width = <2>;
+ 	};
+ 	ipad0_regs: siul2_reg@0x4009D740 {
+ 		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+ 		reg = <0x0 0x4009D740 0x0 0x10>;
+-		big-endian;
++		reg-io-width = <2>;
+ 	};
+-	opad1_regs: siul2_reg@0x4401170C {
++	opad1_regs: siul2_reg@0x44011700 {
+ 		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x4401170C 0x0 0xC>;
+-		big-endian;
++		reg = <0x0 0x44011700 0x0 0x18>;
++		reg-io-width = <2>;
+ 	};
+-	ipad1_regs: siul2_reg@0x4401174C {
++	ipad1_regs: siul2_reg@0x44011740 {
+ 		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x4401174C 0x0 0x14>;
+-		big-endian;
++		reg = <0x0 0x44011740 0x0 0x18>;
++		reg-io-width = <2>;
+ 	};
+ 
+ 	usbmisc: usbmisc@44064200 {
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi
+index d14dd75dbb32..9a4e8c9c81e6 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32r45.dtsi
+@@ -214,22 +214,22 @@
+ 	opad0_regs: siul2_reg@0x4009D700 {
+ 		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+ 		reg = <0x0 0x4009D700 0x0 0x10>;
+-		big-endian;
++		reg-io-width = <2>;
+ 	};
+ 	ipad0_regs: siul2_reg@0x4009D740 {
+ 		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+ 		reg = <0x0 0x4009D740 0x0 0x10>;
+-		big-endian;
++		reg-io-width = <2>;
+ 	};
+-	opad1_regs: siul2_reg@0x4403D70C {
++	opad1_regs: siul2_reg@0x4403D700 {
+ 		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x4403D70C 0x0 0x8>;
+-		big-endian;
++		reg = <0x0 0x4403D700 0x0 0x14>;
++		reg-io-width = <2>;
+ 	};
+-	ipad1_regs: siul2_reg@0x4403D74C {
++	ipad1_regs: siul2_reg@0x4403D740 {
+ 		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+-		reg = <0x0 0x4403D74C 0x0 0x14>;
+-		big-endian;
++		reg = <0x0 0x4403D740 0x0 0x14>;
++		reg-io-width = <2>;
+ 	};
+ 
+ 	gmac1: ethernet@44010000 {
+-- 
+2.25.1
+

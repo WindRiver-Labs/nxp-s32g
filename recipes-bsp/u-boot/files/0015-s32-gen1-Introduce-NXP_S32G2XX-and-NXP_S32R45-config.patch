@@ -1,0 +1,314 @@
+From 028edd8d9ddebb1c36dc828dc7cb774d9806413c Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Fri, 18 Dec 2020 17:11:37 +0200
+Subject: [PATCH 15/76] s32-gen1: Introduce NXP_S32G2XX and NXP_S32R45 configs
+
+This commit splits S32G2 and S32R45 platforms under NXP_S32G2XX and
+NXP_S32R45. This avoids the current exhaustive listing of all boards
+when guarding a snippet for all S32G2 boards.
+
+Issue: ALB-6005
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/Kconfig             | 28 +++++++++++++++-------
+ arch/arm/cpu/armv8/s32/s32-gen1/Makefile   |  8 +++----
+ arch/arm/cpu/armv8/s32/s32-gen1/cmu.c      |  6 ++---
+ arch/arm/include/asm/arch-s32/siul.h       |  4 +---
+ arch/arm/mach-s32/Kconfig                  |  4 +---
+ board/freescale/s32-gen1/Kconfig           | 15 ++++--------
+ board/freescale/s32-gen1/s32g274a_common.h |  4 ----
+ drivers/pci/Kconfig                        |  3 +--
+ drivers/usb/host/ehci-mx6.c                | 16 ++++++-------
+ 9 files changed, 40 insertions(+), 48 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index 2ba31854f9..f1d098ff71 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -8,6 +8,18 @@ config BAUDRATE
+ 	int "Serial baudrate"
+ 	default 115200
+ 
++config NXP_S32G2XX
++	bool
++	select S32_GEN1
++	help
++	  Platforms having S32G2XXX SoC
++
++config NXP_S32R45
++	bool
++	select S32_GEN1
++	help
++	  Platforms having S32R45 SoC
++
+ choice
+ 	prompt "Select S32 Target Board Support"
+ 	default TARGET_S32V234EVB
+@@ -47,38 +59,38 @@ config TARGET_CAMPPS32V2
+ 
+ config TARGET_S32R45EVB
+ 	bool "Support s32r45evb"
+-	select S32_GEN1
++	select NXP_S32R45
+ 
+ config TARGET_S32R45SIM
+ 	bool "Support s32r45 VDK"
+-	select S32_GEN1
++	select NXP_S32R45
+ 
+ config TARGET_S32R45EMU
+ 	bool "Support s32r45 ZeBu"
+-	select S32_GEN1
++	select NXP_S32R45
+ 
+ config TARGET_S32G274AEVB
+ 	bool "Support s32g274aevb"
+-	select S32_GEN1
++	select NXP_S32G2XX
+ 
+ config TARGET_S32G274ARDB
+ 	bool "Support s32g274ardb"
+-	select S32_GEN1
++	select NXP_S32G2XX
+ 
+ config TARGET_S32G274ABLUEBOX3
+ 	bool "Support s32g274abluebox3"
+-	select S32_GEN1
++	select NXP_S32G2XX
+ 	help
+ 	  Enable Microsys S32G SoM Bluebox 3 target.
+ 	  S32G works as PCIE EP.
+ 
+ config TARGET_S32G274ASIM
+ 	bool "Support s32g274a VDK"
+-	select S32_GEN1
++	select NXP_S32G2XX
+ 
+ config TARGET_S32G274AEMU
+ 	bool "Support s32g274a ZeBu"
+-	select S32_GEN1
++	select NXP_S32G2XX
+ 
+ endchoice
+ 
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+index dccdbddee2..21c070ef1e 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+@@ -3,15 +3,13 @@
+ # Copyright 2018-2020 NXP
+ #
+ 
+-obj-$(CONFIG_TARGET_S32G274AEVB)	+= cmu.o
+-obj-$(CONFIG_TARGET_S32G274ARDB)	+= cmu.o
+-obj-$(CONFIG_TARGET_S32G274ABLUEBOX3)	+= cmu.o
+-obj-$(CONFIG_TARGET_S32R45EVB)		+= cmu.o
++obj-$(CONFIG_NXP_S32G2XX)		+= cmu.o
++obj-$(CONFIG_NXP_S32R45)		+= cmu.o
+ obj-$(CONFIG_HSE_SECBOOT)		+= hse_adv_secboot.o
+ obj-y					+= ncore.o
+ obj-y					+= soc.o
+ obj-y					+= sram.o
+-ifneq ($(filter y,$(CONFIG_TARGET_S32G274ARDB) $(CONFIG_TARGET_S32G274AEVB) $(CONFIG_TARGET_S32G274ABLUEBOX3) $(CONFIG_TARGET_S32R45EVB)),)
++ifneq ($(filter y,$(CONFIG_NXP_S32G2XX) $(CONFIG_NXP_S32R45)),)
+ obj-$(CONFIG_NETDEVICES)		+= sgmii/sgmii.o sgmii/serdes_xpcs.o
+ endif
+ ccflags-y				+= -I./board/freescale/s32-gen1/
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c b/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c
+index 0729015400..bf8ad77445 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/cmu.c
+@@ -155,7 +155,7 @@ struct cmu {
+ 	bool fc;
+ };
+ 
+-#if defined(CONFIG_TARGET_S32R45EVB)
++#if defined(CONFIG_NXP_S32R45)
+ static struct cmu cmu_blocks[] = {
+ 	FIRC_PERIPH_CMU_FC(0, FXOSC_CLK, FXOSC_FREQ),
+ 	FXOSC_PERIPH_CMU_FM(1, FIRC_CLK, FIRC_FREQ),
+@@ -189,9 +189,7 @@ static struct cmu cmu_blocks[] = {
+ 	FXOSC_PERIPH_CMU_FC(53, MIPICSI2_0, 400),
+ 	FXOSC_PERIPH_CMU_FC(54, SERDES_REF_CLK, 125),
+ };
+-#elif defined(CONFIG_TARGET_S32G274AEVB) || \
+-	defined(CONFIG_TARGET_S32G274ARDB) || \
+-	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
++#elif defined(CONFIG_NXP_S32G2XX)
+ static struct cmu cmu_blocks[] = {
+ 	FIRC_PERIPH_CMU_FC(0, FXOSC_CLK, FXOSC_FREQ),
+ 	FXOSC_PERIPH_CMU_FM(1, FIRC_CLK, FIRC_FREQ),
+diff --git a/arch/arm/include/asm/arch-s32/siul.h b/arch/arm/include/asm/arch-s32/siul.h
+index 7435f9d7b4..59c5c4e875 100644
+--- a/arch/arm/include/asm/arch-s32/siul.h
++++ b/arch/arm/include/asm/arch-s32/siul.h
+@@ -90,9 +90,7 @@ static inline int get_siul2_midr2_subminor(void)
+ 
+ #endif  /* CONFIG_S32_GEN1 */
+ 
+-#if defined(CONFIG_TARGET_S32G274AEVB) || \
+-	defined(CONFIG_TARGET_S32G274ARDB) || \
+-	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
++#if defined(CONFIG_NXP_S32G2XX)
+ /* If SOC REV < 2, QSPI clock max frequency should be 133,33MHz. */
+ static inline bool is_s32gen1_soc_rev1(void)
+ {
+diff --git a/arch/arm/mach-s32/Kconfig b/arch/arm/mach-s32/Kconfig
+index b413496e67..850565124c 100644
+--- a/arch/arm/mach-s32/Kconfig
++++ b/arch/arm/mach-s32/Kconfig
+@@ -5,7 +5,5 @@ config MKIMAGE_T
+ 	string
+ 	default "s32v234image" if TARGET_S32V234EVB || TARGET_S32V234PCIE || \
+ 		TARGET_MPXS32V234 || TARGET_S32V234CCPB || TARGET_CAMPPS32V2
+-	default "s32gen1image" if TARGET_S32G274AEVB || TARGET_S32G274ARDB || \
+-		TARGET_S32G274ABLUEBOX3 || TARGET_S32R45EVB || \
+-		TARGET_TYPE_S32GEN1_EMULATOR || TARGET_TYPE_S32GEN1_SIMULATOR
++	default "s32gen1image" if S32_GEN1
+ 	depends on ARCH_S32
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index 04cb61c3da..0078d4c361 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -34,10 +34,7 @@ config SYS_MEM_SIZE
+ 	help
+ 	  U-boot SRAM size (8 MB for Gen1, 4 MB for older architectures)
+ 
+-if TARGET_S32G274AEVB || TARGET_S32G274ARDB || \
+-	TARGET_S32G274ABLUEBOX3 || TARGET_S32R45EVB || \
+-	TARGET_TYPE_S32GEN1_EMULATOR || \
+-	TARGET_TYPE_S32GEN1_SIMULATOR
++if S32_GEN1
+ 
+ config SYS_BOARD
+ 	string
+@@ -45,16 +42,12 @@ config SYS_BOARD
+ 
+ config SYS_CONFIG_NAME
+ 	string
+-	default "s32g274a" if TARGET_S32G274AEVB || TARGET_S32G274ARDB || \
+-			   TARGET_S32G274ASIM || TARGET_S32G274AEMU || \
+-			   TARGET_S32G274ABLUEBOX3
+-	default "s32r45" if TARGET_S32R45EVB || TARGET_S32R45SIM || \
+-			   TARGET_S32R45EMU
++	default "s32g274a" if NXP_S32G2XX
++	default "s32r45" if NXP_S32R45
+ 
+ config SYS_ERRATUM_ERR050543
+ 	bool "Workaround for NXP Erratum ERR050543"
+-	default y if S32_LPDDR4 || TARGET_S32G274AEVB || \
+-		TARGET_S32G274ARDB || TARGET_S32R45EVB
++	default y if S32_LPDDR4 || NXP_S32G2XX || NXP_S32R45
+ 	help
+ 	  This option enables a workaround for NXP Erratum ERR050543
+ 	  (This erratum applies for LPDDR4 memories only. The memories require
+diff --git a/board/freescale/s32-gen1/s32g274a_common.h b/board/freescale/s32-gen1/s32g274a_common.h
+index d3e0e5d765..34513fb819 100644
+--- a/board/freescale/s32-gen1/s32g274a_common.h
++++ b/board/freescale/s32-gen1/s32g274a_common.h
+@@ -9,14 +9,10 @@
+ 
+ #include <config.h>
+ 
+-#if defined(CONFIG_TARGET_S32G274AEVB) || \
+-	defined(CONFIG_TARGET_S32G274ARDB) || \
+-	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+ void setup_iomux_i2c_pb00_pb01(void);
+ void setup_iomux_i2c_pb03_pb04(void);
+ void setup_iomux_i2c_pb05_pb06(void);
+ void setup_iomux_i2c_pc01_pc02(void);
+ void setup_iomux_i2c_pc05_pc06(void);
+-#endif
+ 
+ #endif /* S32G274A_COMMON_H */
+diff --git a/drivers/pci/Kconfig b/drivers/pci/Kconfig
+index cd6590eadb..edfb3a076b 100644
+--- a/drivers/pci/Kconfig
++++ b/drivers/pci/Kconfig
+@@ -170,8 +170,7 @@ config FSL_PCIE_EP_COMPAT
+ config PCIE_S32GEN1
+ 	bool "S32GEN1 PCIe support"
+ 	depends on DM_PCI
+-	depends on (TARGET_S32G274AEVB || TARGET_S32G274ARDB || \
+-		TARGET_S32G274ABLUEBOX3 || TARGET_S32R45EVB)
++	depends on (NXP_S32G2XX || NXP_S32R45)
+ 	depends on (!TARGET_TYPE_S32GEN1_SIMULATOR)
+ 	select DM_PCI_COMPAT
+ 	select OF_EMBED
+diff --git a/drivers/usb/host/ehci-mx6.c b/drivers/usb/host/ehci-mx6.c
+index 70db7492a9..13bfe545f4 100644
+--- a/drivers/usb/host/ehci-mx6.c
++++ b/drivers/usb/host/ehci-mx6.c
+@@ -145,13 +145,13 @@ static void usb_power_config(int index)
+ }
+ #endif
+ 
+-#if defined(CONFIG_MX6) || defined(CONFIG_TARGET_S32G274AEVB)
++#if defined(CONFIG_MX6) || defined(CONFIG_NXP_S32G2XX)
+ /* Return 0 : host node, <>0 : device mode */
+ static int usb_phy_enable(int index, struct usb_ehci *ehci)
+ {
+ 	int ret;
+ 	void __iomem *usb_cmd;
+-#ifndef CONFIG_TARGET_S32G274AEVB
++#ifndef CONFIG_NXP_S32G2XX
+ 	void __iomem *phy_reg;
+ 	void __iomem *phy_ctrl;
+ 
+@@ -174,7 +174,7 @@ static int usb_phy_enable(int index, struct usb_ehci *ehci)
+ 	if (ret)
+ 		return ret;
+ 
+-#ifndef CONFIG_TARGET_S32G274AEVB
++#ifndef CONFIG_NXP_S32G2XX
+ 	/* Reset USBPHY module */
+ 	setbits_le32(phy_ctrl, USBPHY_CTRL_SFTRST);
+ 	udelay(10);
+@@ -276,7 +276,7 @@ int usb_phy_mode(int port)
+ 
+ static void usb_oc_config(int index)
+ {
+-#ifndef CONFIG_TARGET_S32G274AEVB
++#ifndef CONFIG_NXP_S32G2XX
+ #if defined(CONFIG_MX6)
+ 	struct usbnc_regs *usbnc = (struct usbnc_regs *)(USB_BASE_ADDR +
+ 			USB_OTHERREGS_OFFSET);
+@@ -353,7 +353,7 @@ int __weak board_ehci_power(int port, int on)
+ 
+ int ehci_mx6_common_init(struct usb_ehci *ehci, int index)
+ {
+-#ifndef CONFIG_TARGET_S32G274AEVB
++#ifndef CONFIG_NXP_S32G2XX
+ 	int ret;
+ 
+ 	enable_usboh3_clk(1);
+@@ -372,7 +372,7 @@ int ehci_mx6_common_init(struct usb_ehci *ehci, int index)
+ 	usb_internal_phy_clock_gate(index, 1);
+ #endif
+ 
+-#if defined(CONFIG_MX6) || defined(CONFIG_TARGET_S32G274AEVB)
++#if defined(CONFIG_MX6) || defined(CONFIG_NXP_S32G2XX)
+ 	usb_phy_enable(index, ehci);
+ #endif
+ 
+@@ -478,7 +478,7 @@ static const struct ehci_ops mx6_ehci_ops = {
+ 
+ static int ehci_usb_phy_mode(struct udevice *dev)
+ {
+-#ifndef CONFIG_TARGET_S32G274AEVB
++#ifndef CONFIG_NXP_S32G2XX
+ 	struct usb_platdata *plat = dev_get_platdata(dev);
+ 	void *__iomem addr = (void *__iomem)devfdt_get_addr(dev);
+ 	void *__iomem phy_ctrl, *__iomem phy_status;
+@@ -550,7 +550,7 @@ static int ehci_usb_ofdata_to_platdata(struct udevice *dev)
+ 
+ static int ehci_usb_bind(struct udevice *dev)
+ {
+-#ifndef CONFIG_TARGET_S32G274AEVB
++#ifndef CONFIG_NXP_S32G2XX
+ 	/*
+ 	 * TODO:
+ 	 * This driver is only partly converted to DT probing and still uses
+-- 
+2.17.1
+

@@ -1,0 +1,172 @@
+From 39084f014e29bc463011ffec5a291112ebe20077 Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Fri, 19 Feb 2021 13:49:48 +0100
+Subject: [PATCH 74/84] dts: s32g27a: pfe: refactor reserved memory across
+ targets
+
+The reserved-memory was moved to the basic include
+file fsl-s32g274a.dtsi to not duplicate the same
+entry in all targets
+
+Issue: ALB-6478
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+---
+ .../boot/dts/freescale/fsl-s32g274-simulator.dts    | 10 +++++++++-
+ .../boot/dts/freescale/fsl-s32g274a-bluebox3.dts    | 13 -------------
+ arch/arm64/boot/dts/freescale/fsl-s32g274a-emu.dts  | 10 +++++++++-
+ arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts  | 13 -------------
+ arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi | 13 -------------
+ arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi     | 13 +++++++++++++
+ 6 files changed, 31 insertions(+), 41 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274-simulator.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274-simulator.dts
+index 4016f897b741..94b5c3a6f2b7 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274-simulator.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274-simulator.dts
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2017-2020 NXP
++ * Copyright 2017-2021 NXP
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -369,6 +369,14 @@
+ 	clock-frequency = <1200000>;
+ };
+ 
++&pfe_reserved  {
++	status = "disabled";
++};
++
++&pfe_reserved_slave  {
++	status = "disabled";
++};
++
+ &i2c0 {
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+index 2143ec522394..976bf6589da0 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+@@ -13,19 +13,6 @@
+ 	chosen {
+ 		stdout-path = "serial0:115200n8";
+ 	};
+-
+-	reserved-memory {
+-		#address-cells = <2>;
+-		#size-cells = <2>;
+-		ranges;
+-
+-		pfe_reserved: pfebufs@83400000 {
+-			compatible = "shared-dma-pool";
+-			reg = <0 0x83400000 0 0xc00000>;
+-			no-map;
+-			status = "okay";
+-		};
+-	};
+ };
+ 
+ &edma0 {
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-emu.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-emu.dts
+index 9ec63c721633..a078e9f758ab 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-emu.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-emu.dts
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2017-2020 NXP
++ * Copyright 2017-2021 NXP
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -30,6 +30,14 @@
+ 	};
+ };
+ 
++&pfe_reserved  {
++	status = "disabled";
++};
++
++&pfe_reserved_slave  {
++	status = "disabled";
++};
++
+ &fxosc {
+ 	clock-frequency = <40000000>;
+ };
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
+index 301819023509..07289af22d03 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
+@@ -20,19 +20,6 @@
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 
+-	reserved-memory {
+-		#address-cells = <2>;
+-		#size-cells = <2>;
+-		ranges;
+-
+-		pfe_reserved: pfebufs@83400000 {
+-			compatible = "fsl,s32g-pfe-ddr", "shared-dma-pool";
+-			reg = <0 0x83400000 0 0xc00000>;
+-			no-map;
+-			status = "okay";
+-		};
+-	};
+-
+ 	usbphynop: usbphynop {
+ 		compatible = "usb-nop-xceiv";
+ 		#phy-cells = <0>;
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi
+index 0b6e7e637134..101bc7da8e4d 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi
+@@ -14,19 +14,6 @@
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 
+-	reserved-memory {
+-		#address-cells = <2>;
+-		#size-cells = <2>;
+-		ranges;
+-
+-		pfe_reserved: pfebufs@83400000 {
+-			compatible = "fsl,s32g-pfe-ddr", "shared-dma-pool";
+-			reg = <0 0x83400000 0 0xc00000>;
+-			no-map;
+-			status = "okay";
+-		};
+-	};
+-
+ 	usbphynop: usbphynop {
+ 		compatible = "usb-nop-xceiv";
+ 		#phy-cells = <0>;
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
+index ebd17a4254e5..b55f9d3ad6ea 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
+@@ -32,6 +32,19 @@
+ 		interrupts = <0 68 4>;
+ 	};
+ 
++	reserved-memory {
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++
++		pfe_reserved: pfebufs@83000000 {
++			compatible = "shared-dma-pool";
++			reg = <0 0x83000000 0 0xc00000>;
++			no-map;
++			status = "okay";
++		};
++	};
++
+ 	clks: clks@40038000 {
+ 		compatible = "fsl,s32g274-clocking";
+ 		reg = <0x0 0x40038000 0x0 0x3000>, /*armpll*/
+-- 
+2.17.1
+

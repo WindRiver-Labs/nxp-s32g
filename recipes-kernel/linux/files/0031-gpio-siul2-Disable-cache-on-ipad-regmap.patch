@@ -1,0 +1,44 @@
+From 4589b06bb74e259d2a363b956d7c2c2290766bbd Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 5 Jan 2021 15:07:38 +0200
+Subject: [PATCH 31/73] gpio-siul2: Disable cache on ipad regmap
+
+Issue: ALB-6245
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/gpio/gpio-siul2-s32gen1.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpio/gpio-siul2-s32gen1.c b/drivers/gpio/gpio-siul2-s32gen1.c
+index 8c899bcc06c4..ba2befeaa63e 100644
+--- a/drivers/gpio/gpio-siul2-s32gen1.c
++++ b/drivers/gpio/gpio-siul2-s32gen1.c
+@@ -2,7 +2,7 @@
+  * SIUL2 GPIO support.
+  *
+  * Copyright (c) 2016 Freescale Semiconductor, Inc.
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 or
+@@ -638,6 +638,7 @@ static int reinit_ipadregmap_conf(struct device *dev, struct regmap *map)
+ {
+ 	struct regmap_config regmap_conf = siul2_regmap_conf;
+ 
++	regmap_conf.cache_type = REGCACHE_NONE;
+ 	regmap_conf.writeable_reg = not_writable;
+ 	regmap_conf.readable_reg = regmap_accessible;
+ 	return common_regmap_conf(dev, map, &regmap_conf, "ipad");
+@@ -826,7 +827,7 @@ static int siul2_gpio_get(struct gpio_chip *chip, unsigned int offset)
+ 
+ 	spin_unlock_irqrestore(&(gpio_dev->lock), flags);
+ 
+-	return !!data;
++	return !!(data & mask);
+ }
+ 
+ static int siul2_gpio_pads_init(struct platform_device *pdev,
+-- 
+2.25.1
+

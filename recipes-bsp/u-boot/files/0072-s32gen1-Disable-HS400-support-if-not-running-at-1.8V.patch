@@ -1,0 +1,44 @@
+From 4a9905c58cb0ef8f231a9d2fe533a99d2752236c Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Mon, 15 Feb 2021 10:58:52 +0200
+Subject: [PATCH 72/76] s32gen1: Disable HS400 support if not running at 1.8V
+
+Issue: ALB-5955
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 1 +
+ drivers/mmc/fsl_esdhc_imx.c    | 6 ++++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index 5869f3c1d3..959e7f9393 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -405,6 +405,7 @@
+ 		clock-names = "ipg", "ahb", "per";
+ 		clock-frequency = <0>;	/* updated dynamically if 0 */
+ 		bus-width = <8>;
++		no-1-8-v;
+ 		status = "disabled";
+ 	};
+ 
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index 2aeea4e802..fbdefd71af 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -1536,6 +1536,12 @@ static int fsl_esdhc_probe(struct udevice *dev)
+ 	else
+ 		priv->bus_width = 1;
+ 
++	if (data == &usdhc_s32gen1_data)
++		if (dev_read_bool(dev, "no-1-8-v"))
++			priv->flags &= ~(ESDHC_FLAG_HS200 |
++					 ESDHC_FLAG_HS400 |
++					 ESDHC_FLAG_HS400_ES);
++
+ #ifndef SDHC_REDUCED_MAP
+ 	val = fdtdec_get_int(fdt, node, "fsl,tuning-step", 1);
+ 	priv->tuning_step = val;
+-- 
+2.17.1
+

@@ -1,0 +1,151 @@
+From a5e9d7ddb69bd917ef20e8460c6dd540a6162f1f Mon Sep 17 00:00:00 2001
+From: Ionut Vicovan <Ionut.Vicovan@nxp.com>
+Date: Thu, 18 Feb 2021 19:03:00 +0200
+Subject: [PATCH 81/84] pcie:s32gen1: Remove SoC version check when enabling
+ PCIe
+
+This check is only valid for rev 1.0.0 S32G274A SoCs, which had
+PCIe issues.
+This revision is now obsolete and only existed on some of the
+early S32G274AEVBs (and which did not get outside NXP).
+More, the check is still performed in u-boot, which is enough.
+
+Issue: ALB-4529
+
+Signed-off-by: Ionut Vicovan <Ionut.Vicovan@nxp.com>
+---
+ drivers/pci/controller/dwc/pci-s32gen1.c | 75 +-----------------------
+ drivers/pci/controller/dwc/pci-s32gen1.h |  3 +-
+ 2 files changed, 2 insertions(+), 76 deletions(-)
+
+diff --git a/drivers/pci/controller/dwc/pci-s32gen1.c b/drivers/pci/controller/dwc/pci-s32gen1.c
+index cde77bd867d4..ff859655f2c4 100644
+--- a/drivers/pci/controller/dwc/pci-s32gen1.c
++++ b/drivers/pci/controller/dwc/pci-s32gen1.c
+@@ -2,7 +2,7 @@
+ /*
+  * PCIe host controller driver for NXP S32Gen1 SoCs
+  *
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ 
+ #ifdef CONFIG_PCI_S32GEN1_DEBUG
+@@ -90,11 +90,6 @@
+ #define SIUL2_MIDR2_SUBMINOR_SHIFT	(26)
+ #define SIUL2_MIDR2_SUBMINOR_MASK	(0xF << SIUL2_MIDR2_SUBMINOR_SHIFT)
+ 
+-/* First SOC revision with functional PCIe: rev 1.0.1, which means
+- * major 0, minor 0, subminor 1
+- */
+-#define PCIE_MIN_SOC_REV_SUPPORTED 0x1
+-
+ #define PCIE_EP_RC_MODE(ep_mode) ((ep_mode) ? "EndPoint" : "RootComplex")
+ 
+ #define PCI_BASE_CLASS_OFF 24
+@@ -250,68 +245,6 @@ static inline int get_siul2_midr2_subminor(const void __iomem *siul21_base)
+ 		SIUL2_MIDR2_SUBMINOR_MASK) >> SIUL2_MIDR2_SUBMINOR_SHIFT);
+ }
+ 
+-static u64 get_siul2_base_addr_from_fdt(char *node_name)
+-{
+-	struct device_node *node = NULL;
+-	const __be32 *siul2_base = NULL;
+-	u64 siul2_base_address = OF_BAD_ADDR;
+-
+-	pr_debug("Searching %s MIDR registers in device-tree\n", node_name);
+-	node = of_find_node_by_name(NULL, node_name);
+-	if (node) {
+-		siul2_base = of_get_property(node, "midr-reg", NULL);
+-
+-		if (siul2_base)
+-			siul2_base_address =
+-				of_translate_address(node, siul2_base);
+-
+-		of_node_put(node);
+-
+-		pr_debug("Resolved %s base address to 0x%llx\n", node_name,
+-				siul2_base_address);
+-	} else {
+-		pr_warn("Could not get %s node from device-tree\n", node_name);
+-	}
+-
+-	return siul2_base_address;
+-}
+-
+-static u32 s32gen1_pcie_get_soc_revision(void)
+-{
+-	/* raw_rev is a revision number based on major, minor and subminor,
+-	 * each part using one hex digit
+-	 */
+-	u32 raw_rev = 0;
+-	u64 siul2_base_address = OF_BAD_ADDR;
+-
+-	DEBUG_FUNC;
+-
+-	siul2_base_address = get_siul2_base_addr_from_fdt("siul2_0");
+-	if (siul2_base_address != OF_BAD_ADDR) {
+-		void __iomem *siul2_virt_addr = ioremap_nocache(
+-					siul2_base_address, SZ_1K);
+-
+-		if (siul2_virt_addr) {
+-			raw_rev =
+-				(get_siul2_midr1_major(siul2_virt_addr) << 8) |
+-				(get_siul2_midr1_minor(siul2_virt_addr) << 4);
+-			iounmap(siul2_virt_addr);
+-		}
+-	}
+-	siul2_base_address = get_siul2_base_addr_from_fdt("siul2_1");
+-	if (siul2_base_address != OF_BAD_ADDR) {
+-		void __iomem *siul2_virt_addr = ioremap_nocache(
+-					siul2_base_address, SZ_1K);
+-
+-		if (siul2_virt_addr) {
+-			raw_rev |= get_siul2_midr2_subminor(siul2_virt_addr);
+-			iounmap(siul2_virt_addr);
+-		}
+-	}
+-
+-	return raw_rev;
+-}
+-
+ /* For kernel version less than 5.0.0, unrolled access to iATU
+  * is done using a hardcoded iATU offset (0x3 << 20), which is
+  * wrong and we must patch it.
+@@ -1034,12 +967,6 @@ static int s32gen1_pcie_probe(struct platform_device *pdev)
+ 	s32_pp->is_endpoint = s32gen1_pcie_is_hw_mode_ep(pcie);
+ 	dev_dbg(dev, "Configured as %s\n",
+ 			PCIE_EP_RC_MODE(s32_pp->is_endpoint));
+-	s32_pp->soc_revision = s32gen1_pcie_get_soc_revision();
+-
+-	if (s32_pp->soc_revision < PCIE_MIN_SOC_REV_SUPPORTED) {
+-		pr_info("PCIe not supported\n");
+-		return -ENXIO;
+-	}
+ 
+ 	/* Attempt to figure out whether u-boot has preconfigured PCIE; if it
+ 	 * did not, we will not be able to tell whether we should run as EP
+diff --git a/drivers/pci/controller/dwc/pci-s32gen1.h b/drivers/pci/controller/dwc/pci-s32gen1.h
+index c53c9d3cbce3..0d71df453ac3 100644
+--- a/drivers/pci/controller/dwc/pci-s32gen1.h
++++ b/drivers/pci/controller/dwc/pci-s32gen1.h
+@@ -2,7 +2,7 @@
+ /*
+  * PCIe host controller driver for Freescale S32Gen1 SoCs
+  *
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ 
+ #ifndef PCIE_S32GEN1_H
+@@ -71,7 +71,6 @@ struct callback {
+ 
+ struct s32gen1_pcie {
+ 	bool is_endpoint;
+-	int soc_revision;
+ 	struct dw_pcie	pcie;
+ 
+ 	/* we have cfg in struct pcie_port and
+-- 
+2.17.1
+

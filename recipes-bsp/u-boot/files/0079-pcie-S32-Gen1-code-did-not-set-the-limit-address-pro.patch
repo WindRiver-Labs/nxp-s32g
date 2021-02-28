@@ -1,0 +1,33 @@
+From 695e914c07acc6cc7ec04da633ecff9521944c62 Mon Sep 17 00:00:00 2001
+From: Heinz Wrobel <Heinz.Wrobel@nxp.com>
+Date: Fri, 29 Jan 2021 10:54:11 +0100
+Subject: [PATCH 79/83] pcie: S32 Gen1 code did not set the limit address
+ properly
+
+The limit address should be base + length -1, i.e., point to the
+last byte of the range. If this isn't set up correctly, window
+overlaps can happen and windows at the range end are not set properly.
+
+Issue: ALB-6468
+
+Signed-off-by: Heinz Wrobel <Heinz.Wrobel@nxp.com>
+---
+ drivers/pci/pcie_s32gen1.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/pci/pcie_s32gen1.c b/drivers/pci/pcie_s32gen1.c
+index 42dd9e4a4a..f037f94d99 100644
+--- a/drivers/pci/pcie_s32gen1.c
++++ b/drivers/pci/pcie_s32gen1.c
+@@ -105,7 +105,7 @@ void s32_pcie_atu_outbound_set(struct s32_pcie *pcie, uint32_t region_no,
+ 		W32((PCIE_IATU_UPPER_BASE_ADDR_OUTBOUND_0(pcie->dbi) +
+ 				(0x200 * region_no)), (s_addr >> 32));
+ 		W32((PCIE_IATU_LIMIT_ADDR_OUTBOUND_0(pcie->dbi) +
+-				(0x200 * region_no)), s_addr_lim);
++				(0x200 * region_no)), s_addr_lim - 1);
+ 		W32((PCIE_IATU_LWR_TARGET_ADDR_OUTBOUND_0(pcie->dbi) +
+ 				(0x200 * region_no)), (uint32_t)d_addr);
+ 		W32((PCIE_IATU_UPPER_TARGET_ADDR_OUTBOUND_0(pcie->dbi) +
+-- 
+2.17.1
+

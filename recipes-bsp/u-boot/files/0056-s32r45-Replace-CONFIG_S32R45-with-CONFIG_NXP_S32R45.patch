@@ -1,0 +1,166 @@
+From c37d33d87d96140967bb7c9cf01ba99b91038477 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Wed, 20 Jan 2021 15:53:26 +0200
+Subject: [PATCH 56/76] s32r45: Replace CONFIG_S32R45 with CONFIG_NXP_S32R45
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c                  | 2 +-
+ arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h | 6 +++---
+ arch/arm/include/asm/arch-s32/siul-s32-gen1.h          | 2 +-
+ board/freescale/s32-gen1/board_common.h                | 2 +-
+ drivers/clk/s32/Makefile                               | 2 +-
+ drivers/clk/s32/clk_dump/Makefile                      | 2 +-
+ include/configs/s32r45.h                               | 7 ++-----
+ include/dt-bindings/clock/s32gen1-clock-freq.h         | 2 +-
+ scripts/config_whitelist.txt                           | 1 -
+ 9 files changed, 11 insertions(+), 15 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 5de9068a4d..45e0edca3c 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -150,7 +150,7 @@ int print_cpuinfo(void)
+ 		   get_siul2_midr1_minor(),
+ 		   get_siul2_midr2_subminor());
+ 	#endif  /* CONFIG_TARGET_TYPE_S32GEN1_SIMULATOR */
+-#elif defined(CONFIG_S32R45)
++#elif defined(CONFIG_NXP_S32R45)
+ 	printf("CPU:\tNXP S32R45\n");
+ #endif
+ 	printf("Reset cause: %s\n", get_reset_cause());
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
+index a8a3915782..084440952a 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
+@@ -111,7 +111,7 @@
+ #define MSCM_BASE_ADDR				(PER_GROUP1_BASE + 0x00098000)
+ #define SRAM_CTL_BASE_ADDR			(PER_GROUP1_BASE + 0x0009C000)
+ #define XRDC_BASE_ADDR				(PER_GROUP1_BASE + 0x000A4000)
+-#ifdef CONFIG_S32R45
++#ifdef CONFIG_NXP_S32R45
+ #define CAN_FD0_BASE_ADDR			(PER_GROUP1_BASE + 0x000B4000)
+ #define CAN_FD1_BASE_ADDR			(PER_GROUP1_BASE + 0x000BE000)
+ #elif defined(CONFIG_NXP_S32G2XX)
+@@ -177,7 +177,7 @@
+ #define EDMA1_CHANNEL_31_BASE_ADDR		(PER_GROUP2_BASE + 0x00067000)
+ #define PIT1_BASE_ADDR				(PER_GROUP2_BASE + 0x00088000)
+ #define SEMA4_BASE_ADDR				(PER_GROUP2_BASE + 0x00098000)
+-#ifdef CONFIG_S32R45
++#ifdef CONFIG_NXP_S32R45
+ #define CAN_FD2_BASE_ADDR			(PER_GROUP2_BASE + 0x000A8000)
+ #define CAN_FD3_BASE_ADDR			(PER_GROUP2_BASE + 0x000B2000)
+ #else
+@@ -203,7 +203,7 @@
+ #define ETHERNET_0_BASE_ADDR			(PER_GROUP3_BASE + 0x0003C000)
+ 
+ /* Peripheral group 8 */
+-#ifdef CONFIG_S32R45
++#ifdef CONFIG_NXP_S32R45
+ #define SIUL2_1_BASE_ADDR			(PER_GROUP8_BASE + 0x0003c000)
+ #define MC_CGM2_BASE_ADDR			(PER_GROUP8_BASE + 0x000c0000)
+ #else
+diff --git a/arch/arm/include/asm/arch-s32/siul-s32-gen1.h b/arch/arm/include/asm/arch-s32/siul-s32-gen1.h
+index 18625e1e4a..d0f90003e8 100644
+--- a/arch/arm/include/asm/arch-s32/siul-s32-gen1.h
++++ b/arch/arm/include/asm/arch-s32/siul-s32-gen1.h
+@@ -940,7 +940,7 @@
+ #define SIUL2_GPDIO_FOR_GPIO(i)		(((i) & (~0x3)) >> 2)
+ #define SIUL2_GPDIO_PDIO_OFF_FOR_GPIO(i)	(~(i) & (0x3))
+ 
+-#ifdef CONFIG_S32R45
++#ifdef CONFIG_NXP_S32R45
+ #define SIUL2_0_MAX_GPIO		SIUL2_0_S32R45_MAX_GPIO
+ #endif
+ 
+diff --git a/board/freescale/s32-gen1/board_common.h b/board/freescale/s32-gen1/board_common.h
+index 901edcf4a2..c9777b9956 100644
+--- a/board/freescale/s32-gen1/board_common.h
++++ b/board/freescale/s32-gen1/board_common.h
+@@ -16,7 +16,7 @@ void setup_iomux_uart(void);
+ 	void setup_iomux_dspi(void);
+ #endif
+ 
+-#if defined(CONFIG_NXP_S32G2XX) || defined(CONFIG_S32R45)
++#if defined(CONFIG_NXP_S32G2XX) || defined(CONFIG_NXP_S32R45)
+ void setup_iomux_uart0_pc09_pc10(void);
+ #endif
+ 
+diff --git a/drivers/clk/s32/Makefile b/drivers/clk/s32/Makefile
+index 239da0d97d..e279aa3c9a 100644
+--- a/drivers/clk/s32/Makefile
++++ b/drivers/clk/s32/Makefile
+@@ -12,7 +12,7 @@ obj-y += clk_utils.o
+ obj-y += s32gen1_scmi_ids.o
+ obj-y += s32gen1_scmi_clk.o
+ obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk.o s32g274a_scmi_ids.o
+-obj-$(CONFIG_S32R45) += s32r45_clk.o s32r45_scmi_ids.o
++obj-$(CONFIG_NXP_S32R45) += s32r45_clk.o s32r45_scmi_ids.o
+ obj-$(CONFIG_CMD_CLK) += clk_dump/
+ 
+ ccflags-y += -Iarch/arm/include/asm/arch-s32/s32-gen1
+diff --git a/drivers/clk/s32/clk_dump/Makefile b/drivers/clk/s32/clk_dump/Makefile
+index 52142a897a..e500feabf7 100644
+--- a/drivers/clk/s32/clk_dump/Makefile
++++ b/drivers/clk/s32/clk_dump/Makefile
+@@ -6,7 +6,7 @@
+ obj-y += clk_dump.o
+ obj-y += s32gen1_clk_names.o
+ obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk_names.o
+-obj-$(CONFIG_S32R45) += s32r45_clk_names.o
++obj-$(CONFIG_NXP_S32R45) += s32r45_clk_names.o
+ 
+ ccflags-y += -Idrivers/clk/s32/include
+ ccflags-y += -Idrivers/clk/s32/clk_dump/include
+diff --git a/include/configs/s32r45.h b/include/configs/s32r45.h
+index 24c42c3bc3..88b47cb261 100644
+--- a/include/configs/s32r45.h
++++ b/include/configs/s32r45.h
+@@ -1,7 +1,6 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2017-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
++ * Copyright 2017-2021 NXP
+  */
+ 
+ /*
+@@ -11,8 +10,6 @@
+ #ifndef __S32R45_H
+ #define __S32R45_H
+ 
+-#define CONFIG_S32R45
+-
+ #include <configs/s32-gen1.h>
+ 
+ #ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index 2cd6b62b02..5a33ca8b14 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -28,7 +28,7 @@
+ #define S32GEN1_DDR_FREQ			(666666666)
+ #define S32G274A_REV2_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+ #define S32G274A_REV2_DDR_FREQ			(800 * MHZ)
+-#elif defined(CONFIG_S32R45)
++#elif defined(CONFIG_NXP_S32R45)
+ #define S32GEN1_A53_MAX_FREQ			(800 * MHZ)
+ #define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(1600 * MHZ)
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(800 * MHZ)
+diff --git a/scripts/config_whitelist.txt b/scripts/config_whitelist.txt
+index 0bbb4535c4..8fa48f1395 100644
+--- a/scripts/config_whitelist.txt
++++ b/scripts/config_whitelist.txt
+@@ -1503,7 +1503,6 @@ CONFIG_RTC_PT7C4338
+ CONFIG_RUN_FROM_IRAM_ONLY
+ CONFIG_RX_DESCR_NUM
+ CONFIG_S32
+-CONFIG_S32R45
+ CONFIG_S32V234
+ CONFIG_S32V234_FLASH
+ CONFIG_S32V234_USES_FLASH
+-- 
+2.17.1
+

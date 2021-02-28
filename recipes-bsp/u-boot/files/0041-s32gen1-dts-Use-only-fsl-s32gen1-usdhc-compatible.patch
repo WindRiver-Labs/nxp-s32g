@@ -1,0 +1,36 @@
+From ad4d4d87dc06b6c674f8efb98fad187d0e10d0a6 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 7 Jan 2021 14:49:53 +0200
+Subject: [PATCH 41/76] s32gen1: dts: Use only 'fsl,s32gen1-usdhc' compatible
+
+Issue: ALB-5955
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index b43fdc7941..603341ad22 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -2,7 +2,7 @@
+ /*
+  * Device Tree Include file for Freescale S32Gen1 family SoC.
+  *
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  */
+ 
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+@@ -417,7 +417,7 @@
+ 	};
+ 
+ 	usdhc0: usdhc@402F0000{
+-		compatible = "fsl,s32gen1-usdhc", "fsl,esdhc";
++		compatible = "fsl,s32gen1-usdhc";
+ 		reg = <0x0 0x402F0000 0x0 0x1000>;
+ 		interrupts = <0 36 4>;
+ 		clocks = <&clks S32GEN1_SCMI_CLK_USDHC_MODULE>,
+-- 
+2.17.1
+

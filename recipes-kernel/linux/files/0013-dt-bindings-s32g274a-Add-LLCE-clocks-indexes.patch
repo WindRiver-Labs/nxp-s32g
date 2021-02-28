@@ -1,0 +1,27 @@
+From 3cd889fc8a2f09f31eb70b6b51590198ce34499b Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 24 Nov 2020 10:13:11 +0200
+Subject: [PATCH 13/78] dt-bindings: s32g274a: Add LLCE clocks indexes
+
+Issue: ALB-5829
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ include/dt-bindings/clock/s32g274a-scmi-clock.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/dt-bindings/clock/s32g274a-scmi-clock.h b/include/dt-bindings/clock/s32g274a-scmi-clock.h
+index b96a7d6cbb75..b77cc4aa99b3 100644
+--- a/include/dt-bindings/clock/s32g274a-scmi-clock.h
++++ b/include/dt-bindings/clock/s32g274a-scmi-clock.h
+@@ -58,4 +58,8 @@
+ #define S32G274A_SCMI_CLK_PFE2_RX_MII		S32GEN1_PLAT_SCMI_CLK(28)
+ #define S32G274A_SCMI_CLK_PFE2_TX_MII		S32GEN1_PLAT_SCMI_CLK(29)
+ 
++/* LLCE */
++#define S32G274A_SCMI_CLK_LLCE_SYS		S32GEN1_PLAT_SCMI_CLK(30)
++#define S32G274A_SCMI_CLK_LLCE_CAN_PE		S32GEN1_PLAT_SCMI_CLK(31)
++
+ #endif
+-- 
+2.25.1
+

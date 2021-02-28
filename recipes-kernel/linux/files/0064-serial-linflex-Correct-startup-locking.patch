@@ -1,0 +1,65 @@
+From 2b77690543fc913312de1ee3ee82b7d9f98f9503 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Fri, 5 Feb 2021 17:18:09 +0200
+Subject: [PATCH 64/78] serial:linflex: Correct startup locking
+
+After the latest changes, linflex_string_write calls
+stop_tx which will check dma_tx_use. linflex_startup can be
+called in the same time so we should make sure dma_tx_use
+is not updated without putting Linflex in FIFO mode.
+
+Issue: ALB-6257
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/tty/serial/fsl_linflexuart.c | 21 +++++++++++----------
+ 1 file changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/tty/serial/fsl_linflexuart.c b/drivers/tty/serial/fsl_linflexuart.c
+index b00a7a497833..350447d0f6ca 100644
+--- a/drivers/tty/serial/fsl_linflexuart.c
++++ b/drivers/tty/serial/fsl_linflexuart.c
+@@ -873,30 +873,31 @@ static int linflex_startup(struct uart_port *port)
+ 					struct linflex_port, port);
+ 	int ret = 0;
+ 	unsigned long flags;
++	bool dma_rx_use, dma_tx_use;
+ 
+ 	sport->txfifo_size = LINFLEXD_UARTCR_TXFIFO_SIZE;
+ 	sport->rxfifo_size = LINFLEXD_UARTCR_RXFIFO_SIZE;
+ 	sport->port.fifosize = sport->txfifo_size;
+ 
+-	sport->dma_rx_use = sport->dma_rx_chan && !linflex_dma_rx_request(port);
+-	sport->dma_tx_use = sport->dma_tx_chan && !linflex_dma_tx_request(port);
++	dma_rx_use = sport->dma_rx_chan && !linflex_dma_rx_request(port);
++	dma_tx_use = sport->dma_tx_chan && !linflex_dma_tx_request(port);
+ 
+ 	spin_lock_irqsave(&sport->port.lock, flags);
++	sport->dma_rx_use = dma_rx_use;
++	sport->dma_tx_use = dma_tx_use;
+ 	linflex_setup_watermark(sport);
+-	spin_unlock_irqrestore(&sport->port.lock, flags);
+ 
+-	if (!sport->dma_rx_use || !sport->dma_tx_use) {
+-		ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
+-						DRIVER_NAME, sport);
+-	}
+-	if (sport->dma_rx_use) {
++	if (sport->dma_rx_use && !linflex_dma_rx(sport)) {
+ 		timer_setup(&sport->timer, linflex_timer_func, 0);
+-
+-		linflex_dma_rx(sport);
+ 		sport->timer.expires = jiffies + sport->dma_rx_timeout;
+ 		add_timer(&sport->timer);
+ 	}
++	spin_unlock_irqrestore(&sport->port.lock, flags);
+ 
++	if (!sport->dma_rx_use || !sport->dma_tx_use) {
++		ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
++						DRIVER_NAME, sport);
++	}
+ 	return ret;
+ }
+ 
+-- 
+2.25.1
+

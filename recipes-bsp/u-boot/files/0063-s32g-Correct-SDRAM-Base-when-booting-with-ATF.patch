@@ -1,0 +1,38 @@
+From f168c8aa3691b3f985f12fb8c8c381fa5fe2c440 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 28 Jan 2021 07:28:31 +0200
+Subject: [PATCH 63/76] s32g: Correct SDRAM Base when booting with ATF
+
+SDRAM should be set to DDR base when booting with ATF since U-Boot will be
+directly deployed in DDR.
+
+Issue: ALB-6383
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ include/configs/s32.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 6e9ce34e86..4afd20ecb8 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2017-2020 NXP
++ * Copyright 2017-2021 NXP
+  */
+ 
+ /*
+@@ -555,7 +555,7 @@
+ #define CONFIG_SYS_MALLOC_BASE		(CONFIG_SYS_FSL_DRAM_BASE1)
+ #endif
+ 
+-#ifdef CONFIG_S32_SKIP_RELOC
++#if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
+ #define CONFIG_SYS_SDRAM_BASE		S32_SRAM_BASE
+ #else
+ #define CONFIG_SYS_SDRAM_BASE		CONFIG_SYS_FSL_DRAM_BASE1
+-- 
+2.17.1
+

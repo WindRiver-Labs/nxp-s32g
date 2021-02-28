@@ -1,0 +1,31 @@
+From ac89ac05358e11a37bf9a087f48fbfdd55a7fde3 Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Mon, 15 Feb 2021 13:25:29 +0100
+Subject: [PATCH 73/78] dts: s32g27a: pfe: update properties for 0.9.3 driver
+
+- Property 'firmware-name' removed as not used anymore.
+- Added property 'dma-coherent' to support performance
+  on silicon cut 2.0
+
+Issue: ALB-6400
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
+index d100fd7219e4..ebd17a4254e5 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a.dtsi
+@@ -71,7 +71,7 @@
+ 			 <&clks S32G274A_SCMI_CLK_PFE_PE>,
+ 			 <&clks S32G274A_SCMI_CLK_PFE_TS>;
+ 		clock-names = "pfe_sys", "pfe_pe", "pfe_ts";
+-		firmware-name = "s32g_pfe_class.fw";
++		dma-coherent;
+ 		fsl,fw-class-name = "s32g_pfe_class.fw";
+ 		fsl,fw-util-name = "s32g_pfe_util.fw";
+ 		/* EMAC 0 */
+-- 
+2.25.1
+

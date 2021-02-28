@@ -1,0 +1,123 @@
+From 98b72b61c062ba8584748dc3d4a985baa11bc18d Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 18 Jan 2021 15:30:05 +0200
+Subject: [PATCH 47/78] dts: s32-gen1: Remove memory nodes
+
+Remove memory nodes because the memory ranges will be added by U-Boot.
+
+Issue: ALB-5845
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ .../boot/dts/freescale/fsl-s32g274a-bluebox3.dts  | 15 ---------------
+ .../arm64/boot/dts/freescale/fsl-s32g274a-evb.dts | 15 ---------------
+ .../boot/dts/freescale/fsl-s32g274a-rdb.dtsi      | 15 ---------------
+ arch/arm64/boot/dts/freescale/fsl-s32r45-evb.dts  | 15 ---------------
+ 4 files changed, 60 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+index 52c8be8cf282..dd6e7264e09f 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+@@ -14,21 +14,6 @@
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 
+-	memory_DDR0@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR1@c0000000 {
+-		device_type = "memory";
+-		reg = <0 0xc0000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR2@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+ 	reserved-memory {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
+index effe319b9ddf..4a221716707d 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-evb.dts
+@@ -20,21 +20,6 @@
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 
+-	memory_DDR0@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR1@c0000000 {
+-		device_type = "memory";
+-		reg = <0 0xc0000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR2@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+ 	reserved-memory {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi
+index 4fb435be6689..71c37edddb2c 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb.dtsi
+@@ -14,21 +14,6 @@
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 
+-	memory_DDR0@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR1@c0000000 {
+-		device_type = "memory";
+-		reg = <0 0xc0000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR2@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+ 	reserved-memory {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32r45-evb.dts b/arch/arm64/boot/dts/freescale/fsl-s32r45-evb.dts
+index 0bd5b4408890..99535899a84d 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32r45-evb.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32r45-evb.dts
+@@ -22,21 +22,6 @@
+ 		linux,initrd-end = <0x8A000000>;
+ 		stdout-path = "serial0:115200n8";
+ 	};
+-
+-	memory_DDR0@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR1@c0000000 {
+-		device_type = "memory";
+-		reg = <0 0xc0000000 0 0x40000000>;
+-	};
+-
+-	memory_DDR2@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+ };
+ 
+ &fxosc {
+-- 
+2.25.1
+

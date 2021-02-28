@@ -1,0 +1,75 @@
+From c25b95f1cf2c6755792c2f8686f7c141cbed4c68 Mon Sep 17 00:00:00 2001
+From: Xulin Sun <xulin.sun@windriver.com>
+Date: Thu, 10 Dec 2020 18:59:27 +0200
+Subject: [PATCH 09/78] serial: fsl_linflexuart: initialize init_lock earlier
+
+The driver went to initialize its init_lock at the last of the linflex_serial_init.
+However, it is possible that this lock is not initialized
+before the init_lock is called which leads to a following error:
+
+BUG: spinlock bad magic on CPU#0, swapper/0/1
+lock: init_lock+0x0/0x38, .magic: 00000000, .owner: <none>/-1, .owner_cpu: -1
+CPU: 0 PID: 1 Comm: swapper/0
+Hardware name: Freescale S32G275 (DT)
+Call trace:
+dump_backtrace+0x0/0x140
+show_stack+0x24/0x30
+dump_stack+0xc4/0x10c
+spin_dump+0x90/0xa0
+do_raw_spin_lock+0xb4/0x100
+_raw_spin_lock_irqsave+0x68/0x80
+linflex_console_setup+0x148/0x218
+register_console+0x158/0x388
+uart_add_one_port+0x3d0/0x4a0
+linflex_probe+0x1c8/0x340
+platform_drv_probe+0x58/0xa8
+really_probe+0xd8/0x2a8
+driver_probe_device+0x5c/0xf0
+device_driver_attach+0x74/0x80
+__driver_attach+0x64/0xe8
+bus_for_each_dev+0x80/0xd0
+driver_attach+0x30/0x40
+bus_add_driver+0x14c/0x1f0
+driver_register+0x64/0x110
+__platform_driver_register+0x54/0x60
+linflex_serial_init+0x40/0x80
+do_one_initcall+0xa4/0x388
+kernel_init_freeable+0x3d8/0x47c
+kernel_init+0x18/0x104
+ret_from_fork+0x10/0x1c
+
+Issue: ALB-6152
+Signed-off-by: Xulin Sun <xulin.sun@windriver.com>
+---
+ drivers/tty/serial/fsl_linflexuart.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/tty/serial/fsl_linflexuart.c b/drivers/tty/serial/fsl_linflexuart.c
+index 69b1b4b6ab9a..9caab757358d 100644
+--- a/drivers/tty/serial/fsl_linflexuart.c
++++ b/drivers/tty/serial/fsl_linflexuart.c
+@@ -1719,6 +1719,10 @@ static int __init linflex_serial_init(void)
+ 
+ 	prd_info("serial: Freescale linflex driver\n");
+ 
++#ifdef CONFIG_SERIAL_FSL_LINFLEXUART_CONSOLE
++	spin_lock_init(&init_lock);
++#endif
++
+ 	ret = uart_register_driver(&linflex_reg);
+ 	if (ret)
+ 		return ret;
+@@ -1727,10 +1731,6 @@ static int __init linflex_serial_init(void)
+ 	if (ret)
+ 		uart_unregister_driver(&linflex_reg);
+ 
+-#ifdef CONFIG_SERIAL_FSL_LINFLEXUART_CONSOLE
+-	spin_lock_init(&init_lock);
+-#endif
+-
+ 	return ret;
+ }
+ 
+-- 
+2.25.1
+

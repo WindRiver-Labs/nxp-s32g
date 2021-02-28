@@ -1,0 +1,176 @@
+From c6b2290b6bdd1f7516f2b497898afa6d1f935c65 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 26 Jan 2021 10:35:51 +0200
+Subject: [PATCH 15/22] s32g274a: Add support for long boot
+
+Issue: ALB-6094
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+---
+ drivers/nxp/s32g/s32g_wkpu.c                  | 22 +++++++++++++++++--
+ .../s32g/bl31_ssram/include/ssram_mailbox.h   |  5 +++--
+ plat/nxp/s32g/include/s32g_bl_common.h        |  2 ++
+ plat/nxp/s32g/s32g_bl2_el3.c                  | 22 +++++++++++++++++++
+ plat/nxp/s32g/s32g_psci.c                     |  5 ++++-
+ 5 files changed, 51 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/nxp/s32g/s32g_wkpu.c b/drivers/nxp/s32g/s32g_wkpu.c
+index 4b103fae0..d5b4f27bf 100644
+--- a/drivers/nxp/s32g/s32g_wkpu.c
++++ b/drivers/nxp/s32g/s32g_wkpu.c
+@@ -9,6 +9,7 @@
+ #include <lib/mmio.h>
+ #include <lib/utils_def.h>
+ #include <libfdt.h>
++#include <s32g_bl_common.h>
+ 
+ #include "s32g_dt.h"
+ #include "s32gen1-wkpu.h"
+@@ -37,10 +38,16 @@ struct s32gen1_wkpu {
+ 	uint32_t edges; /* Rising / Falling edges */
+ 	uint32_t pulls_en; /* Enabled pull resistors */
+ 	uint32_t pullups; /* Pull-ups / Pull-downs */
++	uint32_t boot; /* Short or long boot */
+ };
+ 
+ static struct s32gen1_wkpu gwkpu;
+ 
++bool s32gen1_is_wkp_short_boot(void)
++{
++	return gwkpu.boot == S32GEN1_WKPU_SHORT_BOOT;
++}
++
+ void s32gen1_wkpu_reset(void)
+ {
+ 	/* Clear all interrupts */
+@@ -62,7 +69,10 @@ static void init_wkpu(struct s32gen1_wkpu *wkpu)
+ 	mmio_write_32(wkpu->dt_info.base + WKPU_WISR, WKPU_WISR_MASK);
+ 
+ 	/* Short boot */
+-	mmio_write_32(wkpu->dt_info.base + WKPU_WBMSR, 0x0);
++	if (wkpu->boot == S32GEN1_WKPU_SHORT_BOOT)
++		mmio_write_32(wkpu->dt_info.base + WKPU_WBMSR, 0x0);
++	else
++		mmio_write_32(wkpu->dt_info.base + WKPU_WBMSR, 0xFFFFFFFFU);
+ 
+ 	/* IRQs edges */
+ 	mmio_write_32(wkpu->dt_info.base + WKPU_WIREER, rising);
+@@ -83,7 +93,7 @@ static void init_wkpu(struct s32gen1_wkpu *wkpu)
+ 
+ static int init_from_dt(void *fdt, int fdt_offset, struct s32gen1_wkpu *wkpu)
+ {
+-	const fdt32_t *irq_ptr;
++	const fdt32_t *irq_ptr, *boot_ptr;
+ 	uint32_t irq_num;
+ 	uint32_t pull;
+ 	int len;
+@@ -102,6 +112,14 @@ static int init_from_dt(void *fdt, int fdt_offset, struct s32gen1_wkpu *wkpu)
+ 		return -EIO;
+ 	}
+ 
++	boot_ptr = fdt_getprop(fdt, fdt_offset, "nxp,warm-boot", &len);
++	if (len < sizeof(uint32_t)) {
++		ERROR("Missing warm boot type registers\n");
++		return -EIO;
++	}
++
++	wkpu->boot = fdt32_to_cpu(*boot_ptr);
++
+ 	/* GPR Base address */
+ 	(void) fdt_get_reg_props_by_index(fdt, fdt_offset, 1, &wkpu->gpr, NULL);
+ 
+diff --git a/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h b/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h
+index 19762d1d9..8d36706aa 100644
+--- a/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h
++++ b/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h
+@@ -15,8 +15,9 @@
+ typedef void (*s32g_warm_entrypoint_t)(void);
+ 
+ struct s32g_ssram_mailbox {
+-	s32g_warm_entrypoint_t bl31_warm_entrypoint;
+-	uint8_t csr_settings[BL31SSRAM_CSR_SIZE];
++	s32g_warm_entrypoint_t bl31_warm_entrypoint __aligned(2);
++	uint8_t short_boot __aligned(2);
++	uint8_t csr_settings[BL31SSRAM_CSR_SIZE] __aligned(2);
+ };
+ 
+ #endif
+diff --git a/plat/nxp/s32g/include/s32g_bl_common.h b/plat/nxp/s32g/include/s32g_bl_common.h
+index 4ddff8c3e..fcf93580e 100644
+--- a/plat/nxp/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32g/include/s32g_bl_common.h
+@@ -43,4 +43,6 @@ bool is_cluster1_off(void);
+ 
+ struct s32g_i2c_driver *s32g_add_i2c_module(void *fdt, int fdt_node);
+ void s32g_reinit_i2c(void);
++
++bool s32gen1_is_wkp_short_boot(void);
+ #endif
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index e027f6670..ab42bf9b6 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -25,6 +25,7 @@
+ #include <ssram_mailbox.h>
+ #include "s32g_sramc.h"
+ #include <lib/libfdt/libfdt.h>
++#include <drivers/nxp/s32g/ddr/ddrss.h>
+ 
+ #define S32G_FDT_UPDATES_SPACE		100U
+ 
+@@ -421,12 +422,33 @@ static void copy_bl31ssram_image(void)
+ 	memcpy((void *)S32G_SSRAM_BASE, bl31ssram, bl31ssram_len);
+ }
+ 
++static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
++{
++	s32g_warm_entrypoint_t resume_entrypoint;
++	uintptr_t csr_addr;
++
++	resume_entrypoint = ssram_mb->bl31_warm_entrypoint;
++	csr_addr = (uintptr_t)&ssram_mb->csr_settings[0];
++
++	ddrss_to_normal_mode(csr_addr);
++
++	resume_entrypoint();
++}
++
+ void bl2_el3_plat_arch_setup(void)
+ {
++	struct s32g_ssram_mailbox *ssram_mb = (void *)BL31SSRAM_MAILBOX;
+ 	uint32_t ret;
+ 
+ 	console_s32g_register();
+ 
++	if ((get_reset_cause() == CAUSE_WAKEUP_DURING_STANDBY) &&
++	    !ssram_mb->short_boot) {
++		/* Trampoline to bl31_warm_entrypoint */
++		resume_bl31(ssram_mb);
++		panic();
++	}
++
+ 	s32g_sram_clear(S32G_BL33_IMAGE_BASE, DTB_BASE);
+ 	s32g_ssram_clear();
+ 
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 51e791a91..ce5654965 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -142,11 +142,14 @@ static void bl31sram_entry(void)
+ 
+ static void set_warm_entry(void)
+ {
+-	uintptr_t warm_entry;
++	uintptr_t warm_entry, short_boot;
+ 
+ 	warm_entry = BL31SSRAM_MAILBOX + offsetof(struct s32g_ssram_mailbox,
+ 						  bl31_warm_entrypoint);
++	short_boot = BL31SSRAM_MAILBOX + offsetof(struct s32g_ssram_mailbox,
++						  short_boot);
+ 	mmio_write_64(warm_entry, (uintptr_t)s32g_resume_entrypoint);
++	mmio_write_8(short_boot, (uint8_t)s32gen1_is_wkp_short_boot());
+ }
+ 
+ static void __dead2 platform_suspend(unsigned int current_cpu)
+-- 
+2.17.1
+

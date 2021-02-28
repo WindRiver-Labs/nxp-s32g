@@ -1,0 +1,34 @@
+From cae7feb096879a10497e83de769c9a602aed8709 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Tue, 26 Jan 2021 12:14:53 +0200
+Subject: [PATCH 49/76] mmc: fsl_esdhc_imx: Guard fsl_esdhc_execute_tuning
+
+Issue: ALB-6137
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+---
+ drivers/mmc/fsl_esdhc_imx.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index 3ca88bea8a..09170f5579 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -861,6 +861,7 @@ static int esdhc_set_voltage(struct mmc *mmc)
+ 	}
+ }
+ 
++#ifdef MMC_SUPPORTS_TUNING
+ static int fsl_s32gen1_esdhc_execute_tuning(struct udevice *dev,
+ 					    uint32_t opcode)
+ {
+@@ -1042,6 +1043,7 @@ static int fsl_esdhc_execute_tuning(struct udevice *dev, uint32_t opcode)
+ 	return ret;
+ }
+ #endif
++#endif /* MMC_SUPPORTS_TUNING */
+ 
+ static int esdhc_set_ios_common(struct fsl_esdhc_priv *priv, struct mmc *mmc)
+ {
+-- 
+2.17.1
+
