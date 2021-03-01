@@ -102,6 +102,8 @@ SRC_URI += "file://0001-s32v234-refactor-ddr-init.patch \
 	file://0081-pcie-Configure-pcie-ranges.patch \
 	file://0082-pcie-e1000-Enable-E1000-support.patch \
 	file://0083-drivers-net-phy-Use-Aquantia-driver-for-AQR113C.patch \
+	file://0001-dts-s32g-modify-the-hse_reserved-memory-node-to-comp.patch \
+	file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
 "
 
 SRCREV = "6f1223272a76516b04d5f22c2667a4dd64810443"
