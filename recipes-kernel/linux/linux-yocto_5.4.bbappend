@@ -5,7 +5,7 @@ KBRANCH_nxp-s32g2xx  = "v5.4/standard/nxp-s32g2xx"
 LINUX_VERSION_nxp-s32g2xx ?= "5.4.x"
 
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
-SRC_URI += " \
+SRC_URI_append_nxp-s32g2xx = " \
 	file://s32g-add-wdt.cfg \
 	file://s32g-add-hse-uio-driver.cfg \
 	file://s32g-add-HW-RANDOM-config.cfg \
