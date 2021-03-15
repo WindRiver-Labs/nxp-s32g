@@ -14,10 +14,11 @@ PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN ?= "."
 
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=https \
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
+	file://0001-pfe-oal-modify-the-GFP-flag-to-GFP_ATOMIC-for-kzallo.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} \
 	file://${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} \
 	"
-SRCREV = "cfcb4a56c7349ec186ac807f73e56b0cc5777ffd"
+SRCREV = "9ddaffd9a37d85e0fc3e08ecb440484212c66e58"
 
 # Tell yocto not to bother stripping our binaries, especially the firmware
 # since 'aarch64-fsl-linux-strip' fails with error code 1 when parsing the firmware
