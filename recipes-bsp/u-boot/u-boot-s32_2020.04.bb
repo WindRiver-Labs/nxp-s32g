@@ -19,6 +19,11 @@ inherit nxp-u-boot-localversion
 
 SRC_URI_prepend = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=release/bsp28.0-2020.04 "
 
+SRC_URT += " \
+	file://0001-dts-s32g-modify-the-hse_reserved-memory-node-to-comp.patch \
+        file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
+"
+
 SRCREV = "eef88755a719c802f9dbfceaa06190abb96e74d1"
 SRC_URI[sha256sum] = "4e80caf195787c76639675712492230d090fe2eb435fd44491d653463485e30c"
 
