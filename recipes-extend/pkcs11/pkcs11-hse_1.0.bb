@@ -13,8 +13,6 @@ SRC_URI = "https://bitbucket.sw.nxp.com/projects/ALBW/repos/pkcs11-hse/pkcs11-hs
 SRCREV = "d951d55997b3f8db84901bc7058bec0b7a07560a"
 SRC_URI[sha256sum] = "7d8056117894df028f3bfa13b9b0842a794c74013f7ea1cabb165db9c1558b32"
 
-SRC_URI += "file://0001-pkcs-example-modify-the-example-codes-to-workable.patch"
-
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 S = "${WORKDIR}/pkcs11-hse"

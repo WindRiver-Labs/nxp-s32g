@@ -7,7 +7,6 @@ LINUX_VERSION_nxp-s32g2xx ?= "5.4.x"
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
 SRC_URI += " \
 	file://s32g-add-wdt.cfg \
-	file://s32g-add-hse-uio-driver.cfg \
 	file://0001-regmap-regmap-debugfs-Set-debugfs_name-to-NULL-after.patch \
 	file://0001-dts-s32g-bb3-change-gigabit-phys-addresses.patch \
 	file://0002-dts-s32-gen1-Fix-SIUL2-ranges.patch \
