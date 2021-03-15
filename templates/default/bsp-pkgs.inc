@@ -1,6 +1,3 @@
 IMAGE_INSTALL += "can-utils"
 IMAGE_INSTALL += "ptpd"
 IMAGE_INSTALL += "u-boot-s32"
-IMAGE_INSTALL += "libp11"
-IMAGE_INSTALL += "pkcs11-hse"
-IMAGE_INSTALL += "pkcs11-hse-examples"
