@@ -30,4 +30,34 @@ UBOOT_INITIAL_ENV = ""
 USRC ?= ""
 S = '${@oe.utils.conditional("USRC", "", "${WORKDIR}/git", "${USRC}", d)}'
 
+# Enable Arm Trusted Firmware
+SRC_URI += " \
+    ${@bb.utils.contains('IMAGE_INSTALL', 'arm-trusted-firmware', 'file://0001-defconfig-add-support-of-ATF-for-rdb2-boards.patch', '', d)} \
+"
+
+# For now, only rdb2 boards support ATF, this function will be fixed when new ATF supported boards added.
+do_install_append() {
+
+    if [ -n "${ATF_IMAGE}" ]; then
+        unset i j
+        install -d ${DEPLOY_DIR_IMAGE}
+        for config in ${UBOOT_MACHINE}; do
+            i=$(expr $i + 1);
+            for type in ${UBOOT_CONFIG}; do
+                j=$(expr $j + 1)
+                if  [ $j -eq $i ]; then
+                        if [ "$type" = "${ATF_SUPPORT_TYPE}" ]; then
+                            cp ${B}/${config}/u-boot.bin ${DEPLOY_DIR_IMAGE}/u-boot.bin
+                            install -d ${DEPLOY_DIR_IMAGE}/tools
+                            cp ${B}/${config}/tools/mkimage ${DEPLOY_DIR_IMAGE}/tools/mkimage
+                            break
+                        fi
+                fi
+            done
+            unset j
+        done
+        unset i
+    fi
+}
+
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"

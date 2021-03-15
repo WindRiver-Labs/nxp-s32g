@@ -1,0 +1,28 @@
+From 6739000827437bfa2ff2bd1ff374a3b03eacee64 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Wed, 16 Dec 2020 19:28:39 +0800
+Subject: [PATCH] defconfig: add support of ATF for rdb2 boards
+
+Issue:
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ configs/s32g274ardb2_defconfig | 2 ++
+ 1 files changed, 2 insertions(+)
+
+diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
+index 8cd2470435..9d2182c339 100644
+--- a/configs/s32g274ardb2_defconfig
++++ b/configs/s32g274ardb2_defconfig
+@@ -12,6 +12,8 @@ CONFIG_DISTRO_DEFAULTS=y
+ CONFIG_TOOLS_DEBUG=y
+ CONFIG_FIT=y
+ CONFIG_SD_BOOT=y
++# CONFIG_S32_STANDALONE_BOOT_FLOW is not set
++CONFIG_S32_ATF_BOOT_FLOW=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_ARCH_EARLY_INIT_R=y
+ CONFIG_BOARD_EARLY_INIT_F=y
+-- 
+2.25.1
+
