@@ -92,5 +92,4 @@ SRC_URI += " \
         file://0082-pcie-s32gen1-Fix-RC-enumeration.patch \
         file://0083-net-phy-add-AQR113c-support.patch \
 	file://0084-hse-user-space-driver-support.patch \
-	file://0001-s32g-linflex-Fix-suspend-resume-crash.patch \
 "
