@@ -36,6 +36,8 @@ This BSP supports the following boards:
 			   based on SDK v5.4.24_bsp26.0.1.
   - 2021/01 (LINUXPG-651): WindRiver CI/CD branch support. Standard support based on NXP
 			   SDK v5.4.69_bsp27.0.
+  - 2021/03 (LINUXPG-698): WindRiver CI/CD branch support. Standard support based on NXP
+			   SDK v5.4.69_bsp28.0.
 3. BSP Features
 ===============
 
@@ -68,6 +70,8 @@ The following BSP features are validated and supported.
 	+ eDMA: Enhanced Direct Memory Access
 	+ GPIO: On-Chip general purpose Input/Output
 	+ HSE: Hardware Security Engine (Only S32G274A-EVB)
+	+ Watchdog
+	+ RTC
 
 3.2 Unsupported Features
 ========================
@@ -76,8 +80,6 @@ The following features are not supported or validated same as SDK.
 
 	x USB OTG
 	x CPU Freq
-	x Watchdog
-	x RTC
 
 4. BSP Notes
 ============
@@ -93,11 +95,11 @@ S32G274A-EVB:
 	CPU Revision:           rev. 1.0.0/1.0.1
 	Board Serial:   	NXP S32G27x
 	BootLoader:		U-Boot
-	BootLoader Version:	U-Boot 2020.04+g6f1223272a (Dec 28 2020 - 09:38:31 +0000)
+	BootLoader Version:	U-Boot 2020.04+geef88755a7 (Mar 03 2021 - 07:18:34 +0000)
 
 S32G274A-RDB2:
 	Processor::             NXP S32G274A
 	CPU Revision:           rev. 2.1.0
 	Board Serial:           NXP S32G27x
 	BootLoader:		U-Boot
-	BootLoader Version:	U-Boot 2020.04+g6f1223272a (Dec 28 2020 - 09:38:31 +0000)
+	BootLoader Version:	U-Boot 2020.04+geef88755a7 (Mar 03 2021 - 07:18:34 +0000)
