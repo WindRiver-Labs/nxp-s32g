@@ -11,7 +11,7 @@ do_make_nxp_s32g2xx_wic() {
 			# For the secure-boot, this file u-boot.s32-s32g274ardb2 does not exit
 			if [ -e u-boot.s32-s32g274ardb2 ]; then
 				cp ${IMAGE_LINK_NAME}.wic ${IMAGE_LINK_NAME}-rdb2.wic
-				if [ -n "${ATF_IMAGE}" ]; then
+				if [ -n "${ATF_S32G_ENABLE}" ]; then
 					dd if=${ATF_IMAGE_FILE} of=${IMAGE_LINK_NAME}-rdb2.wic conv=notrunc bs=256 count=1 seek=0
 					dd if=${ATF_IMAGE_FILE} of=${IMAGE_LINK_NAME}-rdb2.wic conv=notrunc bs=512 seek=1 skip=1
 				else

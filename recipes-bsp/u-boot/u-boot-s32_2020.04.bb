@@ -37,13 +37,13 @@ S = '${@oe.utils.conditional("USRC", "", "${WORKDIR}/git", "${USRC}", d)}'
 
 # Enable Arm Trusted Firmware
 SRC_URI += " \
-    ${@bb.utils.contains('IMAGE_INSTALL', 'arm-trusted-firmware', 'file://0001-defconfig-add-support-of-ATF-for-rdb2-boards.patch', '', d)} \
+    ${@bb.utils.contains('ATF_S32G_ENABLE', '1', 'file://0001-defconfig-add-support-of-ATF-for-rdb2-boards.patch', '', d)} \
 "
 
 # For now, only rdb2 boards support ATF, this function will be fixed when new ATF supported boards added.
 do_install_append() {
 
-    if [ -n "${ATF_IMAGE}" ]; then
+    if [ -n "${ATF_S32G_ENABLE}" ]; then
         unset i j
         install -d ${DEPLOY_DIR_IMAGE}
         for config in ${UBOOT_MACHINE}; do
