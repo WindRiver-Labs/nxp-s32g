@@ -73,10 +73,12 @@ addtask do_deploy after do_install
 do_package_qa[noexec] = "1"
 do_package_qa_setscene[noexec] = "1"
 
-FILES_${PN} += "${base_libdir}/*"
-FILES_${PN} += "${sysconfdir}/modules-load.d/*"
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_CLASS_NAME}"
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_UTIL_NAME}"
+FILES_${PN} += "/lib/modules/* \
+    /lib/firmware/${FW_INSTALL_CLASS_NAME} \
+    /lib/firmware/${FW_INSTALL_UTIL_NAME} \
+    ${base_libdir}/* \
+    ${sysconfdir}/modules-load.d/* \
+"
 
 COMPATIBLE_MACHINE = "^$"
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
