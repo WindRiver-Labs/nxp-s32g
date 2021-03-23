@@ -129,8 +129,8 @@ tftp $fdtaddr $fdtfile;booti $loadaddr - $fdtaddr
 ethaddr=00:04:9F:02:00:FD
 eth1addr=00:04:9F:02:01:FD
 eth2addr=00:04:9F:02:02:FD
-loadaddr=0x81000000
-fdtaddr=0x90000000
+loadaddr=0x80080000
+fdtaddr=0x83E00000
 gatewayip=192.168.1.1
 netmask=255.255.255.0
 ipaddr=192.168.1.100
@@ -245,9 +245,9 @@ have to contact NXP to get the access to Flexera.
 Before to use the HSE, HSE firmware must be installed and the key catalogs must
 be formatted.
 
-If you get permission to use HSE, you can get packages "HSE_FW_S32G274_1_0_8_2.exe"
-and "HSE_FW_DEMO_APP_S32G274_1_0_8_2.exe" from NXP's official website. you can find
-the HSE firmware pink image from "HSE_FW_S32G274_1_0_8_2.exe"
+If you get permission to use HSE, you can get packages "HSE_FW_S32G274_0_0_8_5.exe"
+and "HSE_FW_DEMO_APP_S32G274_0_0_8_5.exe" from NXP's official website. you can find
+the HSE firmware pink image from "HSE_FW_S32G274_0_0_8_5.exe"
 
 6.2.2 HSE Demo
 --------------
@@ -256,7 +256,7 @@ The demo application is provided separately and contains details on how to
 provision HSE FW on virgin devices and demonstrates common use cases of its
 security features.
 
-The HSE Demo is from the package "HSE_FW_DEMO_APP_S32G274_1_0_8_2.exe" of
+The HSE Demo is from the package "HSE_FW_DEMO_APP_S32G274_0_0_8_5.exe" of
 NXP's official website.
 
 Frist step in installing the HSE FW on a device is to generate the blob image,
@@ -264,7 +264,7 @@ the blob image is a binary image which defines the layout of external flash memo
 Contains all images used by BootRom/HSE FW to boot and configure the system at start-up.
 
 Below steps is an example about how to verify the HSE function on M7 cores,
-detailed information can refer to the document of "HSE_FW_DEMO_APP_S32G274_1_0_8_2_ReadMe.pdf"
+detailed information can refer to the document of "HSE_FW_DEMO_APP_S32G274_0_0_8_5_ReadMe.pdf"
 
 1) Generate the blob image using scripts\blob.py script:
 
@@ -280,18 +280,98 @@ detailed information can refer to the document of "HSE_FW_DEMO_APP_S32G274_1_0_8
 
 There will be a display below on the serial to confirm HSE is up and running.
 
-	HSE FW Version: 0.1.1_0.8.2
+	HSE FW Version: 0.1.0_0.8.5
 	HSE FW up and running! Status:
-	    HSE_STATUS_RNG_INIT_OK
-	    HSE_STATUS_INIT_OK
-	    HSE_STATUS_CUST_SUPER_USER
+	      HSE_STATUS_RNG_INIT_OK
+	      HSE_STATUS_INIT_OK
+	      HSE_STATUS_CUST_SUPER_USER
+
+NOTICE:
+	the script uses rev2 version HSE firmware to create the new blob
+	image by dedault, if user's board is rev1 version, please modify the
+		json/s32g2xx_new_blob.json
+	file to be compatible with the HSE version.
 
 6.2.3 HSE linux
 ---------------
 
-Currently there is no demo and blob image for linux to validate the HSE
-cryptographic offloading capabilities on A53 cores, so HSE doesn't work on
-linux. But the HSE crypto driver is provided as is and builds fine.
+For linux, there have a demo to verify HSE and it provides PKCS#11 functionality.
+The steps are as following:
+
+ 1. Burn HSE firmware into WIC SD card
+
+    HSE linux feature verification depends on U-Boot, as pre requirement,
+    please place the u-boot.s32 binary file, U-Boot tools fold and HSE
+    firmware in the same directory. For HSE firmware, as section "6.2.1
+    HSE firmware" stated, it can be got from NXP's official website.
+    For u-boot.s32 and U-Boot tools, their locations are:
+	<build-dir>/tmp-glibc/work/nxp_s32g2xx-wrs-linux/u-boot-s32/2020.04-r0/git/s32g2xxaevb_defconfig/u-boot.s32
+    and
+	<build-dir>/tmp-glibc/work/nxp_s32g2xx-wrs-linux/u-boot-s32/2020.04-r0/git/tools
+    respectively.
+
+    Then using the following script to burn HSE firmwares into WIC SD card:
+	sudo ./tools/s32gen1_secboot.sh -k <key-dir> -d /dev/your-sd-dev --hse s32g2xx_hse_fw_0.1.0_0.8.5_pb200922.bin.<rev-version>.pink
+
+    the key-dir is a directory where to store the new created key pair.
+    rev-version in hse firmware name depends on the board CPU version,
+    it should be rev1 or rev2 for now. This script should modify the
+    layout of SD card and burn the HSE firmware to a proper address. For
+    more details of this script, please refer to s32g2xx-secure-boot/README
+    in this bsp layer.
+
+ 2. Initialize HSE firmware and format key stores
+
+    After step1, using the SD card to boot the board, and in U-Boot stage,
+    using the following command to format HSE key stores:
+
+	hse_keystore_format
+
+    If succeed, it should shows:
+
+	MMC read: dev # 0, block # 0, count 1 ...1 blocks read: OK
+	Formatting NVM and RAM key stores...
+	Generating SYS_IMG...
+	Writing SYS_IMG to SDcard...
+	MMC write: dev # 0, block # 905, count 128...128 blocks written: OK
+	Updating SYS_IMG pointer...
+	MMC write: dev # 0, block # 0, count 1...1 blocks written: OK
+	MMC write: dev # 0, block # 8, count 1...1 blocks written: OK
+
+    then boot the board as normal.
+
+ 3. Run the HSE & PKCS#11 demo
+
+    When the linux starts up, run the following command:
+
+	pkcs-keyop /usr/lib64/libpkcs11-hse.so.1.0
+
+    If succeed, the messages should like:
+
+	root@nxp-s32g2xx:~# ./pkcs-keyop-0301-6 /usr/lib64/libpkcs11-hse.so.1.0
+	hse: UIO device open
+
+	1 slots available
+
+	Using token:
+	Manufacturer......: NXP Semiconductors
+	Description.......: NXP HSE Slot
+	Token label.......: NXP HSE Token
+
+	Key pair stored
+
+	Keys available: 1
+	Enumerated key label: HSE Key Pair
+
+	Key removed
+	hse: UIO device closed
+	root@nxp-s32g2xx:~#
+
+NOTICE:
+
+    The linux HSE & PKCS#11 demo supports S32G274AEVB board only for now,
+    because the RDB2 board does not include the HSE related configurations
+    and dts node in U-Boot. And this will be fixed in future.
 
 6.3 PFE
 -------
@@ -309,7 +389,7 @@ and download the PFE firmware.
 
 PFE is a firmware-based module. Load the firmware before using PFE.
 The firmwares name are "s32g_pfe_class.fw" and "s32g_pfe_util.fw" with
-version 0.9.2, which have to be downloaded from NXP Software.
+version 0.9.3, which have to be downloaded from NXP Software.
 
 6.3.2 Steps to verify
 ---------------------
@@ -355,3 +435,243 @@ test the pfe feature or adding a PCIe Ethernet port as a replacement.
 4. For S32G274A-RDB2 board, if using NFS to verify the PFE feature. You should
 first switch eth to GMAC in u-boot, please refer to above chapter "4.1 NFS Root File System"
 to switch eth to GMAC.
+
+
+6.4 LLCE
+--------
+
+NXP LLCE (Low Latency Communication Engine) is an autonomous accelerator
+designed to offload communication tasks on the CAN, LIN and Flexray
+Protocols. It is a self-contained module, separate from the application
+cores that would run applications (host cores). For now, LLCE CAN has
+been supported, LIN and Flexray are not, same as SDK.
+
+LLCE is a component of S32G274A SOC. It must be installed with the firmwares
+to use. LLCE firmwares are not shipped with SDK. It is released through NXP's
+Flexera, customers have to contact NXP to get the access to Flexera.
+
+6.4.1 LLCE firmwares
+--------------------
+
+LLCE is a firmware-based module. Load the firmwares before using it.
+There are 4 LLCE firmwares:
+
+	dte.bin
+	frpe.bin
+	ppe_tx.bin
+	ppe_rx.bin
+
+with version 0.9.1 to be downloaded from NXP Software.
+
+6.4.2 LLCE CAN verify steps
+---------------------------
+
+If users want to verify LLCE CAN feature, please add the following lines in
+<build-dir>/conf/local.conf of wrlinux project:
+
+	PNWHITELIST_wr-nxp-s32g2xx += "llce"
+	IMAGE_INSTALL_append_nxp-s32g2xx = " llce"
+	LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN = "<path-to-llce-firmware>/dte.bin"
+	LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN = "<path-to-llce-firmware>/frpe.bin"
+	LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN = "<path-to-llce-firmware>/ppe_tx.bin"
+	LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN = "<path-to-llce-firmware>/ppe_rx.bin"
+
+then build the project as usual. Boot up the board with the new built WIC
+image, make sure that the test llce_can ports are connected. As an example,
+using llce_can0 and llce_can14 to verify. steps as following:
+
+  1. configure llcecan0 and llcecan14 interfaces
+
+	ip link set up llcecan0 type can bitrate 500000 dbitrate 5000000 fd on
+	ip link set up llcecan14 type can bitrate 500000 dbitrate 5000000 fd on
+
+  2. capture can messages
+
+	candump any,0:0,#FFFFFFFF > llce_can.log &
+
+  3. send a packet using llcecan14
+
+	cansend llcecan14 15575555##300112233445566778899aabbcceedd112233
+
+  4. verify the capture output
+
+	cat llce_can.log
+
+  If succeed, it should output like:
+	root@nxp-s32g2xx:~# cat llce_can.log
+	  llcecan0  15575555  [20]  00 11 22 33 44 55 66 77 88 99 AA BB CC EE DD 11 22 33 00 00
+	  llcecan14  15575555  [20]  00 11 22 33 44 55 66 77 88 99 AA BB CC EE DD 11 22 33 00 00
+
+6.5 ATF
+-------
+
+The ARM Trusted Firmware (ATF, or TF-A) is a software component of
+the linux BSP with a double role as a bootloader and Secure Monitor.
+As a bootloader, it runs before U-Boot on the A53 boot core and takes
+over some of the core and SoC initializations such as clocks or MC_ME
+partitions (mostly for those peripherals and subsystems that the ATF
+needs). As a Secure Monitor, the TF-A provides power management services
+to other software components, via a standard API/ABI called PSCI. For
+details of ATF, please refer to the sections
+
+	"11 ARM Trusted Firmware"
+and
+	"22 Power Management"
+
+in "S32G274_BSP28.0_User_Manual.pdf".
+
+NOTICE:
+    For hardware reasons, the power management features are only supported
+    on S32G274A RDB REV B2 or newer boards.
+
+
+6.5.1 Prerequirement
+--------------------
+
+Currentlly, the ATF is an optional template feature, if users want to enable
+it, please adding the following line in <build-dir>/conf/local.conf of the
+project:
+
+	WRTEMPLATE = "feature/atf-s32g"
+
+This will enable the ATF feature and compile and install the related files
+into WIC image.
+
+6.5.2 STR verify steps
+----------------------
+
+STR(Sleep To Ram) is a complex power management feature and is a high-level
+concept, implemented by the linux kernel and the ATF, and underlaid by the
+S32G SoC’s Standby state. With ATF enabled, users can verify STR using the
+following command after the board boot up:
+
+	rtcwake -d rtc0 -m mem -s 10
+
+this command will excute STR and try to wakeup the system with RTC after
+10 seconds. If succeed, the output messages should like the following:
+
+	root@nxp-s32g2xx:~# rtcwake -d rtc0 -m mem -s 5
+	rtcwake: assuming RTC uses UTC ...
+	rtcwake: wakeup from "mem" using rtc0 at Thu Jan  1 00:27:29 1970
+	PM: suspend entry (deep)
+	Filesystems sync: 0.000 seconds
+	Freezing user space processes ... (elapsed 0.001 seconds) done.
+	OOM killer disabled.
+	Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+	printk: Suspending console(s) (use no_console_suspend to debug)
+	NOTICE:  S32G TF-A: s32g_pwr_domain_off
+	NOTICE:  S32G TF-A: s32g_pwr_domain_off_down_wfi: cpu = 1
+	NOTICE:  S32G TF-A: s32g_pwr_domain_pwr_down_wfi: cpu = 2
+	TICE:  S32G TF-A: s32g_pwr_domain_off
+	NOTICE:  S32G TF-A: s32g_pwr_domain_pwr_down_wfi: OTICE:  S32G TF-A: s32g_get_sys_suspend_power_state
+	NOTICE:  S32G TF-A: s32g_pwr_domain_suspend_pwrdown_early
+	NOTICE:  S32G TF-A: s32g_pwr_domain_suspend
+	NOTICE:  S32G TF-A: s32g_pwr_domain_pwr_down_wfi: cpu = 0
+	NOTICE:  S32G TF-A: s32g_pwr_domain_suspend_finish
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on: booting up core 1
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on_finish: cpu 1 running
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on: booting up core 2
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on_finish: cpu 2 running
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on: booting up core 3
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on_finish: cpu 3 running
+	s32cc-dwmac 4033c000.ethernet eth0: Link is Down
+	s32cc-dwmac 4033c000.ethernet: Set TX clock to 125M
+	s32cc-dwmac 4033c000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+	s32cc-dwmac 4033c000.ethernet eth0: Link is Down
+	fsl-edma 40144000.dma-controller: WARN: There is non-idle channel.
+	Disabling non-boot CPUs ...
+	IRQ78: set affinity failed(-22).
+	CPU1: shutdown
+	psci: CPU1 killed (polled 4 ms)
+	IRQ78: set affinity failed(-22).
+	CPU2: shutdown
+	psci: CPU2 killed (polled 4 ms)
+	IRQ78: set affinity failed(-22).
+	CPU3: shutdown
+	psci: CPU3 killed (polled 4 ms)
+	Enabling non-boot CPUs ...
+	Detected VIPT I-cache on CPU1
+	GICv3: CPU1: found redistributor 1 region 0:0x00000000508a0000
+	CPU1: Booted secondary processor 0x0000000001 [0x410fd034]
+	CPU1 is up
+	Detected VIPT I-cache on CPU2
+	GICv3: CPU2: found redistributor 100 region 0:0x00000000508c0000
+	CPU2: Booted secondary processor 0x0000000100 [0x410fd034]
+	CPU2 is up
+	Detected VIPT I-cache on CPU3
+	GICv3: CPU3: found redistributor 101 region 0:0x00000000508e0000
+	CPU3: Booted secondary processor 0x0000000101 [0x410fd034]
+	CPU3 is up
+	s32cc-dwmac 4033c000.ethernet: phy mode set to RGMII
+	s32cc-dwmac 4033c000.ethernet: Failed to reset the dma
+	s32cc-dwmac 4033c000.ethernet eth0: stmmac_hw_setup: DMA engine initialization failed
+	s32cc-dwmac 4033c000.ethernet eth0: configuring for phy/rgmii link mode
+	OOM killer enabled.
+	Restarting tasks ... done.
+	PM: suspend exit
+	root@nxp-s32g2xx:~#
+
+6.5.2 CPU Hotplug verify steps
+------------------------------
+
+With ATF enabled, CPU Hotplug is supported, below is the steps
+to verify this feature:
+
+  1. check current online cpu numbers
+
+	root@nxp-s32g2xx:~#  nproc
+	4
+
+  2. offline cpu1
+
+	root@nxp-s32g2xx:~# echo 0 > /sys/devices/system/cpu/cpu1/online
+	NOTICE:  SIRQ78: set affinity failed(-22).
+	process 201 (rngd) no longer affine to cpu1
+	process 199 (rngd) no longer affine to cpu1
+	CPU1: shutdown
+	psci: CPU1 killed (polled 0 ms)
+	root@nxp-s32g2xx:~# nproc
+	3
+
+  3. online cpu1
+
+	root@nxp-s32g2xx:~# echo 1 > /sys/devices/system/cpu/cpu1/online
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on: booting up core 1
+	NOTICE:  S32G TF-A: s32g_pwr_domain_on_finish: cpu 1 running
+	Detected VIPT I-cache on CPU1
+	GICv3: CPU1: found redistributor 1 region 0:0x00000000508a0000
+	CPU1: Booted secondary processor 0x0000000001 [0x410fd034]
+	root@nxp-s32g2xx:~#
+	root@nxp-s32g2xx:~# nproc
+	4
+	root@nxp-s32g2xx:~#
+
+6.5.3 Known issues
+------------------
+
+For ATF feature, there are some known issues.
+
+  1. DHCP over GMAC fails with ATF enabled
+
+     Same as SDK, the DHCP over GMAC port can not work with ATF enabled,
+     but without ATF, it works well, the root cause is unknown, and there
+     is an ticket to track this issue:
+	https://support.nxp.com/s/case/5002p00002SDyIXAA1/dhcp-over-gmac-fails-in-bsp-28-when-booted-with-tfa
+     this should be fixed in future.
+
+  2. STR fail when pfe enabled
+
+     Same as SDK, pfe is an optional feature too, and if it is enabled,
+     the STR will fail when trying to resume from sleep. and the board will
+     hang there. There is an ticket to track this issue:
+	https://support.nxp.com/s/case/5002p00002SDkgKAAT/str-fail-with-pfe-enabled-and-gmac-dhcp-fail-using-bsp28-yocto-project
+     this should be fixed in future.
+
+  3. USB devices can not be identified after STR
+
+     Same as SDK, the usb devices can not be identified after STR, because
+     the USB driver does not support STR currentlly, there is a STR supported
+     driver list in section:
+	"22.3 Suspend to RAM" in "S32G274_BSP28.0_User_Manual.pdf"
+
+     And this list will be updated in future.

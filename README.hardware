@@ -72,6 +72,7 @@ The following BSP features are validated and supported.
 	+ HSE: Hardware Security Engine (Only S32G274A-EVB)
 	+ Watchdog
 	+ RTC
+	+ LLCE CAN: NXP Low Latency Communication Engine CAN
 
 3.2 Unsupported Features
 ========================
