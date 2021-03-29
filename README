@@ -436,6 +436,15 @@ test the pfe feature or adding a PCIe Ethernet port as a replacement.
 first switch eth to GMAC in u-boot, please refer to above chapter "4.1 NFS Root File System"
 to switch eth to GMAC.
 
+5. For S32G274A-EVB board, the connection over the SJA1105 automotive switch requires
+firmware to be preloaded to the switch on every reboot:
+	=> sja probe 5:0
+	=> sja speed -,-,-,1G,1G 5:0
+If the s32g_pfe_class.fw is not loaded, u-boot will print the following failure logs:
+	Failed to change the clock source of mux 6 to 55 (CGM = 0000000044018000)
+	Failed to enable clock: 20005
+	Failed to enable 93 clock
+	Failed to enable mac2_rx_rgmii clock
 
 6.4 LLCE
 --------
