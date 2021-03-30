@@ -1,0 +1,62 @@
+From 96285430fb59526525e47f1fc9baca5f71554839 Mon Sep 17 00:00:00 2001
+From: MengLi <meng.li@windriver.com>
+Date: Mon, 1 Feb 2021 16:26:50 +0800
+Subject: [PATCH 3/3] driver: pfe: use the latest callback define of struct
+ phylink_mac_ops
+
+According to upstream commit d46b7e4fb060("net: phylink:
+rename mac_link_state() op to mac_pcs_get_state()"),
+use the latest callback define of struct phylink_mac_ops.
+
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+---
+ sw/linux-pfeng/pfeng-phylink.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/sw/linux-pfeng/pfeng-phylink.c b/sw/linux-pfeng/pfeng-phylink.c
+index 6954a4d..aa869b7 100644
+--- a/sw/linux-pfeng/pfeng-phylink.c
++++ b/sw/linux-pfeng/pfeng-phylink.c
+@@ -97,7 +97,7 @@ static void pfeng_phylink_validate(struct net_device *netdev, unsigned long *sup
+  * @brief	Read the current link state from the hardware
+  */
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+-static int pfeng_mac_link_state(struct phylink_config *config, struct phylink_link_state *state)
++static void pfeng_mac_link_state(struct phylink_config *config, struct phylink_link_state *state)
+ {
+ 	struct pfeng_ndev *ndev = netdev_priv(to_net_dev(config->dev));
+ #else
+@@ -150,7 +150,7 @@ static int pfeng_mac_link_state(struct net_device *netdev, struct phylink_link_s
+ 	if (updated)
+ 		ndev->emac_speed = state->speed;
+ 
+-	return updated;
++	return;
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+@@ -236,7 +236,11 @@ static void pfeng_mac_link_down(struct phylink_config *config, unsigned int mode
+ 	netif_tx_stop_all_queues(ndev->netdev);
+ }
+ 
+-static void pfeng_mac_link_up(struct phylink_config *config, unsigned int mode, phy_interface_t interface, struct phy_device *phy)
++static void pfeng_mac_link_up(struct phylink_config *config,
++			       struct phy_device *phy,
++			       unsigned int mode, phy_interface_t interface,
++			       int speed, int duplex,
++			       bool tx_pause, bool rx_pause)
+ {
+ 	struct pfeng_ndev *ndev = netdev_priv(to_net_dev(config->dev));
+ 
+@@ -259,7 +263,7 @@ static void pfeng_mac_link_up(struct net_device *netdev, unsigned int mode, phy_
+ 
+ static const struct phylink_mac_ops pfeng_phylink_ops = {
+ 	.validate = pfeng_phylink_validate,
+-	.mac_link_state = pfeng_mac_link_state,
++	.mac_pcs_get_state = pfeng_mac_link_state,
+ 	.mac_an_restart = pfeng_mac_an_restart,
+ 	.mac_config = pfeng_mac_config,
+ 	.mac_link_down = pfeng_mac_link_down,
+-- 
+2.17.1
+

@@ -1,0 +1,58 @@
+From 56dc0bc07256a70a7ace5a6f6f2fb4d97a870a64 Mon Sep 17 00:00:00 2001
+From: MengLi <meng.li@windriver.com>
+Date: Mon, 1 Feb 2021 14:41:59 +0800
+Subject: [PATCH] driver: pfe: replace ioremap_nocache with ioremap
+
+According to upstream commit 4bdc0d676a64("remove
+ioremap_nocache and devm_ioremap_nocache "), replace
+ioremap_nocache with ioremap.
+
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+---
+ sw/linux-pfeng/pfeng-hw-s32g.c | 2 +-
+ sw/linux-pfeng/pfeng-phylink.c | 2 +-
+ sw/oal/src/oal_mm_linux.c      | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sw/linux-pfeng/pfeng-hw-s32g.c b/sw/linux-pfeng/pfeng-hw-s32g.c
+index c586130..61d8a22 100644
+--- a/sw/linux-pfeng/pfeng-hw-s32g.c
++++ b/sw/linux-pfeng/pfeng-hw-s32g.c
+@@ -118,7 +118,7 @@ static int pfeng_s32g_set_emac_interfaces(struct pfeng_priv *priv, phy_interface
+ 	void *syscon;
+ 	u32 val;
+ 
+-	syscon = ioremap_nocache(priv->plat.syscon.start, priv->plat.syscon.end - priv->plat.syscon.start);
++	syscon = ioremap(priv->plat.syscon.start, priv->plat.syscon.end - priv->plat.syscon.start);
+ 	if(!syscon) {
+ 		dev_err(&priv->pdev->dev, "cannot map GPR, aborting (INTF_SEL)\n");
+ 		return -EIO;
+diff --git a/sw/linux-pfeng/pfeng-phylink.c b/sw/linux-pfeng/pfeng-phylink.c
+index 5bd2a32..6954a4d 100644
+--- a/sw/linux-pfeng/pfeng-phylink.c
++++ b/sw/linux-pfeng/pfeng-phylink.c
+@@ -291,7 +291,7 @@ int pfeng_phylink_create(struct pfeng_ndev *ndev)
+ 	ndev->phylink = phylink;
+ 
+ 	/* add EMAC access register */
+-	syscon = ioremap_nocache(ndev->priv->cfg->cbus_base + CBUS_EMAC1_BASE_ADDR + (ndev->eth->emac_id * (CBUS_EMAC2_BASE_ADDR - CBUS_EMAC1_BASE_ADDR)),
++	syscon = ioremap(ndev->priv->cfg->cbus_base + CBUS_EMAC1_BASE_ADDR + (ndev->eth->emac_id * (CBUS_EMAC2_BASE_ADDR - CBUS_EMAC1_BASE_ADDR)),
+ 			CBUS_EMAC2_BASE_ADDR - CBUS_EMAC1_BASE_ADDR);
+ 	if(!syscon)
+ 		netdev_warn(ndev->netdev, "Cannot map EMAC%d regs\n", ndev->eth->emac_id);
+diff --git a/sw/oal/src/oal_mm_linux.c b/sw/oal/src/oal_mm_linux.c
+index abfdf99..acbe518 100644
+--- a/sw/oal/src/oal_mm_linux.c
++++ b/sw/oal/src/oal_mm_linux.c
+@@ -305,7 +305,7 @@ void *oal_mm_phys_to_virt(void *paddr)
+ 
+ void *oal_mm_dev_map(void *paddr, const addr_t len)
+ {
+-	return ioremap_nocache((resource_size_t)paddr, len);
++	return ioremap((resource_size_t)paddr, len);
+ }
+ 
+ void *oal_mm_dev_map_cache(void *paddr, const addr_t len)
+-- 
+2.17.1
+

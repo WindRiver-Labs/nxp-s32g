@@ -17,6 +17,9 @@ SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=
 	file://0001-pfe-oal-modify-the-GFP-flag-to-GFP_ATOMIC-for-kzallo.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} \
 	file://${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} \
+	file://0001-driver-pfe-replace-ioremap_nocache-with-ioremap.patch \
+	file://0002-driver-pfe-adjust-parameters-for-interface-of_get_ph.patch \
+	file://0003-driver-pfe-use-the-latest-callback-define-of-struct-.patch \
 	"
 SRCREV = "9ddaffd9a37d85e0fc3e08ecb440484212c66e58"
 
