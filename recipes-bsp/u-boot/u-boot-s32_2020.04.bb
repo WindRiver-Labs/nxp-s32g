@@ -22,6 +22,8 @@ SRC_URI_prepend = "git://source.codeaurora.org/external/autobsps32/u-boot;protoc
 SRC_URI += " \
 	file://0001-dts-s32g-modify-the-hse_reserved-memory-node-to-comp.patch \
         file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
+	file://0001-dts-s32g274ardb2-add-hse-reserve-memory-node-to-supp.patch \
+	file://s32g274ardb2.cfg \
 "
 
 SRCREV = "eef88755a719c802f9dbfceaa06190abb96e74d1"
@@ -63,6 +65,46 @@ do_install_append() {
         done
         unset i
     fi
+}
+
+# Modify the layout of u-boot to adding hse support using the following script.
+# Currentlly, the board version of EVB is rev 1.0 and RDB2 is rev 2.0, they need
+# different hse firmware version to coorperate with the board version, and these
+# two boards will use same board version in future.
+
+HSE_LOCAL_FIRMWARE_EVB_BIN ?= ""
+HSE_LOCAL_FIRMWARE_RDB2_BIN ?= ""
+
+do_compile_append() {
+
+    unset i j
+    for config in ${UBOOT_MACHINE}; do
+	cp ${B}/tools/s32gen1_secboot.sh ${B}/${config}/tools/s32gen1_secboot.sh
+        chmod +x ${B}/${config}/tools/s32gen1_secboot.sh
+
+	i=$(expr $i + 1);
+	for type in ${UBOOT_CONFIG}; do
+		j=$(expr $j + 1)
+		if  [ $j -eq $i ]; then
+
+			if [ "${config}" = "${S32G274AEVB_UBOOT_DEFCONFIG_NAME}" ]; then
+				if [ -n "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ]; then
+					${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_EVB_BIN}
+					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot.s32
+					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
+				fi
+			else
+				if [ -n "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ]; then
+					${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_RDB2_BIN}
+					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot.s32
+					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
+				fi
+			fi
+		fi
+	done
+	unset j
+    done
+    unset i
 }
 
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"

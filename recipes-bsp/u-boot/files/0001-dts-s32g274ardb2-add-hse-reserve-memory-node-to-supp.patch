@@ -1,0 +1,42 @@
+From 12145151d05b446b433514d2c3b6000cb7c477c4 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Tue, 30 Mar 2021 17:11:24 +0800
+Subject: [PATCH] dts: s32g274ardb2: add hse reserve-memory node to support HSE
+ feature on RDB2
+
+For now, the HSE feature is only enabled on EVB board, so add the
+related dts node for RDB2 board to make HSE available too.
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g274ardb.dtsi | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32g274ardb.dtsi b/arch/arm/dts/fsl-s32g274ardb.dtsi
+index 8ed22e6bc6..2b52a33cd6 100644
+--- a/arch/arm/dts/fsl-s32g274ardb.dtsi
++++ b/arch/arm/dts/fsl-s32g274ardb.dtsi
+@@ -7,6 +7,20 @@
+ #include "fsl-s32g274a.dtsi"
+ 
+ / {
++
++#ifdef CONFIG_HSE_SECBOOT
++        reserved-memory {
++                #address-cells = <2>;
++                #size-cells = <2>;
++                ranges;
++
++                /* reserved space to store hse data */
++                hse_reserved: hse_reserved@0xd0000000 {
++                        no-map;
++                        reg = <0 0xd0000000 0 0x40000>; /* 256K */
++                };
++        };
++#endif
+ 	memory@80000000 {
+ 		device_type = "memory";
+ 		reg = <0 0x80000000 0 0x80000000>;
+-- 
+2.25.1
+
