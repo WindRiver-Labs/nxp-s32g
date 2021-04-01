@@ -1,0 +1,64 @@
+From 1a689a15ecb51fd84eaae018ed8cf090158869f4 Mon Sep 17 00:00:00 2001
+From: Robert Yang <liezhi.yang@windriver.com>
+Date: Thu, 1 Apr 2021 10:43:06 +0000
+Subject: [PATCH] Make s32g274ardb2 and s32g2xxaevb support ostree
+
+These settings are required by ostree
+
+Upstream-Status: Pending
+
+Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
+---
+ configs/s32g274ardb2_defconfig | 3 +++
+ configs/s32g2xxaevb_defconfig  | 3 +++
+ include/configs/s32.h          | 5 +++++
+ 3 files changed, 11 insertions(+)
+
+diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
+index 8613919f5a..e37ac447ab 100644
+--- a/configs/s32g274ardb2_defconfig
++++ b/configs/s32g274ardb2_defconfig
+@@ -63,3 +63,6 @@ CONFIG_FSL_QSPI=y
+ CONFIG_SJA1105=y
+ # CONFIG_EFI_LOADER is not set
+ CONFIG_BOARD_LATE_INIT=y
++CONFIG_FAT_WRITE=y
++CONFIG_MENU=y
++CONFIG_CMD_BOOTMENU=y
+diff --git a/configs/s32g2xxaevb_defconfig b/configs/s32g2xxaevb_defconfig
+index 50d5c2595d..98545ff023 100644
+--- a/configs/s32g2xxaevb_defconfig
++++ b/configs/s32g2xxaevb_defconfig
+@@ -72,3 +72,6 @@ CONFIG_USB_EHCI_HCD=y
+ CONFIG_USB_ULPI_VIEWPORT=y
+ CONFIG_USB_ULPI=y
+ # CONFIG_EFI_LOADER is not set
++CONFIG_FAT_WRITE=y
++CONFIG_MENU=y
++CONFIG_CMD_BOOTMENU=y
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 37ef6079be..ab7d13a83b 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -431,6 +431,8 @@
+ 	"fdt_file="  __stringify(FDT_FILE) "\0" \
+ 	"fdt_addr=" __stringify(FDT_ADDR) "\0" \
+ 	"ramdisk_addr=" __stringify(RAMDISK_ADDR) "\0" \
++	"initrd_addr=" __stringify(RAMDISK_ADDR) "\0" \
++	"use_fdtdtb=2\0" \
+ 	"boot_fdt=try\0" \
+ 	"mmcdev=" __stringify(CONFIG_SYS_MMC_ENV_DEV) "\0" \
+ 	"mmcpart=" __stringify(CONFIG_MMC_PART) "\0" \
+@@ -535,6 +537,9 @@
+ #elif defined(CONFIG_SD_BOOT)
+ #  define CONFIG_BOOTCOMMAND \
+ 	PFE_INIT_CMD "mmc dev ${mmcdev}; if mmc rescan; then " \
++		   "if run loadbootscript; then " \
++			   "run loadfdt; run bootscript; " \
++		   "fi; " \
+ 		   "if run loadimage; then " \
+ 			   "run mmcboot; " \
+ 		   "else run netboot; " \
+-- 
+2.29.2
+
