@@ -1,0 +1,49 @@
+From 605a370076b1f31698e355f5ed22e749ac7caecd Mon Sep 17 00:00:00 2001
+From: Robert Yang <liezhi.yang@windriver.com>
+Date: Wed, 24 Mar 2021 16:53:31 +0800
+Subject: [PATCH] scripts/mailmapper: python2 -> python3
+
+This is a python3 script, no python2 specifc code.
+
+Upstream-Status: Pending
+
+Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
+---
+ Makefile           | 3 +--
+ scripts/mailmapper | 2 +-
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index b38e9c4b26..c3612dcd91 100644
+--- a/Makefile
++++ b/Makefile
+@@ -402,7 +402,6 @@ YACC		= bison
+ AWK		= awk
+ PERL		= perl
+ PYTHON		?= python
+-PYTHON2		= python2
+ PYTHON3		= python3
+ DTC		?= $(objtree)/scripts/dtc/dtc
+ CHECK		= sparse
+@@ -430,7 +429,7 @@ export VERSION PATCHLEVEL SUBLEVEL UBOOTRELEASE UBOOTVERSION
+ export ARCH CPU BOARD VENDOR SOC CPUDIR BOARDDIR
+ export CONFIG_SHELL HOSTCC HOSTCFLAGS HOSTLDFLAGS CROSS_COMPILE AS LD CC
+ export CPP AR NM LDR STRIP OBJCOPY OBJDUMP
+-export MAKE LEX YACC AWK PERL PYTHON PYTHON2 PYTHON3
++export MAKE LEX YACC AWK PERL PYTHON PYTHON3
+ export HOSTCXX HOSTCXXFLAGS CHECK CHECKFLAGS DTC DTC_FLAGS
+ 
+ export KBUILD_CPPFLAGS NOSTDINC_FLAGS UBOOTINCLUDE OBJCOPYFLAGS LDFLAGS
+diff --git a/scripts/mailmapper b/scripts/mailmapper
+index 2e2d7faff5..9aa82f9836 100755
+--- a/scripts/mailmapper
++++ b/scripts/mailmapper
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Copyright (C) 2014, Masahiro Yamada <yamada.m@jp.panasonic.com>
+-- 
+2.29.2
+

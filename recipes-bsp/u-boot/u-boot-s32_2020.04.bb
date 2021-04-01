@@ -13,7 +13,7 @@ LIC_FILES_CHKSUM = " \
 "
 
 INHIBIT_DEFAULT_DEPS = "1"
-DEPENDS_append = " libgcc virtual/${TARGET_PREFIX}gcc python dtc-native bison-native"
+DEPENDS_append = " libgcc virtual/${TARGET_PREFIX}gcc python3 dtc-native bison-native"
 
 inherit nxp-u-boot-localversion
 
@@ -24,6 +24,7 @@ SRC_URI += " \
     file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
     file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
+    file://0001-scripts-mailmapper-python2-python3.patch \
 "
 
 SRCREV = "eef88755a719c802f9dbfceaa06190abb96e74d1"

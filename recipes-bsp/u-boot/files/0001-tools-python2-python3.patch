@@ -1,0 +1,600 @@
+From 2a2893dc4a2dfa97ad1837e0510f94c1201e1332 Mon Sep 17 00:00:00 2001
+From: Robert Yang <liezhi.yang@windriver.com>
+Date: Wed, 24 Mar 2021 17:58:42 +0800
+Subject: [PATCH] tools: python2 -> python3
+
+Change the script to python3 to drop the python2 dependencies.
+
+Upstream-Status: Pending
+
+Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
+---
+ arch/arm/mach-rockchip/make_fit_atf.py   |  2 +-
+ scripts/dtc/pylibfdt/setup.py            |  2 +-
+ scripts/fill_scrapyard.py                |  2 +-
+ scripts/mailmapper                       |  2 +-
+ test/py/test.py                          |  4 +-
+ tools/binman/binman.py                   | 14 ++---
+ tools/buildman/buildman.py               |  8 +--
+ tools/concurrencytest/concurrencytest.py |  2 +-
+ tools/dtoc/dtoc.py                       |  8 +--
+ tools/genboardscfg.py                    | 14 ++---
+ tools/microcode-tool.py                  | 22 ++++----
+ tools/moveconfig.py                      | 72 ++++++++++++------------
+ tools/patman/patman.py                   |  6 +-
+ tools/rkmux.py                           | 16 +++---
+ 14 files changed, 87 insertions(+), 87 deletions(-)
+
+diff --git a/arch/arm/mach-rockchip/make_fit_atf.py b/arch/arm/mach-rockchip/make_fit_atf.py
+index d1faff1957..19540ca502 100755
+--- a/arch/arm/mach-rockchip/make_fit_atf.py
++++ b/arch/arm/mach-rockchip/make_fit_atf.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ """
+ A script to generate FIT image source for rockchip boards
+ with ARM Trusted Firmware
+diff --git a/scripts/dtc/pylibfdt/setup.py b/scripts/dtc/pylibfdt/setup.py
+index 4f7cf042bf..992cdec30f 100755
+--- a/scripts/dtc/pylibfdt/setup.py
++++ b/scripts/dtc/pylibfdt/setup.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ 
+ """
+ setup.py file for SWIG libfdt
+diff --git a/scripts/fill_scrapyard.py b/scripts/fill_scrapyard.py
+index 55a7f382cf..ee65f7bc5d 100755
+--- a/scripts/fill_scrapyard.py
++++ b/scripts/fill_scrapyard.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Author: Masahiro Yamada <yamada.m@jp.panasonic.com>
+diff --git a/scripts/mailmapper b/scripts/mailmapper
+index 2e2d7faff5..9aa82f9836 100755
+--- a/scripts/mailmapper
++++ b/scripts/mailmapper
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Copyright (C) 2014, Masahiro Yamada <yamada.m@jp.panasonic.com>
+diff --git a/test/py/test.py b/test/py/test.py
+index a5140945d4..d73aa01b7f 100755
+--- a/test/py/test.py
++++ b/test/py/test.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ # Copyright (c) 2015 Stephen Warren
+@@ -7,7 +7,7 @@
+ # Wrapper script to invoke pytest with the directory name that contains the
+ # U-Boot tests.
+ 
+-from __future__ import print_function
++
+ 
+ import os
+ import os.path
+diff --git a/tools/binman/binman.py b/tools/binman/binman.py
+index 439908e665..8fb0119eb8 100755
+--- a/tools/binman/binman.py
++++ b/tools/binman/binman.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ 
+ # Copyright (c) 2016 Google, Inc
+@@ -85,13 +85,13 @@ def RunTests(debug, processes, args):
+     else:
+         suite.run(result)
+ 
+-    print result
++    print(result)
+     for test, err in result.errors:
+-        print test.id(), err
++        print(test.id(), err)
+     for test, err in result.failures:
+-        print err, result.failures
++        print(err, result.failures)
+     if result.errors or result.failures:
+-      print 'binman tests FAILED'
++      print('binman tests FAILED')
+       return 1
+     return 0
+ 
+@@ -143,9 +143,9 @@ def RunBinman(options, args):
+         try:
+             ret_code = control.Binman(options, args)
+         except Exception as e:
+-            print 'binman: %s' % e
++            print('binman: %s' % e)
+             if options.debug:
+-                print
++                print()
+                 traceback.print_exc()
+             ret_code = 1
+     return ret_code
+diff --git a/tools/buildman/buildman.py b/tools/buildman/buildman.py
+index f17aa15e7c..0add628a63 100755
+--- a/tools/buildman/buildman.py
++++ b/tools/buildman/buildman.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Copyright (c) 2012 The Chromium OS Authors.
+@@ -46,11 +46,11 @@ def RunTests(skip_net_tests):
+         suite = unittest.TestLoader().loadTestsFromTestCase(module)
+         suite.run(result)
+ 
+-    print result
++    print(result)
+     for test, err in result.errors:
+-        print err
++        print(err)
+     for test, err in result.failures:
+-        print err
++        print(err)
+ 
+ 
+ options, args = cmdline.ParseArgs()
+diff --git a/tools/concurrencytest/concurrencytest.py b/tools/concurrencytest/concurrencytest.py
+index 418d7eed21..ea8bea1ece 100644
+--- a/tools/concurrencytest/concurrencytest.py
++++ b/tools/concurrencytest/concurrencytest.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Modified by: Corey Goldberg, 2013
+diff --git a/tools/dtoc/dtoc.py b/tools/dtoc/dtoc.py
+index 2277af9bf7..5f3f3750fe 100755
+--- a/tools/dtoc/dtoc.py
++++ b/tools/dtoc/dtoc.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Copyright (C) 2016 Google, Inc
+@@ -64,11 +64,11 @@ def run_tests(args):
+             suite = unittest.TestLoader().loadTestsFromTestCase(module)
+         suite.run(result)
+ 
+-    print result
++    print(result)
+     for _, err in result.errors:
+-        print err
++        print(err)
+     for _, err in result.failures:
+-        print err
++        print(err)
+ 
+ def RunTestCoverage():
+     """Run the tests and check that we get 100% coverage"""
+diff --git a/tools/genboardscfg.py b/tools/genboardscfg.py
+index e9bbd15e15..3ce8543294 100755
+--- a/tools/genboardscfg.py
++++ b/tools/genboardscfg.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Author: Masahiro Yamada <yamada.m@jp.panasonic.com>
+@@ -168,7 +168,7 @@ class KconfigScanner:
+         warnings = self._conf.load_config(self._tmpfile)
+         if warnings:
+             for warning in warnings:
+-                print '%s: %s' % (defconfig, warning)
++                print('%s: %s' % (defconfig, warning))
+ 
+         try_remove(self._tmpfile)
+         self._tmpfile = None
+@@ -290,7 +290,7 @@ class MaintainersDatabase:
+           'Active', 'Orphan' or '-'.
+         """
+         if not target in self.database:
+-            print >> sys.stderr, "WARNING: no status info for '%s'" % target
++            print("WARNING: no status info for '%s'" % target, file=sys.stderr)
+             return '-'
+ 
+         tmp = self.database[target][0]
+@@ -301,8 +301,8 @@ class MaintainersDatabase:
+         elif tmp.startswith('Orphan'):
+             return 'Orphan'
+         else:
+-            print >> sys.stderr, ("WARNING: %s: unknown status for '%s'" %
+-                                  (tmp, target))
++            print(("WARNING: %s: unknown status for '%s'" %
++                                  (tmp, target)), file=sys.stderr)
+             return '-'
+ 
+     def get_maintainers(self, target):
+@@ -313,7 +313,7 @@ class MaintainersDatabase:
+           they are separated with colons.
+         """
+         if not target in self.database:
+-            print >> sys.stderr, "WARNING: no maintainers for '%s'" % target
++            print("WARNING: no maintainers for '%s'" % target, file=sys.stderr)
+             return ''
+ 
+         return ':'.join(self.database[target][1])
+@@ -418,7 +418,7 @@ def gen_boards_cfg(output, jobs=1, force=False):
+     check_top_directory()
+ 
+     if not force and output_is_new(output):
+-        print "%s is up to date. Nothing to do." % output
++        print("%s is up to date. Nothing to do." % output)
+         sys.exit(0)
+ 
+     params_list = scan_defconfigs(jobs)
+diff --git a/tools/microcode-tool.py b/tools/microcode-tool.py
+index 249a33b8ca..fada3f92b3 100755
+--- a/tools/microcode-tool.py
++++ b/tools/microcode-tool.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Copyright (c) 2014 Google, Inc
+@@ -126,15 +126,15 @@ def List(date, microcodes, model):
+         microcodes:     Dict of Microcode objects indexed by name
+         model:          Model string to search for, or None
+     """
+-    print 'Date: %s' % date
++    print('Date: %s' % date)
+     if model:
+         mcode_list, tried = FindMicrocode(microcodes, model.lower())
+-        print 'Matching models %s:' % (', '.join(tried))
++        print('Matching models %s:' % (', '.join(tried)))
+     else:
+-        print 'All models:'
++        print('All models:')
+         mcode_list = [microcodes[m] for m in microcodes.keys()]
+     for mcode in mcode_list:
+-        print '%-20s: model %s' % (mcode.name, mcode.model)
++        print('%-20s: model %s' % (mcode.name, mcode.model))
+ 
+ def FindMicrocode(microcodes, model):
+     """Find all the microcode chunks which match the given model.
+@@ -229,17 +229,17 @@ data = <%s
+     args += [mcode.words[i] for i in range(7)]
+     args.append(words)
+     if outfile == '-':
+-        print out % tuple(args)
++        print(out % tuple(args))
+     else:
+         if not outfile:
+             if not os.path.exists(MICROCODE_DIR):
+-                print >> sys.stderr, "Creating directory '%s'" % MICROCODE_DIR
++                print("Creating directory '%s'" % MICROCODE_DIR, file=sys.stderr)
+                 os.makedirs(MICROCODE_DIR)
+             outfile = os.path.join(MICROCODE_DIR, mcode.name + '.dtsi')
+-        print >> sys.stderr, "Writing microcode for '%s' to '%s'" % (
+-                ', '.join([mcode.name for mcode in mcodes]), outfile)
++        print("Writing microcode for '%s' to '%s'" % (
++                ', '.join([mcode.name for mcode in mcodes]), outfile), file=sys.stderr)
+         with open(outfile, 'w') as fd:
+-            print >> fd, out % tuple(args)
++            print(out % tuple(args), file=fd)
+ 
+ def MicrocodeTool():
+     """Run the microcode tool"""
+@@ -289,7 +289,7 @@ def MicrocodeTool():
+     if cmd == 'list':
+         List(date, microcodes, options.model)
+     elif cmd == 'license':
+-        print '\n'.join(license_text)
++        print('\n'.join(license_text))
+     elif cmd == 'create':
+         if not options.model:
+             parser.error('You must specify a model to create')
+diff --git a/tools/moveconfig.py b/tools/moveconfig.py
+index 1a214c5605..4888a999d1 100755
+--- a/tools/moveconfig.py
++++ b/tools/moveconfig.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Author: Masahiro Yamada <yamada.masahiro@socionext.com>
+@@ -304,7 +304,7 @@ import glob
+ import multiprocessing
+ import optparse
+ import os
+-import Queue
++import queue
+ import re
+ import shutil
+ import subprocess
+@@ -430,8 +430,8 @@ def get_matched_defconfigs(defconfigs_file):
+             line = line.split(' ')[0]  # handle 'git log' input
+         matched = get_matched_defconfig(line)
+         if not matched:
+-            print >> sys.stderr, "warning: %s:%d: no defconfig matched '%s'" % \
+-                                                 (defconfigs_file, i + 1, line)
++            print("warning: %s:%d: no defconfig matched '%s'" % \
++                                                 (defconfigs_file, i + 1, line), file=sys.stderr)
+ 
+         defconfigs += matched
+ 
+@@ -474,11 +474,11 @@ def show_diff(a, b, file_path, color_enabled):
+ 
+     for line in diff:
+         if line[0] == '-' and line[1] != '-':
+-            print color_text(color_enabled, COLOR_RED, line),
++            print(color_text(color_enabled, COLOR_RED, line), end=' ')
+         elif line[0] == '+' and line[1] != '+':
+-            print color_text(color_enabled, COLOR_GREEN, line),
++            print(color_text(color_enabled, COLOR_GREEN, line), end=' ')
+         else:
+-            print line,
++            print(line, end=' ')
+ 
+ def extend_matched_lines(lines, matched, pre_patterns, post_patterns, extend_pre,
+                          extend_post):
+@@ -534,9 +534,9 @@ def extend_matched_lines(lines, matched, pre_patterns, post_patterns, extend_pre
+ def confirm(options, prompt):
+     if not options.yes:
+         while True:
+-            choice = raw_input('{} [y/n]: '.format(prompt))
++            choice = input('{} [y/n]: '.format(prompt))
+             choice = choice.lower()
+-            print choice
++            print(choice)
+             if choice == 'y' or choice == 'n':
+                 break
+ 
+@@ -799,7 +799,7 @@ class Progress:
+ 
+     def show(self):
+         """Display the progress."""
+-        print ' %d defconfigs out of %d\r' % (self.current, self.total),
++        print(' %d defconfigs out of %d\r' % (self.current, self.total), end=' ')
+         sys.stdout.flush()
+ 
+ 
+@@ -1271,7 +1271,7 @@ class Slot:
+         log += '\n'.join([ '    ' + s for s in self.log.split('\n') ])
+         # Some threads are running in parallel.
+         # Print log atomically to not mix up logs from different threads.
+-        print >> (sys.stdout if success else sys.stderr), log
++        print(log, file=(sys.stdout if success else sys.stderr))
+ 
+         if not success:
+             if self.options.exit_on_error:
+@@ -1370,8 +1370,8 @@ class Slots:
+             msg = "The following boards were not processed due to error:\n"
+             msg += boards
+             msg += "(the list has been saved in %s)\n" % output_file
+-            print >> sys.stderr, color_text(self.options.color, COLOR_LIGHT_RED,
+-                                            msg)
++            print(color_text(self.options.color, COLOR_LIGHT_RED,
++                                            msg), file=sys.stderr)
+ 
+             with open(output_file, 'w') as f:
+                 f.write(boards)
+@@ -1390,8 +1390,8 @@ class Slots:
+             msg += "It is highly recommended to check them manually:\n"
+             msg += boards
+             msg += "(the list has been saved in %s)\n" % output_file
+-            print >> sys.stderr, color_text(self.options.color, COLOR_YELLOW,
+-                                            msg)
++            print(color_text(self.options.color, COLOR_YELLOW,
++                                            msg), file=sys.stderr)
+ 
+             with open(output_file, 'w') as f:
+                 f.write(boards)
+@@ -1407,11 +1407,11 @@ class ReferenceSource:
+           commit: commit to git-clone
+         """
+         self.src_dir = tempfile.mkdtemp()
+-        print "Cloning git repo to a separate work directory..."
++        print("Cloning git repo to a separate work directory...")
+         subprocess.check_output(['git', 'clone', os.getcwd(), '.'],
+                                 cwd=self.src_dir)
+-        print "Checkout '%s' to build the original autoconf.mk." % \
+-            subprocess.check_output(['git', 'rev-parse', '--short', commit]).strip()
++        print("Checkout '%s' to build the original autoconf.mk." % \
++            subprocess.check_output(['git', 'rev-parse', '--short', commit]).strip())
+         subprocess.check_output(['git', 'checkout', commit],
+                                 stderr=subprocess.STDOUT, cwd=self.src_dir)
+ 
+@@ -1439,14 +1439,14 @@ def move_config(toolchains, configs, options, db_queue):
+     """
+     if len(configs) == 0:
+         if options.force_sync:
+-            print 'No CONFIG is specified. You are probably syncing defconfigs.',
++            print('No CONFIG is specified. You are probably syncing defconfigs.', end=' ')
+         elif options.build_db:
+-            print 'Building %s database' % CONFIG_DATABASE
++            print('Building %s database' % CONFIG_DATABASE)
+         else:
+-            print 'Neither CONFIG nor --force-sync is specified. Nothing will happen.',
++            print('Neither CONFIG nor --force-sync is specified. Nothing will happen.', end=' ')
+     else:
+-        print 'Move ' + ', '.join(configs),
+-    print '(jobs: %d)\n' % options.jobs
++        print('Move ' + ', '.join(configs), end=' ')
++    print('(jobs: %d)\n' % options.jobs)
+ 
+     if options.git_ref:
+         reference_src = ReferenceSource(options.git_ref)
+@@ -1476,7 +1476,7 @@ def move_config(toolchains, configs, options, db_queue):
+     while not slots.empty():
+         time.sleep(SLEEP_TIME)
+ 
+-    print ''
++    print('')
+     slots.show_failed_boards()
+     slots.show_suspicious_boards()
+ 
+@@ -1650,15 +1650,15 @@ def do_imply_config(config_list, add_imply, imply_flags, skip_added,
+     for config in config_list:
+         defconfigs = defconfig_db.get(config)
+         if not defconfigs:
+-            print '%s not found in any defconfig' % config
++            print('%s not found in any defconfig' % config)
+             continue
+ 
+         # Get the set of defconfigs without this one (since a config cannot
+         # imply itself)
+         non_defconfigs = all_defconfigs - defconfigs
+         num_defconfigs = len(defconfigs)
+-        print '%s found in %d/%d defconfigs' % (config, num_defconfigs,
+-                                                len(all_configs))
++        print('%s found in %d/%d defconfigs' % (config, num_defconfigs,
++                                                len(all_configs)))
+ 
+         # This will hold the results: key=config, value=defconfigs containing it
+         imply_configs = {}
+@@ -1765,15 +1765,15 @@ def do_imply_config(config_list, add_imply, imply_flags, skip_added,
+                             add_list[fname].append(linenum)
+ 
+             if show and kconfig_info != 'skip':
+-                print '%5d : %-30s%-25s %s' % (num_common, iconfig.ljust(30),
+-                                              kconfig_info, missing_str)
++                print('%5d : %-30s%-25s %s' % (num_common, iconfig.ljust(30),
++                                              kconfig_info, missing_str))
+ 
+         # Having collected a list of things to add, now we add them. We process
+         # each file from the largest line number to the smallest so that
+         # earlier additions do not affect our line numbers. E.g. if we added an
+         # imply at line 20 it would change the position of each line after
+         # that.
+-        for fname, linenums in add_list.iteritems():
++        for fname, linenums in add_list.items():
+             for linenum in sorted(linenums, reverse=True):
+                 add_imply_rule(config[CONFIG_LEN:], fname, linenum)
+ 
+@@ -1850,11 +1850,11 @@ def main():
+             for flag in options.imply_flags.split(','):
+                 bad = flag not in IMPLY_FLAGS
+                 if bad:
+-                    print "Invalid flag '%s'" % flag
++                    print("Invalid flag '%s'" % flag)
+                 if flag == 'help' or bad:
+-                    print "Imply flags: (separate with ',')"
+-                    for name, info in IMPLY_FLAGS.iteritems():
+-                        print ' %-15s: %s' % (name, info[1])
++                    print("Imply flags: (separate with ',')")
++                    for name, info in IMPLY_FLAGS.items():
++                        print(' %-15s: %s' % (name, info[1]))
+                     parser.print_usage()
+                     sys.exit(1)
+                 imply_flags |= IMPLY_FLAGS[flag][0]
+@@ -1864,7 +1864,7 @@ def main():
+         return
+ 
+     config_db = {}
+-    db_queue = Queue.Queue()
++    db_queue = queue.Queue()
+     t = DatabaseThread(config_db, db_queue)
+     t.setDaemon(True)
+     t.start()
+@@ -1898,7 +1898,7 @@ def main():
+ 
+     if options.build_db:
+         with open(CONFIG_DATABASE, 'w') as fd:
+-            for defconfig, configs in config_db.iteritems():
++            for defconfig, configs in config_db.items():
+                 fd.write('%s\n' % defconfig)
+                 for config in sorted(configs.keys()):
+                     fd.write('   %s=%s\n' % (config, configs[config]))
+diff --git a/tools/patman/patman.py b/tools/patman/patman.py
+index 27a2febf70..339e4da14b 100755
+--- a/tools/patman/patman.py
++++ b/tools/patman/patman.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ # SPDX-License-Identifier: GPL-2.0+
+ #
+ # Copyright (c) 2011 The Chromium OS Authors.
+@@ -172,12 +172,12 @@ else:
+                 in_reply_to=options.in_reply_to, thread=options.thread,
+                 smtp_server=options.smtp_server)
+     else:
+-        print(col.Color(col.RED, "Not sending emails due to errors/warnings"))
++        print((col.Color(col.RED, "Not sending emails due to errors/warnings")))
+ 
+     # For a dry run, just show our actions as a sanity check
+     if options.dry_run:
+         series.ShowActions(args, cmd, options.process_tags)
+         if not its_a_go:
+-            print(col.Color(col.RED, "Email would not be sent"))
++            print((col.Color(col.RED, "Email would not be sent")))
+ 
+     os.remove(cc_file)
+diff --git a/tools/rkmux.py b/tools/rkmux.py
+index 11c192a073..1226ee201c 100755
+--- a/tools/rkmux.py
++++ b/tools/rkmux.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python2
++#!/usr/bin/env python3
+ 
+ # Script to create enums from datasheet register tables
+ #
+@@ -43,8 +43,8 @@ class RegField:
+         self.desc.append(desc)
+ 
+     def Show(self):
+-        print self
+-        print
++        print(self)
++        print()
+         self.__init__()
+ 
+     def __str__(self):
+@@ -65,11 +65,11 @@ class Printer:
+             self.output_footer()
+ 
+     def output_header(self):
+-        print '/* %s */' % self.name
+-        print 'enum {'
++        print('/* %s */' % self.name)
++        print('enum {')
+ 
+     def output_footer(self):
+-        print '};';
++        print('};');
+ 
+     def output_regfield(self, regfield):
+         lines = regfield.desc
+@@ -97,7 +97,7 @@ class Printer:
+             self.first = False
+             self.output_header()
+         else:
+-            print
++            print()
+         out_enum(field, 'shift', bit_low)
+         out_enum(field, 'mask', mask)
+         next_val = -1
+@@ -175,7 +175,7 @@ def out_enum(field, suffix, value, skip_val=False):
+             val_str = '%d' % value
+ 
+         str += '%s= %s' % ('\t' * tabs, val_str)
+-    print '\t%s,' % str
++    print('\t%s,' % str)
+ 
+ # Process a CSV file, e.g. from tabula
+ def process_csv(name, fd):
+-- 
+2.17.1
+

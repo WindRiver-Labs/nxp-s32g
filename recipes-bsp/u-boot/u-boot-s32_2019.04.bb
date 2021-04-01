@@ -13,13 +13,15 @@ LIC_FILES_CHKSUM = " \
 "
 
 INHIBIT_DEFAULT_DEPS = "1"
-DEPENDS_append = " libgcc virtual/${TARGET_PREFIX}gcc python dtc-native bison-native"
+DEPENDS_append = " libgcc virtual/${TARGET_PREFIX}gcc python3 dtc-native bison-native"
 
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=alb-2019.04"
 
 SRCREV = "63065a52b26a7bf781947b0b6f93408ac9317786"
 
-SRC_URI += "file://0001-drivers-net-dwc_eth_qos-correct-the-invalidation-des.patch"
+SRC_URI += "file://0001-drivers-net-dwc_eth_qos-correct-the-invalidation-des.patch \
+            file://0001-tools-python2-python3.patch \
+"
 
 inherit nxp-u-boot-localversion
 
