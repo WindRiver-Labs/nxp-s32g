@@ -41,8 +41,8 @@ index 5b73e09..608e084 100644
 -	if (argc != 2) {
 -		printf("usage: ./pkcs-keyop <path>/pkcs11-nxp.so\n");
 +	if (argc < 2) {
-+		printf("usage: ./pkcs-keyop <path>/libpkcs11-nxp.so [option catID] [option groupID] [option slotID] \n");
-+		printf("\texample: ./pkcs-keyop <path>/libpkcs11-nxp.so 1 5 1 \n");
++		printf("usage: ./pkcs-keyop <path>/libpkcs11-hse.so [option catID] [option groupID] [option slotID] \n");
++		printf("\texample: ./pkcs-keyop <path>/libpkcs11-hse.so 1 5 1 \n");
  		return -EINVAL;
  	}
  

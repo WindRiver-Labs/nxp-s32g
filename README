@@ -298,27 +298,20 @@ NOTICE:
 For linux, there have a demo to verify HSE and it provides PKCS#11 functionality.
 The steps are as following:
 
- 1. Burn HSE firmware into WIC SD card
+ 1. Build project with HSE built-in into WIC image
 
-    HSE linux feature verification depends on U-Boot, as pre requirement,
-    please place the u-boot.s32 binary file, U-Boot tools fold and HSE
-    firmware in the same directory. For HSE firmware, as section "6.2.1
-    HSE firmware" stated, it can be got from NXP's official website.
-    For u-boot.s32 and U-Boot tools, their locations are:
-	<build-dir>/tmp-glibc/work/nxp_s32g2xx-wrs-linux/u-boot-s32/2020.04-r0/git/s32g2xxaevb_defconfig/u-boot.s32
-    and
-	<build-dir>/tmp-glibc/work/nxp_s32g2xx-wrs-linux/u-boot-s32/2020.04-r0/git/tools
-    respectively.
+    If users want to use HSE feature in linux, please specify the location
+    of HSE firmware, like the following:
 
-    Then using the following script to burn HSE firmwares into WIC SD card:
-	sudo ./tools/s32gen1_secboot.sh -k <key-dir> -d /dev/your-sd-dev --hse s32g2xx_hse_fw_0.1.0_0.8.5_pb200922.bin.<rev-version>.pink
+	HSE_LOCAL_FIRMWARE_EVB_BIN = "/path/to/hse/firmware/of/evb/board"
+	HSE_LOCAL_FIRMWARE_RDB2_BIN = "/path/to/hse/firmware/of/rdb2/board"
 
-    the key-dir is a directory where to store the new created key pair.
-    rev-version in hse firmware name depends on the board CPU version,
-    it should be rev1 or rev2 for now. This script should modify the
-    layout of SD card and burn the HSE firmware to a proper address. For
-    more details of this script, please refer to s32g2xx-secure-boot/README
-    in this bsp layer.
+    in the project <build-dir>/conf/local.conf.
+    Then build the project as normal:
+
+	bitbake wrlinux-image-std
+
+    after build finish, HSE firmware has been put into the WIC image.
 
  2. Initialize HSE firmware and format key stores
 
@@ -348,7 +341,7 @@ The steps are as following:
 
     If succeed, the messages should like:
 
-	root@nxp-s32g2xx:~# ./pkcs-keyop-0301-6 /usr/lib64/libpkcs11-hse.so.1.0
+	root@nxp-s32g2xx:~# pkcs-keyop /usr/lib64/libpkcs11-hse.so.1.0
 	hse: UIO device open
 
 	1 slots available
