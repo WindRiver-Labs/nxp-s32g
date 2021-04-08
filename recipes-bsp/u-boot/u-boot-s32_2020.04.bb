@@ -24,6 +24,7 @@ SRC_URI += " \
         file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
 	file://0001-dts-s32g274ardb2-add-hse-reserve-memory-node-to-supp.patch \
 	file://s32g274ardb2.cfg \
+	file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
 "
 
 SRCREV = "eef88755a719c802f9dbfceaa06190abb96e74d1"
