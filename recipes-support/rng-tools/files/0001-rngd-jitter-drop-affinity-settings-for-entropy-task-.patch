@@ -1,0 +1,47 @@
+From 523563fa31aaa0a173702c6d5f42a182679dc6ca Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Wed, 14 Apr 2021 16:27:26 +0800
+Subject: [PATCH] rngd: jitter: drop affinity settings for entropy task threads
+
+Issue: LINCD-4803 LINCD-4517
+
+The affinity setting for the task threads will make high cpu load
+and slow random data generation significantly, when the system clock
+resolution is under 5MHz and not meet the requirement of rngd.
+That is because if system clock resolution does not meet the
+requirement, rngd will create internal counter threads in every task
+thread to provide as a timer, if affinity set, then the counter thread
+and work thread will run on the same cpu and will make lots of context
+switch, high cpu load for a long time. So drop the affinity settings
+to fix this issue.
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ rngd_jitter.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/rngd_jitter.c b/rngd_jitter.c
+index 54501f2..25304df 100644
+--- a/rngd_jitter.c
++++ b/rngd_jitter.c
+@@ -232,7 +232,6 @@ void jitter_thread_exit_signal(int signum)
+ 
+ static void *thread_entropy_task(void *data)
+ {
+-	cpu_set_t cpuset;
+ 
+ 	ssize_t ret;
+ 	struct thread_data *me = data;
+@@ -253,9 +252,6 @@ static void *thread_entropy_task(void *data)
+ 	}
+ 
+ 	/* fill initial entropy */
+-	CPU_ZERO(&cpuset);
+-	CPU_SET(me->core_id, &cpuset);
+-	pthread_setaffinity_np(pthread_self(), CPU_ALLOC_SIZE(me->core_id+1), &cpuset);
+ 
+ 	tmpbuf = malloc(me->buf_sz);
+ 	if (!tmpbuf) {
+-- 
+2.25.1
+
