@@ -15,6 +15,9 @@ BRANCH ?= "release/bsp28.0"
 SRC_URI = "${URL};branch=${BRANCH}"
 SRCREV = "f75873b946dc6e6b8b3612ad2b0d4eb34ffaca68"
 
+SRC_URI += " \
+	file://0001-ipc-shm-os-modify-tasklet-declaration-to-compatible-.patch \
+"
 
 S = "${WORKDIR}/git"
 DESTDIR="${D}"
