@@ -32,7 +32,7 @@ INHIBIT_SYSROOT_STRIP = "1"
 
 S = "${WORKDIR}/git"
 MDIR = "${S}/sw/linux-pfeng"
-INSTALL_DIR = "${D}/lib/modules/${KERNEL_VERSION}/kernel/drivers/net/ethernet/nxp/pfe"
+INSTALL_DIR = "${D}/${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net/ethernet/nxp/pfe"
 FW_INSTALL_DIR = "${D}/lib/firmware"
 FW_INSTALL_CLASS_NAME ?= "s32g_pfe_class.fw"
 FW_INSTALL_UTIL_NAME ?= "s32g_pfe_util.fw"
@@ -73,8 +73,7 @@ addtask do_deploy after do_install
 do_package_qa[noexec] = "1"
 do_package_qa_setscene[noexec] = "1"
 
-FILES_${PN} += "/lib/modules/* \
-    /lib/firmware/${FW_INSTALL_CLASS_NAME} \
+FILES_${PN} += "/lib/firmware/${FW_INSTALL_CLASS_NAME} \
     /lib/firmware/${FW_INSTALL_UTIL_NAME} \
     ${base_libdir}/* \
     ${sysconfdir}/modules-load.d/* \
