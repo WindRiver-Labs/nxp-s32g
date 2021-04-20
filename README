@@ -304,7 +304,6 @@ The steps are as following:
     of HSE firmware, like the following:
 
 	HSE_LOCAL_FIRMWARE_EVB_BIN = "/path/to/hse/firmware/of/evb/board"
-	HSE_LOCAL_FIRMWARE_RDB2_BIN = "/path/to/hse/firmware/of/rdb2/board"
 
     in the project <build-dir>/conf/local.conf.
     Then build the project as normal:
