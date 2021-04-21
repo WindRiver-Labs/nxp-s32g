@@ -478,8 +478,8 @@ If users want to verify LLCE CAN feature, please add the following lines in
 	LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN = "<path-to-llce-firmware>/ppe_rx.bin"
 
 then build the project as usual. Boot up the board with the new built WIC
-image, make sure that the test llce_can ports are connected. As an example,
-using llce_can0 and llce_can14 to verify. steps as following:
+image, make sure that the test llcecan ports are connected. As an example,
+using llcecan0 and llcecan14 to verify. steps as following:
 
   1. configure llcecan0 and llcecan14 interfaces
 
