@@ -1,0 +1,28 @@
+From d5efe327c58f1cf2216ab7aef1b03e06dad6656b Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Wed, 21 Apr 2021 14:32:04 +0800
+Subject: [PATCH] sja1105: fix build error of kzfree()
+
+Upstream-Status: Pending 
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ sja1105p_init.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sja1105p_init.c b/sja1105p_init.c
+index e6b89a9..28cbeaa 100644
+--- a/sja1105p_init.c
++++ b/sja1105p_init.c
+@@ -503,7 +503,7 @@ static int sja1105p_init_dt(struct sja1105p_context_data *switch_ctx)
+ 	return 0;
+ 
+ err_dt:
+-	if (pdata) kzfree(pdata);
++	if (pdata) kfree(pdata);
+ 	switch_ctx->pdata = NULL;
+ 	return -EINVAL;
+ }
+-- 
+2.25.1
+
