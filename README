@@ -676,3 +676,131 @@ For ATF feature, there are some known issues.
 	"22.3 Suspend to RAM" in "S32G274_BSP28.0_User_Manual.pdf"
 
      And this list will be updated in future.
+
+6.6 IPCF
+--------
+
+IPCF is short for "Inter-Platform Communication Framework" on NXP S32G
+platform, it is designed to work on various hardware platforms and operating
+systems. Prior to being used it needs to be integrated in the operating
+systems running on each platform. For S32G, to use this feature, users need
+to manually prepare application for M7 cores(refer to the following section
+6.6.1 "IPCF application on M7 side"), and the A53 linux side components
+have already integrated into wrlinux(please refer to the following section
+6.6.2 "Enable IPCF feature in wrlinux").
+
+6.6.1 IPCF application on M7 side
+---------------------------------
+
+Please note that, application on M7 side is not a pre-built binary file, it
+should be built manually, as preparation, the following(all of them can be
+found on Flexera) shoul be setup in the following order on user's local host
+machine:
+
+	1. S32 Design Studio 3.4
+	2. S32 Design Studio 3.4 Development Packages for Offline Use,
+	   Support for S32G2 Family
+	3. Real Time Drivers (RTD) 4.4 version 1.0.0 D2012 (use file
+	   with _updatesite.zip in the name and install through
+	   Extensions and Updates in S32 Design Studio)
+	4. IPCF version 2.1.1 D2103 (use file with _updatesite.zip in
+	   the name and install through Extensions and Updates in
+	   S32 Design Studio)
+
+For detail informations about the above packages setup, installation and
+build steps, please refer to the documents:
+
+	"S32DS_Installation_Guide_3.4.0.pdf"
+	"S32_RTD_4.4_1.0.0_Release_Notes.pdf"
+	"SW32G_IPCF_2.1.1_D2103_ReleaseNotes.txt"
+
+and etc., which can be found in related packages downloaded from flexra.
+
+And if the IPCF application on M7 side build successfully following the
+related documents, then users can find the binary file:
+
+	"IPCF_Example_S32G274.bin"
+
+from S32DS IPCF example project.
+
+6.6.2 Enable IPCF feature in wrlinux
+------------------------------------
+
+If users want to enable IPCF feature on A53 side linux system, please add
+the following lines in the <project-build-dir>/conf/local.conf:
+
+	PNWHITELIST_wr-nxp-s32g2xx += 'ipc-shm'
+	IMAGE_INSTALL += 'ipc-shm'
+
+then build the project as normal:
+
+	bitbake wrlinux-image-std
+
+the IPCF related drivers will be built into WIC image.
+
+6.6.3 IPCF verify steps
+-----------------------
+
+If both the IPCF application on M7 side and IPCF related drivers in linux
+are all build successfully, then users can follow the below steps to verify
+this feature:
+
+	1. dd WIC image(build following 6.6.2 section) into one SD-card
+
+	2. copy the IPCF_Example_S32G274.bin into first FAT partition
+	   of the SD-card.
+
+		cp IPCF_Example_S32G274.bin /mount/point/of/1st-partition-of-sd/
+
+	3. using the SD-card to bootup the board
+
+	4. stop in u-boot stage, and excute following commands
+
+		a> disable Data Cache from uboot:
+			dcache off
+		b> zero-set SRAM shared memory used by both sample apps:
+			initsram 0x34100000 0x700000
+		c> load IPCF_Example_S32G274.bin in SRAM:
+			fatload mmc 0:1 0x34300000 /IPCF_Example_S32G274.bin
+		d> start M7 core (the argument is the address of the Interrupt Vector):
+			startm7 0x34501000
+		e> boot Linux:
+			boot
+
+	5. after linux system startup, enable ipcf driver support on linux
+
+		modprobe ipc-shm-dev.ko
+		modprobe ipc-shm-sample.ko
+
+	6. run ipcf test command
+
+		echo 10 > /sys/kernel/ipc-shm-sample/ping
+
+If all the above steps succeed, the result messages should be like:
+
+	root@nxp-s32g2xx:~# echo 10 > /sys/kernel/ipc-shm-sample/ping
+	ipc-shm-sample: starting demo...
+	ipc-shm-sample: ch 0 >> 20 bytes: SENDING MESSAGES: 10
+	ipc-shm-sample: ch 1 >> 16 bytes: #1 Hello world!
+	ipc-shm-sample: ch 1 << 16 bytes: #1 Hello world!
+	ipc-shm-sample: ch 2 >> 16 bytes: #2 Hello world!
+	ipc-shm-sample: ch 2 << 16 bytes: #2 Hello world!
+	ipc-shm-sample: ch 1 >> 16 bytes: #3 Hello world!
+	ipc-shm-sample: ch 1 << 16 bytes: #3 Hello world!
+	ipc-shm-sample: ch 2 >> 16 bytes: #4 Hello world!
+	ipc-shm-sample: ch 2 << 16 bytes: #4 Hello world!
+	ipc-shm-sample: ch 1 >> 16 bytes: #5 Hello world!
+	ipc-shm-sample: ch 1 << 16 bytes: #5 Hello world!
+	ipc-shm-sample: ch 2 >> 16 bytes: #6 Hello world!
+	ipc-shm-sample: ch 2 << 16 bytes: #6 Hello world!
+	ipc-shm-sample: ch 1 >> 16 bytes: #7 Hello world!
+	ipc-shm-sample: ch 1 << 16 bytes: #7 Hello world!
+	ipc-shm-sample: ch 2 >> 16 bytes: #8 Hello world!
+	ipc-shm-sample: ch 2 << 16 bytes: #8 Hello world!
+	ipc-shm-sample: ch 1 >> 16 bytes: #9 Hello world!
+	ipc-shm-sample: ch 1 << 16 bytes: #9 Hello world!
+	ipc-shm-sample: ch 2 >> 16 bytes: #10 Hello world
+	ipc-shm-sample: ch 2 << 16 bytes: #10 Hello world
+	ipc-shm-sample: exit demo
+	ipc-shm-sample: ch 0 << 20 bytes: REPLIED MESSAGES: 10
+	root@nxp-s32g2xx:~#
