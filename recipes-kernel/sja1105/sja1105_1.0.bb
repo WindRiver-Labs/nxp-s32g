@@ -23,10 +23,9 @@ S = "${WORKDIR}/git"
 DESTDIR = "${D}"
 EXTRA_OEMAKE_append = " INSTALL_DIR=${DESTDIR} KERNELDIR=${KBUILD_OUTPUT} MYCOMPILER=${CROSS_COMPILE}gcc "
 EXTRA_OEMAKE_append_nxp-s32g2xx = " MYPLATFORM=gplat "
-
 KERNEL_MODULE_AUTOLOAD += "sja1105pqrs"
 
-FILES_${PN} += "${base_libdir}/*"
+FILES_${PN} += "${nonarch_base_libdir}/*"
 FILES_${PN} += "${sysconfdir}/modules-load.d/*"
 
 PROVIDES = "kernel-module-sja1105pqrs"
