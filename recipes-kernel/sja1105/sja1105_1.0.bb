@@ -21,15 +21,24 @@ SRC_URI += "\
 
 S = "${WORKDIR}/git"
 DESTDIR = "${D}"
+MDIR = "${S}"
+INSTALL_DIR = "${D}/${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/spi"
 EXTRA_OEMAKE_append = " INSTALL_DIR=${DESTDIR} KERNELDIR=${KBUILD_OUTPUT} MYCOMPILER=${CROSS_COMPILE}gcc "
 EXTRA_OEMAKE_append_nxp-s32g2xx = " MYPLATFORM=gplat "
-KERNEL_MODULE_AUTOLOAD += "sja1105pqrs"
 
-FILES_${PN} += "${nonarch_base_libdir}/*"
+SJA1105_MOD_NAME = "sja1105pqrs.ko"
+
+module_do_install() {
+
+	mkdir -p ${INSTALL_DIR}
+	install -D ${MDIR}/${SJA1105_MOD_NAME} ${INSTALL_DIR}/
+}
+
+FILES_${PN} += "${base_libdir}/*"
 FILES_${PN} += "${sysconfdir}/modules-load.d/*"
 
-PROVIDES = "kernel-module-sja1105pqrs"
-RPROVIDES_${PN} = "kernel-module-sja1105pqrs"
+PROVIDES += "kernel-module-sja1105pqrs"
+RPROVIDES_${PN} += "kernel-module-sja1105pqrs"
 
 COMPATIBLE_MACHINE = "nxp-s32g2xx"
 INHIBIT_PACKAGE_STRIP = "1"
