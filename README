@@ -129,8 +129,8 @@ tftp $fdtaddr $fdtfile;booti $loadaddr - $fdtaddr
 ethaddr=00:04:9F:02:00:FD
 eth1addr=00:04:9F:02:01:FD
 eth2addr=00:04:9F:02:02:FD
-loadaddr=0x80080000
-fdtaddr=0x83E00000
+loadaddr=0x8A080000
+fdtaddr=0x8FE00000
 gatewayip=192.168.1.1
 netmask=255.255.255.0
 ipaddr=192.168.1.100
