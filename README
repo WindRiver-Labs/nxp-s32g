@@ -730,7 +730,7 @@ If users want to enable IPCF feature on A53 side linux system, please add
 the following lines in the <project-build-dir>/conf/local.conf:
 
 	PNWHITELIST_wr-nxp-s32g2xx += 'ipc-shm'
-	IMAGE_INSTALL += 'ipc-shm'
+	IMAGE_INSTALL_append = ' ipc-shm'
 
 then build the project as normal:
 
@@ -757,20 +757,20 @@ this feature:
 	4. stop in u-boot stage, and excute following commands
 
 		a> disable Data Cache from uboot:
-			dcache off
+			=>dcache off
 		b> zero-set SRAM shared memory used by both sample apps:
-			initsram 0x34100000 0x700000
+			=>initsram 0x34100000 0x700000
 		c> load IPCF_Example_S32G274.bin in SRAM:
-			fatload mmc 0:1 0x34300000 /IPCF_Example_S32G274.bin
+			=>fatload mmc 0:1 0x34300000 /IPCF_Example_S32G274.bin
 		d> start M7 core (the argument is the address of the Interrupt Vector):
-			startm7 0x34501000
+			=>startm7 0x34501000
 		e> boot Linux:
-			boot
+			=>boot
 
 	5. after linux system startup, enable ipcf driver support on linux
 
-		modprobe ipc-shm-dev.ko
-		modprobe ipc-shm-sample.ko
+		modprobe ipc-shm-dev
+		modprobe ipc-shm-sample
 
 	6. run ipcf test command
 
