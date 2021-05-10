@@ -729,6 +729,7 @@ from S32DS IPCF example project.
 If users want to enable IPCF feature on A53 side linux system, please add
 the following lines in the <project-build-dir>/conf/local.conf:
 
+	IPCF_M7_APP_BIN_DIR = "/path/to/your-ipcf-m7-app/IPCF_Example_S32G274.bin"
 	PNWHITELIST_wr-nxp-s32g2xx += 'ipc-shm'
 	IMAGE_INSTALL_append = ' ipc-shm'
 
@@ -736,7 +737,8 @@ then build the project as normal:
 
 	bitbake wrlinux-image-std
 
-the IPCF related drivers will be built into WIC image.
+the IPCF related drivers and M7 side app binary(IPCF_Example_S32G274.bin)
+will be built into WIC image.
 
 6.6.3 IPCF verify steps
 -----------------------
@@ -747,14 +749,9 @@ this feature:
 
 	1. dd WIC image(build following 6.6.2 section) into one SD-card
 
-	2. copy the IPCF_Example_S32G274.bin into first FAT partition
-	   of the SD-card.
+	2. using the SD-card to bootup the board
 
-		cp IPCF_Example_S32G274.bin /mount/point/of/1st-partition-of-sd/
-
-	3. using the SD-card to bootup the board
-
-	4. stop in u-boot stage, and excute following commands
+	3. stop in u-boot stage, and excute following commands
 
 		a> disable Data Cache from uboot:
 			=>dcache off
@@ -767,12 +764,12 @@ this feature:
 		e> boot Linux:
 			=>boot
 
-	5. after linux system startup, enable ipcf driver support on linux
+	4. after linux system startup, enable ipcf driver support on linux
 
 		modprobe ipc-shm-dev
 		modprobe ipc-shm-sample
 
-	6. run ipcf test command
+	5. run ipcf test command
 
 		echo 10 > /sys/kernel/ipc-shm-sample/ping
 
