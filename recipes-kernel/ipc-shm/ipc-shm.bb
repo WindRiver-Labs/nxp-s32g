@@ -8,7 +8,7 @@ SUMMARY = "Support for Inter-Process(or) Communication over Shared Memory (ipc-s
 LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/BSD-3-Clause;md5=550794465ba0ec5312d6919e203a55f9"
 
-inherit module
+inherit module deploy
 
 URL ?= "git://source.codeaurora.org/external/autobsps32/ipcf/ipc-shm;protocol=https"
 BRANCH ?= "release/SW32G2_IPCF_2.1.1_D2103"
@@ -31,6 +31,9 @@ IPCF_MOD_DEV_NAME = "ipc-shm-dev.ko"
 IPCF_MOD_SAMPLE_NAME = "ipc-shm-sample.ko"
 IPCF_MOD_UIO_NAME = "ipc-shm-uio.ko"
 
+IPCF_M7_APP_BIN_DIR ?= "."
+IPCF_M7_APP_BIN_NAME ?= "IPCF_Example_S32G274.bin"
+
 PROVIDES += "kernel-module-ipc-shm-sample"
 RPROVIDES_${PN} += "kernel-module-ipc-shm-sample"
 PROVIDES += "kernel-module-ipc-shm-dev"
@@ -52,6 +55,14 @@ module_do_install() {
         install -D ${IPCF_SAMPLE_MDIR}/${IPCF_MOD_SAMPLE_NAME} ${INSTALL_DIR}/
 }
 
+do_deploy() {
+	install -d ${DEPLOYDIR}
+
+	if [ -f ${IPCF_M7_APP_BIN_DIR}/${IPCF_M7_APP_BIN_NAME} ];then
+		install -m 0644  ${IPCF_M7_APP_BIN_DIR}/${IPCF_M7_APP_BIN_NAME} ${DEPLOYDIR}/${IPCF_M7_APP_BIN_NAME}
+	fi
+}
+addtask do_deploy after do_install
 
 FILES_${PN} += "${base_libdir}/*"
 FILES_${PN} += "${sysconfdir}/modprobe.d/*"
