@@ -730,7 +730,6 @@ If users want to enable IPCF feature on A53 side linux system, please add
 the following lines in the <project-build-dir>/conf/local.conf:
 
 	IPCF_M7_APP_BIN_DIR = "/path/to/your-ipcf-m7-app/IPCF_Example_S32G274.bin"
-	PNWHITELIST_wr-nxp-s32g2xx += 'ipc-shm'
 	IMAGE_INSTALL_append = ' ipc-shm'
 
 then build the project as normal:
