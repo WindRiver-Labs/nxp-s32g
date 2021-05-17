@@ -1,0 +1,31 @@
+From 494d712544e4e0108c65b062696c6824aedee0d0 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 4 Feb 2021 08:46:17 +0200
+Subject: [PATCH 06/14] s32g: build: Specify MKIMAGE binary as build parameter
+
+Upstream-Status: Pending
+
+Issue: ALB-6440
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/platform.mk | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index 2964763db..c9ae5750f 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -146,7 +146,9 @@ $(eval $(call add_define,BL2_BASE))
+ 
+ all: call_mkimage
+ call_mkimage: add_to_fip
++ifeq ($(MKIMAGE),)
+ 	$(eval MKIMAGE = $(shell dirname $(BL33))/tools/mkimage)
++endif
+ 	@${MKIMAGE} -e ${BL2_BASE} -a ${DTB_BASE} -T s32gen1image \
+ 		-d ${BUILD_PLAT}/${FIP_NAME} ${BUILD_PLAT}/fip.s32
+ 	@echo "Generated ${BUILD_PLAT}/fip.s32 successfully"
+-- 
+2.25.1
+

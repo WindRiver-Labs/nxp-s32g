@@ -1,0 +1,243 @@
+From bb78813ca1982975dd0f80070781d1b74b0ad97d Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 2 Feb 2021 11:42:24 +0200
+Subject: [PATCH 01/14] s32g: Replace DMA copy using core copy operations
+
+Replace DMA copy due to its poor performance.
+A53: 1375.8 MB/s
+DMA: 200 MB/s
+
+Upstream-Status: Pending
+
+Issue: ALB-6427
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/io/io_memmap.c   | 50 ++++++++++++++++++-----
+ plat/nxp/s32g/include/s32g_edma.h | 44 --------------------
+ plat/nxp/s32g/platform.mk         |  1 -
+ plat/nxp/s32g/s32g_edma.c         | 68 -------------------------------
+ 4 files changed, 40 insertions(+), 123 deletions(-)
+ delete mode 100644 plat/nxp/s32g/include/s32g_edma.h
+ delete mode 100644 plat/nxp/s32g/s32g_edma.c
+
+diff --git a/drivers/nxp/s32g/io/io_memmap.c b/drivers/nxp/s32g/io/io_memmap.c
+index b4f0cbdc3..cadee3695 100644
+--- a/drivers/nxp/s32g/io/io_memmap.c
++++ b/drivers/nxp/s32g/io/io_memmap.c
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2014-2018, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -12,7 +13,6 @@
+ #include <drivers/io/io_memmap.h>
+ #include <drivers/io/io_storage.h>
+ #include <lib/utils.h>
+-#include <s32g_edma.h>
+ 
+ /* As we need to be able to keep state for seek, only one file can be open
+  * at a time. Make this a structure and point to the entity->info. When we
+@@ -110,6 +110,43 @@ static int memmap_block_len(io_entity_t *entity, size_t *length)
+ 	return 0;
+ }
+ 
++static void s32g_memcpy(uint8_t *dest, const uint8_t *src, size_t count)
++{
++	uint64_t *dest64, *src64;
++	uint32_t *dest32, *src32;
++
++	if (src == dest)
++		return;
++
++	dest64 = (uint64_t *)dest;
++	src64 = (uint64_t *)src;
++
++	/**
++	 * while all data is aligned (common case), copy an uint64_t at a time
++	 */
++	if (!(((uintptr_t)dest64 | (uintptr_t)src64) & (sizeof(*dest64) - 1))) {
++		while (count >= sizeof(*dest64)) {
++			*dest64++ = *src64++;
++			count -= sizeof(*dest64);
++		}
++	}
++
++	dest32 = (uint32_t *)dest64;
++	src32 = (uint32_t *)src64;
++	if (!(((uintptr_t)dest32 | (uintptr_t)src32) & (sizeof(*dest32) - 1))) {
++		while (count >= sizeof(*dest32)) {
++			*dest32++ = *src32++;
++			count -= sizeof(*dest32);
++		}
++	}
++
++	dest = (uint8_t *)dest32;
++	src = (uint8_t *)src32;
++
++	while (count--)
++		*dest++ = *src++;
++}
++
+ static int memmap_block_read(io_entity_t *entity, uintptr_t buffer,
+ 			     size_t length, size_t *length_read)
+ {
+@@ -123,15 +160,8 @@ static int memmap_block_read(io_entity_t *entity, uintptr_t buffer,
+ 	pos_after = fp->file_pos + length;
+ 	assert((pos_after >= fp->file_pos) && (pos_after <= fp->size));
+ 
+-	if (IS_ON_32BITS(buffer) &&
+-	    IS_ON_32BITS((uint64_t)buffer + length) &&
+-	    IS_ON_32BITS((uint64_t)fp->base + fp->file_pos) &&
+-	    IS_ON_32BITS((uint64_t)fp->base + fp->file_pos + length))
+-		edma_xfer_sync(buffer, (uintptr_t)(fp->base + fp->file_pos),
+-			       length, DMA_CHANNEL_1);
+-	else
+-		memcpy((void *)buffer, (void *)(fp->base + fp->file_pos),
+-		       length);
++	s32g_memcpy((uint8_t *)buffer, (uint8_t *)(fp->base + fp->file_pos),
++		    length);
+ 
+ 	*length_read = length;
+ 	fp->file_pos = pos_after;
+diff --git a/plat/nxp/s32g/include/s32g_edma.h b/plat/nxp/s32g/include/s32g_edma.h
+deleted file mode 100644
+index ab547ee32..000000000
+--- a/plat/nxp/s32g/include/s32g_edma.h
++++ /dev/null
+@@ -1,44 +0,0 @@
+-/*
+- * Copyright 2020 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#ifndef S32G274A_EDMA_H
+-#define S32G274A_EDMA_H
+-
+-#define EDMA0_MP			(0x40144000)
+-#define EDMA0_TCD			(EDMA0_MP + 0x4000)
+-#define DMA_CHANNEL_1			(1)
+-
+-#define EDMA0_MP_ES			(EDMA0_MP + 0x4)
+-#define EDMA0_CHn_CSR(ch)		(EDMA0_TCD + 0x1000 * (ch))
+-#define CH_CSR_DONE			BIT(30)
+-#define EDMA0_CHn_ES(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x04)
+-#define CH_ES_ERR			BIT(31)
+-#define EDMA0_TCDn_SADDR(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x20)
+-#define EDMA0_TCDn_SOFF(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x24)
+-#define EDMA0_TCDn_ATTR(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x26)
+-#define ATTR_SSIZE_SHIFT		(8)
+-#define ATTR_SSIZE(x)			((x) << ATTR_SSIZE_SHIFT)
+-#define ATTR_DSIZE(x)			(x)
+-#define ATTR_SSIZE_MAX_OPTION		(6)
+-#define EDMA0_TCDn_NBYTES_MLOFFNO(ch)	(EDMA0_TCD + 0x1000 * (ch) + 0x28)
+-#define NBYTES_MLOFFNO_NBYTES(x)	((x) & 0x3fffffff)
+-#define EDMA0_TCDn_DADDR(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x30)
+-#define EDMA0_TCDn_DOFF(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x34)
+-#define EDMA0_TCDn_CITER_ELINKNO(ch)	(EDMA0_TCD + 0x1000 * (ch) + 0x36)
+-#define CITER_ELINKNO_CITER(x)		((x) & 0x7fff)
+-#define EDMA0_TCDn_CSR(ch)		(EDMA0_TCD + 0x1000 * (ch) + 0x3c)
+-#define TCD_CSR_START			BIT(0)
+-#define EDMA0_TCDn_BITER_ELINKNO(ch)	(EDMA0_TCD + 0x1000 * (ch) + 0x3e)
+-#define BITER_ELINKNO_BITER(x)		((x) & 0x7fff)
+-
+-#ifndef __ASSEMBLY__
+-size_t edma_xfer_sync(uintptr_t to, uintptr_t from, size_t length,
+-		      uint32_t channel);
+-#endif
+-
+-#define IS_ON_32BITS(x)			(!((uint64_t)(x) >> 32))
+-
+-#endif /* S32G274A_EDMA_H */
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index b9381c746..2964763db 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -59,7 +59,6 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ BL2_SOURCES		+= plat/nxp/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/nxp/s32g/s32g_bl2_el3.c \
+ 			   plat/nxp/s32g/s32g_storage.c \
+-			   plat/nxp/s32g/s32g_edma.c \
+ 			   drivers/io/io_storage.c \
+ 			   common/desc_image_load.c \
+ 			   drivers/mmc/mmc.c \
+diff --git a/plat/nxp/s32g/s32g_edma.c b/plat/nxp/s32g/s32g_edma.c
+deleted file mode 100644
+index 3aabaf376..000000000
+--- a/plat/nxp/s32g/s32g_edma.c
++++ /dev/null
+@@ -1,68 +0,0 @@
+-/*
+- * Copyright 2020 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <lib/mmio.h>
+-#include <assert.h>
+-#include "s32g_edma.h"
+-
+-/* Determine the optimum data transfer size based on
+- * the highest common alignment between 'to', 'from' and 'length'.
+- * For more information see the S32G Reference Manual, the
+- * 'TCD Transfer Attributes Register' section.
+- */
+-static int16_t max_xfer_size(uintptr_t to, uintptr_t from, size_t length,
+-			     uint16_t *tcd_attr)
+-{
+-	int i;
+-	uint64_t orr_args = (uint64_t)to | (uint64_t)from | (uint64_t)length;
+-
+-	for (i = ATTR_SSIZE_MAX_OPTION; i >= 0; i--) {
+-		if (!(orr_args % BIT(i))) {
+-			*tcd_attr = ATTR_SSIZE(i) | ATTR_DSIZE(i);
+-			return BIT(i);
+-		}
+-	}
+-
+-	return 0;
+-}
+-
+-size_t edma_xfer_sync(uintptr_t to, uintptr_t from, size_t length,
+-		      uint32_t channel)
+-{
+-	uint16_t tcd_attr;
+-	int16_t xfer_size = max_xfer_size(to, from, length, &tcd_attr);
+-
+-	assert(IS_ON_32BITS(to));
+-	assert(IS_ON_32BITS((uint64_t)to + length));
+-	assert(IS_ON_32BITS(from));
+-	assert(IS_ON_32BITS((uint64_t)from + length));
+-
+-	mmio_write_32(EDMA0_TCDn_DADDR(channel), (uint32_t)to);
+-	mmio_write_32(EDMA0_TCDn_SADDR(channel), (uint32_t)from);
+-	mmio_write_32(EDMA0_TCDn_NBYTES_MLOFFNO(channel),
+-					NBYTES_MLOFFNO_NBYTES(length));
+-
+-	mmio_write_16(EDMA0_TCDn_DOFF(channel), xfer_size);
+-	mmio_write_16(EDMA0_TCDn_SOFF(channel), xfer_size);
+-	mmio_write_16(EDMA0_TCDn_ATTR(channel), tcd_attr);
+-	mmio_write_16(EDMA0_TCDn_CITER_ELINKNO(channel),
+-						CITER_ELINKNO_CITER(1));
+-	mmio_write_16(EDMA0_TCDn_BITER_ELINKNO(channel),
+-						BITER_ELINKNO_BITER(1));
+-
+-	mmio_write_32(EDMA0_TCDn_CSR(channel), TCD_CSR_START);
+-
+-	while (true) {
+-		if (mmio_read_32(EDMA0_CHn_ES(channel)) & CH_ES_ERR) {
+-			mmio_write_32(EDMA0_CHn_ES(channel), CH_ES_ERR);
+-			return 0;
+-		}
+-		if (mmio_read_32(EDMA0_CHn_CSR(channel)) & CH_CSR_DONE) {
+-			mmio_write_32(EDMA0_CHn_CSR(channel), CH_CSR_DONE);
+-			return length;
+-		}
+-	}
+-}
+-- 
+2.25.1
+
