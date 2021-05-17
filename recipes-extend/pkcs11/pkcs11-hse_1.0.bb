@@ -3,18 +3,17 @@ PROVIDES += "pkcs11-hse"
 
 LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = " \
-    file://README.md;md5=9528eb504d89ee849a198bbfa981ea5b \
+    file://README.md;md5=b451d36d865e4242aa2b944fb0370269 \
 "
 
 DEPENDS = "openssl libp11"
 
 SRC_URI = "https://bitbucket.sw.nxp.com/projects/ALBW/repos/pkcs11-hse/pkcs11-hse.tar.gz"
 
-SRCREV = "d951d55997b3f8db84901bc7058bec0b7a07560a"
-SRC_URI[sha256sum] = "7d8056117894df028f3bfa13b9b0842a794c74013f7ea1cabb165db9c1558b32"
+SRCREV = "551115b2a261073667744db13510393ee76c89c9"
+SRC_URI[sha256sum] = "20de6b70bd8e8eaa225954480e2692c281b23d67a5f3986d5834b6c1242e6781"
 
-SRC_URI += "file://0001-pkcs-example-modify-the-example-codes-to-workable.patch \
-	file://0001-Add-license-file.patch \
+SRC_URI += " \
 "
 
 PACKAGE_ARCH = "${MACHINE_ARCH}"
