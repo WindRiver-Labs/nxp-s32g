@@ -1,0 +1,53 @@
+From eba164f5a538587f921cb553891a3f78b705c6bf Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Wed, 27 Jan 2021 12:08:05 +0200
+Subject: [PATCH 23/42] s32g: Use CMU just for hardware
+
+On emulator, any interaction with the clocking framework
+takes too long.
+
+Upstream-Status: Pending
+
+Issue: ALB-6121
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/Kconfig           | 8 ++++++++
+ arch/arm/cpu/armv8/s32/s32-gen1/Makefile | 2 +-
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index 57ed48b244..69782c451e 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -195,6 +195,14 @@ config DDR_HANDSHAKE_AT_RESET
+ 	  Enable DDR handshake after functional reset.
+ 	  Execute additional checks in case of a functional reset.
+ 
++config S32_CMU
++	bool "Enable Clock Monitoring Unit-Frequency Check"
++	default y if !CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
++	depends on CONFIG_S32_GEN1
++	help
++	  Checks if the frequency of a monitored clock (monitored_clock)
++	  is within a programmable frequency range specified by the user.
++
+ source "board/freescale/Kconfig"
+ source "board/microsys/mpxs32v234/Kconfig"
+ 
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+index 9e8bde1aae..35f942a93a 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+@@ -3,7 +3,7 @@
+ # Copyright 2018-2021 NXP
+ #
+ 
+-obj-$(CONFIG_S32_GEN1)			+= cmu.o
++obj-$(CONFIG_S32_CMU)			+= cmu.o
+ obj-$(CONFIG_HSE_SECBOOT)		+= hse_adv_secboot.o
+ obj-y					+= ncore.o
+ obj-y					+= soc.o
+-- 
+2.25.1
+

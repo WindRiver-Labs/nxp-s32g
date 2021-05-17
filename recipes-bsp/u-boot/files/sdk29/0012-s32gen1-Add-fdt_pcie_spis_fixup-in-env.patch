@@ -1,0 +1,94 @@
+From 15ecd9beff9e3e12f4bf4f1255feb3a85928d3e5 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Thu, 25 Mar 2021 12:10:46 +0200
+Subject: [PATCH 12/42] s32gen1: Add fdt_pcie_spis_fixup in env
+
+fdt_pcie0_spis_fixup and fdt_pcie1_spis_fixup can be used
+to modify the kernel dts to use MSIs implemented as SPIs,
+instead of the default DesignWare MSI handling where
+all MSIs are generated as a single hardware interrupt.
+In this way, the MSIs can be distributed on different
+cores, according to their affinity.
+fdt_pcie0_spis_fixup/fdt_pcie1_spis_fixup will add
+"msi-parent" node in pcie0/pcie1 node.
+
+Upstream-Status: Pending
+
+Issue: ALB-6683
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h      | 13 +++++++++++++
+ include/configs/s32g274a.h |  7 +++++++
+ include/configs/s32r45.h   |  6 ++++++
+ 3 files changed, 26 insertions(+)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 8ea89a876b..6c3baca418 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -348,6 +348,18 @@
+ #define PFE_INIT_CMD ""
+ #endif
+ 
++#ifdef CONFIG_PCIE_S32GEN1
++#define PCIE_SET_MSI_CONTROLLER \
++	"fdt_pcie_set_gic=fdt addr ${fdt_addr}; fdt resize; " \
++		"fdt get value gic_phandle " \
++		"/interrupt-controller@50800000 phandle; " \
++		"fdt set /pcie@\\${pcie_addr} msi-parent <\\${gic_phandle}>;\0"
++#endif
++
++#ifndef PCIE_MSIS_ENV_SETTINGS
++#define PCIE_MSIS_ENV_SETTINGS	""
++#endif
++
+ #if !defined(PCIE_EXTRA_ENV_SETTINGS)
+ #if defined(CONFIG_PCIE_S32GEN1) || defined(CONFIG_FSL_PFENG)
+ #define PCIE_EXTRA_ENV_SETTINGS \
+@@ -521,6 +533,7 @@
+ 	GMAC_EXTRA_ENV_SETTINGS \
+ 	PFE_EXTRA_ENV_SETTINGS \
+ 	PCIE_EXTRA_ENV_SETTINGS \
++	PCIE_MSIS_ENV_SETTINGS \
+ 	FEC_EXTRA_ENV_SETTINGS
+ 
+ #undef CONFIG_BOOTCOMMAND
+diff --git a/include/configs/s32g274a.h b/include/configs/s32g274a.h
+index c56b014a62..d8c59eafba 100644
+--- a/include/configs/s32g274a.h
++++ b/include/configs/s32g274a.h
+@@ -10,6 +10,13 @@
+ #ifndef __S32G274A_H
+ #define __S32G274A_H
+ 
++#ifdef CONFIG_PCIE_S32GEN1
++#define PCIE_MSIS_ENV_SETTINGS	\
++	PCIE_SET_MSI_CONTROLLER \
++	"fdt_pcie0_spis_fixup=pcie_addr=40400000; run fdt_pcie_set_gic; \0" \
++	"fdt_pcie1_spis_fixup=pcie_addr=44100000; run fdt_pcie_set_gic; \0"
++#endif
++
+ #include <configs/s32-gen1.h>
+ 
+ #if !defined(CONFIG_PRAM) && !defined(CONFIG_S32_SKIP_RELOC)
+diff --git a/include/configs/s32r45.h b/include/configs/s32r45.h
+index 88b47cb261..ee49e28ee4 100644
+--- a/include/configs/s32r45.h
++++ b/include/configs/s32r45.h
+@@ -10,6 +10,12 @@
+ #ifndef __S32R45_H
+ #define __S32R45_H
+ 
++#ifdef CONFIG_PCIE_S32GEN1
++#define PCIE_MSIS_ENV_SETTINGS	\
++	PCIE_SET_MSI_CONTROLLER \
++	"fdt_pcie0_spis_fixup=pcie_addr=40400000; run fdt_pcie_set_gic; \0"
++#endif
++
+ #include <configs/s32-gen1.h>
+ 
+ #ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+-- 
+2.25.1
+

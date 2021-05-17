@@ -1,0 +1,40 @@
+From 50f759841d1024e051e556108569043db1890e5e Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Mon, 29 Mar 2021 16:47:56 +0300
+Subject: [PATCH 16/42] s32g3: include: Define MC_CGM6_MUXn
+
+Upstream-Status: Pending
+
+Issue: ALB-6496
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/clock/s32g3-clock.h | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+ create mode 100644 include/dt-bindings/clock/s32g3-clock.h
+
+diff --git a/include/dt-bindings/clock/s32g3-clock.h b/include/dt-bindings/clock/s32g3-clock.h
+new file mode 100644
+index 0000000000..b5f89a49db
+--- /dev/null
++++ b/include/dt-bindings/clock/s32g3-clock.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2021 NXP
++ */
++
++#ifndef __DT_BINDINGS_CLOCK_S32G3_H
++#define __DT_BINDINGS_CLOCK_S32G3_H
++
++#include <dt-bindings/clock/s32g-clock.h>
++
++#define S32G_CLK_MC_CGM6_MUX0		S32G_CLK(18)
++#define S32G_CLK_MC_CGM6_MUX1		S32G_CLK(19)
++#define S32G_CLK_MC_CGM6_MUX2		S32G_CLK(20)
++#define S32G_CLK_MC_CGM6_MUX3		S32G_CLK(21)
++
++#endif //__DT_BINDINGS_CLOCK_S32G3_H
+-- 
+2.25.1
+

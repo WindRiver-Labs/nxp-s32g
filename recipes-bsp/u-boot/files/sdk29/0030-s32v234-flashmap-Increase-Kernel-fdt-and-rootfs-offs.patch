@@ -1,0 +1,36 @@
+From 4c9a2e1440ed6ca1082f02f3833154bb87080084 Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Fri, 9 Apr 2021 08:52:55 +0300
+Subject: [PATCH 30/42] s32v234: flashmap: Increase Kernel fdt and rootfs
+ offsets
+
+In case of booting Linux Kernel version 5.10, the Kernel size
+increase from ~10MB to ~13MB.
+
+Upstream-Status: Pending
+
+Issue: ALB-6930
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 7e42eae2c0..684ff3ae8e 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -154,8 +154,8 @@
+ #  define RAMDISK_FLASH_ADDR	(CONFIG_SYS_FSL_FLASH0_BASE + 0xff0000)
+ #else
+ #  define KERNEL_FLASH_ADDR	(CONFIG_SYS_FSL_FLASH0_BASE + 0x100000)
+-#  define FDT_FLASH_ADDR	(CONFIG_SYS_FSL_FLASH0_BASE + 0xb00000)
+-#  define RAMDISK_FLASH_ADDR	(CONFIG_SYS_FSL_FLASH0_BASE + 0xc00000)
++#  define FDT_FLASH_ADDR	(CONFIG_SYS_FSL_FLASH0_BASE + 0xe00000)
++#  define RAMDISK_FLASH_ADDR	(CONFIG_SYS_FSL_FLASH0_BASE + 0xf00000)
+ #endif
+ 
+ #if defined(CONFIG_ENV_IS_IN_FLASH) || defined(CONFIG_ENV_IS_IN_SPI_FLASH)
+-- 
+2.25.1
+

@@ -1,0 +1,78 @@
+From f63bcdafb054840286f50a436543a608d33f52e3 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 9 Apr 2021 15:32:59 +0300
+Subject: [PATCH 31/42] s32: Lower the value of initrd_high
+
+initrd images cannot be copied to the highest possible address in
+the first bank of DRAM because of OPTEE and TF-A images which require
+at least 22 MB.
+
+Upstream-Status: Pending
+
+Issue: ALB-6440
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h      | 11 ++++++++++-
+ include/configs/s32g274a.h |  9 ++++++++-
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 684ff3ae8e..4db1d9750e 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -412,6 +412,15 @@
+ #define DDR_LIMIT0 ""
+ #endif
+ 
++#define INITRD_HIGH_DEFAULT 0xffffffff
++
++/* Leave room for TF-A & OPTEE */
++#if defined(CONFIG_S32_ATF_BOOT_FLOW)
++#define INITRD_HIGH 0xFE7FFFFF
++#else
++#define INITRD_HIGH INITRD_HIGH_DEFAULT
++#endif
++
+ #define CONFIG_EXTRA_ENV_SETTINGS \
+ 	CONFIG_BOARD_EXTRA_ENV_SETTINGS  \
+ 	CONFIG_DCU_EXTRA_ENV_SETTINGS \
+@@ -439,7 +448,7 @@
+ 	"ramdisk=" __stringify(RAMDISK_NAME) "\0"\
+ 	"console=ttyLF" __stringify(CONFIG_FSL_LINFLEX_MODULE) "\0" \
+ 	"fdt_high=0xa0000000\0" \
+-	"initrd_high=0xffffffff\0" \
++	"initrd_high=" __stringify(INITRD_HIGH) "\0" \
+ 	"fdt_file="  __stringify(FDT_FILE) "\0" \
+ 	"fdt_addr=" __stringify(FDT_ADDR) "\0" \
+ 	"ramdisk_addr=" __stringify(RAMDISK_ADDR) "\0" \
+diff --git a/include/configs/s32g274a.h b/include/configs/s32g274a.h
+index d8c59eafba..cd3f246321 100644
+--- a/include/configs/s32g274a.h
++++ b/include/configs/s32g274a.h
+@@ -18,14 +18,21 @@
+ #endif
+ 
+ #include <configs/s32-gen1.h>
++#include <linux/sizes.h>
+ 
+-#if !defined(CONFIG_PRAM) && !defined(CONFIG_S32_SKIP_RELOC)
++#if !defined(CONFIG_PRAM) && defined(CONFIG_S32_ATF_BOOT_FLOW)
+ 
+ /* 24 MB covering the following:
+  *  - 22 MB for optee_os + shared memory between optee_os and linux kernel
+  *  - 2 MB for the Secure Monitor
+  */
+ #define CONFIG_PRAM	24576	/* 24MB */
++
++#ifndef __ASSEMBLY__
++_Static_assert(CONFIG_PRAM * SZ_1K + INITRD_HIGH == INITRD_HIGH_DEFAULT,
++	       "Please adjust INITRD_HIGH when booting with TF-A");
++#endif
++
+ #endif
+ 
+ #if defined(CONFIG_TARGET_S32G274AEVB) && defined(CONFIG_USB)
+-- 
+2.25.1
+

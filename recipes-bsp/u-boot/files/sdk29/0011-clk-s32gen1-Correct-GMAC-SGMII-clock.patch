@@ -1,0 +1,41 @@
+From 23773f1c5da0f692ef68609ac3e4e783e049b312 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 31 Mar 2021 14:05:17 +0300
+Subject: [PATCH 11/42] clk: s32gen1: Correct GMAC SGMII clock
+
+Upstream-Status: Pending
+
+Issue: ALB-6460
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/clk/s32/s32gen1_scmi_ids.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/clk/s32/s32gen1_scmi_ids.c b/drivers/clk/s32/s32gen1_scmi_ids.c
+index cf19b83fb2..fce1ce5083 100644
+--- a/drivers/clk/s32/s32gen1_scmi_ids.c
++++ b/drivers/clk/s32/s32gen1_scmi_ids.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #include <dt-bindings/clock/s32gen1-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
+@@ -117,8 +117,9 @@ static int set_gmac_rx_parent(struct clk *clk)
+ 	u32 rx_id;
+ 	u32 clk_id = clk->id;
+ 
+-	if (clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_SGMII ||
+-	    clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_RGMII) {
++	if (clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_SGMII) {
++		rx_id = S32GEN1_CLK_SERDES0_LANE0_CDR;
++	} else if (clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_RGMII) {
+ 		rx_id = S32GEN1_CLK_GMAC0_EXT_RX;
+ 	} else {
+ 		pr_err("Invalid GMAC RX mode\n");
+-- 
+2.25.1
+

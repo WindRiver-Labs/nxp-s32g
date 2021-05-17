@@ -1,0 +1,726 @@
+From 83e2231e3305978408c8ff099e100da8c1000e93 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 25 Mar 2021 15:22:44 +0200
+Subject: [PATCH 36/42] s32g: fdt: Amend SerDes settings
+
+This commit amends Linux dtb with SerDes specific settings based on
+'hwconfig' variable.
+
+Upstream-Status: Pending
+
+Issue: ALB-6623
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/fdt.c                  | 380 +++++++++++++++++-
+ .../asm/arch-s32/s32-gen1/serdes_hwconfig.h   | 104 +++++
+ .../asm/arch-s32/s32-gen1/serdes_regs.h       |  87 +---
+ drivers/pci/serdes_s32gen1.c                  |  47 ++-
+ 4 files changed, 531 insertions(+), 87 deletions(-)
+ create mode 100644 arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h
+
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index 7fe4801a38..0ef266a257 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -12,11 +12,31 @@
+ #include <asm/io.h>
+ #include <asm/arch/siul.h>
+ #include <linux/sizes.h>
+-#include <errno.h>
++#include <hwconfig.h>
++#include <asm/arch-s32/s32-gen1/serdes_hwconfig.h>
++#include <dt-bindings/phy/phy.h>
++#include <linux/ctype.h>
+ #include "mp.h"
+ 
+ #define ID_TO_CORE(ID)	(((ID) & 3) | ((ID) >> 7))
+ 
++#define PCIE_ALIAS_FMT		"pcie%d"
++#define PCIE_ALIAS_SIZE		sizeof(PCIE_ALIAS_FMT)
++
++#define SERDES_ALIAS_FMT	"serdes%d"
++#define SERDES_ALIAS_SIZE	sizeof(SERDES_ALIAS_FMT)
++
++#define SERDES_EXT_PATH_FMT		"/clocks/serdes_%d_ext"
++#define SERDES_EXT_PATH_FMT_SIZE	sizeof(SERDES_EXT_PATH_FMT)
++/* Add some space for SerDes ID */
++#define SERDES_EXT_PATH_SIZE		(SERDES_EXT_PATH_FMT_SIZE + 2)
++
++#define SERDES_EXT_CLK			"ext"
++#define SERDES_EXT_SIZE			sizeof(SERDES_EXT_CLK)
++
++#define SERDES_LINE_NAME_FMT	"serdes_lane%d"
++#define SERDES_LINE_NAME_LEN	sizeof(SERDES_LINE_NAME_FMT)
++
+ #if defined(CONFIG_TARGET_S32G274AEVB) || defined(CONFIG_TARGET_S32G274ARDB)
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #endif
+@@ -500,6 +520,361 @@ static void ft_fixup_scmi(void *blob)
+ }
+ #endif
+ 
++#ifdef CONFIG_NXP_S32G2XX
++static int fdt_alias2node(void *blob, const char *alias_fmt, int alias_id)
++{
++	const char *alias_path;
++	char alias_name[strlen(alias_fmt) + 1];
++	int nodeoff;
++
++	sprintf(alias_name, alias_fmt, alias_id);
++
++	alias_path = fdt_get_alias(blob, alias_name);
++	if (!alias_path) {
++		pr_err("Failed to get '%s' alias\n", alias_name);
++		return -EINVAL;
++	}
++
++	nodeoff = fdt_path_offset(blob, alias_path);
++	if (nodeoff < 0)
++		pr_err("Failed to get offset of '%s' node\n", alias_path);
++
++	return nodeoff;
++}
++
++static int set_pcie_mode(void *blob, int nodeoff, int id)
++{
++	int ret;
++	const char *compatible;
++	enum serdes_dev_type pcie_mode;
++
++	pcie_mode = s32_serdes_get_mode_from_hwconfig(id);
++	if (pcie_mode & PCIE_EP)
++		compatible = "fsl,s32gen1-pcie-ep";
++	else
++		compatible = "fsl,s32gen1-pcie";
++
++	ret = fdt_setprop(blob, nodeoff, "compatible", compatible,
++			  strlen(compatible) + 1);
++	if (ret) {
++		pr_err("Failed to set PCIE compatible: %s\n",
++		       fdt_strerror(ret));
++		return ret;
++	}
++
++	return 0;
++}
++
++static int add_serdes_lines(void *blob, int id, int lanes, uint32_t phandle)
++{
++	char serdes_lane[SERDES_LINE_NAME_LEN];
++	int i, ret, nodeoff;
++
++	nodeoff = fdt_alias2node(blob, PCIE_ALIAS_FMT, id);
++	if (nodeoff < 0)
++		return nodeoff;
++
++	ret = fdt_setprop_u32(blob, nodeoff, "num-lanes", lanes);
++	if (ret)
++		pr_err("Failed to set 'num-lanes'\n");
++
++	for (i = 0; i < lanes; i++) {
++		sprintf(serdes_lane, SERDES_LINE_NAME_FMT, i);
++		ret = fdt_appendprop_string(blob, nodeoff, "phy-names",
++					    serdes_lane);
++		if (ret) {
++			pr_err("Failed to append serdes lane to 'phy-names': %s\n",
++			       fdt_strerror(ret));
++			return ret;
++		}
++
++		ret = fdt_appendprop_u32(blob, nodeoff, "phys", phandle);
++		if (ret) {
++			pr_err("Failed to append serdes phandle to 'phys': %s\n",
++			       fdt_strerror(ret));
++			return ret;
++		}
++
++		ret = fdt_appendprop_u32(blob, nodeoff, "phys", PHY_TYPE_PCIE);
++		if (ret) {
++			pr_err("Failed to append PHY type to 'phys': %s\n",
++			       fdt_strerror(ret));
++			return ret;
++		}
++
++		ret = fdt_appendprop_u32(blob, nodeoff, "phys", id);
++		if (ret) {
++			pr_err("Failed to append PCIE instance to 'phys': %s\n",
++			       fdt_strerror(ret));
++			return ret;
++		}
++
++		ret = fdt_appendprop_u32(blob, nodeoff, "phys", i);
++		if (ret) {
++			pr_err("Failed to append SerDes line to 'phys': %s\n",
++			       fdt_strerror(ret));
++			return ret;
++		}
++	}
++
++	return 0;
++}
++
++static int set_serdes_lines(void *blob, int id)
++{
++	enum serdes_mode mode;
++	u32 phandle;
++	int serdes_off, ret, lanes = 0;
++
++	mode = s32_serdes_get_op_mode_from_hwconfig(id);
++	if (mode == SERDES_MODE_PCIE_PCIE)
++		lanes = 2;
++
++	if (mode == SERDES_MODE_PCIE_SGMII0 || mode == SERDES_MODE_PCIE_SGMII1)
++		lanes = 1;
++
++	if (!lanes) {
++		pr_err("Invalid PCIe%d lanes config\n", id);
++		return -EINVAL;
++	}
++
++	serdes_off = fdt_alias2node(blob, SERDES_ALIAS_FMT, id);
++	if (serdes_off < 0)
++		return serdes_off;
++
++	phandle = fdt_get_phandle(blob, serdes_off);
++	if (!phandle) {
++		ret = fdt_generate_phandle(blob, &phandle);
++		if (ret < 0) {
++			pr_err("Failed to generate a new phandle for %s%d\n",
++			       SERDES_ALIAS_FMT, id);
++			return ret;
++		}
++
++		ret = fdtdec_set_phandle(blob, serdes_off, phandle);
++		if (ret < 0) {
++			pr_err("Failed to set phandle for node: %s%d\n",
++			       SERDES_ALIAS_FMT, id);
++			return ret;
++		}
++	}
++
++	ret = add_serdes_lines(blob, id, lanes, phandle);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static int prepare_pcie_node(void *blob, int id)
++{
++	int ret, nodeoff;
++
++	nodeoff = fdt_alias2node(blob, PCIE_ALIAS_FMT, id);
++	if (nodeoff < 0)
++		return nodeoff;
++
++	if (is_pcie_enabled_in_hwconfig(id)) {
++		ret = fdt_status_okay(blob, nodeoff);
++		if (ret) {
++			pr_err("Failed to enable PCIe%d\n", id);
++			return ret;
++		}
++	} else {
++		ret = fdt_status_disabled(blob, nodeoff);
++		if (ret) {
++			pr_err("Failed to disable PCIe%d\n", id);
++			return ret;
++		}
++
++		/* Skip rest of the configuration if not enabled */
++		return 0;
++	}
++
++	ret = set_pcie_mode(blob, nodeoff, id);
++	if (ret)
++		return ret;
++
++	ret = set_serdes_lines(blob, id);
++	if (ret)
++		return ret;
++
++	return ret;
++}
++
++static int rename_ext_clk(void *blob, int nodeoff, int prop_pos)
++{
++	int i, ret, length, str_pos;
++	const char *list;
++	char *propval;
++
++	list = fdt_getprop(blob, nodeoff, "clock-names", &length);
++	if (!list)
++		return -EINVAL;
++
++	propval = malloc(length);
++	memcpy(propval, list, length);
++
++	/* Jump over elements before 'ext' clock */
++	for (str_pos = 0, i = 0; i < prop_pos; i++)
++		str_pos += strlen(&propval[str_pos]) + 1;
++
++	propval[str_pos] = toupper(propval[str_pos]);
++
++	ret = fdt_setprop(blob, nodeoff, "clock-names", propval,
++			  length);
++	if (ret) {
++		pr_err("Failed to rename 'ext' SerDes clock: %s\n",
++		       fdt_strerror(ret));
++		return ret;
++	}
++
++	free(propval);
++
++	return 0;
++}
++
++static int get_ext_clk_phandle(void *blob, int id, uint32_t *phandle)
++{
++	enum serdes_clock_fmhz mhz;
++	char ext_clk_path[SERDES_EXT_PATH_SIZE];
++	int clk_mhz, ext_off, ret;
++
++	mhz = s32_serdes_get_clock_fmhz_from_hwconfig(id);
++	if (mhz == CLK_100MHZ)
++		clk_mhz = 100;
++	else
++		clk_mhz = 125;
++
++	sprintf(ext_clk_path, SERDES_EXT_PATH_FMT, clk_mhz);
++
++	ext_off = fdt_path_offset(blob, ext_clk_path);
++	if (ext_off < 0) {
++		pr_err("Failed to get offset of '%s' node\n", ext_clk_path);
++		return ext_off;
++	}
++
++	*phandle = fdt_get_phandle(blob, ext_off);
++	if (!*phandle) {
++		ret = fdt_generate_phandle(blob, phandle);
++		if (ret < 0) {
++			pr_err("Failed to generate a new phandle for %s\n",
++			       ext_clk_path);
++			return ret;
++		}
++
++		ret = fdtdec_set_phandle(blob, ext_off, *phandle);
++		if (ret < 0) {
++			pr_err("Failed to set phandle for node: %s\n",
++			       ext_clk_path);
++			return ret;
++		}
++	}
++
++	return 0;
++}
++
++static int add_ext_clk(void *blob, int id)
++{
++	u32 phandle;
++	int ret, nodeoff;
++
++	ret = get_ext_clk_phandle(blob, id, &phandle);
++	if (ret)
++		return ret;
++
++	nodeoff = fdt_alias2node(blob, SERDES_ALIAS_FMT, id);
++	if (nodeoff < 0)
++		return nodeoff;
++
++	ret = fdt_appendprop_string(blob, nodeoff, "clock-names",
++				    SERDES_EXT_CLK);
++	if (ret) {
++		pr_err("Failed to append ext clock to 'clock-names'\n");
++		return ret;
++	}
++
++	ret = fdt_appendprop_u32(blob, nodeoff, "clocks", phandle);
++	if (ret) {
++		pr_err("Failed to append ext clock to 'clock-names'\n");
++		return ret;
++	}
++
++	return ret;
++}
++
++static int set_serdes_clk(void *blob, int id)
++{
++	enum serdes_clock clk = s32_serdes_get_clock_from_hwconfig(id);
++	int nodeoff, prop_pos;
++
++	nodeoff = fdt_alias2node(blob, SERDES_ALIAS_FMT, id);
++	if (nodeoff < 0)
++		return nodeoff;
++
++	prop_pos = fdt_stringlist_search(blob, nodeoff, "clock-names",
++					 SERDES_EXT_CLK);
++
++	if (clk == CLK_INT && prop_pos >= 0)
++		return rename_ext_clk(blob, nodeoff, prop_pos);
++
++	if (clk == CLK_EXT && prop_pos <= 0)
++		return add_ext_clk(blob, id);
++
++	return 0;
++}
++
++static int set_serdes_mode(void *blob, int id)
++{
++	int nodeoff, ret;
++	enum serdes_mode mode;
++
++	mode = s32_serdes_get_op_mode_from_hwconfig(id);
++	if (mode == SERDES_MODE_INVAL) {
++		pr_err("Invalid SerDes%d mode\n", id);
++		return -EINVAL;
++	}
++
++	nodeoff = fdt_alias2node(blob, SERDES_ALIAS_FMT, id);
++	if (nodeoff < 0)
++		return nodeoff;
++
++	ret = fdt_setprop_u32(blob, nodeoff, "fsl,sys-mode", mode);
++	if (ret)
++		pr_err("Failed to set 'fsl,sys-mode'\n");
++
++	return ret;
++}
++
++static void ft_fixup_serdes(void *blob)
++{
++	int ret, id;
++
++	/* Add some space for the following changes */
++	ret = fdt_increase_size(blob, 512);
++	if (ret < 0) {
++		pr_err("Could not increase size of device tree: %s\n",
++		       fdt_strerror(ret));
++		return;
++	}
++
++	for (id = 0; id <= 1; id++) {
++		ret = prepare_pcie_node(blob, id);
++		if (ret)
++			pr_err("Failed to set mode for PCIe%d\n", id);
++
++		ret = set_serdes_clk(blob, id);
++		if (ret)
++			pr_err("Failed to set the clock for SerDes%d\n", id);
++
++		ret = set_serdes_mode(blob, id);
++		if (ret)
++			pr_err("Failed to set mode for SerDes%d\n", id);
++	}
++}
++
++#endif
++
+ void ft_cpu_setup(void *blob, bd_t *bd)
+ {
+ #ifdef CONFIG_MP
+@@ -520,4 +895,7 @@ void ft_cpu_setup(void *blob, bd_t *bd)
+ #ifdef CONFIG_S32_ATF_BOOT_FLOW
+ 	ft_fixup_scmi(blob);
+ #endif
++#ifdef CONFIG_NXP_S32G2XX
++	ft_fixup_serdes(blob);
++#endif
+ }
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h
+new file mode 100644
+index 0000000000..67fede5c77
+--- /dev/null
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h
+@@ -0,0 +1,104 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/* Copyright 2021 NXP */
++
++#ifndef SERDES_HWCONFIG_H
++#define SERDES_HWCONFIG_H
++
++#include <linux/types.h>
++
++#define SERDES_CLK_SUBARG	"clock"
++#define   SERDES_EXT_CLK	"ext"
++#define   SERDES_INT_CLK	"int"
++
++enum serdes_clock {
++	CLK_EXT = 0,
++	CLK_INT
++};
++
++enum serdes_clock_fmhz {
++	CLK_100MHZ = 0,		/* Default */
++	CLK_125MHZ		/* For 2.5G mode */
++};
++
++enum serdes_dev_type {
++	SERDES_INVALID = -1,
++	PCIE_EP = 0x1, /* EP mode is 0x0, use 0x1 to allow us to use masks */
++	PCIE_RC = 0x4,
++	SGMII = 0x10, /* outside range of PE0_GEN_CTRL_1:DEVICE_TYPE */
++	/* TODO: If both PCIe/SGMII bifurcation modes are used, we may
++	 * need to use 2 SGMII modes - SGMII0 and SGMII1
++	 */
++};
++
++enum serdes_xpcs_mode {
++	SGMII_INAVALID = 0,
++	SGMII_XPCS0,		/* Combo mode PCIex1/SGMII(XPCS0) */
++	SGMII_XPCS1,		/* Combo mode PCIex1/SGMII(XPCS1) */
++	SGMII_XPCS0_XPCS1,	/* SGMII 2 x 1G mode */
++	SGMII_XPCS0_2G5,	/* SGMII 2.5G mode */
++	SGMII_XPCS_LAST = SGMII_XPCS0_2G5,
++};
++
++/**
++ * @brief	SerDes Subsystem Modes
++ *
++ * Based on doc from Synopsys:
++ *
++ * 000b - PCIe Gen3x2 mode
++ * 001b - PCIe Gen3x1 and SGMII 1G bifurcation mode
++ * 010b - PCIe Gen3x1 and SGMII 1G bifurcation mode
++ * 011b - Two SGMII 1G/2.5G bifurcation mode
++ *
++ * SerDes_0 working modes
++ * Mode Num-Name  PCIe        XPCS0     XPCS1     PHY        PHY        PHY Clk
++ *                                                lane 0     lane 1     (MHz)
++ * 0-PCIe only    X2 Gen3     N/A       N/A       PCIe Gen3  PCIe Gen3  100
++ * 1-PCIe/SGMII   PCIe X1     SGMII     N/A       PCIe       SGMII      100
++ * bifurcation    Gen2/3      1.25Gbps            Gen2/3     1.25Gbps
++ *                                                           (GMAC0)
++ * 2-PCIe/SGMII   PCIe X1     N/A       SGMII     PCIe       SGMII      100
++ * bifurcation    Gen2/3                1.25Gbps  Gen2/3     1.25Gbps   100
++ *                                                           (PFE_EMAC2)
++ * 3-SGMII only   N/A         SGMII     SGMII     SGMII      SGMII      100/125
++ *                            1.25Gbps  1.25Gbps  1.25Gbps   1.25Gbps
++ *                            3.125Gbps 3.125Gbps 3.125Gbps  3.125Gbps
++ *                                                (GMAC0)    (PFE_EMAC2)
++ *
++ * SerDes_1 working modes
++ * Mode Num-Name  PCIe        XPCS0     XPCS1     PHY        PHY        PHY Clk
++ *                                                lane 0     lane 1     (MHz)
++ * 0-PCIe only    X2 Gen3     N/A       N/A       PCIe Gen3  PCIe Gen3  100
++ * 1-PCIe/SGMII   PCIe X1     SGMII     N/A       PCIe       SGMII      100
++ * bifurcation    Gen2/3      1.25Gbps            Gen2/3     1.25Gbps
++ *                                                          (PFE_MAC0/PFE_MAC1)
++ * 2-PCIe/SGMII   PCIe X1     N/A       SGMII     PCIe       SGMII      100
++ * bifurcation    Gen2/3                1.25Gbps  Gen2/3     1.25Gbps   100
++ *                                                          (PFE_MAC0/PFE_MAC1)
++ * 3-SGMII only   N/A         SGMII     SGMII     SGMII      SGMII      100/125
++ *                            1.25Gbps  1.25Gbps  1.25Gbps   1.25Gbps
++ *                            3.125Gbps 3.125Gbps 3.125Gbps  3.125Gbps
++ *                                                (PFE_MAC0) (PFE_MAC0)
++ * TODO: Investigate which of the two PCIe/SGMII bifurcation modes are
++ * actually supported by S32G.
++ */
++enum serdes_mode {
++	SERDES_MODE_INVAL = -1,
++	/*	Lane0=PCIe, Lane1=PCIe */
++	SERDES_MODE_PCIE_PCIE = 0,
++	/*	Lane0=PCIe, Lane1=SGMII(XPCS0) (1G) */
++	SERDES_MODE_PCIE_SGMII0 = 1,
++	/*	Lane0=PCIe, Lane1=SGMII(XPCS1) (1G) */
++	SERDES_MODE_PCIE_SGMII1 = 2,
++	/*	Lane0=SGMII(1G/2.5G), Lane1=SGMII(1G/2.5G) */
++	SERDES_MODE_SGMII_SGMII = 3,
++	SERDES_MODE_MAX = SERDES_MODE_SGMII_SGMII
++};
++
++enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id);
++enum serdes_clock s32_serdes_get_clock_from_hwconfig(int id);
++enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id);
++enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id);
++enum serdes_mode s32_serdes_get_op_mode_from_hwconfig(int id);
++bool is_pcie_enabled_in_hwconfig(int id);
++
++#endif
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h
+index 7927b58925..1827779d6b 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * The SerDes module header file.
+  */
+@@ -8,92 +8,10 @@
+ #ifndef SERDES_REGS_H
+ #define SERDES_REGS_H
+ 
++#include <asm/arch-s32/s32-gen1/serdes_hwconfig.h>
+ #include "linux/types.h"
+ #include "linux/errno.h"
+ 
+-/**
+- * @brief	SerDes Subsystem Modes
+- *
+- * Based on doc from Synopsys:
+- *
+- * 000b - PCIe Gen3x2 mode
+- * 001b - PCIe Gen3x1 and SGMII 1G bifurcation mode
+- * 010b - PCIe Gen3x1 and SGMII 1G bifurcation mode
+- * 011b - Two SGMII 1G/2.5G bifurcation mode
+- *
+- * SerDes_0 working modes
+- * Mode Num-Name  PCIe        XPCS0     XPCS1     PHY        PHY        PHY Clk
+- *                                                lane 0     lane 1     (MHz)
+- * 0-PCIe only    X2 Gen3     N/A       N/A       PCIe Gen3  PCIe Gen3  100
+- * 1-PCIe/SGMII   PCIe X1     SGMII     N/A       PCIe       SGMII      100
+- * bifurcation    Gen2/3      1.25Gbps            Gen2/3     1.25Gbps
+- *                                                           (GMAC0)
+- * 2-PCIe/SGMII   PCIe X1     N/A       SGMII     PCIe       SGMII      100
+- * bifurcation    Gen2/3                1.25Gbps  Gen2/3     1.25Gbps   100
+- *                                                           (PFE_EMAC2)
+- * 3-SGMII only   N/A         SGMII     SGMII     SGMII      SGMII      100/125
+- *                            1.25Gbps  1.25Gbps  1.25Gbps   1.25Gbps
+- *                            3.125Gbps 3.125Gbps 3.125Gbps  3.125Gbps
+- *                                                (GMAC0)    (PFE_EMAC2)
+- *
+- * SerDes_1 working modes
+- * Mode Num-Name  PCIe        XPCS0     XPCS1     PHY        PHY        PHY Clk
+- *                                                lane 0     lane 1     (MHz)
+- * 0-PCIe only    X2 Gen3     N/A       N/A       PCIe Gen3  PCIe Gen3  100
+- * 1-PCIe/SGMII   PCIe X1     SGMII     N/A       PCIe       SGMII      100
+- * bifurcation    Gen2/3      1.25Gbps            Gen2/3     1.25Gbps
+- *                                                          (PFE_MAC0/PFE_MAC1)
+- * 2-PCIe/SGMII   PCIe X1     N/A       SGMII     PCIe       SGMII      100
+- * bifurcation    Gen2/3                1.25Gbps  Gen2/3     1.25Gbps   100
+- *                                                          (PFE_MAC0/PFE_MAC1)
+- * 3-SGMII only   N/A         SGMII     SGMII     SGMII      SGMII      100/125
+- *                            1.25Gbps  1.25Gbps  1.25Gbps   1.25Gbps
+- *                            3.125Gbps 3.125Gbps 3.125Gbps  3.125Gbps
+- *                                                (PFE_MAC0) (PFE_MAC0)
+- * TODO: Investigate which of the two PCIe/SGMII bifurcation modes are
+- * actually supported by S32G.
+- */
+-enum serdes_mode {
+-	/*	Lane0=PCIe, Lane1=PCIe */
+-	SERDES_MODE_PCIE_PCIE = 0,
+-	/*	Lane0=PCIe, Lane1=SGMII(XPCS0) (1G) */
+-	SERDES_MODE_PCIE_SGMII0 = 1,
+-	/*	Lane0=PCIe, Lane1=SGMII(XPCS1) (1G) */
+-	SERDES_MODE_PCIE_SGMII1 = 2,
+-	/*	Lane0=SGMII(1G/2.5G), Lane1=SGMII(1G/2.5G) */
+-	SERDES_MODE_SGMII_SGMII = 3,
+-	SERDES_MODE_MAX = SERDES_MODE_SGMII_SGMII
+-};
+-
+-enum serdes_dev_type {
+-	SERDES_INVALID = -1,
+-	PCIE_EP = 0x1, /* EP mode is 0x0, use 0x1 to allow us to use masks */
+-	PCIE_RC = 0x4,
+-	SGMII = 0x10, /* outside range of PE0_GEN_CTRL_1:DEVICE_TYPE */
+-	/* TODO: If both PCIe/SGMII bifurcation modes are used, we may
+-	 * need to use 2 SGMII modes - SGMII0 and SGMII1
+-	 */
+-};
+-
+-enum serdes_clock {
+-	CLK_EXT = 0,
+-	CLK_INT
+-};
+-
+-enum serdes_clock_fmhz {
+-	CLK_100MHZ = 0,		/* Default */
+-	CLK_125MHZ		/* For 2.5G mode */
+-};
+-
+-enum serdes_xpcs_mode {
+-	SGMII_INAVALID = 0,
+-	SGMII_XPCS0,		/* Combo mode PCIex1/SGMII(XPCS0) */
+-	SGMII_XPCS1,		/* Combo mode PCIex1/SGMII(XPCS1) */
+-	SGMII_XPCS0_XPCS1,	/* SGMII 2 x 1G mode */
+-	SGMII_XPCS0_2G5,	/* SGMII 2.5G mode */
+-	SGMII_XPCS_LAST = SGMII_XPCS0_2G5,
+-};
+-
+ /* use a mask to fix DEVICE_TYPE for EP */
+ #define SERDES_MODE(mode) (mode & 0xe)
+ #define IS_SERDES_PCIE(mode) (mode & (PCIE_EP | PCIE_RC))
+@@ -315,7 +233,6 @@ enum serdes_xpcs_mode {
+ #define RAWLANE0_DIG_PCS_XF_RX_EQ_DELTA_IQ_OVRD_IN	(0x3019)
+ #define RAWLANE1_DIG_PCS_XF_RX_EQ_DELTA_IQ_OVRD_IN	(0x3119)
+ 
+-enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id);
+ int s32_serdes_set_mode(void *dbi, int id, enum serdes_mode mode);
+ enum serdes_mode s32_get_serdes_mode_from_target(void *dbi, int id);
+ 
+diff --git a/drivers/pci/serdes_s32gen1.c b/drivers/pci/serdes_s32gen1.c
+index d7aaa74054..3db52d788f 100644
+--- a/drivers/pci/serdes_s32gen1.c
++++ b/drivers/pci/serdes_s32gen1.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  * S32Gen1 PCIe driver
+  */
+ 
+@@ -411,6 +411,23 @@ __weak int s32_eth_xpcs_init(void __iomem *dbi, int id,
+ 	return -ENODEV;
+ }
+ 
++bool is_pcie_enabled_in_hwconfig(int id)
++{
++	char pcie_name[10];
++	enum serdes_dev_type pcie_mode;
++
++	sprintf(pcie_name, "pcie%d", id);
++
++	if (!hwconfig_arg(pcie_name, NULL))
++		return false;
++
++	pcie_mode = s32_serdes_get_mode_from_hwconfig(id);
++	if ((pcie_mode & PCIE_EP) || (pcie_mode & PCIE_RC))
++		return true;
++
++	return false;
++}
++
+ enum serdes_dev_type s32_serdes_get_mode_from_hwconfig(int id)
+ {
+ 	char pcie_name[10];
+@@ -484,6 +501,34 @@ enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
+ 	return clk;
+ }
+ 
++enum serdes_mode s32_serdes_get_op_mode_from_hwconfig(int id)
++{
++	enum serdes_dev_type mod;
++	enum serdes_xpcs_mode xpcs_mode;
++
++	/* Mode 3 */
++	mod = s32_serdes_get_mode_from_hwconfig(id);
++	if (mod == SGMII)
++		return SERDES_MODE_SGMII_SGMII;
++
++	/* Mode 0 */
++	if (mod == PCIE_EP || mod == PCIE_RC)
++		return SERDES_MODE_PCIE_PCIE;
++
++	/* Not mode 1 || 2 */
++	if ((mod != (PCIE_EP | SGMII)) && (mod != (PCIE_RC | SGMII)))
++		return SERDES_MODE_INVAL;
++
++	xpcs_mode = s32_serdes_get_xpcs_cfg_from_hwconfig(id);
++	if (xpcs_mode == SGMII_XPCS0)
++		return SERDES_MODE_PCIE_SGMII0;
++
++	if (xpcs_mode == SGMII_XPCS1)
++		return SERDES_MODE_PCIE_SGMII1;
++
++	return SERDES_MODE_INVAL;
++}
++
+ static bool s32_serdes_is_xpcs_cfg_valid(struct s32_serdes *pcie)
+ {
+ 	bool ret = true;
+-- 
+2.25.1
+

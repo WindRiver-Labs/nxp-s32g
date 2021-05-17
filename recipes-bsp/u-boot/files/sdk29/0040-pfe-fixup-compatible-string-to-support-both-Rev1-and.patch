@@ -1,0 +1,56 @@
+From d388df3d799c27e5ca9bacc9fe272bceba68f9f6 Mon Sep 17 00:00:00 2001
+From: Claudiu Manoil <claudiu.manoil@nxp.com>
+Date: Fri, 23 Apr 2021 19:03:57 +0300
+Subject: [PATCH 40/42] pfe: fixup 'compatible' string to support both Rev1 and
+ Rev2
+
+For Rev1 the cut1.1 kernel driver, containing all the pfe cut1.1
+errata workarounds, requires the "fsl,s32g274a-pfeng-cut1.1"
+compatible string.
+
+Upstream-Status: Pending
+
+Issue: ALB-7075
+Signed-off-by: Claudiu Manoil <claudiu.manoil@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/eth.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/board/freescale/s32-gen1/eth.c b/board/freescale/s32-gen1/eth.c
+index 3372488911..316fe77dbc 100644
+--- a/board/freescale/s32-gen1/eth.c
++++ b/board/freescale/s32-gen1/eth.c
+@@ -125,6 +125,15 @@ static void ft_enet_pfe_emac_fixup(u32 idx, void *fdt)
+ 	}
+ }
+ 
++static void ft_enet_compatible_fixup(void *fdt, int nodeoff)
++{
++	if (!is_s32gen1_soc_rev1())
++		return;
++
++	fdt_setprop_string(fdt, nodeoff, "compatible",
++			   "fsl,s32g274a-pfeng-cut1.1");
++}
++
+ static void ft_enet_coherent_fixup(void *fdt, int nodeoff)
+ {
+ 	if (is_s32gen1_soc_rev1())
+@@ -170,8 +179,12 @@ void ft_enet_fixup(void *fdt)
+ 			ft_enet_pfe_emac_fixup(1, fdt);
+ 			ft_enet_pfe_emac_fixup(2, fdt);
+ 
+-			/* Remove dma-coherent for Rev 1*/
++			/*
++			 * Remove dma-coherent and change 'compatible'
++			 * for Rev 1
++			 */
+ 			ft_enet_coherent_fixup(fdt, nodeoff);
++			ft_enet_compatible_fixup(fdt, nodeoff);
+ 		}
+ 	}
+ #endif /* CONFIG_IS_ENABLED(FSL_PFENG) */
+-- 
+2.25.1
+

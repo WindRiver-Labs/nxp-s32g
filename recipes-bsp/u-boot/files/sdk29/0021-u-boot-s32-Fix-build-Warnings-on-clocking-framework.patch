@@ -1,0 +1,57 @@
+From 526cc3413f7eee210180c9b763ac43ce6f600a0d Mon Sep 17 00:00:00 2001
+From: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Date: Wed, 24 Mar 2021 13:34:53 +0200
+Subject: [PATCH 21/42] u-boot-s32: Fix build Warnings on clocking framework
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+During merge of 'release/bsp28.0-2020.04' branch with
+'develop-2020.04' branch, some commits require changes
+in order to be integrated correctly.
+
+As for now, 'develop-2020.04' branch, compiles with
+the following warnings:
+
+drivers/clk/s32/s32g274a_clk.c: In function ‘s32gen1_plat_set_rate’:
+drivers/clk/s32/s32g274a_clk.c:17:6: warning: implicit declaration
+of function ‘is_qspi_clk’ [-Wimplicit-function-declaration]
+if (is_qspi_clk(c->id)) {
+^~~~~~~~~~~
+drivers/clk/s32/s32g274a_clk.c:18:7: warning: implicit declaration
+of function ‘is_qspi2x_clk’ [-Wimplicit-function-declaration]
+if (is_qspi2x_clk(c->id))
+^~~~~~~~~~~~~
+
+The above issue is caused by the integration of (commit id: df6b8e8ad41)
+on top of (commit id: 0ab5366996da)
+
+The second commit was not present on 'release/bsp28.0-2020.04' branch,
+where the first commit was developed. Hence the issue observed.
+
+This commit fixes the above issue.
+
+Upstream-Status: Pending
+
+Issue: ALB-6702
+Signed-off-by: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/clk/s32/s32g274a_clk.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/clk/s32/s32g274a_clk.c b/drivers/clk/s32/s32g274a_clk.c
+index 9427b80d12..3ea1e7354c 100644
+--- a/drivers/clk/s32/s32g274a_clk.c
++++ b/drivers/clk/s32/s32g274a_clk.c
+@@ -5,6 +5,7 @@
+ #include <asm/arch/siul.h>
+ #include <dt-bindings/clock/s32g-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
++#include <s32gen1_clk_funcs.h>
+ #include <s32gen1_scmi_clk.h>
+ 
+ ulong s32gen1_plat_set_rate(struct clk *c, ulong rate)
+-- 
+2.25.1
+

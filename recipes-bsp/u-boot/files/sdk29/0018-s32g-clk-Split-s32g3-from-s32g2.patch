@@ -1,0 +1,861 @@
+From dbac97f89d153ac1f03837ba3964233bed892e39 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Mon, 1 Feb 2021 11:54:16 +0200
+Subject: [PATCH 18/42] s32g: clk: Split s32g3 from s32g2
+
+Upstream-Status: Pending
+
+Issue: ALB-6121
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g.dtsi                    |   4 +-
+ drivers/clk/s32/Makefile                      |   4 +-
+ drivers/clk/s32/clk_dump/Makefile             |   4 +-
+ ...{s32g274a_clk_names.c => s32g_clk_names.c} |   4 +-
+ drivers/clk/s32/s32g274a_clk.c                | 326 +-----------------
+ drivers/clk/s32/s32g398a_clk.c                |  14 +
+ drivers/clk/s32/s32g_clk.c                    | 326 ++++++++++++++++++
+ .../{s32g274a_scmi_ids.c => s32g_scmi_ids.c}  |   6 +-
+ drivers/clk/s32/s32gen1_clk.c                 |   2 -
+ drivers/net/pfeng/pfeng_cmd.c                 |   2 +-
+ .../clock/{s32g274a-clock.h => s32g-clock.h}  |   0
+ ...32g274a-scmi-clock.h => s32g-scmi-clock.h} |   0
+ 12 files changed, 353 insertions(+), 339 deletions(-)
+ rename drivers/clk/s32/clk_dump/{s32g274a_clk_names.c => s32g_clk_names.c} (97%)
+ create mode 100644 drivers/clk/s32/s32g398a_clk.c
+ create mode 100644 drivers/clk/s32/s32g_clk.c
+ rename drivers/clk/s32/{s32g274a_scmi_ids.c => s32g_scmi_ids.c} (98%)
+ rename include/dt-bindings/clock/{s32g274a-clock.h => s32g-clock.h} (100%)
+ rename include/dt-bindings/clock/{s32g274a-scmi-clock.h => s32g-scmi-clock.h} (100%)
+
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index e995eb5f3c..23a4eaccbc 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -7,8 +7,8 @@
+  * the Free Software Foundation; either version 2 of the License, or
+  * (at your option) any later version.
+  */
+-#include <dt-bindings/clock/s32g274a-clock.h>
+-#include <dt-bindings/clock/s32g274a-scmi-clock.h>
++#include <dt-bindings/clock/s32g-clock.h>
++#include <dt-bindings/clock/s32g-scmi-clock.h>
+ #include <dt-bindings/pinctrl/s32g274a-pinctrl.h>
+ 
+ /dts-v1/;
+diff --git a/drivers/clk/s32/Makefile b/drivers/clk/s32/Makefile
+index 4f3796ced3..924bba008a 100644
+--- a/drivers/clk/s32/Makefile
++++ b/drivers/clk/s32/Makefile
+@@ -11,8 +11,8 @@ obj-y += early_clocks.o
+ obj-y += clk_utils.o
+ obj-y += s32gen1_scmi_ids.o
+ obj-y += s32gen1_scmi_clk.o
+-obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk.o s32g274a_scmi_ids.o
+-obj-$(CONFIG_NXP_S32G3XX) += s32g274a_clk.o s32g274a_scmi_ids.o
++obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk.o s32g_clk.o s32g_scmi_ids.o
++obj-$(CONFIG_NXP_S32G3XX) += s32g398a_clk.o s32g_clk.o s32g_scmi_ids.o
+ obj-$(CONFIG_NXP_S32R45) += s32r45_clk.o s32r45_scmi_ids.o
+ obj-$(CONFIG_CMD_CLK) += clk_dump/
+ 
+diff --git a/drivers/clk/s32/clk_dump/Makefile b/drivers/clk/s32/clk_dump/Makefile
+index 6afcbc7325..92bd4878f5 100644
+--- a/drivers/clk/s32/clk_dump/Makefile
++++ b/drivers/clk/s32/clk_dump/Makefile
+@@ -5,8 +5,8 @@
+ #
+ obj-y += clk_dump.o
+ obj-y += s32gen1_clk_names.o
+-obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk_names.o
+-obj-$(CONFIG_NXP_S32G3XX) += s32g274a_clk_names.o
++obj-$(CONFIG_NXP_S32G2XX) += s32g_clk_names.o
++obj-$(CONFIG_NXP_S32G3XX) += s32g_clk_names.o
+ obj-$(CONFIG_NXP_S32R45) += s32r45_clk_names.o
+ 
+ ccflags-y += -Idrivers/clk/s32/include
+diff --git a/drivers/clk/s32/clk_dump/s32g274a_clk_names.c b/drivers/clk/s32/clk_dump/s32g_clk_names.c
+similarity index 97%
+rename from drivers/clk/s32/clk_dump/s32g274a_clk_names.c
+rename to drivers/clk/s32/clk_dump/s32g_clk_names.c
+index 13ef3fc55d..0088474f8a 100644
+--- a/drivers/clk/s32/clk_dump/s32g274a_clk_names.c
++++ b/drivers/clk/s32/clk_dump/s32g_clk_names.c
+@@ -1,8 +1,8 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+-#include <dt-bindings/clock/s32g274a-clock.h>
++#include <dt-bindings/clock/s32g-clock.h>
+ #include <linux/kernel.h>
+ #include <s32gen1_clk_dump.h>
+ 
+diff --git a/drivers/clk/s32/s32g274a_clk.c b/drivers/clk/s32/s32g274a_clk.c
+index c37e8553d8..9427b80d12 100644
+--- a/drivers/clk/s32/s32g274a_clk.c
++++ b/drivers/clk/s32/s32g274a_clk.c
+@@ -3,340 +3,17 @@
+  * Copyright 2020-2021 NXP
+  */
+ #include <asm/arch/siul.h>
+-#include <dt-bindings/clock/s32g274a-clock.h>
++#include <dt-bindings/clock/s32g-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
+-#include <s32gen1_clk_funcs.h>
+-#include <s32gen1_clk_modules.h>
+ #include <s32gen1_scmi_clk.h>
+-#include <s32gen1_shared_clks.h>
+-
+-#define ARR_CLK(N)	S32G274A_CLK_INDEX(N)
+-
+-/* XBAR_2X */
+-static struct s32gen1_part_block llce_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm0_mux0_clk, 3,
+-					     s32gen1_part_block0);
+-struct s32gen1_clk xbar_2x_clk =
+-		S32GEN1_FREQ_MODULE_CLK(llce_block, 48 * MHZ, 800 * MHZ);
+-
+-/* PER_CLK */
+-static struct s32gen1_clk per_clk =
+-		S32GEN1_FREQ_MODULE_CLK(per_div, 0, 80 * MHZ);
+-
+-/* CAN_PE_CLK */
+-static struct s32gen1_clk can_pe_clk =
+-		S32GEN1_CHILD_CLK(cgm0_mux7_clk, 40 * MHZ, 80 * MHZ);
+-
+-/* PFE_MAC0_TX_DIV */
+-static struct s32gen1_fixed_clock pfe_mac0_ext_tx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac0_ext_tx_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac0_ext_tx);
+-
+-static struct s32gen1_fixed_clock pfe_mac0_ext_ref =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac0_ext_ref_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac0_ext_ref);
+-
+-static struct s32gen1_fixed_clock serdes1_lane0_ext_tx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk serdes1_lane0_ext_tx_clk =
+-		S32GEN1_MODULE_CLK(serdes1_lane0_ext_tx);
+-
+-static struct s32gen1_mux cgm2_mux1 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 1, 5,
+-				 S32GEN1_CLK_FIRC,
+-				 S32GEN1_CLK_PERIPH_PLL_PHI5,
+-				 S32G274A_CLK_PFE_MAC0_EXT_TX,
+-				 S32G274A_CLK_PFE_MAC0_EXT_REF,
+-				 S32G274A_CLK_SERDES1_LANE0_TX);
+-static struct s32gen1_clk cgm2_mux1_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux1);
+-static struct s32gen1_cgm_div cgm2_mux1_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux1_clk, 0);
+-static struct s32gen1_part_block pfe0_tx_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux1_div, 2,
+-					     s32gen1_part_block0);
+-static struct s32gen1_clk pfe_mac0_tx_div_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe0_tx_block, 2500000, 312500000);
+-
+-/* PFE_MAC0_REF_DIV */
+-static struct s32gen1_mux cgm2_mux7 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 7, 2,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_PFE_MAC0_EXT_REF);
+-static struct s32gen1_clk cgm2_mux7_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux7);
+-static struct s32gen1_cgm_div cgm2_mux7_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux7_clk, 0);
+-static struct s32gen1_part_block pfe0_ref_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux7_div, 2,
+-					     s32gen1_part_block0);
+-static struct s32gen1_clk pfe_mac0_ref_div_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe0_ref_block, 0, 50 * MHZ);
+-
+-/* PFE_MAC0_RX */
+-static struct s32gen1_fixed_clock serdes1_lane0_cdr =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk serdes1_lane0_cdr_clk =
+-		S32GEN1_MODULE_CLK(serdes1_lane0_cdr);
+-
+-static struct s32gen1_fixed_clock pfe_mac0_ext_rx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac0_ext_rx_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac0_ext_rx);
+-
+-static struct s32gen1_mux cgm2_mux4 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 4, 4,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_PFE_MAC0_EXT_RX,
+-				 S32G274A_CLK_SERDES1_LANE0_CDR,
+-				 S32G274A_CLK_PFE_MAC0_REF_DIV);
+-static struct s32gen1_clk cgm2_mux4_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux4);
+-static struct s32gen1_part_block pfe0_rx_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux4_clk, 2,
+-					     s32gen1_part_block0);
+-static struct s32gen1_clk pfe_mac0_rx_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe0_rx_block, 2500000, 312500000);
+-
+-/* PFE_MAC1_TX */
+-static struct s32gen1_fixed_clock pfe_mac1_ext_tx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac1_ext_tx_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac1_ext_tx);
+-
+-static struct s32gen1_fixed_clock pfe_mac1_ext_ref =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac1_ext_ref_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac1_ext_ref);
+-
+-static struct s32gen1_mux cgm2_mux2 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 2, 5,
+-				 S32GEN1_CLK_FIRC,
+-				 S32GEN1_CLK_PERIPH_PLL_PHI5,
+-				 S32G274A_CLK_PFE_MAC1_EXT_TX,
+-				 S32G274A_CLK_PFE_MAC1_EXT_REF,
+-				 S32G274A_CLK_SERDES1_LANE1_TX);
+-static struct s32gen1_clk cgm2_mux2_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux2);
+-static struct s32gen1_cgm_div cgm2_mux2_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux2_clk, 0);
+-static struct s32gen1_part_block pfe1_tx_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux2_div, 2,
+-					     s32gen1_part_block1);
+-static struct s32gen1_clk pfe_mac1_tx_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe1_tx_block, 2500000, 125 * MHZ);
+-
+-/* PFE_MAC1_REF_DIV */
+-static struct s32gen1_mux cgm2_mux8 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 8, 2,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_PFE_MAC1_EXT_REF);
+-static struct s32gen1_clk cgm2_mux8_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux8);
+-static struct s32gen1_cgm_div cgm2_mux8_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux8_clk, 0);
+-static struct s32gen1_part_block pfe1_ref_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux8_div, 2,
+-					     s32gen1_part_block1);
+-static struct s32gen1_clk pfe_mac1_ref_div_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe1_ref_block, 0, 50 * MHZ);
+-
+-/* PFE_MAC1_RX */
+-static struct s32gen1_fixed_clock pfe_mac1_ext_rx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac1_ext_rx_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac1_ext_rx);
+-
+-static struct s32gen1_mux cgm2_mux5 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 5, 4,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_PFE_MAC1_EXT_RX,
+-				 S32G274A_CLK_PFE_MAC1_REF_DIV,
+-				 S32G274A_CLK_SERDES1_LANE1_CDR);
+-static struct s32gen1_clk cgm2_mux5_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux5);
+-static struct s32gen1_part_block pfe1_rx_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux5_clk, 2,
+-					     s32gen1_part_block1);
+-static struct s32gen1_clk pfe_mac1_rx_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe1_rx_block, 2500000, 125 * MHZ);
+-
+-/* PFE_MAC2_TX */
+-static struct s32gen1_fixed_clock serdes0_lane1_tx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk serdes0_lane1_tx_clk =
+-		S32GEN1_MODULE_CLK(serdes0_lane1_tx);
+-
+-static struct s32gen1_fixed_clock pfe_mac2_ext_tx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac2_ext_tx_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac2_ext_tx);
+-
+-static struct s32gen1_fixed_clock pfe_mac2_ext_ref =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac2_ext_ref_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac2_ext_ref);
+-
+-static struct s32gen1_mux cgm2_mux3 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 3, 5,
+-				 S32GEN1_CLK_FIRC,
+-				 S32GEN1_CLK_PERIPH_PLL_PHI5,
+-				 S32G274A_CLK_PFE_MAC2_EXT_TX,
+-				 S32G274A_CLK_PFE_MAC2_EXT_REF,
+-				 S32G274A_CLK_SERDES0_LANE1_TX);
+-static struct s32gen1_clk cgm2_mux3_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux3);
+-static struct s32gen1_cgm_div cgm2_mux3_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux3_clk, 0);
+-static struct s32gen1_part_block pfe2_tx_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux3_div, 2,
+-					     s32gen1_part_block2);
+-static struct s32gen1_clk pfe_mac2_tx_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe2_tx_block, 2500000, 125 * MHZ);
+-
+-/* PFE_MAC2_REF_DIV */
+-static struct s32gen1_mux cgm2_mux9 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 9, 2,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_PFE_MAC2_EXT_REF);
+-static struct s32gen1_clk cgm2_mux9_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux9);
+-static struct s32gen1_cgm_div cgm2_mux9_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux9_clk, 0);
+-static struct s32gen1_part_block pfe2_ref_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux9_div, 2,
+-					     s32gen1_part_block2);
+-static struct s32gen1_clk pfe_mac2_ref_div_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe2_ref_block, 0, 50 * MHZ);
+-
+-/* PFE_MAC2_RX */
+-static struct s32gen1_fixed_clock pfe_mac2_ext_rx =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk pfe_mac2_ext_rx_clk =
+-		S32GEN1_MODULE_CLK(pfe_mac2_ext_rx);
+-
+-static struct s32gen1_fixed_clock serdes0_lane1_cdr =
+-		S32GEN1_FIXED_CLK_INIT();
+-static struct s32gen1_clk serdes0_lane1_cdr_clk =
+-		S32GEN1_MODULE_CLK(serdes0_lane1_cdr);
+-
+-static struct s32gen1_mux cgm2_mux6 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 6, 4,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_PFE_MAC2_EXT_RX,
+-				 S32G274A_CLK_PFE_MAC2_REF_DIV,
+-				 S32G274A_CLK_SERDES0_LANE1_CDR);
+-static struct s32gen1_clk cgm2_mux6_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux6);
+-static struct s32gen1_part_block pfe2_rx_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux6_clk, 2,
+-					     s32gen1_part_block2);
+-static struct s32gen1_clk pfe_mac2_rx_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe2_rx_block, 2500000, 125 * MHZ);
+-
+-/* PFE_SYS_CLK */
+-static struct s32gen1_mux cgm2_mux0 =
+-		S32GEN1_MUX_INIT(S32GEN1_CGM2, 0, 2,
+-				 S32GEN1_CLK_FIRC,
+-				 S32G274A_CLK_ACCEL_PLL_PHI1);
+-static struct s32gen1_clk cgm2_mux0_clk =
+-		S32GEN1_MODULE_CLK(cgm2_mux0);
+-static struct s32gen1_cgm_div cgm2_mux0_div =
+-		S32GEN1_CGM_DIV_INIT(cgm2_mux0_clk, 0);
+-static struct s32gen1_part_block pfe_sys_block =
+-		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux0_div, 2,
+-					     s32gen1_part_block3);
+-static struct s32gen1_clk pfe_pe_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe_sys_block, 0, 600 * MHZ);
+-static struct s32gen1_fixed_div pfe_sys_div =
+-		S32GEN1_FIXED_DIV_INIT(pfe_sys_block, 2);
+-static struct s32gen1_clk pfe_sys_clk =
+-		S32GEN1_FREQ_MODULE_CLK(pfe_sys_div, 0, 300 * MHZ);
+-
+-static struct s32gen1_clk *s32g274a_clocks[] = {
+-	/* PFE_MAC0 */
+-	[ARR_CLK(S32G274A_CLK_PFE_MAC0_RX)] = &pfe_mac0_rx_clk,
+-	[ARR_CLK(S32G274A_CLK_PFE_MAC0_TX_DIV)] = &pfe_mac0_tx_div_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX1)] = &cgm2_mux1_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX4)] = &cgm2_mux4_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX7)] = &cgm2_mux7_clk,
+-	/* PFE_MAC1 */
+-	[ARR_CLK(S32G274A_CLK_PFE_MAC1_RX)] = &pfe_mac1_rx_clk,
+-	[ARR_CLK(S32G274A_CLK_PFE_MAC1_TX)] = &pfe_mac1_tx_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX2)] = &cgm2_mux2_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX5)] = &cgm2_mux5_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX8)] = &cgm2_mux8_clk,
+-	/* PFE_MAC2 */
+-	[ARR_CLK(S32G274A_CLK_PFE_MAC2_RX)] = &pfe_mac2_rx_clk,
+-	[ARR_CLK(S32G274A_CLK_PFE_MAC2_TX)] = &pfe_mac2_tx_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX3)] = &cgm2_mux3_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX6)] = &cgm2_mux6_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX9)] = &cgm2_mux9_clk,
+-	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX0)] = &cgm2_mux0_clk,
+-	[ARR_CLK(S32G274A_CLK_PFE_SYS)] = &pfe_sys_clk,
+-	[ARR_CLK(S32G274A_CLK_PFE_PE)] = &pfe_pe_clk,
+-};
+-
+-static struct s32gen1_clk *s32g274a_cc_clocks[] = {
+-	[CC_ARR_CLK(S32GEN1_CLK_PER)] = &per_clk,
+-	[CC_ARR_CLK(S32GEN1_CLK_CAN_PE)] = &can_pe_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_ACCEL_PLL_PHI0)] = &accel_pll_phi0_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_ACCEL_PLL_PHI1)] = &accel_pll_phi1_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_SERDES0_LANE1_CDR)] = &serdes0_lane1_cdr_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_SERDES0_LANE1_TX)] = &serdes0_lane1_tx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_TX)] = &pfe_mac0_ext_tx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_RX)] = &pfe_mac0_ext_rx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_REF)] = &pfe_mac0_ext_ref_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_TX)] = &pfe_mac1_ext_tx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_RX)] = &pfe_mac1_ext_rx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_REF)] = &pfe_mac1_ext_ref_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_TX)] = &pfe_mac2_ext_tx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_RX)] = &pfe_mac2_ext_rx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_REF)] = &pfe_mac2_ext_ref_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE0_TX)] = &serdes1_lane0_ext_tx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE0_CDR)] = &serdes1_lane0_cdr_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_REF_DIV)] = &pfe_mac0_ref_div_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_REF_DIV)] = &pfe_mac1_ref_div_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_REF_DIV)] = &pfe_mac2_ref_div_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE1_TX)] = &serdes1_lane1_tx_clk,
+-	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE1_CDR)] = &serdes1_lane1_cdr_clk,
+-};
+-
+-struct s32gen1_clk *get_plat_cc_clock(uint32_t id)
+-{
+-	id = s32gen1_platclk2mux(id);
+-
+-	if (id >= ARRAY_SIZE(s32g274a_cc_clocks))
+-		return NULL;
+-
+-	return s32g274a_cc_clocks[id];
+-}
+-
+-struct s32gen1_clk *get_plat_clock(uint32_t id)
+-{
+-	if (id < S32GEN1_PLAT_CLK_ID_BASE)
+-		return NULL;
+-
+-	id -= S32GEN1_PLAT_CLK_ID_BASE;
+-
+-	if (id >= ARRAY_SIZE(s32g274a_clocks))
+-		return NULL;
+-
+-	return s32g274a_clocks[id];
+-}
+ 
+ ulong s32gen1_plat_set_rate(struct clk *c, ulong rate)
+ {
+-#ifdef NXP_S32G2XX
+ 	ulong qspi_max_rate;
+-#endif
+ 
+ 	if (s32gen1_scmi_request(c))
+ 		return 0;
+ 
+-#ifdef NXP_S32G2XX
+ 	if (is_qspi_clk(c->id)) {
+ 		if (is_qspi2x_clk(c->id))
+ 			qspi_max_rate = S32G274A_REV1_QSPI_MAX_FREQ * 2;
+@@ -346,7 +23,6 @@ ulong s32gen1_plat_set_rate(struct clk *c, ulong rate)
+ 		if (is_s32gen1_soc_rev1() && rate > qspi_max_rate)
+ 			rate = qspi_max_rate;
+ 	}
+-#endif
+ 
+ 	return s32gen1_scmi_set_rate(c, rate);
+ }
+diff --git a/drivers/clk/s32/s32g398a_clk.c b/drivers/clk/s32/s32g398a_clk.c
+new file mode 100644
+index 0000000000..a5c97eccaf
+--- /dev/null
++++ b/drivers/clk/s32/s32g398a_clk.c
+@@ -0,0 +1,14 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2021 NXP
++ */
++#include <linux/types.h>
++#include <s32gen1_scmi_clk.h>
++
++ulong s32gen1_plat_set_rate(struct clk *c, ulong rate)
++{
++	if (s32gen1_scmi_request(c))
++		return 0;
++
++	return s32gen1_scmi_set_rate(c, rate);
++}
+diff --git a/drivers/clk/s32/s32g_clk.c b/drivers/clk/s32/s32g_clk.c
+new file mode 100644
+index 0000000000..17b8f806a2
+--- /dev/null
++++ b/drivers/clk/s32/s32g_clk.c
+@@ -0,0 +1,326 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020-2021 NXP
++ */
++#include <asm/arch/siul.h>
++#include <dt-bindings/clock/s32g-clock.h>
++#include <s32gen1_clk_funcs.h>
++#include <s32gen1_clk_modules.h>
++#include <s32gen1_shared_clks.h>
++
++#define ARR_CLK(N)	S32G274A_CLK_INDEX(N)
++
++/* XBAR_2X */
++static struct s32gen1_part_block llce_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm0_mux0_clk, 3,
++					     s32gen1_part_block0);
++struct s32gen1_clk xbar_2x_clk =
++		S32GEN1_FREQ_MODULE_CLK(llce_block, 48 * MHZ, 800 * MHZ);
++
++/* PER_CLK */
++static struct s32gen1_clk per_clk =
++		S32GEN1_FREQ_MODULE_CLK(per_div, 0, 80 * MHZ);
++
++/* CAN_PE_CLK */
++static struct s32gen1_clk can_pe_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux7_clk, 40 * MHZ, 80 * MHZ);
++
++/* PFE_MAC0_TX_DIV */
++static struct s32gen1_fixed_clock pfe_mac0_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac0_ext_tx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac0_ext_tx);
++
++static struct s32gen1_fixed_clock pfe_mac0_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac0_ext_ref_clk =
++		S32GEN1_MODULE_CLK(pfe_mac0_ext_ref);
++
++static struct s32gen1_fixed_clock serdes1_lane0_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes1_lane0_ext_tx_clk =
++		S32GEN1_MODULE_CLK(serdes1_lane0_ext_tx);
++
++static struct s32gen1_mux cgm2_mux1 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 1, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32G274A_CLK_PFE_MAC0_EXT_TX,
++				 S32G274A_CLK_PFE_MAC0_EXT_REF,
++				 S32G274A_CLK_SERDES1_LANE0_TX);
++static struct s32gen1_clk cgm2_mux1_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux1);
++static struct s32gen1_cgm_div cgm2_mux1_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux1_clk, 0);
++static struct s32gen1_part_block pfe0_tx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux1_div, 2,
++					     s32gen1_part_block0);
++static struct s32gen1_clk pfe_mac0_tx_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe0_tx_block, 2500000, 312500000);
++
++/* PFE_MAC0_REF_DIV */
++static struct s32gen1_mux cgm2_mux7 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 7, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC0_EXT_REF);
++static struct s32gen1_clk cgm2_mux7_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux7);
++static struct s32gen1_cgm_div cgm2_mux7_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux7_clk, 0);
++static struct s32gen1_part_block pfe0_ref_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux7_div, 2,
++					     s32gen1_part_block0);
++static struct s32gen1_clk pfe_mac0_ref_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe0_ref_block, 0, 50 * MHZ);
++
++/* PFE_MAC0_RX */
++static struct s32gen1_fixed_clock serdes1_lane0_cdr =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes1_lane0_cdr_clk =
++		S32GEN1_MODULE_CLK(serdes1_lane0_cdr);
++
++static struct s32gen1_fixed_clock pfe_mac0_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac0_ext_rx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac0_ext_rx);
++
++static struct s32gen1_mux cgm2_mux4 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 4, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC0_EXT_RX,
++				 S32G274A_CLK_SERDES1_LANE0_CDR,
++				 S32G274A_CLK_PFE_MAC0_REF_DIV);
++static struct s32gen1_clk cgm2_mux4_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux4);
++static struct s32gen1_part_block pfe0_rx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux4_clk, 2,
++					     s32gen1_part_block0);
++static struct s32gen1_clk pfe_mac0_rx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe0_rx_block, 2500000, 312500000);
++
++/* PFE_MAC1_TX */
++static struct s32gen1_fixed_clock pfe_mac1_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac1_ext_tx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac1_ext_tx);
++
++static struct s32gen1_fixed_clock pfe_mac1_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac1_ext_ref_clk =
++		S32GEN1_MODULE_CLK(pfe_mac1_ext_ref);
++
++static struct s32gen1_mux cgm2_mux2 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 2, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32G274A_CLK_PFE_MAC1_EXT_TX,
++				 S32G274A_CLK_PFE_MAC1_EXT_REF,
++				 S32G274A_CLK_SERDES1_LANE1_TX);
++static struct s32gen1_clk cgm2_mux2_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux2);
++static struct s32gen1_cgm_div cgm2_mux2_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux2_clk, 0);
++static struct s32gen1_part_block pfe1_tx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux2_div, 2,
++					     s32gen1_part_block1);
++static struct s32gen1_clk pfe_mac1_tx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe1_tx_block, 2500000, 125 * MHZ);
++
++/* PFE_MAC1_REF_DIV */
++static struct s32gen1_mux cgm2_mux8 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 8, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC1_EXT_REF);
++static struct s32gen1_clk cgm2_mux8_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux8);
++static struct s32gen1_cgm_div cgm2_mux8_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux8_clk, 0);
++static struct s32gen1_part_block pfe1_ref_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux8_div, 2,
++					     s32gen1_part_block1);
++static struct s32gen1_clk pfe_mac1_ref_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe1_ref_block, 0, 50 * MHZ);
++
++/* PFE_MAC1_RX */
++static struct s32gen1_fixed_clock pfe_mac1_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac1_ext_rx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac1_ext_rx);
++
++static struct s32gen1_mux cgm2_mux5 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 5, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC1_EXT_RX,
++				 S32G274A_CLK_PFE_MAC1_REF_DIV,
++				 S32G274A_CLK_SERDES1_LANE1_CDR);
++static struct s32gen1_clk cgm2_mux5_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux5);
++static struct s32gen1_part_block pfe1_rx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux5_clk, 2,
++					     s32gen1_part_block1);
++static struct s32gen1_clk pfe_mac1_rx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe1_rx_block, 2500000, 125 * MHZ);
++
++/* PFE_MAC2_TX */
++static struct s32gen1_fixed_clock serdes0_lane1_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes0_lane1_tx_clk =
++		S32GEN1_MODULE_CLK(serdes0_lane1_tx);
++
++static struct s32gen1_fixed_clock pfe_mac2_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac2_ext_tx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac2_ext_tx);
++
++static struct s32gen1_fixed_clock pfe_mac2_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac2_ext_ref_clk =
++		S32GEN1_MODULE_CLK(pfe_mac2_ext_ref);
++
++static struct s32gen1_mux cgm2_mux3 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 3, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32G274A_CLK_PFE_MAC2_EXT_TX,
++				 S32G274A_CLK_PFE_MAC2_EXT_REF,
++				 S32G274A_CLK_SERDES0_LANE1_TX);
++static struct s32gen1_clk cgm2_mux3_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux3);
++static struct s32gen1_cgm_div cgm2_mux3_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux3_clk, 0);
++static struct s32gen1_part_block pfe2_tx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux3_div, 2,
++					     s32gen1_part_block2);
++static struct s32gen1_clk pfe_mac2_tx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe2_tx_block, 2500000, 125 * MHZ);
++
++/* PFE_MAC2_REF_DIV */
++static struct s32gen1_mux cgm2_mux9 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 9, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC2_EXT_REF);
++static struct s32gen1_clk cgm2_mux9_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux9);
++static struct s32gen1_cgm_div cgm2_mux9_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux9_clk, 0);
++static struct s32gen1_part_block pfe2_ref_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux9_div, 2,
++					     s32gen1_part_block2);
++static struct s32gen1_clk pfe_mac2_ref_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe2_ref_block, 0, 50 * MHZ);
++
++/* PFE_MAC2_RX */
++static struct s32gen1_fixed_clock pfe_mac2_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac2_ext_rx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac2_ext_rx);
++
++static struct s32gen1_fixed_clock serdes0_lane1_cdr =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes0_lane1_cdr_clk =
++		S32GEN1_MODULE_CLK(serdes0_lane1_cdr);
++
++static struct s32gen1_mux cgm2_mux6 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 6, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC2_EXT_RX,
++				 S32G274A_CLK_PFE_MAC2_REF_DIV,
++				 S32G274A_CLK_SERDES0_LANE1_CDR);
++static struct s32gen1_clk cgm2_mux6_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux6);
++static struct s32gen1_part_block pfe2_rx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux6_clk, 2,
++					     s32gen1_part_block2);
++static struct s32gen1_clk pfe_mac2_rx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe2_rx_block, 2500000, 125 * MHZ);
++
++/* PFE_SYS_CLK */
++static struct s32gen1_mux cgm2_mux0 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 0, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_ACCEL_PLL_PHI1);
++static struct s32gen1_clk cgm2_mux0_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux0);
++static struct s32gen1_cgm_div cgm2_mux0_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux0_clk, 0);
++static struct s32gen1_part_block pfe_sys_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux0_div, 2,
++					     s32gen1_part_block3);
++static struct s32gen1_clk pfe_pe_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe_sys_block, 0, 600 * MHZ);
++static struct s32gen1_fixed_div pfe_sys_div =
++		S32GEN1_FIXED_DIV_INIT(pfe_sys_block, 2);
++static struct s32gen1_clk pfe_sys_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe_sys_div, 0, 300 * MHZ);
++
++static struct s32gen1_clk *s32g274a_clocks[] = {
++	/* PFE_MAC0 */
++	[ARR_CLK(S32G274A_CLK_PFE_MAC0_RX)] = &pfe_mac0_rx_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_MAC0_TX_DIV)] = &pfe_mac0_tx_div_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX1)] = &cgm2_mux1_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX4)] = &cgm2_mux4_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX7)] = &cgm2_mux7_clk,
++	/* PFE_MAC1 */
++	[ARR_CLK(S32G274A_CLK_PFE_MAC1_RX)] = &pfe_mac1_rx_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_MAC1_TX)] = &pfe_mac1_tx_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX2)] = &cgm2_mux2_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX5)] = &cgm2_mux5_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX8)] = &cgm2_mux8_clk,
++	/* PFE_MAC2 */
++	[ARR_CLK(S32G274A_CLK_PFE_MAC2_RX)] = &pfe_mac2_rx_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_MAC2_TX)] = &pfe_mac2_tx_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX3)] = &cgm2_mux3_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX6)] = &cgm2_mux6_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX9)] = &cgm2_mux9_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX0)] = &cgm2_mux0_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_SYS)] = &pfe_sys_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_PE)] = &pfe_pe_clk,
++};
++
++static struct s32gen1_clk *s32g274a_cc_clocks[] = {
++	[CC_ARR_CLK(S32GEN1_CLK_PER)] = &per_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_CAN_PE)] = &can_pe_clk,
++	[CC_ARR_CLK(S32G274A_CLK_ACCEL_PLL_PHI0)] = &accel_pll_phi0_clk,
++	[CC_ARR_CLK(S32G274A_CLK_ACCEL_PLL_PHI1)] = &accel_pll_phi1_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES0_LANE1_CDR)] = &serdes0_lane1_cdr_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES0_LANE1_TX)] = &serdes0_lane1_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_TX)] = &pfe_mac0_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_RX)] = &pfe_mac0_ext_rx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_REF)] = &pfe_mac0_ext_ref_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_TX)] = &pfe_mac1_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_RX)] = &pfe_mac1_ext_rx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_REF)] = &pfe_mac1_ext_ref_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_TX)] = &pfe_mac2_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_RX)] = &pfe_mac2_ext_rx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_REF)] = &pfe_mac2_ext_ref_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE0_TX)] = &serdes1_lane0_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE0_CDR)] = &serdes1_lane0_cdr_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_REF_DIV)] = &pfe_mac0_ref_div_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_REF_DIV)] = &pfe_mac1_ref_div_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_REF_DIV)] = &pfe_mac2_ref_div_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE1_TX)] = &serdes1_lane1_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE1_CDR)] = &serdes1_lane1_cdr_clk,
++};
++
++struct s32gen1_clk *get_plat_cc_clock(uint32_t id)
++{
++	id = s32gen1_platclk2mux(id);
++
++	if (id >= ARRAY_SIZE(s32g274a_cc_clocks))
++		return NULL;
++
++	return s32g274a_cc_clocks[id];
++}
++
++struct s32gen1_clk *get_plat_clock(uint32_t id)
++{
++	if (id < S32GEN1_PLAT_CLK_ID_BASE)
++		return NULL;
++
++	id -= S32GEN1_PLAT_CLK_ID_BASE;
++
++	if (id >= ARRAY_SIZE(s32g274a_clocks))
++		return NULL;
++
++	return s32g274a_clocks[id];
++}
+diff --git a/drivers/clk/s32/s32g274a_scmi_ids.c b/drivers/clk/s32/s32g_scmi_ids.c
+similarity index 98%
+rename from drivers/clk/s32/s32g274a_scmi_ids.c
+rename to drivers/clk/s32/s32g_scmi_ids.c
+index 6c479efab3..99c4108a60 100644
+--- a/drivers/clk/s32/s32g274a_scmi_ids.c
++++ b/drivers/clk/s32/s32g_scmi_ids.c
+@@ -1,9 +1,9 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+-#include <dt-bindings/clock/s32g274a-clock.h>
+-#include <dt-bindings/clock/s32g274a-scmi-clock.h>
++#include <dt-bindings/clock/s32g-clock.h>
++#include <dt-bindings/clock/s32g-scmi-clock.h>
+ #include <errno.h>
+ #include <linux/kernel.h>
+ #include <s32gen1_clk_funcs.h>
+diff --git a/drivers/clk/s32/s32gen1_clk.c b/drivers/clk/s32/s32gen1_clk.c
+index 97afaa020c..13f00c0531 100644
+--- a/drivers/clk/s32/s32gen1_clk.c
++++ b/drivers/clk/s32/s32gen1_clk.c
+@@ -653,7 +653,6 @@ struct s32gen1_clk *get_clock(uint32_t id)
+ 	return plat_clocks[index];
+ }
+ 
+-#ifdef NXP_S32G2XX
+ bool is_qspi1x_clk(uint32_t id)
+ {
+ 	return (id == S32GEN1_SCMI_CLK_QSPI_FLASH1X) ||
+@@ -670,4 +669,3 @@ bool is_qspi_clk(uint32_t id)
+ {
+ 	return is_qspi1x_clk(id) || is_qspi2x_clk(id);
+ }
+-#endif
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index 0c56d6a526..7e0c014daf 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -20,7 +20,7 @@
+ #include <asm/arch/s32-gen1/serdes_xpcs_regs.h>
+ #include <linux/string.h>
+ #include <clk.h>
+-#include <dt-bindings/clock/s32g274a-clock.h>
++#include <dt-bindings/clock/s32g-clock.h>
+ #include <s32gen1_clk_utils.h>
+ #include <dm/device_compat.h>
+ #include <dm/pinctrl.h>
+diff --git a/include/dt-bindings/clock/s32g274a-clock.h b/include/dt-bindings/clock/s32g-clock.h
+similarity index 100%
+rename from include/dt-bindings/clock/s32g274a-clock.h
+rename to include/dt-bindings/clock/s32g-clock.h
+diff --git a/include/dt-bindings/clock/s32g274a-scmi-clock.h b/include/dt-bindings/clock/s32g-scmi-clock.h
+similarity index 100%
+rename from include/dt-bindings/clock/s32g274a-scmi-clock.h
+rename to include/dt-bindings/clock/s32g-scmi-clock.h
+-- 
+2.25.1
+

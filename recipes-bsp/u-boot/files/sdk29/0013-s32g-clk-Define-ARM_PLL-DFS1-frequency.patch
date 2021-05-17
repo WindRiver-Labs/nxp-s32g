@@ -1,0 +1,45 @@
+From 1d7b07b2ed62f6a99624d1500f8afbc14debe4bb Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Mon, 29 Mar 2021 16:33:09 +0300
+Subject: [PATCH 13/42] s32g: clk: Define ARM_PLL DFS1 frequency
+
+Upstream-Status: Pending
+
+Issue: ALB-6496
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/clock/s32gen1-clock-freq.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index c352bd07b3..e814a43002 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -21,6 +21,7 @@
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1000 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
++#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(800 * MHZ)
+ #define S32GEN1_QSPI_MAX_FREQ			(200 * MHZ)
+ #define S32G274A_REV1_QSPI_MAX_FREQ		(133333333UL)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1333333333UL)
+@@ -35,6 +36,7 @@
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(800 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(0 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(0 * MHZ)
++#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(800 * MHZ)
+ #define S32GEN1_QSPI_MAX_FREQ			(133333333)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+ #define S32GEN1_DDR_FREQ			(800 * MHZ)
+@@ -46,6 +48,7 @@
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1300 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
++#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(793220338UL)
+ #define S32GEN1_QSPI_MAX_FREQ			(200 * MHZ)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+ #define S32GEN1_DDR_FREQ			(800 * MHZ)
+-- 
+2.25.1
+

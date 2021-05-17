@@ -1,0 +1,210 @@
+From 133d0dfe97ef5349ba0ca1943bc21d0f61cbf323 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Mon, 1 Feb 2021 14:38:31 +0200
+Subject: [PATCH 14/42] arch: s32g: DTS refactoring
+
+Upstream-Status: Pending
+
+ALB-6121
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g274a.dtsi        | 15 +++++++++++++++
+ arch/arm/dts/fsl-s32g274abluebox3.dts | 15 ---------------
+ arch/arm/dts/fsl-s32g274aemu.dts      | 18 ------------------
+ arch/arm/dts/fsl-s32g274aevb.dts      | 15 ---------------
+ arch/arm/dts/fsl-s32g274ardb.dtsi     | 17 -----------------
+ arch/arm/dts/fsl-s32g398a.dtsi        | 16 ++++++++++++++++
+ arch/arm/dts/fsl-s32g398aemu.dts      | 18 ------------------
+ 7 files changed, 31 insertions(+), 83 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32g274a.dtsi b/arch/arm/dts/fsl-s32g274a.dtsi
+index 074f0c4eda..0a20ae6d39 100644
+--- a/arch/arm/dts/fsl-s32g274a.dtsi
++++ b/arch/arm/dts/fsl-s32g274a.dtsi
+@@ -14,4 +14,19 @@
+ 	model = "NXP S32G2XX";
+ 	compatible = "fsl,s32g274-simu", "fsl,s32g274", "fsl,s32gen1",
+ 				 "arm,vexpress,v2p-aarch64", "arm,vexpress";
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0 0x80000000 0 0x80000000>;
++	};
++
++	memory@880000000 {
++		device_type = "memory";
++		reg = <0x8 0x80000000 0 0x80000000>;
++	};
++
++	sram@34000000 {
++		device_type = "memory";
++		reg = <0 0x34000000 0 0x800000>;
++	};
+ };
+diff --git a/arch/arm/dts/fsl-s32g274abluebox3.dts b/arch/arm/dts/fsl-s32g274abluebox3.dts
+index ea517ac98d..8a406f2b49 100644
+--- a/arch/arm/dts/fsl-s32g274abluebox3.dts
++++ b/arch/arm/dts/fsl-s32g274abluebox3.dts
+@@ -10,21 +10,6 @@
+ / {
+ 	model = "NXP S32G274A BlueBox3";
+ 	compatible = "fsl,s32gen1", "arm,vexpress,v2p-aarch64", "arm,vexpress";
+-
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x80000000>;
+-	};
+-
+-	memory@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+-	sram@34000000 {
+-		device_type = "memory";
+-		reg = <0 0x34000000 0 0x800000>;
+-	};
+ };
+ 
+ &dspi0 {
+diff --git a/arch/arm/dts/fsl-s32g274aemu.dts b/arch/arm/dts/fsl-s32g274aemu.dts
+index 08e73d2165..4f5e471651 100644
+--- a/arch/arm/dts/fsl-s32g274aemu.dts
++++ b/arch/arm/dts/fsl-s32g274aemu.dts
+@@ -6,24 +6,6 @@
+ /dts-v1/;
+ #include "fsl-s32g274a.dtsi"
+ 
+-/ {
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x80000000>;
+-	};
+-
+-	memory@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+-	sram@34000000 {
+-		device_type = "memory";
+-		reg = <0 0x34000000 0 0x800000>;
+-	};
+-
+-};
+-
+ &usdhc0 {
+ 	status = "okay";
+ };
+diff --git a/arch/arm/dts/fsl-s32g274aevb.dts b/arch/arm/dts/fsl-s32g274aevb.dts
+index 7246905631..a1d20d29f1 100644
+--- a/arch/arm/dts/fsl-s32g274aevb.dts
++++ b/arch/arm/dts/fsl-s32g274aevb.dts
+@@ -25,21 +25,6 @@
+ 	};
+ #endif
+ 
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x80000000>;
+-	};
+-
+-	memory@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+-	sram@34000000 {
+-		device_type = "memory";
+-		reg = <0 0x34000000 0 0x800000>;
+-	};
+-
+ 	usbotg: usb@44064000 {
+ 		compatible = "fsl,imx27-usb";
+ 		reg = <0x0 0x44064000 0x0 0x200>;
+diff --git a/arch/arm/dts/fsl-s32g274ardb.dtsi b/arch/arm/dts/fsl-s32g274ardb.dtsi
+index 8ed22e6bc6..8cbe08b36c 100644
+--- a/arch/arm/dts/fsl-s32g274ardb.dtsi
++++ b/arch/arm/dts/fsl-s32g274ardb.dtsi
+@@ -6,23 +6,6 @@
+ /dts-v1/;
+ #include "fsl-s32g274a.dtsi"
+ 
+-/ {
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x80000000>;
+-	};
+-
+-	memory@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+-	sram@34000000 {
+-		device_type = "memory";
+-		reg = <0 0x34000000 0 0x800000>;
+-	};
+-};
+-
+ &usdhc0 {
+ 	/* By default sd0 pins were able to work at 100Mhz and 200Mhz */
+ 	pinctrl-0 = <&pinctrl0_sd0>;
+diff --git a/arch/arm/dts/fsl-s32g398a.dtsi b/arch/arm/dts/fsl-s32g398a.dtsi
+index eb5efd75bc..1c24a00048 100644
+--- a/arch/arm/dts/fsl-s32g398a.dtsi
++++ b/arch/arm/dts/fsl-s32g398a.dtsi
+@@ -13,4 +13,20 @@
+ 	model = "NXP S32G3XX";
+ 	compatible = "fsl,s32g398", "fsl,s32gen1",
+ 			"arm,vexpress,v2p-aarch64", "arm,vexpress";
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0 0x80000000 0 0x80000000>;
++	};
++
++	memory@880000000 {
++		device_type = "memory";
++		reg = <0x8 0x80000000 0 0x80000000>;
++	};
++
++	sram@34000000 {
++		device_type = "memory";
++		reg = <0 0x34000000 0 0x1400000>;
++	};
++
+ };
+diff --git a/arch/arm/dts/fsl-s32g398aemu.dts b/arch/arm/dts/fsl-s32g398aemu.dts
+index dee9312799..1821d28f86 100644
+--- a/arch/arm/dts/fsl-s32g398aemu.dts
++++ b/arch/arm/dts/fsl-s32g398aemu.dts
+@@ -6,24 +6,6 @@
+ /dts-v1/;
+ #include "fsl-s32g398a.dtsi"
+ 
+-/ {
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0 0x80000000 0 0x80000000>;
+-	};
+-
+-	memory@880000000 {
+-		device_type = "memory";
+-		reg = <0x8 0x80000000 0 0x80000000>;
+-	};
+-
+-	sram@34000000 {
+-		device_type = "memory";
+-		reg = <0 0x34000000 0 0x1400000>;
+-	};
+-
+-};
+-
+ &usdhc0 {
+ 	status = "okay";
+ };
+-- 
+2.25.1
+
