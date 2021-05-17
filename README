@@ -113,9 +113,9 @@ may or may not be present depending on who installed and configured
 u-boot for the board.
 
 The console device for the board is ttyLF0 at 115200 baud. For the DTB
-address, 0x90000000  was used with success by Wind River. The load address
+address, 0x8FE00000  was used with success by Wind River. The load address
 must be high enough to not interfere with kernel decompression. A value
-of 0x81000000 was used with success for all kernels tested by Wind River.
+of 0x8A080000 was used with success for all kernels tested by Wind River.
 
 4.1 NFS Root File System
 ------------------------
@@ -185,7 +185,7 @@ For S32G274A-RDB2:
 
 Board can boot automatically by set the below uboot environment variables:
 
-=> setenv bootfile Image; setenv fdtfile <fsl-s32g274a-evb.dtb or fsl-s32g274a-rdb2.dtb>; setenv loadaddr 0x81000000; setenv fdtaddr 0x90000000;
+=> setenv bootfile Image; setenv fdtfile <fsl-s32g274a-evb.dtb or fsl-s32g274a-rdb2.dtb>; setenv loadaddr 0x8A080000; setenv fdtaddr 0x8FE00000;
 
 => setenv bootargs console=ttyLF0,115200n8 root=/dev/mmcblk0p2 rw
 
@@ -381,7 +381,7 @@ and download the PFE firmware.
 
 PFE is a firmware-based module. Load the firmware before using PFE.
 The firmwares name are "s32g_pfe_class.fw" and "s32g_pfe_util.fw" with
-version 0.9.3, which have to be downloaded from NXP Software.
+version 0.9.4, which have to be downloaded from NXP Software.
 
 6.3.2 Steps to verify
 ---------------------
@@ -462,7 +462,7 @@ There are 4 LLCE firmwares:
 	ppe_tx.bin
 	ppe_rx.bin
 
-with version 0.9.1 to be downloaded from NXP Software.
+with version 1.0.1 to be downloaded from NXP Software.
 
 6.4.2 LLCE CAN verify steps
 ---------------------------
