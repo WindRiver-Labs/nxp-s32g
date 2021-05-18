@@ -17,6 +17,7 @@ SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
 	file://0002-pfe-oal-modify-the-GFP-flag-to-GFP_ATOMIC-for-kzallo.patch \
 	file://0004-sw-change-kmalloc-flag-to-GFP_ATOMIC-to-fix-debug-ca.patch \
+	file://0001-pfe-sw-add-mac-address-delete-operations-to-fix-kmem.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} \
 	file://${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} \
 	"
