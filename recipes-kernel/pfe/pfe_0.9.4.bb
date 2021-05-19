@@ -114,7 +114,6 @@ do_package_qa_setscene[noexec] = "1"
 
 FILES_${PN} += "/lib/firmware/${FW_INSTALL_CLASS_NAME} \
     /lib/firmware/${FW_INSTALL_UTIL_NAME} \
-    ${base_libdir}/* \
     ${sysconfdir}/modules-load.d/* \
 "
 
