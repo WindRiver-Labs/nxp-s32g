@@ -13,28 +13,14 @@ B = "${WORKDIR}/build"
 # ATF repository
 # URL ?= "git://source.codeaurora.org/external/autobsps32/arm-trusted-firmware.git;protocol=https"
 URL ?= "git://source.codeaurora.org/external/autobsps32/arm-trusted-firmware;protocol=https"
-BRANCH ?= "release/bsp28.0-2.3"
+BRANCH ?= "release/bsp29.0-2.3"
 SRC_URI = "${URL};branch=${BRANCH}"
-SRCREV ?= "b0087f0173a47c942696c01dd1ade96aa8d42e6a"
+SRCREV ?= "87dbb869d05399cef3ec596599c8080a090ba17c"
 SRC_URI[sha256sum] = "4ded53541fb0ac8840f5a1e23ecfa546a1ca15246a73a15707ff8c76f47f7729"
 
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
 SRC_URI += " \
     file://0001-Fix-fiptool-build-error.patch \
-    file://0001-s32g-Replace-DMA-copy-using-core-copy-operations.patch \
-    file://0002-s32g-QSPI-boot-support.patch \
-    file://0003-s32g274-clk-scmi-Use-S32G-instead-of-S32G274.patch \
-    file://0004-clk-s32gen1-Correct-GMAC-SGMII-clock.patch \
-    file://0005-s32g-clk-Check-clock-state-before-returning-errors.patch \
-    file://0006-s32g-build-Specify-MKIMAGE-binary-as-build-parameter.patch \
-    file://0007-dt-bindings-s32g-Add-SCMI-reset-IDs.patch \
-    file://0008-s32g-Add-SCMI-reset-domain-implementation.patch \
-    file://0009-s32g-clk-Align-with-U-Boot-names.patch \
-    file://0010-s32g-clk-Align-with-U-Boot-clock-implementation.patch \
-    file://0011-clk-s32gen1-Update-SDHC-clock-frequency-to-400MHz.patch \
-    file://0012-tf-a-fix-boot-flow-from-eMMC.patch \
-    file://0013-s32gen1-uart-Suppress-printing-to-shared-console.patch \
-    file://0014-Add-partitions-to-SCMI-Reset-Domains.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g"
