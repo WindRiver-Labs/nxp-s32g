@@ -1,0 +1,93 @@
+From 4fb36f285008369d556cc388444668a45b0dd54c Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Thu, 27 May 2021 14:08:31 +0800
+Subject: [PATCH 11/12] drivers: phy: nxp: free custom data after phy work
+ queue cancelled
+
+This patch is to fix the wrong order when remove nxp phy, in nxp phy
+driver, there is a work queue to process the interrupts on the device,
+and it is an element of the driver private data, so when remove the
+driver from system, the queue should be cancelled before the private
+data released. And if not like the original codes, there will be kernel
+panic when remove the nxp phy driver:
+
+	Unable to handle kernel NULL pointer dereference at virtual address 0000000000000008
+	Mem abort info:
+	ESR = 0x96000005
+	EC = 0x25: DABT (current EL), IL = 32 bits
+	SET = 0, FnV = 0
+	EA = 0, S1PTW = 0
+	Data abort info:
+	ISV = 0, ISS = 0x00000005
+	CM = 0, WnR = 0
+	user pgtable: 4k pages, 39-bit VAs, pgdp=000000089d4c7000
+	[0000000000000008] pgd=0000000000000000, p4d=0000000000000000, pud=0000000000000000
+	Internal error: Oops: 96000005 1 PREEMPT SMP
+	Modules linked in: nfnetlink nxp llce_can llce_mailbox 8021q pfeng(O-) llce_core sch_fq_codel nf_defrag_ipv4 [last unloaded: ip6_udp_tunnel]
+	CPU: 0 PID: 11050 Comm: rmmod Tainted: G W O 5.10.37-yocto-standard #1
+
+	Hardware name: Freescale S32G274 (DT)
+	pstate: 60000085 (nZCv daIf PAN -UAO -TCO BTYPE=-)
+	pc : try_to_grab_pending.part.0+0x24/0x2c0
+	lr : try_to_grab_pending+0x78/0xb4
+	sp : ffffffc0162139d0
+	x29: ffffffc0162139d0 x28: ffffff8818f7bb40
+	x27: 0000000000000000 x26: 0000000000000000
+	x25: ffffff8818f7bb40 x24: 0000000000000000
+	x23: ffffffc01006dd64 x22: ffffffc016213a90
+	x21: 0000000000000000 x20: 0000000000000008
+	x19: 0000000000000008 x18: 0000000000000000
+	x17: 0000000000000002 x16: 0000b20a15f2c270
+	x15: 0000000000000004 x14: ffffff8800fd5110
+	=============================
+	x13: 0000000000000000 x12: ffffff8811db9cb0
+	x11: 00000000000000e5 x10: 00000000855751e7
+	x9 : ffffffc010074788 x8 : ffffffc012656c50
+	x7 : 0000000000000000 x6 : 0000000000000001
+	x5 : 0000000000000001 x4 : 0000000000000001
+	x3 : ffffffc016213a40 x2 : 0000000000000000
+	x1 : ffffffc016213a90 x0 : 0000000000000008
+	Call trace:
+	 try_to_grab_pending.part.0+0x24/0x2c0
+	 try_to_grab_pending+0x78/0xb4
+	 __cancel_work_timer+0x60/0x1d0
+	 cancel_work_sync+0x20/0x30
+	 nxp_remove+0x44/0x54 [nxp]
+	 phy_remove+0x60/0x84
+	 __device_release_driver+0x19c/0x240
+
+So, this patch will fix this issue.
+
+Upstream-Status: pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Signed-off-by: Bruce Ashfield <bruce.ashfield@gmail.com>
+---
+ drivers/net/phy/nxp/nxp.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/phy/nxp/nxp.c b/drivers/net/phy/nxp/nxp.c
+index 8760c220d716..dec8ad881172 100644
+--- a/drivers/net/phy/nxp/nxp.c
++++ b/drivers/net/phy/nxp/nxp.c
+@@ -241,14 +241,15 @@ static void nxp_remove(struct phy_device *phydev)
+ 	/* unregister sysfs files */
+ 	sysfs_remove_group(&phydev->mdio.dev.kobj, &nxp_attribute_group);
+ 
++	/* cancel scheduled work */
++	cancel_work_sync(&(((struct nxp_specific_data *)phydev->priv)->phy_queue));
++
+ 	/* free custom data struct */
+ 	if (phydev->priv) {
+ 		kfree_sensitive(phydev->priv);
+ 		phydev->priv = NULL;
+ 	}
+ 
+-	/* cancel scheduled work */
+-	cancel_work_sync(&(((struct nxp_specific_data *)phydev->priv)->phy_queue));
+ }
+ 
+ /* Clears any pending interrupts */
+-- 
+2.25.1
+

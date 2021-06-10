@@ -1,0 +1,65 @@
+From e7b02010e66581c9a8484a574bc623ed86f77be8 Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Thu, 20 May 2021 17:18:47 +0300
+Subject: [PATCH 07/10] sdhci-esdhc-imx: s32-gen1: toggle clocks on suspend if
+ not disabled by runtime PM
+
+commit 30ddcda6705cd85387553acc51bfc37ab97305dc from
+https://source.codeaurora.org/external/autobsps32/linux
+
+This following kernel Warning was reproducile on the first `rtcwake`
+command issued when booting from QSPI without an SDCARD inserted at
+any point in time:
+rtcwake: assuming RTC uses UTC ...
+rtcwake: wakeup from "mem" using /dev/rtc0 at Thu Jan  1 00:00:56 1970
+[   54.884654] 001: PM: suspend entry (deep)
+[   54.884704] 001: Filesystems sync: 0.000 seconds
+[   54.892042] 000: Freezing user space processes ... (elapsed 0.005 seconds) done.
+[   54.897689] 000: OOM killer disabled.
+[   54.897694] 000: Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[   54.898821] 000: printk: Suspending console(s) (use no_console_suspend to debug)
+[   54.915499] 000: ------------[ cut here ]------------
+[   54.915505] 000: usdhc_core already disabled
+[   54.915536] 000: WARNING: CPU: 0 PID: 323 at clk_core_disable+0x98/0xa0
+
+'sdhci_esdhc_runtime_suspend' and 'sdhci_esdhc_runtime_resume'
+callbacks are called periodically. They disable & enable the sdhci clocks.
+
+When issue-ing a str (Suspend to RAM) operation, 'sdhci_esdhc_suspend'
+is called which also disables the sdhci clocks.
+Hence, a double disabling of sdhci clocks may appear leading to a
+kernel warning on STR.
+
+Add a check for pm_runtime_suspended() on the suspend/resume path.
+
+Upstream-Status: pending
+
+Issue: ALB-7118
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mmc/host/sdhci-esdhc-imx.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mmc/host/sdhci-esdhc-imx.c b/drivers/mmc/host/sdhci-esdhc-imx.c
+index 2298a30bb118..7347468a44bc 100644
+--- a/drivers/mmc/host/sdhci-esdhc-imx.c
++++ b/drivers/mmc/host/sdhci-esdhc-imx.c
+@@ -1909,9 +1909,11 @@ static int sdhci_esdhc_suspend(struct device *dev)
+ 
+ 	ret = mmc_gpio_set_cd_wake(host->mmc, true);
+ 
+-	clk_disable_unprepare(imx_data->clk_per);
+-	clk_disable_unprepare(imx_data->clk_ipg);
+-	clk_disable_unprepare(imx_data->clk_ahb);
++        if (!pm_runtime_suspended(dev)) {
++                clk_disable_unprepare(imx_data->clk_per);
++                clk_disable_unprepare(imx_data->clk_ipg);
++                clk_disable_unprepare(imx_data->clk_ahb);
++        }
+ 
+ 	return ret;
+ }
+-- 
+2.25.1
+

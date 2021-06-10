@@ -1,0 +1,34 @@
+From 2a7240b62df3e84bcb99d2204e7b7c1c6b5a1ae2 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Tue, 25 May 2021 11:44:08 +0300
+Subject: [PATCH 10/10] s32v234: dts: Add missing H264enc interrupt
+
+commit 65f5d5197972139008eb0b9ce188e8e93e98ebcb from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: pending
+
+Issue: ALB-6630
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32v234.dtsi | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32v234.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32v234.dtsi
+index fd88e5ded4e1..d17dfb592406 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32v234.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32v234.dtsi
+@@ -776,7 +776,8 @@ h264_encoder: h264_encoder@400DC000 {
+ 					<0 154 1>,
+ 					<0 155 1>,
+ 					<0 156 1>,
+-					<0 157 1>;
++					<0 157 1>,
++					<0 158 1>;
+ 				clocks = <&clks S32V234_CLK_H264ENC>,
+ 				   <&clks S32V234_CLK_H264ENC_IPS>,
+ 				   <&clks S32V234_CLK_H264ENC_SRAM_IPS>;
+-- 
+2.25.1
+

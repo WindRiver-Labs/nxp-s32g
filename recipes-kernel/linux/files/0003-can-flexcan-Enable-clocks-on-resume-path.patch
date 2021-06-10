@@ -1,0 +1,43 @@
+From 76ba7f5d7fae9699dd9621b31ef7b406f6052398 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Thu, 20 May 2021 13:24:59 +0300
+Subject: [PATCH 03/10] can: flexcan: Enable clocks on resume path
+
+commit 947645108a8b8b7b4a49d7b3c1676fe3367a6d00 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Commit 3f7d66046461fd414cfc2250fb085675246f6a44
+"can: flexcan: add LPSR mode support" removes clocks
+enablement on resume path. The commit replaces pm_runtime_force_resume
+and flexcan_chip_enable with flexcan_chip_start but flexcan_chip_start
+states that it should be "entered with clocks enabled".
+
+Clock enablement is done only if the interface is up.
+
+Upstream-Status: pending
+
+Issue: ALB-6823
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/net/can/flexcan.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/net/can/flexcan.c b/drivers/net/can/flexcan.c
+index add6edc456f8..dcd04dc2e001 100644
+--- a/drivers/net/can/flexcan.c
++++ b/drivers/net/can/flexcan.c
+@@ -2345,6 +2345,10 @@ static int __maybe_unused flexcan_resume(struct device *device)
+ 			if (err)
+ 				return err;
+ 
++			err = pm_runtime_force_resume(device);
++			if (err)
++				return err;
++
+ 			err = flexcan_chip_start(dev);
+ 			if (err)
+ 				return err;
+-- 
+2.25.1
+
