@@ -19,4 +19,5 @@ SRC_URI_append_nxp-s32g2xx = " \
     file://0011-drivers-phy-nxp-free-custom-data-after-phy-work-queu.patch \
     file://0012-drivers-dspi-fsl-fix-dspi-transfer-hang-issue.patch \
     file://0013-drivers-spi-fsl-dspi-delete-the-unused-variable.patch \
+    file://0014-dts-s32g274a-rdb2-disable-ARQ107-phy-node-explicitly.patch \
 "
