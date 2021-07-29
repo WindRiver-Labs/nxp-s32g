@@ -23,7 +23,7 @@ S = "${WORKDIR}/git"
 DESTDIR="${D}"
 IPCF_MDIR = "${S}"
 IPCF_SAMPLE_MDIR = "${S}/sample"
-INSTALL_DIR = "${D}/lib/modules/${KERNEL_VERSION}/kernel/drivers/ipc-shm"
+INSTALL_DIR = "${D}/${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/ipc-shm"
 EXTRA_OEMAKE_append = " -C ./sample INSTALL_DIR=${DESTDIR} KERNELDIR=${KBUILD_OUTPUT} "
 MODULES_MODULE_SYMVERS_LOCATION = "."
 
@@ -64,5 +64,6 @@ do_deploy() {
 }
 addtask do_deploy after do_install
 
-FILES_${PN} += "${base_libdir}/*"
 FILES_${PN} += "${sysconfdir}/modprobe.d/*"
+
+COMPATIBLE_MACHINE = "nxp-s32g2xx"
