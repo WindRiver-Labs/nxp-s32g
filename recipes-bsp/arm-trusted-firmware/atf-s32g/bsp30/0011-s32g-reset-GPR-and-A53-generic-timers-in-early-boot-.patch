@@ -1,0 +1,194 @@
+From d3f735916e95834dd8934e4e4a191f5cf1706b4c Mon Sep 17 00:00:00 2001
+From: Catalin Udma <catalin-dan.udma@nxp.com>
+Date: Tue, 29 Jun 2021 16:35:26 +0300
+Subject: [PATCH 11/11] s32g: reset GPR and A53 generic timers in early boot
+ for lockstep
+
+Lockstep requires A53 Generic Timers being reset to guarantee
+synchronous values across all clusters.
+The same is true for GPR registers (x0...x31). Set also x19-x28 as they
+may be used implicitely (by GCC) without being initialized.
+
+Issue: ALB-6703
+
+Upstream-Status: Pending
+
+Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/bl31_lowlevel.S         | 12 +++++-
+ plat/nxp/s32g/include/s32g_lowlevel.h |  3 +-
+ plat/nxp/s32g/s32g_lowlevel_bl2.S     |  6 ++-
+ plat/nxp/s32g/s32g_lowlevel_common.S  | 53 ++++++++++++++++++++++++++-
+ plat/nxp/s32g/s32g_resume.c           |  2 +
+ 5 files changed, 72 insertions(+), 4 deletions(-)
+
+diff --git a/plat/nxp/s32g/bl31_lowlevel.S b/plat/nxp/s32g/bl31_lowlevel.S
+index 1b6863ce5..639e90bf9 100644
+--- a/plat/nxp/s32g/bl31_lowlevel.S
++++ b/plat/nxp/s32g/bl31_lowlevel.S
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -178,6 +178,16 @@ endfunc wait_ncore_caiu_online
+ 
+ 
+ func plat_secondary_cold_boot_setup
++	bl	reset_registers_for_lockstep
++	/* Reset all callee-saved registers for secondary boot as they are not
++	 * initialized up to this point.
++	 */
++	mov x19, #0
++	mov x20, #0
++	mov x21, #0
++	mov x22, #0
++	mov x23, #0
++
+ 	bl	s32g_gic_fixups_for_secondary
+ 	bl	plat_my_core_pos
+ 	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
+diff --git a/plat/nxp/s32g/include/s32g_lowlevel.h b/plat/nxp/s32g/include/s32g_lowlevel.h
+index f89c02427..f1caf59e5 100644
+--- a/plat/nxp/s32g/include/s32g_lowlevel.h
++++ b/plat/nxp/s32g/include/s32g_lowlevel.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -12,5 +12,6 @@
+ 
+ int plat_is_my_cpu_primary(void);
+ void s32g_smp_fixup(void);
++void reset_registers_for_lockstep(void);
+ 
+ #endif /* S32G_LOWLEVEL_H */
+diff --git a/plat/nxp/s32g/s32g_lowlevel_bl2.S b/plat/nxp/s32g/s32g_lowlevel_bl2.S
+index 4f8a2666d..1ea687ccd 100644
+--- a/plat/nxp/s32g/s32g_lowlevel_bl2.S
++++ b/plat/nxp/s32g/s32g_lowlevel_bl2.S
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -14,11 +14,15 @@
+ .globl _s32g_sram_clr
+ .globl plat_secondary_cold_boot_setup
+ .globl s32g_ncore_isol_cluster0
++.globl reset_registers_for_lockstep
+ 
+ /* Clobber list: x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16 */
+ func plat_reset_handler
+ 	mov	x16, x30
+ 
++	/* Reset Generic Timers and GPR registers for lockstep */
++	bl	reset_registers_for_lockstep
++
+ 	/* Ncore quirks */
+ 	bl	s32g_ncore_isol_cluster0
+ 
+diff --git a/plat/nxp/s32g/s32g_lowlevel_common.S b/plat/nxp/s32g/s32g_lowlevel_common.S
+index 9856018dd..4df4a9be1 100644
+--- a/plat/nxp/s32g/s32g_lowlevel_common.S
++++ b/plat/nxp/s32g/s32g_lowlevel_common.S
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -16,6 +16,7 @@
+ .globl plat_panic_handler
+ .globl _s32g_sram_clr
+ .globl s32g_ncore_isol_cluster0
++.globl reset_registers_for_lockstep
+ 
+ func plat_panic_handler
+ 	wfi
+@@ -335,3 +336,53 @@ func plat_core_pos_by_mpidr
+ 	mov	x30, x7
+ 	ret
+ endfunc plat_core_pos_by_mpidr
++
++
++/* Clobber list: x0,x24,x25,x26,27,x28 */
++func reset_registers_for_lockstep
++	/*
++	 * Timers reset must be done when lockstep is enabled to avoid RCCU
++	 * mismatch errors. Reset should be executed as early as possible
++	 * before any read access to these counters. Resetting them for all boot
++	 * flows assures consistent values
++	 * This must be done in EL3 and executed for all cores.
++	 */
++
++	mov x0, #0x0
++	msr cntkctl_el1, x0
++
++	msr cntp_tval_el0, x0
++	msr cntp_ctl_el0, x0
++	msr cntp_cval_el0, x0
++
++	msr cntv_tval_el0, x0
++	msr cntv_cval_el0, x0
++	msr cntv_ctl_el0, x0
++
++	msr cntvoff_el2, x0
++	msr cnthctl_el2, x0
++
++	msr cnthp_tval_el2, x0
++	msr cnthp_ctl_el2, x0
++	msr cnthp_cval_el2, x0
++
++	msr cntps_tval_el1, x0
++	msr cntps_ctl_el1, x0
++	msr cntps_cval_el1, x0
++
++	/*
++	 * Lockstep sync GPR registers: write x19-x28 callee-saved registers
++	 * as defined in procedure call standard for the ARM 64-bit. These
++	 * registers may be saved to stack without being initialized, setting
++	 * them is needed to avoid lockstep errors.
++	 * x19-x23 are already initialized up to this point
++	 */
++
++	mov x24, #0
++	mov x25, #0
++	mov x26, #0
++	mov x27, #0
++	mov x28, #0
++
++	ret
++endfunc reset_registers_for_lockstep
+diff --git a/plat/nxp/s32g/s32g_resume.c b/plat/nxp/s32g/s32g_resume.c
+index 593a02c60..ccaccf545 100644
+--- a/plat/nxp/s32g/s32g_resume.c
++++ b/plat/nxp/s32g/s32g_resume.c
+@@ -5,6 +5,7 @@
+  */
+ #include "s32g_bl_common.h"
+ #include "s32g_linflexuart.h"
++#include "s32g_lowlevel.h"
+ #include "s32g_resume.h"
+ #include "s32gen1-wkpu.h"
+ #include <bl31/bl31.h>		/* for bl31_warm_entrypoint() */
+@@ -33,6 +34,7 @@ void s32g_resume_entrypoint(void)
+ 	int ret;
+ 
+ 	/* Prepare resume operation */
++	reset_registers_for_lockstep();
+ 	s32g_ncore_isol_cluster0();
+ 	s32g_early_plat_init(true);
+ 
+-- 
+2.17.1
+

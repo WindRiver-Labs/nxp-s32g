@@ -21,6 +21,17 @@ SRC_URI[sha256sum] = "4ded53541fb0ac8840f5a1e23ecfa546a1ca15246a73a15707ff8c76f4
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
 SRC_URI += " \
     file://0001-Fix-fiptool-build-error.patch \
+    file://bsp30/0001-s32-Enable-workaround-for-ARM-errata-1530924.patch \
+    file://bsp30/0002-s32g-minimal-initialization-during-resume-path.patch \
+    file://bsp30/0003-s32g-Move-PMIC-WDG-programming-after-initializations.patch \
+    file://bsp30/0004-s32g-Prevent-reset-escalation.patch \
+    file://bsp30/0005-s32g274a-Add-dts-fixup-as-part-of-LPDDR4-ERR050543.patch \
+    file://bsp30/0006-s32g-Report-min-and-max-frequencies-for-clocks-over-.patch \
+    file://bsp30/0007-s32g-Add-minimal-support-for-DFS.patch \
+    file://bsp30/0008-s32g-Add-OCOTP-driver-for-S32GEN1-platforms.patch \
+    file://bsp30/0009-dts-Add-OCOTP-nodes-for-S32G.patch \
+    file://bsp30/0010-s32g-Apply-VDD_CORE-adjustment.patch \
+    file://bsp30/0011-s32g-reset-GPR-and-A53-generic-timers-in-early-boot-.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g"

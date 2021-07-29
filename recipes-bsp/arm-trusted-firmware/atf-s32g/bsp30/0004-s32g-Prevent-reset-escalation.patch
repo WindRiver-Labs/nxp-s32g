@@ -1,0 +1,61 @@
+From 37cff3ef47e3d27980763d2a12e7b28ca1601c29 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 18 Jun 2021 07:53:51 +0300
+Subject: [PATCH 4/7] s32g: Prevent reset escalation
+
+Clear MC_RGM, DRET[DRET] field before every reset to avoid
+reset escalation.
+
+Upstream-Status: Pending
+
+Issue: ALB-7351
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_mc_rgm.h | 3 ++-
+ plat/nxp/s32g/s32g_mc_me.c          | 5 ++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/s32g_mc_rgm.h b/plat/nxp/s32g/include/s32g_mc_rgm.h
+index 3b586555a..3c1f76ea9 100644
+--- a/plat/nxp/s32g/include/s32g_mc_rgm.h
++++ b/plat/nxp/s32g/include/s32g_mc_rgm.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -11,6 +11,7 @@
+ #define S32G_MC_RGM_SIZE	0x1000ul
+ #define S32G_MC_RGM_PRST_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x40)
+ #define S32G_MC_RGM_PSTAT_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x140)
++#define S32G_MC_RGM_DRET_ADDR		(S32G_MC_RGM_BASE_ADDR + 0x1C)
+ /* Peripheral reset */
+ #define S32G_MC_RGM_PRST(p)	(S32G_MC_RGM_PRST_BASE_ADDR + 0x8 * p)
+ #define S32G_MC_RGM_PSTAT(p)	(S32G_MC_RGM_PSTAT_BASE_ADDR + 0x8 * p)
+diff --git a/plat/nxp/s32g/s32g_mc_me.c b/plat/nxp/s32g/s32g_mc_me.c
+index 006359620..d9cee186d 100644
+--- a/plat/nxp/s32g/s32g_mc_me.c
++++ b/plat/nxp/s32g/s32g_mc_me.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -408,6 +408,9 @@ void s32g_set_stby_master_core(uint8_t part, uint8_t core)
+ 
+ void s32g_destructive_reset(void)
+ {
++	/* Prevent reset escalation */
++	mmio_write_32(S32G_MC_RGM_DRET_ADDR, 0);
++
+ 	mmio_write_32(MC_ME_MODE_CONF, MC_ME_MODE_CONF_DRST);
+ 	mmio_write_32(MC_ME_MODE_UPD, MC_ME_MODE_UPD_UPD);
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,44 @@
+From 0c4bff2bb65ef0be1fc67bdd6d944d1b288cece7 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 25 Jun 2021 13:20:39 +0300
+Subject: [PATCH 09/11] dts: Add OCOTP nodes for S32G
+
+Upstream-Status: Pending
+
+Issue: ALB-7128
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/fsl-s32-gen1.dtsi | 5 +++++
+ fdts/fsl-s32g274a.dtsi | 4 ++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/fdts/fsl-s32-gen1.dtsi b/fdts/fsl-s32-gen1.dtsi
+index c3601332a..6b57ca908 100644
+--- a/fdts/fsl-s32-gen1.dtsi
++++ b/fdts/fsl-s32-gen1.dtsi
+@@ -381,4 +381,9 @@
+ 				<S32GEN1_DDR_FREQ>;
+ 		};
+ 	};
++
++	ocotp: ocotp@400A4000 {
++		reg = <0x0 0x400A4000 0x0 0x400>;
++		status = "okay";
++	};
+ };
+diff --git a/fdts/fsl-s32g274a.dtsi b/fdts/fsl-s32g274a.dtsi
+index 82376f44c..9a3961197 100644
+--- a/fdts/fsl-s32g274a.dtsi
++++ b/fdts/fsl-s32g274a.dtsi
+@@ -57,3 +57,7 @@
+ 		<600000000>,
+ 		<600000000>;
+ };
++
++&ocotp {
++	compatible = "fsl,s32g-ocotp";
++};
+-- 
+2.17.1
+

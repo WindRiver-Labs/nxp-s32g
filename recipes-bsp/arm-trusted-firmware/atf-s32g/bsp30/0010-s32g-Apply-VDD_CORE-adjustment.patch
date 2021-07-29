@@ -1,0 +1,205 @@
+From 3e844f3330eaa6281f34d1fbbc20d15ec757be9a Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 25 Jun 2021 13:22:19 +0300
+Subject: [PATCH 10/11] s32g: Apply VDD_CORE adjustment
+
+This adjusts core's voltage based on process data for S32GEN1 chips.
+It will lower the voltage on BUCK_1/2 (VDD_CORE) to 0.76875V if
+DIE_PROCESS=1 in order to be as close as possible to 0.77V (the
+recommended voltage in DS for chips with SVS=1).
+
+Upstream-Status: Pending
+
+Issue: ALB-7128
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/drivers/nxp/s32g/pmic/vr5510.h |  3 +-
+ plat/nxp/s32g/include/s32g_bl_common.h |  2 +-
+ plat/nxp/s32g/s32g_bl31.c              |  2 +-
+ plat/nxp/s32g/s32g_resume.c            |  2 +-
+ plat/nxp/s32g/s32g_vr5510.c            | 90 ++++++++++++++++++++++----
+ 5 files changed, 84 insertions(+), 15 deletions(-)
+
+diff --git a/include/drivers/nxp/s32g/pmic/vr5510.h b/include/drivers/nxp/s32g/pmic/vr5510.h
+index 69432d632..82969c109 100644
+--- a/include/drivers/nxp/s32g/pmic/vr5510.h
++++ b/include/drivers/nxp/s32g/pmic/vr5510.h
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef VR5510_PMIC_H
+ #define VR5510_PMIC_H
+@@ -110,6 +110,7 @@
+ #define VR5510_FS_I_FSSM			11
+ #define VR5510_FS_I_NOT_FSSM			12
+ #define VR5510_FS_I_SVS				13
++#define VR5510_FS_I_SVS_SVS_OFFSET		10
+ #define VR5510_FS_I_NOT_SVS			14
+ #define VR5510_FS_WD_WINDOW			15
+ #define VR5510_WD_WINDOW_OFFSET			12
+diff --git a/plat/nxp/s32g/include/s32g_bl_common.h b/plat/nxp/s32g/include/s32g_bl_common.h
+index 11e01a0e6..02cf562a8 100644
+--- a/plat/nxp/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32g/include/s32g_bl_common.h
+@@ -37,7 +37,7 @@ void plat_gic_restore(void);
+ void s32g_early_plat_init(bool skip_ddr_clk);
+ int pmic_prepare_for_suspend(void);
+ void pmic_system_off(void);
+-int pmic_disable_wdg(void);
++int pmic_setup(void);
+ 
+ void update_core_state(uint32_t core, uint32_t state);
+ bool is_last_core(void);
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 0d8922988..0c3afb4b3 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -437,7 +437,7 @@ void bl31_platform_setup(void)
+ 	dt_init_wkpu();
+ 	dt_init_ocotp();
+ 
+-	ret = pmic_disable_wdg();
++	ret = pmic_setup();
+ 	if (ret)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
+ 
+diff --git a/plat/nxp/s32g/s32g_resume.c b/plat/nxp/s32g/s32g_resume.c
+index 7053c82e1..593a02c60 100644
+--- a/plat/nxp/s32g/s32g_resume.c
++++ b/plat/nxp/s32g/s32g_resume.c
+@@ -36,7 +36,7 @@ void s32g_resume_entrypoint(void)
+ 	s32g_ncore_isol_cluster0();
+ 	s32g_early_plat_init(true);
+ 
+-	ret = pmic_disable_wdg();
++	ret = pmic_setup();
+ 	if (ret)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
+ 
+diff --git a/plat/nxp/s32g/s32g_vr5510.c b/plat/nxp/s32g/s32g_vr5510.c
+index c169f86da..29b51a100 100644
+--- a/plat/nxp/s32g/s32g_vr5510.c
++++ b/plat/nxp/s32g/s32g_vr5510.c
+@@ -1,10 +1,12 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #include "pmic/vr5510.h"
+ #include "s32g_bl_common.h"
++#include <drivers/nxp/s32g/ocotp.h>
++#include <lib/libc/stdint.h>
+ 
+ static int watchdog_refresh(vr5510_t fsu)
+ {
+@@ -190,21 +192,12 @@ void pmic_system_off(void)
+ 		ERROR("Failed to write VR5510_M_SM_CTRL1 register\n");
+ }
+ 
+-int pmic_disable_wdg(void)
++static int pmic_disable_wdg(vr5510_t fsu)
+ {
+-	vr5510_t fsu;
+ 	uint16_t reg;
+ 	uint8_t *regp = (uint8_t *)&reg;
+ 	int ret;
+ 
+-	s32g_reinit_i2c();
+-
+-	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
+-	if (ret) {
+-		ERROR("Failed to get VR5510 FSU\n");
+-		return ret;
+-	}
+-
+ 	ret = vr5510_read(fsu, VR5510_FS_STATES, regp, sizeof(reg));
+ 	if (ret)
+ 		return ret;
+@@ -264,3 +257,78 @@ int pmic_disable_wdg(void)
+ 	return watchdog_refresh(fsu);
+ }
+ 
++static int is_svs_needed(bool *status)
++{
++	uint32_t val;
++	int ret;
++
++	ret = s32gen1_ocotp_read(S32GEN1_OCOTP_DIE_PROCESS_ADDR, &val);
++	if (ret)
++		return ret;
++
++	*status = !!(val & S32GEN1_OCOTP_DIE_PROCESS_MASK);
++
++	return 0;
++}
++
++static int apply_svs(vr5510_t fsu)
++{
++	int ret;
++	uint16_t reg;
++	bool enable_svs;
++	uint8_t *regp = (uint8_t *)&reg;
++
++	ret = is_svs_needed(&enable_svs);
++	if (ret)
++		return ret;
++
++	if (!enable_svs)
++		return 0;
++
++	ret = vr5510_read(fsu, VR5510_FS_STATES, regp, sizeof(reg));
++	if (VR5510_STATE(reg) != INIT_FS) {
++		ERROR("Cannot apply SVS in state %u\n",
++			VR5510_STATE(reg));
++		return -1;
++	}
++
++	/**
++	 * Targeted voltage according to S32G & S32R DS : 0.76875V ->
++	 * 5 SVS steps
++	 */
++	reg = 5 << VR5510_FS_I_SVS_SVS_OFFSET;
++	ret = vr5510_write(fsu, VR5510_FS_I_SVS, regp, sizeof(reg));
++	if (ret) {
++		ERROR("Failed to write SVS\n");
++		return ret;
++	}
++
++	reg = ~reg & 0xFFFFU;
++	ret = vr5510_write(fsu, VR5510_FS_I_NOT_SVS, regp, sizeof(reg));
++	if (ret) {
++		ERROR("Failed to write NOT_SVS\n");
++		return ret;
++	}
++
++	return 0;
++}
++
++int pmic_setup(void)
++{
++	vr5510_t fsu;
++	int ret;
++
++	s32g_reinit_i2c();
++
++	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
++	if (ret) {
++		ERROR("Failed to get VR5510 FSU\n");
++		return ret;
++	}
++
++	ret = apply_svs(fsu);
++	if (ret)
++		return ret;
++
++	return pmic_disable_wdg(fsu);
++}
+-- 
+2.17.1
+
