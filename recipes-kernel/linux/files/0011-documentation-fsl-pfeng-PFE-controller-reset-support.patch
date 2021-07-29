@@ -1,0 +1,46 @@
+From f511433493f2fa4194b3c0c58d955c6ef0d2b000 Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Tue, 27 Apr 2021 12:43:38 +0200
+Subject: [PATCH 11/13] documentation:fsl-pfeng: PFE controller reset support
+
+commit  ac6352355c4cce3a2f869bc529a58838eb19a2c0 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+To support STR, the PFE controller must be resettable
+from within driver. Use s32gen1 reset controller
+to reset PFE partition.
+
+Upstream-Status: Pending
+
+Issue: ALB-6503
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Documentation/devicetree/bindings/fsl-pfeng.txt | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/fsl-pfeng.txt b/Documentation/devicetree/bindings/fsl-pfeng.txt
+index 4cc1e25de1f6..ddc40789ec0b 100644
+--- a/Documentation/devicetree/bindings/fsl-pfeng.txt
++++ b/Documentation/devicetree/bindings/fsl-pfeng.txt
+@@ -7,6 +7,7 @@
+ Required properties:
+ - compatible : Should be "fsl,s32g274a-pfeng"
+ - reg : Address and length of the register set for the device
++- resets: Specify PFE partition reset
+ - interrupts : Should contain all pfeng interrupts but hifs: bmu,upegpt,safety
+ - clocks : Should contain at least: pfe_sys, pfe_pe
+ - memory-region : Physical address space for PFE buffers
+@@ -112,6 +113,8 @@ pfe@46080000 {
+ 			      <GIC_SPI 197 IRQ_TYPE_EDGE_RISING>;
+ 		interrupt-names = "bmu", "nocpy", "upegpt", "safety";
+ 		dma-coherent;
++		resets = <&reset S32GEN1_SCMI_RST_PART2>;
++		reset-names = "pfe_part";
+ 		clocks = <&clks S32G_SCMI_CLK_PFE_AXI>,
+ 			 <&clks S32G_SCMI_CLK_PFE_PE>,
+ 			 <&clks S32G_SCMI_CLK_PFE_TS>;
+-- 
+2.25.1
+

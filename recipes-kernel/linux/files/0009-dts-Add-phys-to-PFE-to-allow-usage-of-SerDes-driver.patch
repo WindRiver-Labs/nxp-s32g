@@ -1,0 +1,61 @@
+From dd7dcafcc239aaad8dee6399f8c8291c4cd7bd25 Mon Sep 17 00:00:00 2001
+From: Ondrej Spacek <ondrej.spacek@nxp.com>
+Date: Wed, 21 Apr 2021 07:22:47 +0200
+Subject: [PATCH 09/13] dts: Add phys to PFE to allow usage of SerDes driver.
+
+commit  4e1fca767de50b3261dae17b853a7f9c55c8131a from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Change default fsl,sys-mode to correspond to our default board config.
+
+Upstream-Status: Pending
+
+Issue: ALB-7013
+Signed-off-by: Ondrej Spacek <ondrej.spacek@nxp.com>
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi | 4 ++--
+ arch/arm64/boot/dts/freescale/fsl-s32g.dtsi     | 4 ++++
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+index 6dbfdbd1cb64..1c68245ebc6d 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+@@ -843,7 +843,7 @@ serdes0: serdes@40480000 {
+ 		resets = <&reset S32GEN1_SCMI_RST_SERDES0>,
+ 			 <&reset S32GEN1_SCMI_RST_PCIE0>;
+ 		reset-names = "serdes", "pcie";
+-		fsl,sys-mode = <XPCSX2_MODE>;
++		fsl,sys-mode = <PCIE_GEN3X2_MODE>;
+ 		reg = <0x0 0x40480000 0x0 0x108>,
+ 		      <0x0 0x40483008 0x0 0x10>,
+ 		      <0x0 0x40482000 0x0 0x800>,
+@@ -914,7 +914,7 @@ serdes1: serdes@44180000 {
+ 		resets = <&reset S32GEN1_SCMI_RST_SERDES1>,
+ 			 <&reset S32GEN1_SCMI_RST_PCIE1>;
+ 		reset-names = "serdes", "pcie";
+-		fsl,sys-mode = <PCIE_XPCS0_MODE>;
++		fsl,sys-mode = <XPCSX2_MODE>;
+ 		reg = <0x0 0x44180000 0x0 0x108>,
+ 		      <0x0 0x44183008 0x0 0x10>,
+ 		      <0x0 0x44182000 0x0 0x800>,
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
+index f07b5ba28cc4..498525790599 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
+@@ -102,6 +102,10 @@ pfe: pfe@46080000 {
+ 			 <&clks S32G_SCMI_CLK_PFE_PE>,
+ 			 <&clks S32G_SCMI_CLK_PFE_TS>;
+ 		clock-names = "pfe_sys", "pfe_pe", "pfe_ts";
++		phys = <&serdes1 PHY_TYPE_XPCS 0 0>,
++			 <&serdes1 PHY_TYPE_XPCS 1 1>,
++			 <&serdes0 PHY_TYPE_XPCS 1 1>;
++		phy-names = "emac0_xpcs", "emac1_xpcs", "emac2_xpcs";
+ 		dma-coherent;
+ 		memory-region = <&pfe_reserved_bmu2>,
+ 				<&pfe_reserved>,
+-- 
+2.25.1
+

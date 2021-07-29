@@ -1,0 +1,54 @@
+From 3c7ba95544f32c69c9eaf4aed9f284be28728188 Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Tue, 27 Apr 2021 12:59:16 +0200
+Subject: [PATCH 12/13] dt-bindings: s32g274a: pfe: PFE controller reset
+ support
+
+commit  b89f9dc3d93ffffcd8721e5b2b67cd82385f3c35 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Add s32gen1 reset to pfe node.
+
+Upstream-Status: Pending
+
+Issue: ALB-6503
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32g.dtsi | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
+index 498525790599..ffc42c0f8a45 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
+@@ -12,6 +12,7 @@
+ #include <dt-bindings/mailbox/nxp-llce-mb.h>
+ #include <dt-bindings/pinctrl/s32g-pinctrl.h>
+ #include <dt-bindings/clock/s32g-scmi-clock.h>
++#include <dt-bindings/reset/s32g-scmi-reset.h>
+ #include <dt-bindings/net/fsl-s32g-pfeng.h>
+ 
+ / {
+@@ -85,7 +86,7 @@ reset: rgm@40078000 {
+ 		#reset-cells = <1>;
+ 	};
+ 
+-	pfe: pfe@46080000 {
++	pfe: pfe@46000000 {
+ 		compatible = "fsl,s32g274a-pfeng",
+ 			     "fsl,s32g274-pfe";
+ 		reg = <0x0 0x46000000 0x0 0x1000000>,	/* PFE controller */
+@@ -98,6 +99,8 @@ pfe: pfe@46080000 {
+ 			     <GIC_SPI 196 IRQ_TYPE_EDGE_RISING>,
+ 			     <GIC_SPI 197 IRQ_TYPE_EDGE_RISING>;
+ 		interrupt-names = "bmu", "upegpt", "safety";
++		resets = <&reset S32GEN1_SCMI_RST_PART2>;
++		reset-names = "pfe_part";
+ 		clocks = <&clks S32G_SCMI_CLK_PFE_AXI>,
+ 			 <&clks S32G_SCMI_CLK_PFE_PE>,
+ 			 <&clks S32G_SCMI_CLK_PFE_TS>;
+-- 
+2.25.1
+

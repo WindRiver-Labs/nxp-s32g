@@ -1,0 +1,74 @@
+From a1240cc5ea2efa67e507c7f492e18ed22438ca5e Mon Sep 17 00:00:00 2001
+From: Xulin Sun <xulin.sun@windriver.com>
+Date: Mon, 5 Apr 2021 17:49:20 +0800
+Subject: [PATCH] s32gen1: pcie: Remove duplicate interrupt resource request
+
+This fixes the below kmemleak call trace:
+
+unreferenced object 0xffffff88784d5980 (size 128):
+comm "swapper/0", pid 1, jiffies 4294902557 (age 818.400s)
+hex dump (first 32 bytes):
+30 5b 93 10 c0 ff ff ff b0 a8 1f 6d 88 ff ff ff 0[.........m....
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+backtrace:
+[<0000000074293536>] kmem_cache_alloc_trace+0x210/0x40c
+[<00000000093fdcf7>] request_threaded_irq+0xac/0x190
+[<000000007f996a2c>] devm_request_threaded_irq+0x88/0x100
+[<000000003d0d78cc>] s32gen1_add_pcie_port+0xb8/0x140
+[<00000000cc74b4c2>] s32gen1_pcie_probe+0x2d8/0x530
+[<0000000003a11c47>] platform_drv_probe+0x5c/0xb0
+[<000000009e95fb7f>] really_probe+0x2c8/0x4c0
+[<00000000ec5319dd>] driver_probe_device+0xa8/0x140
+[<0000000051d2c2b2>] device_driver_attach+0xc8/0xd0
+[<0000000095c059b0>] __driver_attach+0x100/0x180
+[<000000004ab82003>] bus_for_each_dev+0x84/0xe0
+[<0000000016820dbb>] driver_attach+0x34/0x40
+[<00000000dd144a96>] bus_add_driver+0x138/0x224
+[<00000000b139f009>] driver_register+0x7c/0x124
+[<000000002c21c5fe>] __platform_driver_probe+0x88/0x150
+[<00000000bbf513f8>] s32gen1_pcie_init+0x30/0x38
+
+That showed the allocated "action" of the function "request_threaded_irq" is not
+freed.
+The reason is that the "action" of msi irq is overwrote by below calling path,
+and caused the allocated memory becoming an island and reported the kmemleak call
+trace.
+
+dw_pcie_host_init
+	irq_set_chained_handler_and_data
+		__irq_do_set_handler
+			desc->action = &chained_action;
+
+So remove duplicate interrupt resource request, just do it in
+dw_pcie_host_init().
+
+Upstream-Status: Pending
+
+Signed-off-by: Xulin Sun <xulin.sun@windriver.com>
+Signed-off-by: Bruce Ashfield <bruce.ashfield@gmail.com>
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+Signed-off-by: Bruce Ashfield <bruce.ashfield@gmail.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/pci/controller/dwc/pci-s32gen1.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/pci/controller/dwc/pci-s32gen1.c b/drivers/pci/controller/dwc/pci-s32gen1.c
+index a1c2092934c5..7db95a0c691f 100644
+--- a/drivers/pci/controller/dwc/pci-s32gen1.c
++++ b/drivers/pci/controller/dwc/pci-s32gen1.c
+@@ -1286,9 +1286,8 @@ static int s32gen1_pcie_config_common(struct s32gen1_pcie *s32_pp,
+ 	/* MSI configuration, for both RC and EP */
+ #ifdef CONFIG_PCI_MSI
+ 	if ((!s32_pp->is_endpoint) && (!s32gen1_has_msi_parent(pp))) {
+-		ret = s32gen1_pcie_config_irq(&pp->msi_irq, "msi", pdev,
+-					      s32gen1_pcie_msi_handler, pp);
+-		if (ret) {
++		pp->msi_irq = platform_get_irq_byname(pdev, "msi");
++		if (pp->msi_irq <= 0) {
+ 			dev_err(&pdev->dev, "failed to request msi irq\n");
+ 			return ret;
+ 		}
+-- 
+2.25.1
+

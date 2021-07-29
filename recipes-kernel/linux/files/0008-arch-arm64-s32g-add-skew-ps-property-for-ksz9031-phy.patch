@@ -1,0 +1,47 @@
+From 83cdbadb3c605df8eddfd7f84d966f72bd59d036 Mon Sep 17 00:00:00 2001
+From: MengLi <meng.li@windriver.com>
+Date: Mon, 1 Feb 2021 18:58:47 +0800
+Subject: [PATCH 08/13] arch: arm64: s32g: add skew-ps property for ksz9031 phy
+ node
+
+add skew-ps property to improve ksz9031 phy node.
+
+Upstream-Status: Pending
+
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb2.dts | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb2.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb2.dts
+index 5d186f7ab84f..bbcf6553b663 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb2.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-rdb2.dts
+@@ -35,10 +35,23 @@ &pfe_emac1 {
+ &gmac0_mdio {
+ 	/* KSZ9031 GMAC */
+ 	mdio_a_phy1: ethernet-phy@1 {
++		compatible = "ethernet-phy-ieee802.3-c22";
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 		max-speed = <1000>;
+ 		reg = <1>;
++		rxdv-skew-ps = <480>;
++		txen-skew-ps = <480>;
++		rxd0-skew-ps = <480>;
++		rxd1-skew-ps = <480>;
++		rxd2-skew-ps = <480>;
++		rxd3-skew-ps = <480>;
++		txd0-skew-ps = <420>;
++		txd1-skew-ps = <420>;
++		txd2-skew-ps = <360>;
++		txd3-skew-ps = <360>;
++		txc-skew-ps = <1020>;
++		rxc-skew-ps = <960>;
+ 	};
+ 	/* ARQ107 */
+ 	mdio_a_phy3: ethernet-phy@3 {
+-- 
+2.25.1
+

@@ -1,0 +1,33 @@
+From cf09f00c5f303783c802cb21b0ec8a6683389d08 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Sat, 10 Jul 2021 08:51:13 +0800
+Subject: [PATCH] drivers: qspi: replace dev_info() with dev_dbg() in
+ qspi_read_mem() to delete the unneeded messages
+
+In qspi_read_mem() of s32gen1_qspi driver, there is a performance messages to
+show the speed of read, but the lots of speed message are unneeded, and may
+affact the user experience, so replace the dev_info() with dev_dbg().
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/spi/s32gen1-qspi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/spi/s32gen1-qspi.c b/drivers/spi/s32gen1-qspi.c
+index ba3813138853..09e58f7ae0de 100644
+--- a/drivers/spi/s32gen1-qspi.c
++++ b/drivers/spi/s32gen1-qspi.c
+@@ -1046,7 +1046,7 @@ int qspi_read_mem(struct fsl_qspi *q,
+ 	if (us_passed > 0) {
+ 		mb_int = div_u64_rem(op->data.nbytes, us_passed, &rem);
+ 		mb_frac = div64_u64(rem * 1000, us_passed);
+-		dev_info(q->dev, "%u bytes read in %u us (%llu.%llu MB/s)\n",
++		dev_dbg(q->dev, "%u bytes read in %u us (%llu.%llu MB/s)\n",
+ 				op->data.nbytes, us_passed, mb_int, mb_frac);
+ 	}
+ 
+-- 
+2.25.1
+

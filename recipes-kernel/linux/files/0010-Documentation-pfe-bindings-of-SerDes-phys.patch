@@ -1,0 +1,47 @@
+From 4eb77fc0fde6464521c1a005fa17104607ae5973 Mon Sep 17 00:00:00 2001
+From: Ondrej Spacek <ondrej.spacek@nxp.com>
+Date: Wed, 21 Apr 2021 07:23:43 +0200
+Subject: [PATCH 10/13] Documentation: pfe: bindings of SerDes phys
+
+commit  015c2971258d0bcf56f5acda00463ab841808167 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Update bindings by adding phys to PFE to allow usage of
+SerDes driver.
+
+Upstream-Status: Pending
+
+Issue: ALB-7013
+Signed-off-by: Ondrej Spacek <ondrej.spacek@nxp.com>
+Signed-off-by: Meng Li <Meng.Li@windriver.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Documentation/devicetree/bindings/fsl-pfeng.txt | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/fsl-pfeng.txt b/Documentation/devicetree/bindings/fsl-pfeng.txt
+index 24c336fe3a7e..4cc1e25de1f6 100644
+--- a/Documentation/devicetree/bindings/fsl-pfeng.txt
++++ b/Documentation/devicetree/bindings/fsl-pfeng.txt
+@@ -23,6 +23,7 @@ Optional properties:
+ - fsl,fw-class-name : PFE CLASS firmware filename
+ - fsl,fw-util-name : PFE UTIL firmware filename
+ - fsl,pfeng-master-hif-channel : [slave only] The number of master's HIF channel (0-3)
++- phys : Serdes phys for sgmii interfaces
+ 
+ Required subnode:
+ - hif : specifies the PFE HIF channel
+@@ -118,6 +119,10 @@ pfe@46080000 {
+ 		memory-region = <&pfe_reserved_bmu2>, <&pfe_reserved>, <&pfe_reserved_bdr>;
+ 		fsl,fw-class-name = "s32g_pfe_class.fw";
+ 		fsl,fw-util-name = "s32g_pfe_util.fw";
++		phys = <&serdes1 PHY_TYPE_XPCS 0 0>,
++			 <&serdes1 PHY_TYPE_XPCS 1 1>,
++			 <&serdes0 PHY_TYPE_XPCS 1 1>;
++		phy-names = "emac0_xpcs", "emac1_xpcs", "emac2_xpcs";
+ 
+ 		/* PFE_HIF_0 */
+ 		pfe_hif0: hif@0 {
+-- 
+2.25.1
+

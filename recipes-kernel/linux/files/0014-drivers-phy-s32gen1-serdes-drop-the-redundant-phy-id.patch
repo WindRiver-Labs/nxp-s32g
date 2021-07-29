@@ -1,0 +1,78 @@
+From 7b71de94fd8c9b665ed36760c9e4a4c62f15377a Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Mon, 17 May 2021 10:45:32 +0800
+Subject: [PATCH] drivers: phy: s32gen1-serdes: drop the redundant phy id
+ setting
+
+In s32gen1 serdes driver, when serdes probed, it will call devm_phy_create()
+to create a phy, and the related phy id will be maintained by the phy framework,
+so drop the redundant phy id setting in serdes probe function, or else, there
+will be debug warning calltrace as below:
+
+	[ 50.375543] -----------[ cut here ]-----------
+	[ 50.380497] ida_free called for id=1 which is not allocated.
+	[ 50.396707] WARNING: CPU: 3 PID: 36 at lib/idr.c:524 ida_free+0x150/0x160
+	[ 50.403664] Modules linked in:
+	[ 50.406855] CPU: 3 PID: 36 Comm: kworker/3:1 Not tainted 5.10.35-yocto-standard #1
+	[ 50.414602] Hardware name: Freescale S32G274 (DT)
+	[ 50.419439] Workqueue: events kobject_delayed_cleanup
+	[ 50.424655] pstate: 40000005 (nZcv daif PAN -UAO -TCO BTYPE=-)
+	[ 50.430814] pc : ida_free+0x150/0x160
+	[ 50.434586] lr : ida_free+0x150/0x160
+	[ 50.438355] sp : ffffffc014c6bc40
+	[ 50.441771] x29: ffffffc014c6bc40 x28: ffffffc0125d5920
+	[ 50.447278] x27: 0000000000000000 x26: ffffffc011d10e68
+	[ 50.452784] x25: 0000000000000000 x24: ffffff8802051dc0
+	[ 50.458290] x23: 0000000000000000 x22: 0000000000000001
+	[ 50.463797] x21: ffffff8802051dc0 x20: 000000000000000c
+	[ 50.469302] x19: 0000000000000001 x18: 0000000000000030
+	[ 50.474808] x17: 0000000000000009 x16: 00001eb1a8d6d99d
+	[ 50.480314] x15: 007ac9c4d706f1ae x14: ffffffc0110abe70
+	[ 50.485820] x13: 00000000000000e8 x12: 00000000d2a81d91
+	[ 50.491326] x11: 0000000000040171 x10: 000000004bdb515b
+	[ 50.496832] x9 : ffffffc0100d5ed0 x8 : ffffffc012656c50
+	[ 50.502338] x7 : 0000000000000000 x6 : ffffffc011d11000
+	[ 50.507845] x5 : ffffffc011d117c0 x4 : 0000000000000002
+	[ 50.513350] x3 : 0000000000000000 x2 : ffffff8802051dc0
+	[ 50.518857] x1 : b6d584dd6de69a00 x0 : 0000000000000000
+	[ 50.524363] Call trace:
+	[ 50.526897] ida_free+0x150/0x160
+	[ 50.530318] phy_release+0x3c/0x54
+	[ 50.533829] device_release+0x40/0xa0
+	[ 50.537601] kobject_cleanup+0x6c/0x1c4
+	[ 50.541549] kobject_delayed_cleanup+0x14/0x20
+	[ 50.546121] process_one_work+0x280/0x740
+	[ 50.550247] worker_thread+0x78/0x39c
+	[ 50.554019] kthread+0x158/0x164
+	[ 50.557351] ret_from_fork+0x10/0x3c
+	[ 50.561032] irq event stamp: 28086
+	[ 50.564545] hardirqs last enabled at (28085): [<ffffffc011087e60>] _raw_spin_unlock_irq+0x50/0xa0
+	[ 50.573713] hardirqs last disabled at (28086): [<ffffffc01107aa14>] el1_dbg+0x24/0x50
+	[ 50.581728] softirqs last enabled at (28070): [<ffffffc010010898>] __do_softirq+0x698/0x758
+	[ 50.590363] softirqs last disabled at (28065): [<ffffffc01005150c>] __irq_exit_rcu+0x108/0x17c
+	[ 50.599202] --[ end trace 4d298a089f4744aa ]--
+
+This patch will fix it.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/phy/freescale/phy-fsl-s32gen1-serdes.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c b/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c
+index c7edf7c3aa40..cf0c06f529ce 100644
+--- a/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c
++++ b/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c
+@@ -821,7 +821,6 @@ static int serdes_probe(struct platform_device *pdev)
+ 		if (IS_ERR(serdes->phys[i]))
+ 			return PTR_ERR(serdes->phys[i]);
+ 		phy_set_drvdata(serdes->phys[i], serdes);
+-		serdes->phys[i]->id = i;
+ 	}
+ 
+ 	ret = ss_dt_init(pdev, serdes);
+-- 
+2.25.1
+
