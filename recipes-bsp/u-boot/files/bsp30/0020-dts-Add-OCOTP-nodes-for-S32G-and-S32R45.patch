@@ -1,0 +1,58 @@
+From 662ebe4508f31b93dbbc0ba7dad843447bd00493 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 24 Jun 2021 14:53:55 +0300
+Subject: [PATCH 20/29] dts: Add OCOTP nodes for S32G and S32R45
+
+Upstream-Status: Pending
+
+Issue: ALB-7128
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 5 +++++
+ arch/arm/dts/fsl-s32g.dtsi     | 4 ++++
+ arch/arm/dts/fsl-s32r45.dts    | 4 ++++
+ 3 files changed, 13 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index 2e7b746523..6ab556c09f 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -594,5 +594,10 @@
+ 		clocks = <&clks S32GEN1_SCMI_CLK_I2C_REG>;
+ 		status = "disabled";
+ 	};
++
++	ocotp: ocotp@400A4000 {
++		reg = <0x0 0x400A4000 0x0 0x400>;
++		status = "okay";
++	};
+ };
+ 
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index ef72ee8325..05339341bd 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -532,3 +532,7 @@
+ 		};
+ 	};
+ };
++
++&ocotp {
++	compatible = "fsl,s32g-ocotp";
++};
+diff --git a/arch/arm/dts/fsl-s32r45.dts b/arch/arm/dts/fsl-s32r45.dts
+index d03f4300c3..ffb2c14e75 100644
+--- a/arch/arm/dts/fsl-s32r45.dts
++++ b/arch/arm/dts/fsl-s32r45.dts
+@@ -450,3 +450,7 @@
+ 	pinctrl-0 =  <&pinctrl1_dspi5>;
+ 	status = "okay";
+ };
++
++&ocotp {
++	compatible = "fsl,s32r45-ocotp";
++};
+-- 
+2.17.1
+

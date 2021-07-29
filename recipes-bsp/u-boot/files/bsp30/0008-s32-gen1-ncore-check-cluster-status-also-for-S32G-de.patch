@@ -1,0 +1,65 @@
+From fd9d5a5caf78e77c688543b91e12149fa0008d98 Mon Sep 17 00:00:00 2001
+From: Catalin Udma <catalin-dan.udma@nxp.com>
+Date: Fri, 11 Jun 2021 10:08:41 +0300
+Subject: [PATCH 08/14] s32-gen1: ncore: check cluster status also for S32G
+ derrivatives
+
+Upstream-Status: Pending
+
+Issue: ALB-6703
+
+Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/ncore.c | 14 ++++----------
+ 1 file changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c b/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c
+index 398c50331a..0fba50420e 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c
+@@ -8,6 +8,7 @@
+ #include <asm/io.h>
+ #include <common.h>
+ #include <asm/arch/cpu.h>
++#include <asm/arch/s32-gen1/a53_cluster_gpr.h>
+ #include <asm/arch/s32-gen1/ncore.h>
+ 
+ #define NCORE_BASE_ADDR		(0x50400000ul)
+@@ -62,10 +63,6 @@
+ #define ERRDETEN		BIT(0)
+ #define ERRINTEN		BIT(1)
+ 
+-#define A53_GPR			(0x4007c400ul)
+-#define GPR06			(A53_GPR + 0x18)
+-#define GPR06_CA53_LOCKSTEP_EN	BIT(0)
+-
+ void ncore_init(u32 cpumask)
+ {
+ 	int i, j;
+@@ -74,7 +71,6 @@ void ncore_init(u32 cpumask)
+ 	u32 csuid_numcaius, csuid_numncbus, csuid_numdirus, csuid_numcmius;
+ 	u32 dirucase[4] = {0,0,0,0};
+ 	u32 csadse[4] = {0,0,0,0};
+-	u32 lockstep_enabled;
+ 
+ 	csid_numsfs = (readl(CSID) & CSID_NUMSFS) + 1;
+ 	regdata = readl(CSUID);
+@@ -83,11 +79,9 @@ void ncore_init(u32 cpumask)
+ 	csuid_numdirus = regdata >> CSUID_NUMDIRUS_OFFSET & CSUID_NUMDIRUS_MASK;
+ 	csuid_numcmius = regdata >> CSUID_NUMCMIUS_OFFSET & CSUID_NUMCMIUS_MASK;
+ 
+-	lockstep_enabled = readl(GPR06) & GPR06_CA53_LOCKSTEP_EN;
+-
+-	if (((cpumask & CPUMASK_CLUSTER0) == cpumask) ||
+-	    ((cpumask & CPUMASK_CLUSTER1) == cpumask) ||
+-	    (lockstep_enabled == GPR06_CA53_LOCKSTEP_EN)) {
++	if (((cpumask & cpu_pos_mask_cluster0()) == cpumask) ||
++	    ((cpumask & cpu_pos_mask_cluster1()) == cpumask) ||
++	    is_a53_lockstep_enabled()) {
+ 		csuid_numcaius  = 1;
+ 		csuid_numncbus  = 1;
+ 	}
+-- 
+2.17.1
+

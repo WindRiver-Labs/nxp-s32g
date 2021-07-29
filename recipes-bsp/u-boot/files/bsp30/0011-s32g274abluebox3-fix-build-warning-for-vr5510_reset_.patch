@@ -1,0 +1,42 @@
+From 3719a6db80ba5b0ba86d585b912dce55dcbc17a8 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Fri, 18 Jun 2021 14:22:43 +0300
+Subject: [PATCH 11/14] s32g274abluebox3: fix build warning for
+ vr5510_reset_flt_err_cnt()
+
+vr5510_reset_flt_err_cnt() should only be available on BBX3.
+Currently a warning is issued when building with other configs
+than s32g274abluebox3_defconfig.
+
+Upstream-Status: Pending
+
+Issue: ALB-7068
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index 211669559a..e107c94818 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -417,6 +417,7 @@ static int disable_vr5510_wdg(void)
+ 	return watchdog_refresh(pmic);
+ }
+ 
++#if defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+ static int vr5510_reset_flt_err_cnt(void)
+ {
+ 	struct udevice *pmic;
+@@ -464,6 +465,7 @@ static int vr5510_reset_flt_err_cnt(void)
+ 
+ 	return 0;
+ }
++#endif /* CONFIG_TARGET_S32G274ABLUEBOX3 */
+ #endif
+ 
+ int arch_cpu_init(void)
+-- 
+2.17.1
+

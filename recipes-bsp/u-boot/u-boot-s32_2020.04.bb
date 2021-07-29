@@ -24,6 +24,35 @@ SRC_URI += " \
     file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
     file://0001-scripts-mailmapper-python2-python3.patch \
+    file://bsp30/0001-s32gen1-GICR-has-different-offset-on-emulator.patch \
+    file://bsp30/0002-s32g398aemu-On-emulator-only-1G-of-DDR-is-available.patch \
+    file://bsp30/0003-s32g398a-fdt-Apply-memory-fixups.patch \
+    file://bsp30/0004-s32-Don-t-enable-caches-for-secondary-cores.patch \
+    file://bsp30/0005-s32-Add-functions-to-provide-cpu_pos_mask-per-cluste.patch \
+    file://bsp30/0006-s32-gen1-GPR-add-function-to-check-A53-lockstep-stat.patch \
+    file://bsp30/0007-s32-lockstep-export-CPUs-mask-depending-on-the-A53-l.patch \
+    file://bsp30/0008-s32-gen1-ncore-check-cluster-status-also-for-S32G-de.patch \
+    file://bsp30/0009-s32-cleanup-remove-unused-GPR06-defines.patch \
+    file://bsp30/0010-s32g274abluebox3-reset-VR5510-FLT_ERR_CNT-counter.patch \
+    file://bsp30/0011-s32g274abluebox3-fix-build-warning-for-vr5510_reset_.patch \
+    file://bsp30/0012-s32g274a-Add-driver-as-part-of-LPDDR4-ERR050543.patch \
+    file://bsp30/0013-s32gen1-Fix-guarding-PCIE_S32GEN1-support.patch \
+    file://bsp30/0014-e1000-Add-config-dependency-for-E1000-on-PCI.patch \
+    file://bsp30/0015-include-s32gen1-Add-recovery-pinmuxing-for-i2c.patch \
+    file://bsp30/0016-dts-s32gen1-Add-recovery-pinmuxing-for-i2c.patch \
+    file://bsp30/0017-i2c-mxc_i2c-Fix-pinmuxing-while-using-bus-recovery.patch \
+    file://bsp30/0018-s32-lockstep-reset-GPR-and-A53-generic-timers-in-ear.patch \
+    file://bsp30/0019-misc-Add-OCOTP-driver-for-S32GEN1-platforms.patch \
+    file://bsp30/0020-dts-Add-OCOTP-nodes-for-S32G-and-S32R45.patch \
+    file://bsp30/0021-misc-Implement-fuse-API-for-S32GEN1-platforms.patch \
+    file://bsp30/0022-s32-gen1-Apply-VDD_CORE-adjustment.patch \
+    file://bsp30/0023-s32-default-environment-fix-default-environment-when.patch \
+    file://bsp30/0024-Revert-s32gen1-pcie-Add-dma-coherent-to-Linux-dts.patch \
+    file://bsp30/0025-pci-s32-gen1-Use-hardware-defaults-for-PCIe-coherenc.patch \
+    file://bsp30/0026-s32gen1-pcie-Fix-display-of-PCIE-EP-devices.patch \
+    file://bsp30/0027-xen-update-xen-default-environment-variables-to-matc.patch \
+    file://bsp30/0028-s32-Add-macros-for-FAT-and-EXT-sdcard-partitions.patch \
+    file://bsp30/0029-s32-xen-Update-u-boot-env-to-use-generated-boot-scri.patch \
 "
 
 SRCREV = "61b2dc53d2b6655e5d629da16132ccd72907f83e"

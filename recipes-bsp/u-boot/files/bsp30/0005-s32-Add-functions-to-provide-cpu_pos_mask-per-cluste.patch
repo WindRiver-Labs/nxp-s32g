@@ -1,0 +1,142 @@
+From 31846a9f643d268a81b65eb77ea80fccada49293 Mon Sep 17 00:00:00 2001
+From: Catalin Udma <catalin-dan.udma@nxp.com>
+Date: Fri, 11 Jun 2021 09:56:35 +0300
+Subject: [PATCH 05/14] s32: Add functions to provide cpu_pos_mask per cluster
+
+Upstream-Status: Pending
+
+Issue: ALB-6703
+
+Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/s32g274a.c | 26 +++++++++++++++++++---
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c      | 10 +++++++++
+ arch/arm/cpu/armv8/s32/s32v234/soc.c       | 12 +++++++++-
+ arch/arm/include/asm/arch-s32/cpu.h        |  4 +++-
+ 4 files changed, 47 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32g274a.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32g274a.c
+index cb8887495b..2eca45c416 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32g274a.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/s32g274a.c
+@@ -7,14 +7,14 @@
+ #include <asm/arch/cpu.h>
+ #include <asm/arch/siul.h>
+ 
+-u32 cpu_pos_mask(void)
++u32 cpu_pos_mask_cluster0(void)
+ {
+ 	switch (get_s32g2_derivative()) {
+ 	case S32G274A_DERIV:
+-		return CPUMASK_CLUSTER0 | CPUMASK_CLUSTER1;
++		return CPUMASK_CLUSTER0;
+ 	case S32G254A_DERIV:
+ 	case S32G233A_DERIV:
+-		return BIT(0) | BIT(2);
++		return BIT(0);
+ 	default:
+ 		return 0;
+ 	}
+@@ -22,6 +22,26 @@ u32 cpu_pos_mask(void)
+ 	return 0;
+ }
+ 
++u32 cpu_pos_mask_cluster1(void)
++{
++	switch (get_s32g2_derivative()) {
++	case S32G274A_DERIV:
++		return CPUMASK_CLUSTER1;
++	case S32G254A_DERIV:
++	case S32G233A_DERIV:
++		return BIT(2);
++	default:
++		return 0;
++	}
++
++	return 0;
++}
++
++u32 cpu_pos_mask(void)
++{
++	return cpu_pos_mask_cluster0() | cpu_pos_mask_cluster1();
++}
++
+ u32 get_sram_size(void)
+ {
+ 	switch (get_s32g2_derivative()) {
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 9031a786ec..80f2eb0133 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -46,6 +46,16 @@ __weak u32 cpu_pos_mask(void)
+ 	return CPUMASK_CLUSTER0 | CPUMASK_CLUSTER1;
+ }
+ 
++__weak u32 cpu_pos_mask_cluster0(void)
++{
++	return CPUMASK_CLUSTER0;
++}
++
++__weak u32 cpu_pos_mask_cluster1(void)
++{
++	return CPUMASK_CLUSTER1;
++}
++
+ u32 cpu_mask(void)
+ {
+ 	u32 rgm_stat = readl(RGM_PSTAT(MC_RGM_BASE_ADDR,
+diff --git a/arch/arm/cpu/armv8/s32/s32v234/soc.c b/arch/arm/cpu/armv8/s32/s32v234/soc.c
+index 4e1ca96de8..c14a6e1c78 100644
+--- a/arch/arm/cpu/armv8/s32/s32v234/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32v234/soc.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier:     GPL-2.0+
+ /*
+  * (C) Copyright 2013-2016 Freescale Semiconductor, Inc.
+- * Copyright 2016-2020 NXP
++ * Copyright 2016-2021 NXP
+  */
+ 
+ #include <common.h>
+@@ -1141,6 +1141,16 @@ u32 cpu_pos_mask(void)
+ 	return 0xFU;
+ }
+ 
++u32 cpu_pos_mask_cluster0(void)
++{
++	return BIT(0) | BIT(1);
++}
++
++u32 cpu_pos_mask_cluster1(void)
++{
++	return BIT(2) | BIT(3);
++}
++
+ u32 get_sram_size(void)
+ {
+ 	return S32_SRAM_SIZE;
+diff --git a/arch/arm/include/asm/arch-s32/cpu.h b/arch/arm/include/asm/arch-s32/cpu.h
+index 5689e678b8..f310d0d012 100644
+--- a/arch/arm/include/asm/arch-s32/cpu.h
++++ b/arch/arm/include/asm/arch-s32/cpu.h
+@@ -1,7 +1,7 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+  * Copyright 2014-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017,2019-2020 NXP
++ * Copyright 2017,2019-2021 NXP
+  *
+  */
+ #ifndef _FSL_S32_CPU_H
+@@ -47,5 +47,7 @@
+ 
+ u32 cpu_mask(void);
+ int cpu_numcores(void);
++u32 cpu_pos_mask_cluster0(void);
++u32 cpu_pos_mask_cluster1(void);
+ 
+ #endif /* _FSL_S32_CPU_H */
+-- 
+2.17.1
+

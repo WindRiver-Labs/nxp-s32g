@@ -1,0 +1,47 @@
+From 23738da0dc7c5b81b545c9d94d33f07cc712cc14 Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Tue, 22 Jun 2021 14:21:07 +0300
+Subject: [PATCH 17/29] i2c: mxc_i2c: Fix pinmuxing while using bus recovery
+
+i2c pinmuxing is broken when i2c recovery is used because
+gpio_request_by_name_nodev configures the pin as output
+only, while i2c pins are configured both as input and output.
+
+Upstream-Status: Pending
+
+Issue: ALB-7193
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/i2c/mxc_i2c.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/i2c/mxc_i2c.c b/drivers/i2c/mxc_i2c.c
+index 17de555f07..0a75e3b7fd 100644
+--- a/drivers/i2c/mxc_i2c.c
++++ b/drivers/i2c/mxc_i2c.c
+@@ -10,7 +10,7 @@
+  *  Copyright (C) 2005 Matthias Blaschke <blaschke at synertronixx.de>
+  *  Copyright (C) 2007 RightHand Technologies, Inc.
+  *  Copyright (C) 2008 Darius Augulis <darius.augulis at teltonika.lt>
+- *  Copyright 2020 NXP
++ *  Copyright 2020-2021 NXP
+  *
+  */
+ 
+@@ -943,10 +943,10 @@ static int mxc_i2c_probe(struct udevice *bus)
+ 	} else {
+ 		ret = gpio_request_by_name_nodev(offset_to_ofnode(node),
+ 				"scl-gpios", 0, &i2c_bus->scl_gpio,
+-				GPIOD_IS_OUT);
++				GPIOD_REQUESTED);
+ 		ret2 = gpio_request_by_name_nodev(offset_to_ofnode(node),
+ 				"sda-gpios", 0, &i2c_bus->sda_gpio,
+-				GPIOD_IS_OUT);
++				GPIOD_REQUESTED);
+ 		if (!dm_gpio_is_valid(&i2c_bus->sda_gpio) ||
+ 		    !dm_gpio_is_valid(&i2c_bus->scl_gpio) ||
+ 		    ret || ret2) {
+-- 
+2.17.1
+

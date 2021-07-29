@@ -1,0 +1,108 @@
+From 3795ed4e0c9aac70c948fdacff71a6a79ee1df7e Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 24 Jun 2021 14:57:06 +0300
+Subject: [PATCH 21/29] misc: Implement fuse API for S32GEN1 platforms
+
+This enables 'fuse' command and minimally implements the
+API associated to it.
+
+Upstream-Status: Pending
+
+Issue: ALB-7128
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/Kconfig     |  1 +
+ drivers/misc/Makefile       |  1 +
+ drivers/misc/s32gen1_fuse.c | 55 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 57 insertions(+)
+ create mode 100644 drivers/misc/s32gen1_fuse.c
+
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index cb8dccb2f2..c5193b178c 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -5,6 +5,7 @@ config S32V2
+ config S32_GEN1
+ 	bool "S32 GEN1 Common Chassis"
+ 	imply CMD_GPIO
++	imply CMD_FUSE
+ 	imply MISC
+ 	select ARM_SMCCC
+ 	select CLK
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index febed74e33..d80a00cf9d 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -58,6 +58,7 @@ obj-$(CONFIG_$(SPL_)PWRSEQ) += pwrseq-uclass.o
+ obj-$(CONFIG_QFW) += qfw.o
+ obj-$(CONFIG_ROCKCHIP_EFUSE) += rockchip-efuse.o
+ obj-$(CONFIG_ROCKCHIP_OTP) += rockchip-otp.o
++obj-$(CONFIG_S32_GEN1) += s32gen1_fuse.o
+ obj-$(CONFIG_S32_GEN1) += s32gen1_ocotp.o
+ obj-$(CONFIG_SANDBOX) += syscon_sandbox.o misc_sandbox.o
+ obj-$(CONFIG_SMSC_LPC47M) += smsc_lpc47m.o
+diff --git a/drivers/misc/s32gen1_fuse.c b/drivers/misc/s32gen1_fuse.c
+new file mode 100644
+index 0000000000..e9806ae06b
+--- /dev/null
++++ b/drivers/misc/s32gen1_fuse.c
+@@ -0,0 +1,55 @@
++// SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
++/*
++ * Copyright 2021 NXP
++ */
++
++#include "s32gen1_ocotp.h"
++#include <common.h>
++#include <dm/device.h>
++#include <dm/uclass.h>
++#include <fuse.h>
++#include <misc.h>
++
++int fuse_read(u32 bank, u32 word, u32 *val)
++{
++	int ret;
++	struct udevice *dev;
++	u32 offset;
++
++	ret = uclass_get_device_by_driver(UCLASS_MISC,
++					  DM_GET_DRIVER(s32gen1_ocotp),
++					  &dev);
++	if (ret) {
++		log_err("Failed to get 's32gen1_ocotp' driver\n");
++		return ret;
++	}
++
++	offset = S32GEN1_OCOTP_BANK_OFFSET;
++	offset += bank * S32GEN1_OCOTP_BANK_SIZE;
++	offset += word * S32GEN1_OCOTP_WORD_SIZE;
++
++	ret = misc_read(dev, offset, val, S32GEN1_OCOTP_WORD_SIZE);
++	/* Read less than 4 bytes */
++	if (ret != S32GEN1_OCOTP_WORD_SIZE && ret > 0)
++		ret = -EINVAL;
++
++	return ret;
++}
++
++int fuse_prog(u32 bank, u32 word, u32 val)
++{
++	/* Not supported yet */
++	return -EPERM;
++}
++
++int fuse_sense(u32 bank, u32 word, u32 *val)
++{
++	/* Not supported yet */
++	return -EPERM;
++}
++
++int fuse_override(u32 bank, u32 word, u32 val)
++{
++	/* Not supported yet */
++	return -EPERM;
++}
+-- 
+2.17.1
+

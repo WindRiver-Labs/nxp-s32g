@@ -1,0 +1,137 @@
+From 577b235db2dcd3a81f4f6a69bbd7589f752662d5 Mon Sep 17 00:00:00 2001
+From: Larisa Ileana Grigore <larisa.grigore@nxp.com>
+Date: Wed, 26 May 2021 07:38:55 -0500
+Subject: [PATCH 02/14] s32g398aemu: On emulator only 1G of DDR is available
+
+Declare only 1G of memory available. If this isn't done,
+Linux will not raise any exception while accessing invalid
+memory because a write in the second GB of memory will become a
+write in the first GB of memory.
+
+Upstream-Status: Pending
+
+Issue: ALB-6122
+Signed-off-by: Larisa Ileana Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c     | 9 +++++++++
+ arch/arm/dts/fsl-s32g398a.dtsi   | 4 ++--
+ arch/arm/dts/fsl-s32g398aemu.dts | 7 +++++++
+ include/configs/s32-gen1.h       | 4 ++++
+ 4 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index 2f8b99c7b6..867583e464 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -78,6 +78,7 @@ static struct mm_region early_map[] = {
+ 	  PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE
+ 	},
+ #endif /* CONFIG_S32_GEN1 */
++#if defined(CONFIG_SYS_FSL_DRAM_BASE2)
+ #if !defined(CONFIG_S32_SKIP_RELOC) || \
+ 	(defined(CONFIG_S32_SKIP_RELOC) && defined(CONFIG_S32_ATF_BOOT_FLOW))
+ 	{
+@@ -85,6 +86,7 @@ static struct mm_region early_map[] = {
+ 	  CONFIG_SYS_FSL_DRAM_SIZE2,
+ 	  PTE_BLOCK_MEMTYPE(MT_NORMAL_NC) | PTE_BLOCK_OUTER_SHARE
+ 	},
++#endif
+ #endif
+ 	{
+ 	  CONFIG_SYS_FSL_FLASH0_BASE, CONFIG_SYS_FSL_FLASH0_BASE,
+@@ -138,6 +140,7 @@ static struct mm_region final_map[] = {
+ 	  PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) | PTE_BLOCK_NON_SHARE
+ 	},
+ #endif /* CONFIG_S32_GEN1 */
++#if defined(CONFIG_SYS_FSL_DRAM_BASE2)
+ #if !defined(CONFIG_S32_SKIP_RELOC) || \
+ 	(defined(CONFIG_S32_SKIP_RELOC) && defined(CONFIG_S32_ATF_BOOT_FLOW))
+ 	{
+@@ -145,6 +148,7 @@ static struct mm_region final_map[] = {
+ 	  CONFIG_SYS_FSL_DRAM_SIZE2,
+ 	  PTE_BLOCK_MEMTYPE(MT_NORMAL) | PTE_BLOCK_OUTER_SHARE
+ 	},
++#endif
+ #endif
+ 	{
+ 	  CONFIG_SYS_FSL_FLASH0_BASE, CONFIG_SYS_FSL_FLASH0_BASE,
+@@ -708,8 +712,13 @@ int dram_init_banksize(void)
+ 	gd->bd->bi_dram[0].start = CONFIG_SYS_FSL_DRAM_BASE1;
+ 	gd->bd->bi_dram[0].size = CONFIG_SYS_FSL_DRAM_SIZE1;
+ 
++#if defined(CONFIG_SYS_FSL_DRAM_BASE2)
+ 	gd->bd->bi_dram[1].start = CONFIG_SYS_FSL_DRAM_BASE2;
+ 	gd->bd->bi_dram[1].size = CONFIG_SYS_FSL_DRAM_SIZE2;
++#else
++	gd->bd->bi_dram[1].start = 0x0;
++	gd->bd->bi_dram[1].size = 0x0;
++#endif
+ 
+ 	gd->bd->bi_dram[2].start = S32_SRAM_BASE;
+ 	gd->bd->bi_dram[2].size = get_sram_size();
+diff --git a/arch/arm/dts/fsl-s32g398a.dtsi b/arch/arm/dts/fsl-s32g398a.dtsi
+index 06bda15a38..4d04353b85 100644
+--- a/arch/arm/dts/fsl-s32g398a.dtsi
++++ b/arch/arm/dts/fsl-s32g398a.dtsi
+@@ -17,12 +17,12 @@
+ 	compatible = "fsl,s32g398", "fsl,s32gen1",
+ 			"arm,vexpress,v2p-aarch64", "arm,vexpress";
+ 
+-	memory@80000000 {
++	mem1: memory@80000000 {
+ 		device_type = "memory";
+ 		reg = <0 0x80000000 0 0x80000000>;
+ 	};
+ 
+-	memory@880000000 {
++	mem2: memory@880000000 {
+ 		device_type = "memory";
+ 		reg = <0x8 0x80000000 0 0x80000000>;
+ 	};
+diff --git a/arch/arm/dts/fsl-s32g398aemu.dts b/arch/arm/dts/fsl-s32g398aemu.dts
+index 31fdc1e26c..bc8e070885 100644
+--- a/arch/arm/dts/fsl-s32g398aemu.dts
++++ b/arch/arm/dts/fsl-s32g398aemu.dts
+@@ -7,6 +7,8 @@
+ #include "fsl-s32g398a.dtsi"
+ 
+ /delete-node/ &gic;
++/delete-node/ &mem1;
++/delete-node/ &mem2;
+ / {
+ 	gic: interrupt-controller@50800000 {
+ 		compatible = "arm,gic-v3";
+@@ -21,6 +23,11 @@
+ 		      <0 0x50420000 0 0x2000>; /* GICV */
+ 		interrupts = <1 9 0xf04>;
+ 	};
++
++	mem1: memory@80000000 {
++		device_type = "memory";
++		reg = <0 0x80000000 0 0x40000000>;
++	};
+ };
+ 
+ &usdhc0 {
+diff --git a/include/configs/s32-gen1.h b/include/configs/s32-gen1.h
+index ca2d6cecde..33ea91b343 100644
+--- a/include/configs/s32-gen1.h
++++ b/include/configs/s32-gen1.h
+@@ -13,9 +13,13 @@
+ #define __S32_GEN1_H
+ 
+ #define CONFIG_SYS_FSL_DRAM_BASE1       0x80000000
++#ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
++#define CONFIG_SYS_FSL_DRAM_SIZE1       0x40000000
++#else
+ #define CONFIG_SYS_FSL_DRAM_SIZE1       0x80000000
+ #define CONFIG_SYS_FSL_DRAM_BASE2       0x880000000
+ #define CONFIG_SYS_FSL_DRAM_SIZE2       0x80000000
++#endif
+ 
+ /* The configurations of this board depend on the definitions in this file and
+ * the ones in the header included at the end, configs/s32.h */
+-- 
+2.17.1
+
