@@ -1,0 +1,34 @@
+From 71ab94cf679f3d7529e56639a492b886250a1030 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 23 Jul 2021 14:39:08 +0300
+Subject: [PATCH 18/18] arm64: A53 erratum 836870 should be applied on r0p4
+
+According to ARM 'Software Developers Errata Notice' (for
+Cortex-A53 MPCore, revision r0) 836870 erratum must be also
+applied for r0p4 revision.
+
+Upstream-Status: Pending
+
+Issue: ALB-7470
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ lib/cpus/aarch64/cortex_a53.S | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/cpus/aarch64/cortex_a53.S b/lib/cpus/aarch64/cortex_a53.S
+index a3fcbcb8e..8d6a119b1 100644
+--- a/lib/cpus/aarch64/cortex_a53.S
++++ b/lib/cpus/aarch64/cortex_a53.S
+@@ -155,7 +155,7 @@ func a53_disable_non_temporal_hint
+ endfunc a53_disable_non_temporal_hint
+ 
+ func check_errata_disable_non_temporal_hint
+-	mov	x1, #0x03
++	mov	x1, #0x04
+ 	b	cpu_rev_var_ls
+ endfunc check_errata_disable_non_temporal_hint
+ 
+-- 
+2.17.1
+

@@ -32,9 +32,27 @@ SRC_URI += " \
     file://bsp30/0009-dts-Add-OCOTP-nodes-for-S32G.patch \
     file://bsp30/0010-s32g-Apply-VDD_CORE-adjustment.patch \
     file://bsp30/0011-s32g-reset-GPR-and-A53-generic-timers-in-early-boot-.patch \
+    file://bsp30/rc4/0001-s32g-Remove-DDR-frequency-for-S32G274A-Rev-1.patch \
+    file://bsp30/rc4/0002-s32g-Remove-QSPI-frequency-for-S32G274A-Rev-1.patch \
+    file://bsp30/rc4/0003-Revert-s32g-Set-QSPI-clock-based-on-SoC-revision.patch \
+    file://bsp30/rc4/0004-s32g3-clk-Add-support-for-GMAC-clocks.patch \
+    file://bsp30/rc4/0005-s32g3-Add-support-for-8-cores.patch \
+    file://bsp30/rc4/0006-s32g3-Add-fdt-file.patch \
+    file://bsp30/rc4/0007-s32g-Add-s32g2-platform.patch \
+    file://bsp30/rc4/0008-clk-s32g3-Update-core-frequency-to-1.3GHz.patch \
+    file://bsp30/rc4/0009-s32g-clk-Rename-s32g274a_scmi_ids.patch \
+    file://bsp30/rc4/0010-s32g-Move-s32g2-SRAMC-specific-in-platform-directory.patch \
+    file://bsp30/rc4/0011-s32g3-Add-SRAMC-support.patch \
+    file://bsp30/rc4/0012-arm64-Workaround-for-S32G2-erratum-ERR050481.patch \
+    file://bsp30/rc4/0013-plat-s32g2-Enable-workaround-for-ERR050481-erratum.patch \
+    file://bsp30/rc4/0014-plat-s32g2-Enable-workaround-for-ERR010493-erratum.patch \
+    file://bsp30/rc4/0015-lib-cpus-Report-AT-speculative-erratum-workaround.patch \
+    file://bsp30/rc4/0016-plat-s32g2-Enable-workaround-for-ERR008821-erratum.patch \
+    file://bsp30/rc4/0017-plat-s32g2-Enable-workaround-for-ERR050764-erratum.patch \
+    file://bsp30/rc4/0018-arm64-A53-erratum-836870-should-be-applied-on-r0p4.patch \
 "
 
-PLATFORM_nxp-s32g2xx = "s32g"
+PLATFORM_nxp-s32g2xx = "s32g2"
 BUILD_TYPE = "release"
 
 ATF_BINARIES = "${B}/${PLATFORM}/${BUILD_TYPE}"

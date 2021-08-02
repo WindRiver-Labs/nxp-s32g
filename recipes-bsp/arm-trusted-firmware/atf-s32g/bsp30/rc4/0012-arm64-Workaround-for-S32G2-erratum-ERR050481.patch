@@ -1,0 +1,125 @@
+From 2a322fc4a480c1ab433498c1e15c47a54cff9cb0 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 23 Jul 2021 11:19:43 +0300
+Subject: [PATCH 12/18] arm64: Workaround for S32G2 erratum ERR050481
+
+When Cortex-A53 cluster cache coherency is enabled, TLB invalidate
+operations by Virtual Address instructions (tlbiva***) are not handled
+correctly. The Virtual Address bits 41 thru 48 (i.e. VA[48:41]) are
+not handled correctly by the NCore if VA[48:41] are not all zero.
+
+Upstream-Status: Pending
+
+Issue: ALB-7285
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ docs/design/cpu-specific-build-macros.rst |  4 ++++
+ include/arch/aarch64/arch_helpers.h       | 25 +++++++++++++++++++++++
+ lib/cpus/cpu-ops.mk                       | 12 +++++++++++
+ 3 files changed, 41 insertions(+)
+
+diff --git a/docs/design/cpu-specific-build-macros.rst b/docs/design/cpu-specific-build-macros.rst
+index 78a80f645..fd05a6609 100644
+--- a/docs/design/cpu-specific-build-macros.rst
++++ b/docs/design/cpu-specific-build-macros.rst
+@@ -281,6 +281,10 @@ For Neoverse N1, the following errata build flags are defined :
+ -  ``ERRATA_N1_1800710``: This applies errata 1800710 workaround to Neoverse-N1
+    CPU. This needs to be enabled only for revisions <= r4p0 of the CPU.
+ 
++For S32G2, the following errata build flags are defined :
++-  ``ERRATA_S32G2_050481``: This applies errata ERR050481 workaround to S32G2
++   CPU family.
++
+ DSU Errata Workarounds
+ ----------------------
+ 
+diff --git a/include/arch/aarch64/arch_helpers.h b/include/arch/aarch64/arch_helpers.h
+index 09059ca80..eff1d10fa 100644
+--- a/include/arch/aarch64/arch_helpers.h
++++ b/include/arch/aarch64/arch_helpers.h
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2013-2020, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -134,6 +135,23 @@ static inline void dc ## _name(uint64_t v)			\
+ }
+ #endif /* ERRATA_A53_819472 || ERRATA_A53_824069 || ERRATA_A53_827319 */
+ 
++#ifdef ERRATA_S32G2_050481
++static inline bool applies_050481(uint64_t v)
++{
++	/* ERR050481 applies only when VA[48:41] is not zero */
++	return !!(v & 0x1FE0000000000ULL);
++}
++
++#define DEFINE_S32G2_TLBIOP_PARAM_FUNC(_type, _alttype)		\
++static inline void tlbi ## _type(uint64_t v)			\
++{								\
++	if (applies_050481(v))					\
++		__asm__("tlbi " #_alttype "\n");		\
++	else							\
++		__asm__ ("tlbi " #_type ", %0" : : "r" (v));	\
++}
++#endif
++
+ #if ERRATA_A57_813419
+ DEFINE_SYSOP_TYPE_FUNC(tlbi, alle1)
+ DEFINE_SYSOP_TYPE_FUNC(tlbi, alle1is)
+@@ -174,6 +192,13 @@ DEFINE_TLBIOP_ERRATA_TYPE_PARAM_FUNC(vae2is)
+ DEFINE_TLBIOP_ERRATA_TYPE_PARAM_FUNC(vale2is)
+ DEFINE_TLBIOP_ERRATA_TYPE_PARAM_FUNC(vae3is)
+ DEFINE_TLBIOP_ERRATA_TYPE_PARAM_FUNC(vale3is)
++#elif ERRATA_S32G2_050481
++DEFINE_S32G2_TLBIOP_PARAM_FUNC(vaae1is, vmalle1is)
++DEFINE_S32G2_TLBIOP_PARAM_FUNC(vaale1is, vmalle1is)
++DEFINE_S32G2_TLBIOP_PARAM_FUNC(vae2is, alle2is)
++DEFINE_S32G2_TLBIOP_PARAM_FUNC(vale2is, alle2is)
++DEFINE_S32G2_TLBIOP_PARAM_FUNC(vae3is, alle3is)
++DEFINE_S32G2_TLBIOP_PARAM_FUNC(vale3is, alle3is)
+ #else
+ DEFINE_SYSOP_TYPE_PARAM_FUNC(tlbi, vaae1is)
+ DEFINE_SYSOP_TYPE_PARAM_FUNC(tlbi, vaale1is)
+diff --git a/lib/cpus/cpu-ops.mk b/lib/cpus/cpu-ops.mk
+index 3c895f585..ad889d214 100644
+--- a/lib/cpus/cpu-ops.mk
++++ b/lib/cpus/cpu-ops.mk
+@@ -1,6 +1,7 @@
+ #
+ # Copyright (c) 2014-2020, ARM Limited and Contributors. All rights reserved.
+ # Copyright (c) 2020, NVIDIA Corporation. All rights reserved.
++# Copyright 2021 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+@@ -327,6 +328,13 @@ ERRATA_DSU_798953	?=0
+ # higher DSU power consumption on idle.
+ ERRATA_DSU_936184	?=0
+ 
++# Flag to apply S32G2 erratum ERR050481. This erratum applies to all S32G2
++# revisions. The workaround will upgrade some TLBI operations:
++# VAAE1IS, VAALE1IS, VAE1IS, VALE1IS -> VMALLE1IS
++# VAE2IS, VALE2IS                    -> ALLE2IS
++# VAE3IS, VALE3IS                    -> ALLE3IS
++ERRATA_S32G2_050481	?=0
++
+ # Process ERRATA_A9_794073 flag
+ $(eval $(call assert_boolean,ERRATA_A9_794073))
+ $(eval $(call add_define,ERRATA_A9_794073))
+@@ -579,6 +587,10 @@ $(eval $(call add_define,ERRATA_DSU_798953))
+ $(eval $(call assert_boolean,ERRATA_DSU_936184))
+ $(eval $(call add_define,ERRATA_DSU_936184))
+ 
++# Process ERRATA_S32G2_050481 flag
++$(eval $(call assert_boolean,ERRATA_S32G2_050481))
++$(eval $(call add_define,ERRATA_S32G2_050481))
++
+ # Errata build flags
+ ifneq (${ERRATA_A53_843419},0)
+ TF_LDFLAGS_aarch64	+= --fix-cortex-a53-843419
+-- 
+2.17.1
+
