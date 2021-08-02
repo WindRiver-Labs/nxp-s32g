@@ -1,0 +1,68 @@
+From d11d79fe6716576e6b71b4eb8733141aeb7615f5 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Fri, 23 Jul 2021 02:45:19 +0300
+Subject: [PATCH 03/16] s32gen1: qspi: read correct lut during BootROM settings
+ reset
+
+Reading the SEQID field from the Buffer Generic Configuration Register
+(BFGENCR) returns the index of a LUT sequence. As it is now, the code
+wrongly uses this index to access the LUT at that index, when it should
+be accessing the start of the LUT sequence corresponding to the index.
+
+This commit will provide a function which will return the LUT address
+of the first LUT in a sequence based on a provided index.
+
+Upstream-Status: Pending
+
+Issue: ALB-6447
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/spi/s32gen1_qspi.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/spi/s32gen1_qspi.c b/drivers/spi/s32gen1_qspi.c
+index 143ce2e923..fd8a148cd8 100644
+--- a/drivers/spi/s32gen1_qspi.c
++++ b/drivers/spi/s32gen1_qspi.c
+@@ -459,6 +459,11 @@ static bool add_op_to_lutdb(struct fsl_qspi_priv *priv,
+ 	return true;
+ }
+ 
++static u32 *get_lut_seq_start(struct fsl_qspi_regs *regs, u32 index)
++{
++	return &regs->lut[index * LUTS_PER_CONFIG];
++}
++
+ static void set_lut(struct fsl_qspi_priv *priv, u8 index, u8 opcode)
+ {
+ 	struct fsl_qspi_regs *regs = priv->regs;
+@@ -468,7 +473,7 @@ static void set_lut(struct fsl_qspi_priv *priv, u8 index, u8 opcode)
+ 	iter = &lut_configs[opcode].conf[0];
+ 	iterb = iter;
+ 
+-	lutaddr = &regs->lut[index * LUTS_PER_CONFIG];
++	lutaddr = get_lut_seq_start(regs, index);
+ 
+ 	/* Unlock the LUT */
+ 	qspi_write32(priv->flags, &regs->lutkey, LUT_KEY_VALUE);
+@@ -900,13 +905,15 @@ void reset_bootrom_settings(struct fsl_qspi_priv *priv)
+ 	u32 bfgencr, lutid;
+ 	u32 lut;
+ 	u32 instr0;
++	u32 *lutaddr;
+ 
+ 	/* Read the configuration left by BootROM */
+ 
+ 	bfgencr = qspi_read32(priv->flags, &regs->bfgencr);
+ 	lutid = (bfgencr & QSPI_BFGENCR_SEQID_MASK) >> QSPI_BFGENCR_SEQID_SHIFT;
+ 
+-	lut = qspi_read32(priv->flags, &regs->lut[lutid]);
++	lutaddr = get_lut_seq_start(regs, lutid);
++	lut = qspi_read32(priv->flags, lutaddr);
+ 
+ 	/* Not configured */
+ 	if (!lut)
+-- 
+2.17.1
+

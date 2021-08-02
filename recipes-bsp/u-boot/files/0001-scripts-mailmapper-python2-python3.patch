@@ -1,4 +1,4 @@
-From 605a370076b1f31698e355f5ed22e749ac7caecd Mon Sep 17 00:00:00 2001
+From 8d5294bc2ce89ec6bc1b4bdbcab913a82e382aa7 Mon Sep 17 00:00:00 2001
 From: Robert Yang <liezhi.yang@windriver.com>
 Date: Wed, 24 Mar 2021 16:53:31 +0800
 Subject: [PATCH] scripts/mailmapper: python2 -> python3
@@ -45,5 +45,5 @@ index 2e2d7faff5..9aa82f9836 100755
  #
  # Copyright (C) 2014, Masahiro Yamada <yamada.m@jp.panasonic.com>
 -- 
-2.29.2
+2.17.1
 

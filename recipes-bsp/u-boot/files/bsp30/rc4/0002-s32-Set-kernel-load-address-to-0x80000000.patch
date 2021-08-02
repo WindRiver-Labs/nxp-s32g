@@ -1,0 +1,33 @@
+From 782f4acd34e6977774f13a69dde0cf424ff57593 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 21 Jul 2021 14:29:13 +0300
+Subject: [PATCH 02/16] s32: Set kernel load address to 0x80000000
+
+This is needed to avoid Linux Kernel's image relocation from
+booti_start function.
+
+Upstream-Status: Pending
+
+Issue: ALB-7453
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 449633b989..727cd4a1e9 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -97,7 +97,7 @@
+ #endif
+ 
+ /*Kernel image load address */
+-#  define LOADADDR		0x80080000
++#  define LOADADDR		0x80000000
+ 
+ /* Ramdisk load address */
+ #  define RAMDISK_ADDR		0x84000000
+-- 
+2.17.1
+

@@ -20,10 +20,6 @@ inherit nxp-u-boot-localversion
 SRC_URI_prepend = "git://source.codeaurora.org/external/autobsps32/u-boot;protocol=https;branch=release/bsp29.0-2020.04 "
 
 SRC_URI += " \
-    file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
-    file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
-    file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
-    file://0001-scripts-mailmapper-python2-python3.patch \
     file://bsp30/0001-s32gen1-GICR-has-different-offset-on-emulator.patch \
     file://bsp30/0002-s32g398aemu-On-emulator-only-1G-of-DDR-is-available.patch \
     file://bsp30/0003-s32g398a-fdt-Apply-memory-fixups.patch \
@@ -53,6 +49,26 @@ SRC_URI += " \
     file://bsp30/0027-xen-update-xen-default-environment-variables-to-matc.patch \
     file://bsp30/0028-s32-Add-macros-for-FAT-and-EXT-sdcard-partitions.patch \
     file://bsp30/0029-s32-xen-Update-u-boot-env-to-use-generated-boot-scri.patch \
+    file://bsp30/rc4/0001-s32-CPU_RELEASE_ADDR-should-not-be-used-as-base-addr.patch \
+    file://bsp30/rc4/0002-s32-Set-kernel-load-address-to-0x80000000.patch \
+    file://bsp30/rc4/0003-s32gen1-qspi-read-correct-lut-during-BootROM-setting.patch \
+    file://bsp30/rc4/0004-s32g2-Update-DDR-firmware-to-2020_06_SP2-version.patch \
+    file://bsp30/rc4/0005-s32r45-Update-DDR-firmware-to-2020_06_SP2-version.patch \
+    file://bsp30/rc4/0006-configs-s32-move-hardcoded-values-to-the-specific-de.patch \
+    file://bsp30/rc4/0007-s32gen1_qspi-fix-setting-the-dummy-cycles.patch \
+    file://bsp30/rc4/0008-s32g274abluebox3-add-qspi-support.patch \
+    file://bsp30/rc4/0009-spi-nor-add-stmicro-micron-DTR_8_8_8-read-op.patch \
+    file://bsp30/rc4/0010-spi-nor-mt35xu512aba-enable-4K-erase-and-DTR-mode.patch \
+    file://bsp30/rc4/0011-s32gen1image-add-booting-from-mt35xu512aba.patch \
+    file://bsp30/rc4/0012-spi-s32gen1_qspi-add-DTR-init-sequence-for-micron.patch \
+    file://bsp30/rc4/0013-pinctrl-s32g-fix-dspi0-sin-mux-id.patch \
+    file://bsp30/rc4/0014-s32gen1image-qspi-micron-cfg-fix-dllcr-value.patch \
+    file://bsp30/rc4/0015-s32g274abluebox3-boot-from-nfs-with-ramdisk.patch \
+    file://bsp30/rc4/0016-spi-s32gen1_qspi-guard-read-speed-with-DEBUG.patch \
+    file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
+    file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
+    file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
+    file://0001-scripts-mailmapper-python2-python3.patch \
 "
 
 SRCREV = "61b2dc53d2b6655e5d629da16132ccd72907f83e"

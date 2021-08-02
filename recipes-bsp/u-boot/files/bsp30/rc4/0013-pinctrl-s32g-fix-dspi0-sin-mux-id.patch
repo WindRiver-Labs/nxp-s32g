@@ -1,0 +1,31 @@
+From 09958e06da457b011383b353b1a0da7607f6c5f2 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Wed, 30 Jun 2021 17:31:46 +0300
+Subject: [PATCH 13/16] pinctrl: s32g: fix dspi0 sin mux id
+
+Issue: ALB-7313
+
+Upstream-Status: Pending
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/pinctrl/s32g-pinctrl.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/dt-bindings/pinctrl/s32g-pinctrl.h b/include/dt-bindings/pinctrl/s32g-pinctrl.h
+index a70903966f..af9a610d88 100644
+--- a/include/dt-bindings/pinctrl/s32g-pinctrl.h
++++ b/include/dt-bindings/pinctrl/s32g-pinctrl.h
+@@ -101,7 +101,7 @@
+ /* PA14 */
+ #define PA14_MSCR_S32G		(14)
+ #define PA14_SPI0_SIN_CFG	(DSPI_SIN_PIN_CFG)
+-#define PA14_SPI0_SIN_IN	(SIUL2_MSCR_S32_G1_MUX_ID_3)
++#define PA14_SPI0_SIN_IN	(SIUL2_MSCR_S32_G1_MUX_ID_2)
+ 
+ /* PA15 */
+ #define PA15_MSCR_S32G		(15)
+-- 
+2.17.1
+

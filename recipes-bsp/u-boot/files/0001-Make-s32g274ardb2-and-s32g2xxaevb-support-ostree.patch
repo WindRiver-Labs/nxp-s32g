@@ -1,4 +1,4 @@
-From 1a689a15ecb51fd84eaae018ed8cf090158869f4 Mon Sep 17 00:00:00 2001
+From 6cb937aef5fbbbed11a801c32b304eb36b2d7690 Mon Sep 17 00:00:00 2001
 From: Robert Yang <liezhi.yang@windriver.com>
 Date: Thu, 1 Apr 2021 10:43:06 +0000
 Subject: [PATCH] Make s32g274ardb2 and s32g2xxaevb support ostree
@@ -15,21 +15,24 @@ Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
  3 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
-index 8613919f5a..e37ac447ab 100644
+index 3270ada808..38ffe658e3 100644
 --- a/configs/s32g274ardb2_defconfig
 +++ b/configs/s32g274ardb2_defconfig
-@@ -63,3 +63,6 @@ CONFIG_FSL_QSPI=y
- CONFIG_SJA1105=y
- # CONFIG_EFI_LOADER is not set
+@@ -13,6 +13,9 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
  CONFIG_BOARD_LATE_INIT=y
 +CONFIG_FAT_WRITE=y
 +CONFIG_MENU=y
 +CONFIG_CMD_BOOTMENU=y
+ CONFIG_ARCH_EARLY_INIT_R=y
+ CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MD5SUM=y
 diff --git a/configs/s32g2xxaevb_defconfig b/configs/s32g2xxaevb_defconfig
-index 50d5c2595d..98545ff023 100644
+index ca170ce7b9..34975b49cc 100644
 --- a/configs/s32g2xxaevb_defconfig
 +++ b/configs/s32g2xxaevb_defconfig
-@@ -72,3 +72,6 @@ CONFIG_USB_EHCI_HCD=y
+@@ -74,3 +74,6 @@ CONFIG_USB_EHCI_HCD=y
  CONFIG_USB_ULPI_VIEWPORT=y
  CONFIG_USB_ULPI=y
  # CONFIG_EFI_LOADER is not set
@@ -37,12 +40,12 @@ index 50d5c2595d..98545ff023 100644
 +CONFIG_MENU=y
 +CONFIG_CMD_BOOTMENU=y
 diff --git a/include/configs/s32.h b/include/configs/s32.h
-index 37ef6079be..8ea89a876b 100644
+index 330d6ba5c4..650265ed2f 100644
 --- a/include/configs/s32.h
 +++ b/include/configs/s32.h
-@@ -534,7 +534,10 @@
- 	PFE_INIT_CMD "run flashboot"
- #elif defined(CONFIG_SD_BOOT)
+@@ -514,7 +514,10 @@
+ #  define CONFIG_BOOTCOMMAND XEN_BOOTCMD
+ #else
  #  define CONFIG_BOOTCOMMAND \
 -	PFE_INIT_CMD "mmc dev ${mmcdev}; if mmc rescan; then " \
 +	"s32ccgmac disable; s32ccgmac enable; setenv ethact eth_eqos; mmc dev ${mmcdev}; if mmc rescan; then " \
@@ -52,3 +55,6 @@ index 37ef6079be..8ea89a876b 100644
  		   "if run loadimage; then " \
  			   "run mmcboot; " \
  		   "else run netboot; " \
+-- 
+2.17.1
+

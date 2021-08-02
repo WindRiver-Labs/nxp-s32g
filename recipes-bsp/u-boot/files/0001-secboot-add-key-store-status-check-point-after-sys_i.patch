@@ -1,4 +1,4 @@
-From ba7f126bed9687c0e1fb33d98908837251529bb1 Mon Sep 17 00:00:00 2001
+From 52f9b7f130199aca32a7548ec294a31e980c2a8a Mon Sep 17 00:00:00 2001
 From: Zhantao Tang <zhantao.tang@windriver.com>
 Date: Thu, 8 Apr 2021 10:28:00 +0800
 Subject: [PATCH] secboot: add key store status check point after sys_image
@@ -17,10 +17,10 @@ Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
  2 files changed, 12 insertions(+)
 
 diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
-index 12555f5901..724dcee338 100644
+index e084c98c8c..5d75340253 100644
 --- a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
 +++ b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
-@@ -529,6 +529,17 @@ static int do_hse_keystore_format(cmd_tbl_t *cmdtp, int flag,
+@@ -512,6 +512,17 @@ static int do_hse_keystore_format(cmd_tbl_t *cmdtp, int flag,
  	/* check if sys_img already exists */
  	if (priv->ivt.sys_img) {
  		printf("CHECK: SYS_IMG already exists\n");
@@ -39,10 +39,10 @@ index 12555f5901..724dcee338 100644
  		goto ret_fail;
  	}
 diff --git a/include/hse/hse_abi.h b/include/hse/hse_abi.h
-index a78500c6c0..5052c2b5d1 100644
+index 806f1dc30f..6b170de589 100644
 --- a/include/hse/hse_abi.h
 +++ b/include/hse/hse_abi.h
-@@ -38,6 +38,7 @@
+@@ -39,6 +39,7 @@
  #define HSE_CHANNEL_GENERAL 1u
  
  #define HSE_STATUS_INIT_OK  BIT(8)
@@ -51,5 +51,5 @@ index a78500c6c0..5052c2b5d1 100644
  
  #define HSE_SRV_ID_PUBLISH_SYS_IMAGE        0x00000011ul
 -- 
-2.25.1
+2.17.1
 

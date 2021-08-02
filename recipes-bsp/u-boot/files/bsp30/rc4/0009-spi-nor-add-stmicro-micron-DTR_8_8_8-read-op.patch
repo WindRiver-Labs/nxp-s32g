@@ -1,0 +1,68 @@
+From 939475d2be10ab3cff2cbf59d2c7093bc2b8e3e6 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Mon, 14 Jun 2021 16:31:39 +0300
+Subject: [PATCH 09/16] spi-nor: add stmicro/micron DTR_8_8_8 read op
+
+Add DTR_8_8_8 reading opcode for stmicro/micron memories.
+
+Issue: ALB-7012
+
+Upstream-Status: Pending
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mtd/spi/spi-nor-core.c | 12 +++++++++++-
+ include/linux/mtd/spi-nor.h    |  3 ++-
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/spi/spi-nor-core.c b/drivers/mtd/spi/spi-nor-core.c
+index 99736f0221..4d0bf1d495 100644
+--- a/drivers/mtd/spi/spi-nor-core.c
++++ b/drivers/mtd/spi/spi-nor-core.c
+@@ -2264,10 +2264,20 @@ static int spi_nor_init_params(struct spi_nor *nor,
+ 
+ 	if (info->flags & SPI_NOR_OCTAL_DTR_READ) {
+ 		params->hwcaps.mask |= SNOR_HWCAPS_READ_8_8_8_DTR;
+-		spi_nor_set_read_settings
++		switch (JEDEC_MFR(info)) {
++		case SNOR_MFR_MICRON:
++		case SNOR_MFR_ST:
++			spi_nor_set_read_settings
++				(&params->reads[SNOR_CMD_READ_8_8_8_DTR],
++				0, 20, SPINOR_OP_READ_8_8_8_DTR_STMICRO,
++				SNOR_PROTO_8_8_8_DTR);
++			break;
++		default:
++			spi_nor_set_read_settings
+ 				(&params->reads[SNOR_CMD_READ_8_8_8_DTR],
+ 				0, 20, SPINOR_OP_READ_8_8_8_DTR,
+ 				SNOR_PROTO_8_8_8_DTR);
++		}
+ 	}
+ 
+ 	/* Select the procedure to set the Quad Enable bit. */
+diff --git a/include/linux/mtd/spi-nor.h b/include/linux/mtd/spi-nor.h
+index 607bb8dc62..0053b27bfd 100644
+--- a/include/linux/mtd/spi-nor.h
++++ b/include/linux/mtd/spi-nor.h
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (C) 2014 Freescale Semiconductor, Inc.
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  * Synced from Linux v4.19
+  */
+ 
+@@ -91,6 +91,7 @@
+ #define SPINOR_OP_READ_1_2_2_DTR	0xbd
+ #define SPINOR_OP_READ_1_4_4_DTR	0xed
+ #define SPINOR_OP_READ_8_8_8_DTR	0xee
++#define SPINOR_OP_READ_8_8_8_DTR_STMICRO	0xfd
+ 
+ #define SPINOR_OP_READ_1_1_1_DTR_4B	0x0e
+ #define SPINOR_OP_READ_1_2_2_DTR_4B	0xbe
+-- 
+2.17.1
+

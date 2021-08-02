@@ -1,4 +1,4 @@
-From 1eb5b3ec8dc14e107b66033402c8a216e8c193f1 Mon Sep 17 00:00:00 2001
+From f54b58972c31d21738dc1c2fcc41e3d750bf30c5 Mon Sep 17 00:00:00 2001
 From: Catalin Udma <catalin-dan.udma@nxp.com>
 Date: Wed, 30 Jun 2021 17:25:11 +0300
 Subject: [PATCH 23/29] s32:default environment: fix default environment when
@@ -11,18 +11,15 @@ two definitions of bootcmd are stored in object file's
 environment contains both. When this environment is enabled on the
 target, the latest one overwrites the corect command.
 
-Upstream-Status: Pending
-
 Issue: ALB-7261
 
 Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
-Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
 ---
  include/configs/s32.h | 9 +++++++--
  1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/include/configs/s32.h b/include/configs/s32.h
-index 27a7185f16..e5c31d986c 100644
+index 70d1f9a3e6..105555ff4c 100644
 --- a/include/configs/s32.h
 +++ b/include/configs/s32.h
 @@ -399,8 +399,9 @@
@@ -45,9 +42,9 @@ index 27a7185f16..e5c31d986c 100644
 +#  define CONFIG_BOOTCOMMAND XEN_BOOTCMD
 +#else
  #  define CONFIG_BOOTCOMMAND \
- 	"s32ccgmac disable; s32ccgmac enable; setenv ethact eth_eqos; mmc dev ${mmcdev}; if mmc rescan; then " \
- 		   "if run loadbootscript; then " \
-@@ -558,6 +562,7 @@
+ 	PFE_INIT_CMD "mmc dev ${mmcdev}; if mmc rescan; then " \
+ 		   "if run loadimage; then " \
+@@ -555,6 +559,7 @@
  		   "fi; " \
  	   "else run netboot; fi"
  #endif
@@ -56,5 +53,5 @@ index 27a7185f16..e5c31d986c 100644
  /* Miscellaneous configurable options */
  #define CONFIG_SYS_PROMPT_HUSH_PS2	"> "
 -- 
-2.25.1
+2.17.1
 

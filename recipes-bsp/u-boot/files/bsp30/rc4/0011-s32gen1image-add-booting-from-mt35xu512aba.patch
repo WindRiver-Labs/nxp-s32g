@@ -1,0 +1,327 @@
+From ebebdc5a62580fdd82727500ed849385b45bcef5 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Mon, 14 Jun 2021 16:36:53 +0300
+Subject: [PATCH 11/16] s32gen1image: add booting from mt35xu512aba
+
+Add booting from mt35xu512aba in DTR mode.
+
+Issue: ALB-7012
+
+Upstream-Status: Pending
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ tools/Makefile                     |  4 ++
+ tools/s32gen1image.c               | 74 ++-------------------------
+ tools/s32gen1image.h               |  5 +-
+ tools/s32gen1image_qspi_macronix.c | 80 ++++++++++++++++++++++++++++++
+ tools/s32gen1image_qspi_micron.c   | 80 ++++++++++++++++++++++++++++++
+ 5 files changed, 173 insertions(+), 70 deletions(-)
+ create mode 100644 tools/s32gen1image_qspi_macronix.c
+ create mode 100644 tools/s32gen1image_qspi_micron.c
+
+diff --git a/tools/Makefile b/tools/Makefile
+index b9ec76bfb3..48bcf33a55 100644
+--- a/tools/Makefile
++++ b/tools/Makefile
+@@ -64,6 +64,10 @@ FIT_CIPHER_OBJS-$(CONFIG_FIT_CIPHER) := common/image-cipher.o
+ S32_COMMON-$(CONFIG_ARCH_S32) := s32_common.o
+ S32V234IMAGE-$(CONFIG_S32V234) := s32v234image.o
+ S32GEN1IMAGE-$(CONFIG_S32_GEN1) := s32gen1image.o
++ifdef CONFIG_S32_GEN1
++S32GEN1IMAGE-$(CONFIG_SPI_FLASH_MACRONIX) += s32gen1image_qspi_macronix.o
++S32GEN1IMAGE-$(CONFIG_SPI_FLASH_STMICRO) += s32gen1image_qspi_micron.o
++endif
+ 
+ # The following files are synced with upstream DTC.
+ # Use synced versions from scripts/dtc/libfdt/.
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index 17b320f404..bfa3ae6f77 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -129,73 +129,6 @@ static void enforce_reserved_ranges(void *image_start, int image_length)
+ 
+ #else
+ #ifndef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+-/* Load U-Boot using DTR octal mode @ 133 MHz*/
+-static struct qspi_params s32g2xx_qspi_conf = {
+-	.header   = 0x5a5a5a5a,
+-	.mcr      = 0x030f00cc,
+-	.flshcr   = 0x00010303,
+-	.bufgencr = 0x00000000,
+-	.dllcr    = 0xc280000c,
+-	.paritycr = 0x00000000,
+-	.sfacr    = 0x00020000,
+-	.smpr     = 0x44000000,
+-	.dlcr     = 0x40ff40ff,
+-	.sflash_1_size = 0x20000000,
+-	.sflash_2_size = 0x20000000,
+-	.dlpr = 0xaa553443,
+-	.sfar = 0x00000000,
+-	.ipcr = 0x00000000,
+-	.tbdr = 0x00000000,
+-	.dll_bypass_en   = 0x00,
+-	.dll_slv_upd_en  = 0x00,
+-	.dll_auto_upd_en = 0x01,
+-	.ipcr_trigger_en = 0x00,
+-	.sflash_clk_freq = 200,
+-	.reserved = {0x00, 0x00, 0x00},
+-	/* Macronix read - 8DTRD */
+-	.command_seq = {0x471147ee,
+-			0x0f142b20,
+-			0x00003b10},
+-	.writes = {
+-		{
+-			/* Write enable */
+-			.config = {
+-				.valid_addr = 0,
+-				.cdata_size = 0,
+-				.addr_size = 0,
+-				.pad = 0,
+-				.reserved = 0,
+-				.opcode = 6,
+-			},
+-			.addr = 0,
+-			.data = 0,
+-		},
+-		{
+-			/* WRCR2 - DTR OPI */
+-			.config = {
+-				.valid_addr = 1,
+-				.cdata_size = 1,
+-				.addr_size = 32,
+-				.pad = 0,
+-				.reserved = 0,
+-				.opcode = 0x72,
+-			},
+-			.addr = 0x0,
+-			.data = 0x2,
+-		},
+-	},
+-};
+-
+-#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
+-	defined(CONFIG_TARGET_S32G274AEVB)
+-static void adjust_qspi_params(struct qspi_params *qspi_params)
+-{
+-	qspi_params->dllcr = 0x8280000c;
+-	qspi_params->dll_slv_upd_en = 0x01;
+-	qspi_params->sflash_clk_freq = 133;
+-}
+-#endif
+-
+ static struct qspi_params *get_qspi_params(struct program_image *image)
+ {
+ 	return (struct qspi_params *)image->qspi_params.data;
+@@ -203,9 +136,12 @@ static struct qspi_params *get_qspi_params(struct program_image *image)
+ 
+ static void s32gen1_set_qspi_params(struct qspi_params *qspi_params)
+ {
+-	memcpy(qspi_params, &s32g2xx_qspi_conf, sizeof(*qspi_params));
++	struct qspi_params *s32g2xx_qspi_conf = get_s32g2xx_qspi_conf();
++
++	memcpy(qspi_params, s32g2xx_qspi_conf, sizeof(*qspi_params));
+ #if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
+-	defined(CONFIG_TARGET_S32G274AEVB)
++	defined(CONFIG_TARGET_S32G274AEVB) ||\
++	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+ 	adjust_qspi_params(qspi_params);
+ #endif
+ }
+diff --git a/tools/s32gen1image.h b/tools/s32gen1image.h
+index 93731d6c69..759ac3d2a6 100644
+--- a/tools/s32gen1image.h
++++ b/tools/s32gen1image.h
+@@ -89,7 +89,7 @@ struct flash_write {
+ 	};
+ 	__u32 addr;
+ 	__u32 data;
+-} __packed;
++} __attribute__((packed));
+ 
+ struct qspi_params {
+ 	__u32 header;
+@@ -133,4 +133,7 @@ struct program_image {
+ 	__u8 *header;
+ };
+ 
++struct qspi_params *get_s32g2xx_qspi_conf(void);
++void adjust_qspi_params(struct qspi_params *qspi_params);
++
+ #endif /* S32GEN1IMAGE_H */
+diff --git a/tools/s32gen1image_qspi_macronix.c b/tools/s32gen1image_qspi_macronix.c
+new file mode 100644
+index 0000000000..3b95db7917
+--- /dev/null
++++ b/tools/s32gen1image_qspi_macronix.c
+@@ -0,0 +1,80 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Copyright 2019-2021 NXP */
++
++#include <generated/autoconf.h>
++#include "s32_common.h"
++#include "s32gen1image.h"
++
++#ifdef CONFIG_FLASH_BOOT
++/* Load U-Boot using DTR octal mode @ 133 MHz*/
++#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
++	defined(CONFIG_TARGET_S32G274AEVB) || \
++	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
++void adjust_qspi_params(struct qspi_params *qspi_params)
++{
++	qspi_params->dllcr = 0x8280000c;
++	qspi_params->dll_slv_upd_en = 0x01;
++	qspi_params->sflash_clk_freq = 133;
++}
++#endif
++static struct qspi_params s32g2xx_qspi_conf = {
++	.header   = 0x5a5a5a5a,
++	.mcr      = 0x030f00cc,
++	.flshcr   = 0x00010303,
++	.bufgencr = 0x00000000,
++	.dllcr    = 0xc280000c,
++	.paritycr = 0x00000000,
++	.sfacr    = 0x00020000,
++	.smpr     = 0x44000000,
++	.dlcr     = 0x40ff40ff,
++	.sflash_1_size = 0x20000000,
++	.sflash_2_size = 0x20000000,
++	.dlpr = 0xaa553443,
++	.sfar = 0x00000000,
++	.ipcr = 0x00000000,
++	.tbdr = 0x00000000,
++	.dll_bypass_en   = 0x00,
++	.dll_slv_upd_en  = 0x00,
++	.dll_auto_upd_en = 0x01,
++	.ipcr_trigger_en = 0x00,
++	.sflash_clk_freq = 200,
++	.reserved = {0x00, 0x00, 0x00},
++	/* Macronix read - 8DTRD */
++	.command_seq = {0x471147ee,
++			0x0f142b20,
++			0x00003b10},
++	.writes = {
++		{
++			/* Write enable */
++			.config = {
++				.valid_addr = 0,
++				.cdata_size = 0,
++				.addr_size = 0,
++				.pad = 0,
++				.reserved = 0,
++				.opcode = 6,
++			},
++			.addr = 0,
++			.data = 0,
++		},
++		{
++			/* WRCR2 - DTR OPI */
++			.config = {
++				.valid_addr = 1,
++				.cdata_size = 1,
++				.addr_size = 32,
++				.pad = 0,
++				.reserved = 0,
++				.opcode = 0x72,
++			},
++			.addr = 0x0,
++			.data = 0x2,
++		},
++	},
++};
++
++struct qspi_params *get_s32g2xx_qspi_conf(void)
++{
++	return &s32g2xx_qspi_conf;
++}
++#endif
+diff --git a/tools/s32gen1image_qspi_micron.c b/tools/s32gen1image_qspi_micron.c
+new file mode 100644
+index 0000000000..fe1eac2081
+--- /dev/null
++++ b/tools/s32gen1image_qspi_micron.c
+@@ -0,0 +1,80 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Copyright 2019-2021 NXP */
++
++#include <generated/autoconf.h>
++#include "s32_common.h"
++#include "s32gen1image.h"
++
++#ifdef CONFIG_FLASH_BOOT
++/* Load U-Boot using DTR octal mode @ 133 MHz*/
++#if defined(CONFIG_S32G274ARDB) || defined(CONFIG_TARGET_S32R45EVB) || \
++	defined(CONFIG_TARGET_S32G274AEVB) || \
++	defined(CONFIG_TARGET_S32G274ABLUEBOX3)
++void adjust_qspi_params(struct qspi_params *qspi_params)
++{
++	qspi_params->dllcr = 0x82860704;
++	qspi_params->dll_slv_upd_en = 0x01;
++	qspi_params->sflash_clk_freq = 133;
++}
++#endif
++static struct qspi_params s32g2xx_qspi_conf = {
++	.header   = 0x5a5a5a5a,
++	.mcr      = 0x010f00cc,
++	.flshcr   = 0x00010303,
++	.bufgencr = 0x00000000,
++	.dllcr    = 0x82860704,
++	.paritycr = 0x00000000,
++	.sfacr    = 0x00000000,
++	.smpr     = 0x44000000,
++	.dlcr     = 0x40ff40ff,
++	.sflash_1_size = 0x20000000,
++	.sflash_2_size = 0x20000000,
++	.dlpr = 0xaa553443,
++	.sfar = 0x00000000,
++	.ipcr = 0x00000000,
++	.tbdr = 0x00000000,
++	.dll_bypass_en   = 0x01,
++	.dll_slv_upd_en  = 0x01,
++	.dll_auto_upd_en = 0x00,
++	.ipcr_trigger_en = 0x00,
++	.sflash_clk_freq = 200,
++	.reserved = {0x00, 0x00, 0x00},
++	/* Macronix read - 8DTRD */
++	.command_seq = {0x470247fd,
++			0x0f102b20,
++			0x00003b10},
++	.writes = {
++		{
++			/* Write enable */
++			.config = {
++				.valid_addr = 0,
++				.cdata_size = 0,
++				.addr_size = 0,
++				.pad = 0,
++				.reserved = 0,
++				.opcode = 6,
++			},
++			.addr = 0,
++			.data = 0,
++		},
++		{
++			/* Enable DTR OPI */
++			.config = {
++				.valid_addr = 1,
++				.cdata_size = 1,
++				.addr_size = 24,
++				.pad = 0,
++				.reserved = 0,
++				.opcode = 0x81,
++			},
++			.addr = 0x0,
++			.data = 0xe7,
++		},
++	},
++};
++
++struct qspi_params *get_s32g2xx_qspi_conf(void)
++{
++	return &s32g2xx_qspi_conf;
++}
++#endif
+-- 
+2.17.1
+
