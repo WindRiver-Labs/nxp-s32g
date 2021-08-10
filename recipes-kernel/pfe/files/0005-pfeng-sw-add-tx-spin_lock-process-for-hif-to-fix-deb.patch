@@ -1,0 +1,68 @@
+From 0dcb943ffe444b51155da4a7f700c246618ecf13 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Tue, 10 Aug 2021 03:30:25 +0000
+Subject: [PATCH] pfeng: sw: add tx spin_lock() process for hif to fix debug
+ warning calltrace
+
+In pfeng driver, if the pfe interface binded hif using share mode, the
+default lock is mutex_lock() when transfer packet through this hif, then
+the following debug warning calltrace will show:
+
+	Call trace:
+	 dump_backtrace+0x0/0x1d4
+	 show_stack+0x24/0x30
+         dump_stack+0xf0/0x13c
+         ___might_sleep+0x19c/0x244
+         __might_sleep+0x60/0x9c
+         __mutex_lock+0x68/0x8e0
+         mutex_lock_nested+0x44/0x70
+         pfeng_netif_logif_xmit+0x4a0/0x660 [pfeng]
+         dev_hard_start_xmit+0x18c/0x500
+         sch_direct_xmit+0x128/0x370
+         __dev_xmit_skb+0x404/0x650
+         __dev_queue_xmit+0x31c/0x920
+         dev_queue_xmit+0x20/0x30
+	 ......
+
+due to mutex_lock() may sleep in atomic context, so use spin_lock()
+in this situation to fix the above calltrace.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ sw/linux-pfeng/pfeng.h              | 4 ++++
+ sw/pfe_hif_drv/public/pfe_hif_drv.h | 1 +
+ 2 files changed, 5 insertions(+)
+
+diff --git a/sw/linux-pfeng/pfeng.h b/sw/linux-pfeng/pfeng.h
+index 3ed21dd..fe86575 100644
+--- a/sw/linux-pfeng/pfeng.h
++++ b/sw/linux-pfeng/pfeng.h
+@@ -166,7 +166,11 @@ struct pfeng_rx_chnl_pool;
+ struct pfeng_tx_chnl_pool;
+ struct pfeng_hif_chnl {
+ 	struct napi_struct		napi ____cacheline_aligned_in_smp;
++#ifdef LOCK_TX_SPINLOCK
++	spinlock_t			lock_tx;
++#else
+ 	struct mutex			lock_tx;
++#endif
+ 	struct net_device		dummy_netdev;
+ 	struct device			*dev;
+ 	pfe_hif_chnl_t			*priv;
+diff --git a/sw/pfe_hif_drv/public/pfe_hif_drv.h b/sw/pfe_hif_drv/public/pfe_hif_drv.h
+index 991da99..f426d8e 100644
+--- a/sw/pfe_hif_drv/public/pfe_hif_drv.h
++++ b/sw/pfe_hif_drv/public/pfe_hif_drv.h
+@@ -48,6 +48,7 @@
+ #endif /* PFE_CFG_IEEE1588_SUPPORT */
+ 
+ #define HIF_STATS
++#define LOCK_TX_SPINLOCK
+ 
+ enum
+ {
+-- 
+2.31.1
+
