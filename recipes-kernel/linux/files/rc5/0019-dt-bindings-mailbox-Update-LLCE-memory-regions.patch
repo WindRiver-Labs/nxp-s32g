@@ -1,0 +1,52 @@
+From 189a860b71c388f0440a869039178919886919c0 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 20 Jul 2021 09:58:24 +0300
+Subject: [PATCH 19/49] dt-bindings: mailbox: Update LLCE memory regions
+
+commit 189a860b71c388f0440a869039178919886919c0 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-5830, ALB-7344
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../bindings/mailbox/nxp,s32g-llce-mailbox.yaml    | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml b/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml
+index 3caf5dfebbbb..8a35dbd04f0d 100644
+--- a/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml
++++ b/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml
+@@ -30,9 +30,14 @@ properties:
+ 
+   memory-region:
+     description:
+-      phandle to a node describing the shared memory (System RAM memory)
+-      used by LLCE accelelerator.
+-    maxItems: 1
++      A set of phandles to memory regions corresponding to LLCE shared memory and LLCE status region.
++    maxItems: 2
++    minItems: 2
++
++  memory-region-names:
++    items:
++      - const: shmem
++      - const: status
+ 
+   reg-names:
+     items:
+@@ -119,7 +124,8 @@ examples:
+         clocks = <&clks S32G_SCMI_CLK_LLCE_SYS>;
+         clock-names = "llce_sys";
+ 
+-        memory-region = <&llce_shmem>;
++        memory-region = <&llce_shmem>, <&llce_boot_status>;
++        memory-region-names = "shmem", "status";
+         interrupts = <0 174 IRQ_TYPE_LEVEL_HIGH>,
+             <0 175 IRQ_TYPE_LEVEL_HIGH>,
+             <0 176 IRQ_TYPE_LEVEL_HIGH>,
+-- 
+2.17.1
+

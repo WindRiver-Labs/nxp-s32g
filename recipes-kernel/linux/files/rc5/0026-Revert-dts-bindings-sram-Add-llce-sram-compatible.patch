@@ -1,0 +1,34 @@
+From bd4cff5ea1a364e67416cbd006adac45ea53046b Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 28 Jul 2021 14:33:47 +0300
+Subject: [PATCH 26/49] Revert "dts: bindings: sram: Add llce-sram compatible"
+
+commit bd4cff5ea1a364e67416cbd006adac45ea53046b from
+https://source.codeaurora.org/external/autobsps32/linux
+
+This reverts commit 0b13532fa6326bb4455debd268ada19f8cf2169c.
+
+Upstream-Status: Pending
+
+Issue: ALB-6953
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Documentation/devicetree/bindings/sram/sram.yaml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/sram/sram.yaml b/Documentation/devicetree/bindings/sram/sram.yaml
+index ea7cb8c31c97..19d116ff9ddc 100644
+--- a/Documentation/devicetree/bindings/sram/sram.yaml
++++ b/Documentation/devicetree/bindings/sram/sram.yaml
+@@ -30,7 +30,6 @@ properties:
+         - mmio-sram
+         - atmel,sama5d2-securam
+         - rockchip,rk3288-pmu-sram
+-        - nxp,s32g-llce-sram - This will initialize the SRAM by filling it with 0
+ 
+   reg:
+     maxItems: 1
+-- 
+2.17.1
+

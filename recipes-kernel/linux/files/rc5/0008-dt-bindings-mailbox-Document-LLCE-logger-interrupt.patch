@@ -1,0 +1,58 @@
+From 579fa71d5022894195a7a9269c7472d1619725aa Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 20 Jul 2021 10:20:20 +0300
+Subject: [PATCH 08/49] dt-bindings: mailbox: Document LLCE logger interrupt
+
+commit 579fa71d5022894195a7a9269c7472d1619725aa from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-5830, ALB-7344
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../bindings/mailbox/nxp,s32g-llce-mailbox.yaml           | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml b/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml
+index d3dcc5489cb3..63ab7df995e7 100644
+--- a/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml
++++ b/Documentation/devicetree/bindings/mailbox/nxp,s32g-llce-mailbox.yaml
+@@ -59,6 +59,7 @@ properties:
+       - const: rxout_fifo_8_15
+       - const: txack_fifo_0_7
+       - const: txack_fifo_8_15
++      - const: logger_rx
+ 
+   interrupts:
+     items:
+@@ -68,6 +69,7 @@ properties:
+       - description: Shared interrupt line for RXOUT 8-15 fifos
+       - description: Shared interrupt line for TXACK 0-7 fifos
+       - description: Shared interrupt line for TXACK 8-15 fifos
++      - description: Interrupt line for LLCE CAN logger
+ 
+   clock-names:
+     const: llce_sys
+@@ -122,13 +124,15 @@ examples:
+             <0 176 IRQ_TYPE_LEVEL_HIGH>,
+             <0 177 IRQ_TYPE_LEVEL_HIGH>,
+             <0 182 IRQ_TYPE_LEVEL_HIGH>,
+-            <0 183 IRQ_TYPE_LEVEL_HIGH>;
++            <0 183 IRQ_TYPE_LEVEL_HIGH>,
++            <0 184 IRQ_TYPE_LEVEL_HIGH>;
+         interrupt-names = "rxin_fifo_0_7",
+             "rxin_fifo_8_15",
+             "rxout_fifo_0_7",
+             "rxout_fifo_8_15",
+             "txack_fifo_0_7",
+-            "txack_fifo_8_15";
++            "txack_fifo_8_15",
++            "logger_rx";
+         status = "okay";
+       };
+     };
+-- 
+2.17.1
+

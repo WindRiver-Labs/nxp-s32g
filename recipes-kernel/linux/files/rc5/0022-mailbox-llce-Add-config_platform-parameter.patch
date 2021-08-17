@@ -1,0 +1,72 @@
+From e5459879c54936d5ea0779443fcdda4298bc8e86 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 20 Jul 2021 13:54:38 +0300
+Subject: [PATCH 22/49] mailbox: llce: Add 'config_platform' parameter
+
+commit e5459879c54936d5ea0779443fcdda4298bc8e86 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+This parameter will be used to skip LLCE platform configuration.
+It's useful for use cases when the mailbox is used only by the logger
+and the rest of the management is assigned to other software entities.
+
+Upstream-Status: Pending
+
+Issue: ALB-5830, ALB-7344
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mailbox/llce-mailbox.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/drivers/mailbox/llce-mailbox.c b/drivers/mailbox/llce-mailbox.c
+index 91ead10a3a68..9071e52f0f87 100644
+--- a/drivers/mailbox/llce-mailbox.c
++++ b/drivers/mailbox/llce-mailbox.c
+@@ -124,6 +124,13 @@ static int llce_hif_startup(struct mbox_chan *chan);
+ static int llce_logger_startup(struct mbox_chan *chan);
+ static int process_rx_cmd(struct mbox_chan *chan, struct llce_rx_msg *msg);
+ 
++/**
++ * Platform configuration can be skipped for cases when the HIF is completely
++ * managed by another software
++ */
++static bool config_platform = true;
++module_param(config_platform, bool, 0660);
++
+ const char *llce_errors[] = {
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_TXACK_FIFO_FULL),
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_RXOUT_FIFO_FULL),
+@@ -1631,6 +1638,9 @@ static int llce_platform_init(struct device *dev, struct llce_mb *mb)
+ 		},
+ 	};
+ 
++	if (!config_platform)
++		return 0;
++
+ 	pcmd = &cmd.cmd_list.init_platform;
+ 	memset(&pcmd->ctrl_init_status, UNINITIALIZED,
+ 	       sizeof(pcmd->ctrl_init_status));
+@@ -1665,6 +1675,9 @@ static int llce_platform_deinit(struct llce_mb *mb)
+ 		.cmd_id = LLCE_CAN_CMD_DEINIT_PLATFORM,
+ 	};
+ 
++	if (!config_platform)
++		return 0;
++
+ 	return execute_hif_cmd(mb, &cmd);
+ }
+ 
+@@ -1678,6 +1691,9 @@ static int print_fw_version(struct llce_mb *mb)
+ 	};
+ 	int ret;
+ 
++	if (!config_platform)
++		return 0;
++
+ 	ret = execute_hif_cmd(mb, &cmd);
+ 	if (ret)
+ 		return ret;
+-- 
+2.17.1
+
