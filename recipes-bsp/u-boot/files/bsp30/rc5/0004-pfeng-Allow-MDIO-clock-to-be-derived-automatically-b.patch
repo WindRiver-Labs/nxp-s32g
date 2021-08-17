@@ -1,0 +1,208 @@
+From 67e5121dd27475e384c81fa6dd884e81d43bcb11 Mon Sep 17 00:00:00 2001
+From: Ondrej Spacek <ondrej.spacek@nxp.com>
+Date: Mon, 22 Mar 2021 07:56:50 +0100
+Subject: [PATCH 4/8] pfeng: Allow MDIO clock to be derived automatically based
+ on csr clk. Enable time-stamp clock from pfe driver(in case it is not enabled
+ from gmac).
+
+Upstream-Status: Pending
+
+Issue: ALB-5617
+Signed-off-by: Ondrej Spacek <ondrej.spacek@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g.dtsi          |  4 +++-
+ drivers/net/pfeng/hw_abi/pfeng_hw.h |  2 ++
+ drivers/net/pfeng/pfeng.h           |  3 ++-
+ drivers/net/pfeng/pfeng_cmd.c       |  9 ++++++++
+ drivers/net/pfeng/pfeng_drv.c       |  3 ++-
+ drivers/net/pfeng/pfeng_hw.c        | 34 +++++++++++++++++++++++++++--
+ 6 files changed, 50 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index 05339341bd..f10eb9238f 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -149,6 +149,8 @@
+ 		compatible = "fsl,s32g274a-pfe";
+ 		reg = <0x0 0x46000000 0x0 0x1000000>;
+ 		clocks = <&clks S32G_SCMI_CLK_PFE_PE>,
++			<&clks S32G_SCMI_CLK_PFE_AXI>,
++			<&clks S32GEN1_SCMI_CLK_GMAC0_TS_RGMII>,
+ 			/* PFE0 */
+ 			<&clks S32G_SCMI_CLK_PFE0_RX_SGMII>,
+ 			<&clks S32G_SCMI_CLK_PFE0_TX_SGMII>,
+@@ -164,7 +166,7 @@
+ 			<&clks S32G_SCMI_CLK_PFE2_TX_SGMII>,
+ 			<&clks S32G_SCMI_CLK_PFE2_RX_RGMII>,
+ 			<&clks S32G_SCMI_CLK_PFE2_TX_RGMII>;
+-		clock-names = "pe",
++		clock-names = "pe", "axi", "ts",
+ 			"mac0_rx_sgmii", "mac0_tx_sgmii",
+ 			"mac0_rx_rgmii", "mac0_tx_rgmii",
+ 			"mac1_rx_sgmii", "mac1_tx_sgmii",
+diff --git a/drivers/net/pfeng/hw_abi/pfeng_hw.h b/drivers/net/pfeng/hw_abi/pfeng_hw.h
+index 96c631f134..ad6c250a8a 100644
+--- a/drivers/net/pfeng/hw_abi/pfeng_hw.h
++++ b/drivers/net/pfeng/hw_abi/pfeng_hw.h
+@@ -58,6 +58,7 @@ struct pfe_fw {
+ struct pfe_platform_config {
+ 	u64 cbus_base;	/* PFE control bus base address */
+ 	u64 cbus_len;	/* PFE control bus size */
++	u64 csr_clk_f;	/* CSR clk frequency */
+ 	char *fw_name;	/* FW name */
+ 	struct pfe_fw *fw;		/* Required firmware, embedded */
+ };
+@@ -70,6 +71,7 @@ struct pfe_platform {
+ 	u64 bmu_buffers_size;
+ 	u32 hif_chnl_count; /* Number of HIF channels */
+ 	u32 emac_count;	    /* Number of EMAC blocks */
++	u8  emac_mdio_div;  /* Divider for mdio clk */
+ 	u32 gpi_total;	    /* Number of GPI/ETGPI/HGPI blocks */
+ 	u32 gpi_count;	    /* Number of GPI blocks */
+ 	u32 etgpi_count;	    /* Number of ETGPI blocks */
+diff --git a/drivers/net/pfeng/pfeng.h b/drivers/net/pfeng/pfeng.h
+index 9ec7444bc5..016d098cab 100644
+--- a/drivers/net/pfeng/pfeng.h
++++ b/drivers/net/pfeng/pfeng.h
+@@ -1,7 +1,7 @@
+ /* SPDX-License-Identifier: GPL 2.0 */
+ /*
+  * Copyright (c) 2020 Imagination Technologies Limited
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  */
+ 
+@@ -120,6 +120,7 @@ void pfeng_cfg_emacs_enable_all(void);
+ void pfeng_cfg_emacs_disable_all(void);
+ u32 pfeng_cfg_emac_get_interface(u32 idx);
+ void pfeng_apply_clocks(struct udevice *pfe_dev);
++unsigned long long get_pfe_axi_clk_f(struct udevice *pfe_dev);
+ 
+ /* SGMII/XPCS */
+ int pfeng_serdes_wait_link(int emac);
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index 7e0c014daf..a34164ef0a 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -407,6 +407,10 @@ static void setup_pfe_clocks(int intf0, int intf1, int intf2,
+ 		set_pfe_mac0_clk(intf0, pfe_dev);
+ 		set_pfe_mac1_clk(intf1, pfe_dev);
+ 		set_pfe_mac2_clk(intf2, pfe_dev);
++
++		ret = s32gen1_enable_dev_clk("ts", pfe_dev);
++		if (ret)
++			dev_err(pfe_dev, "Failed to enable ts clock\n");
+ 		priv->clocks_done = true;
+ 	} else if (priv->if_index == 0) {
+ 		set_pfe_mac0_clk(intf0, pfe_dev);
+@@ -417,6 +421,11 @@ static void setup_pfe_clocks(int intf0, int intf1, int intf2,
+ 	}
+ }
+ 
++unsigned long long get_pfe_axi_clk_f(struct udevice *pfe_dev)
++{
++	return s32gen1_get_dev_clk_rate("axi", pfe_dev);
++}
++
+ static void setup_iomux_pfe(struct udevice *dev,
+ 			    int intf0, int intf1, int intf2)
+ {
+diff --git a/drivers/net/pfeng/pfeng_drv.c b/drivers/net/pfeng/pfeng_drv.c
+index 7703813bdf..85616a4d63 100644
+--- a/drivers/net/pfeng/pfeng_drv.c
++++ b/drivers/net/pfeng/pfeng_drv.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (c) 2020 Imagination Technologies Limited
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  */
+ 
+@@ -394,6 +394,7 @@ static int pfeng_driver_init(struct pfeng_priv *priv)
+ 	priv->pfe_cfg.cbus_base = (u64)S32G_PFE_REGS_BASE;
+ 	priv->pfe_cfg.cbus_len = 0x0; /* not used */
+ 	priv->pfe_cfg.fw = &priv->fw;
++	priv->pfe_cfg.csr_clk_f = get_pfe_axi_clk_f(priv->dev);
+ 
+ 	ret = pfeng_hw_init(&priv->pfe_cfg);
+ 	if (ret) {
+diff --git a/drivers/net/pfeng/pfeng_hw.c b/drivers/net/pfeng/pfeng_hw.c
+index 39d324eae1..fbff8f15d2 100644
+--- a/drivers/net/pfeng/pfeng_hw.c
++++ b/drivers/net/pfeng/pfeng_hw.c
+@@ -42,6 +42,7 @@ static const struct pfe_ct_hif_tx_hdr header[3U] = {
+ 				  (uint64_t)(off)))
+ 
+ /* EMAC  helper macros */
++#define MHZ		(1000000UL)
+ #define PFE_EMAC_F_DEF (0U | PASS_CONTROL_PACKETS(FORWARD_ALL_EXCEPT_PAUSE) | \
+ 			HASH_MULTICAST | HASH_OR_PERFECT_FILTER | \
+ 			HASH_UNICAST)
+@@ -302,7 +303,7 @@ int pfeng_hw_emac_mdio_read(void *base_va, u8 pa, s32 dev, uint16_t ra,
+ 
+ 	reg |=	GMII_BUSY |
+ 		GMII_OPERATION_CMD(GMII_READ) |
+-		CSR_CLOCK_RANGE(CSR_CLK_300_500_MHZ_MDC_CSR_DIV_204) |
++		CSR_CLOCK_RANGE(pfe.emac_mdio_div) |
+ 		PHYS_LAYER_ADDR(pa);
+ 
+ 	/*	Start a read operation */
+@@ -342,7 +343,7 @@ int pfeng_hw_emac_mdio_write(void *base_va, u8 pa, s32 dev, uint16_t ra,
+ 	}
+ 
+ 	reg |=	GMII_BUSY | GMII_OPERATION_CMD(GMII_WRITE) |
+-		CSR_CLOCK_RANGE(CSR_CLK_300_500_MHZ_MDC_CSR_DIV_204) |
++		CSR_CLOCK_RANGE(pfe.emac_mdio_div) |
+ 		PHYS_LAYER_ADDR(pa);
+ 
+ 	/*	Start a write operation */
+@@ -358,6 +359,34 @@ int pfeng_hw_emac_mdio_write(void *base_va, u8 pa, s32 dev, uint16_t ra,
+ 	return 0;
+ }
+ 
++static u8 pfeng_hw_emac_mdio_div_decode(u64 csr_clk)
++{
++	u8 mdio_div = CSR_CLK_300_500_MHZ_MDC_CSR_DIV_204;
++
++	if (csr_clk < 35 * MHZ)
++		mdio_div = CSR_CLK_20_35_MHZ_MDC_CSR_DIV_16;
++	else if ((csr_clk >= 35 * MHZ) && (csr_clk < 60 * MHZ))
++		mdio_div = CSR_CLK_35_60_MHZ_MDC_CSR_DIV_26;
++	else if ((csr_clk >= 60 * MHZ) && (csr_clk < 100 * MHZ))
++		mdio_div = CSR_CLK_60_100_MHZ_MDC_CSR_DIV_42;
++	else if ((csr_clk >= 100 * MHZ) && (csr_clk < 150 * MHZ))
++		mdio_div = CSR_CLK_100_150_MHZ_MDC_CSR_DIV_62;
++	else if ((csr_clk >= 150 * MHZ) && (csr_clk < 250 * MHZ))
++		mdio_div = CSR_CLK_150_250_MHZ_MDC_CSR_DIV_102;
++	else if ((csr_clk >= 250 * MHZ) && (csr_clk < 300 * MHZ))
++		mdio_div = CSR_CLK_250_300_MHZ_MDC_CSR_DIV_124;
++	else if ((csr_clk >= 300 * MHZ) && (csr_clk < 500 * MHZ))
++		mdio_div = CSR_CLK_300_500_MHZ_MDC_CSR_DIV_204;
++	else if ((csr_clk >= 500 * MHZ) && (csr_clk < 800 * MHZ))
++		mdio_div = CSR_CLK_500_800_MHZ_MDC_CSR_DIV_324;
++	else
++		pr_err("PFE: Invalid csr_clk");
++
++	pr_info("csr_clock %llu, mdio_div %u", csr_clk, mdio_div);
++
++	return mdio_div;
++}
++
+ /* PE helper functions */
+ static void pfeng_hw_pe_mem_write_idx(int pfe_idx, enum pfe_pe_mem mem,
+ 				      u32 val, u32 addr, u8 size)
+@@ -1889,6 +1918,7 @@ int pfeng_hw_init(struct pfe_platform_config *config)
+ 	pfe.shape_per_phy = 4;
+ 	pfe.sch_per_phy = 2;
+ 	pfe.hif_chnl = 0;
++	pfe.emac_mdio_div = pfeng_hw_emac_mdio_div_decode(config->csr_clk_f);
+ 
+ 	/* BMU */
+ 	ret = pfeng_hw_init_bmu(&pfe);
+-- 
+2.17.1
+

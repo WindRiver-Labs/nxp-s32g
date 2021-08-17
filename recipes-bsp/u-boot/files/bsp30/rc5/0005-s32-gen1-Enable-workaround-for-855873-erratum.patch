@@ -1,0 +1,32 @@
+From 9d49df7690cb93ae72c046f5bcad45bd2bb92ae6 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 5 Aug 2021 10:38:59 +0300
+Subject: [PATCH 5/8] s32-gen1: Enable workaround for 855873 erratum
+
+This enables workaround erratum for erratum ERR010493
+(Cortex-A53 855873) for all S32GEN1 platforms.
+
+Upstream-Status: Pending
+
+Issue: ALB-7511
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index c5193b178c..60012d3784 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -20,6 +20,7 @@ config S32_GEN1
+ 	select ARCH_MISC_INIT
+ 	select S32_GPIO
+ 	select MMC_HS400_SUPPORT if !TARGET_TYPE_S32GEN1_EMULATOR
++	select ARM_ERRATA_855873 if S32_STANDALONE_BOOT_FLOW
+ 	help
+ 	  Platform Selection
+ 
+-- 
+2.17.1
+

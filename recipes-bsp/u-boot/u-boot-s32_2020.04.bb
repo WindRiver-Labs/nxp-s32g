@@ -65,6 +65,14 @@ SRC_URI += " \
     file://bsp30/rc4/0014-s32gen1image-qspi-micron-cfg-fix-dllcr-value.patch \
     file://bsp30/rc4/0015-s32g274abluebox3-boot-from-nfs-with-ramdisk.patch \
     file://bsp30/rc4/0016-spi-s32gen1_qspi-guard-read-speed-with-DEBUG.patch \
+    file://bsp30/rc5/0001-etherent-Improve-fix-up-for-rdb2-board-to-cover-the-.patch \
+    file://bsp30/rc5/0002-s32gen1-pinctrl-fix-SRC-definitions.patch \
+    file://bsp30/rc5/0003-s32gen1-pinctrl-enable-open-drain-for-mdio-pin.patch \
+    file://bsp30/rc5/0004-pfeng-Allow-MDIO-clock-to-be-derived-automatically-b.patch \
+    file://bsp30/rc5/0005-s32-gen1-Enable-workaround-for-855873-erratum.patch \
+    file://bsp30/rc5/0006-s32gen1-ncore-Simplify-macros-in-compliance-with-the.patch \
+    file://bsp30/rc5/0007-hse-enable-all-mus-when-running-hse-u-boot-cmds.patch \
+    file://bsp30/rc5/0008-hse-enable-VDD_EFUSE-with-DCD-for-s32g274ardb2.patch \
     file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
     file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \

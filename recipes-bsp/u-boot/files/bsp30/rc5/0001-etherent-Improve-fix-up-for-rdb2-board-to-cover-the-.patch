@@ -1,0 +1,71 @@
+From aee2beec9c89ba8d668c9f2fdea8d26d9465d495 Mon Sep 17 00:00:00 2001
+From: Ondrej Spacek <ondrej.spacek@nxp.com>
+Date: Mon, 2 Aug 2021 09:04:31 +0200
+Subject: [PATCH 1/8] etherent: Improve fix up for rdb2 board to cover the
+ fixed link port.
+
+Now the fixed link speed is changed based on hwconfig.
+
+Upstream-Status: Pending
+
+Issue: ALB-7395
+Signed-off-by: Ondrej Spacek <ondrej.spacek@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/eth.c | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/board/freescale/s32-gen1/eth.c b/board/freescale/s32-gen1/eth.c
+index 316fe77dbc..3991765631 100644
+--- a/board/freescale/s32-gen1/eth.c
++++ b/board/freescale/s32-gen1/eth.c
+@@ -26,6 +26,7 @@
+ #include <s32gen1_gmac_utils.h>
+ #include <dm/device_compat.h>
+ #include <dm/pinctrl.h>
++#include <hwconfig.h>
+ 
+ static void ft_update_eth_addr_by_name(const char *name, const u8 idx,
+ 				       void *fdt, int nodeoff)
+@@ -83,6 +84,28 @@ static void ft_enet_pfe_fixup_phy(u32 idx, void *fdt, int nodeoff)
+ 		printf("DT: pfe%d: update phy addr to 0x%x\n", idx, phy_addr);
+ 	}
+ }
++
++static void ft_enet_pfe_fixup_fixed_link(u32 idx, void *fdt, int nodeoff)
++{
++	int fixedoff = -1;
++
++	if (pfeng_cfg_emac_get_interface(idx) != PHY_INTERFACE_MODE_SGMII)
++		return;
++
++	fixedoff = fdt_subnode_offset(fdt, nodeoff, "fixed-link");
++	if (fixedoff < 0)
++		return;
++
++	if ((hwconfig_subarg_cmp("pcie1", "mode", "sgmii") &&
++	    (hwconfig_subarg_cmp("pcie1", "xpcs_mode", "both") ||
++	    hwconfig_subarg_cmp("pcie1", "xpcs_mode", "0"))) ||
++	    ((hwconfig_subarg_cmp("pcie1", "mode", "ep&sgmii") ||
++	    hwconfig_subarg_cmp("pcie1", "mode", "rc&sgmii")) &&
++	    hwconfig_subarg_cmp("pcie1", "xpcs_mode", "0"))) {
++		fdt_setprop_u32(fdt, fixedoff, "speed", 1000);
++		printf("DT: pfe%d: Update fixed-link speed to 1000Mbps\n", idx);
++	}
++}
+ #endif
+ 
+ static void ft_enet_pfe_emac_fixup(u32 idx, void *fdt)
+@@ -118,6 +141,9 @@ static void ft_enet_pfe_emac_fixup(u32 idx, void *fdt)
+ 
+ #ifdef CONFIG_TARGET_S32G274ARDB
+ 			ft_enet_pfe_fixup_phy(idx, fdt, nodeoff);
++
++			if (idx == 0)
++				ft_enet_pfe_fixup_fixed_link(idx, fdt, nodeoff);
+ #endif
+ 		}
+ 		/* We are done */
+-- 
+2.17.1
+
