@@ -50,6 +50,12 @@ SRC_URI += " \
     file://bsp30/rc4/0016-plat-s32g2-Enable-workaround-for-ERR008821-erratum.patch \
     file://bsp30/rc4/0017-plat-s32g2-Enable-workaround-for-ERR050764-erratum.patch \
     file://bsp30/rc4/0018-arm64-A53-erratum-836870-should-be-applied-on-r0p4.patch \
+    file://bsp30/rc5/0001-s32g-ddr-Remove-unused-ddrss_firmware.c-file.patch \
+    file://bsp30/rc5/0002-s32g-ddr-Update-to-the-1.4-version-of-S32CT.patch \
+    file://bsp30/rc5/0003-s32g2-Update-DDR-firmware-to-2020_06_SP2-version.patch \
+    file://bsp30/rc5/0004-s32g_storage-read-an-store-boot_source.patch \
+    file://bsp30/rc5/0005-s32gen1-dts-add-i2c0-node.patch \
+    file://bsp30/rc5/0006-s32g_storage-enable-boot-configuration-read-from-EEP.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g2"

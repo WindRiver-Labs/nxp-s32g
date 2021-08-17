@@ -1,0 +1,43 @@
+From d60b55bba567caca68bbaab1f6674d3db48bbed3 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Thu, 5 Aug 2021 14:05:27 +0300
+Subject: [PATCH 5/6] s32gen1-dts: add i2c0 node
+
+Upstream-Status: Pending
+
+Issue: ALB-7478
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/fsl-s32-gen1.dtsi | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/fdts/fsl-s32-gen1.dtsi b/fdts/fsl-s32-gen1.dtsi
+index b9628f42a..2ac3bff3e 100644
+--- a/fdts/fsl-s32-gen1.dtsi
++++ b/fdts/fsl-s32-gen1.dtsi
+@@ -13,6 +13,7 @@
+ 	#size-cells = <2>;
+ 
+ 	aliases {
++		i2c0 = &i2c0;
+ 		i2c4 = &i2c4;
+ 	};
+ 
+@@ -119,7 +120,12 @@
+ 		#clock-cells = <1>;
+ 	};
+ 
+-	i2c4: i2c@402D8000 {
++	i2c0: i2c@401E4000 {
++		compatible = "fsl,vf610-i2c";
++		reg = <0x0 0x401E4000 0x0 0x10000>;
++	};
++
++	i2c4: i2c@402DC000 {
+ 		compatible = "fsl,vf610-i2c";
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+-- 
+2.17.1
+
