@@ -10,8 +10,8 @@ DEPENDS = "openssl libp11"
 
 SRC_URI = "https://bitbucket.sw.nxp.com/projects/ALBW/repos/pkcs11-hse/pkcs11-hse.tar.gz"
 
-SRCREV = "551115b2a261073667744db13510393ee76c89c9"
-SRC_URI[sha256sum] = "20de6b70bd8e8eaa225954480e2692c281b23d67a5f3986d5834b6c1242e6781"
+SRCREV = "0fc8ecf67d7758ea395dd8bf8db87f787ca82fe8"
+SRC_URI[sha256sum] = "6af5c7cc0593c3721fe18c0f657b64ec1c7ebebb2103ed6e97f71fd6dcc26bdd"
 
 SRC_URI += " \
 "
