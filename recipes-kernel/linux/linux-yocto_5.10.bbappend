@@ -66,4 +66,5 @@ SRC_URI_append_nxp-s32g2xx = " \
     file://0015-drivers-qspi-replace-dev_info-with-dev_dbg-in-qspi_r.patch \
     file://0016-dts-s32g274a-rdb2-disable-ARQ107-phy-node-explicitly.patch \
     file://0017-drivers-pci-modify-the-config-judgement-to-fix-build.patch \
+    file://0001-drivers-llce-mailbox-delete-DO_ONCE-call-for-llce_ca.patch \
 "

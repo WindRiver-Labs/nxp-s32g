@@ -1,0 +1,101 @@
+From 9353bb6ad3d99c70cfbe823d3bc77523da96cdee Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Thu, 19 Aug 2021 14:29:36 +0800
+Subject: [PATCH] drivers: llce-mailbox: delete DO_ONCE() call for llce_can
+ driver
+
+In llce-mailbox driver, commit 38262a381b8f ("mailbox: Lazy irq request
+for llce channels") introduced the DO_ONCE() calls to avoid LLCE host
+reconfiguration when only the logger is managed by Linux(actually the driver
+managed by Linux is llce_can not the logger), but for llce, this situation
+is not common in reality. Moreover, the DO_ONCE() call will cause debug
+calltrace like the following :
+
+    Call trace:
+    dump_backtrace+0x0/0x1d4
+    show_stack+0x24/0x30
+    dump_stack+0xf0/0x13c
+    ___might_sleep+0x19c/0x244
+    __might_sleep+0x60/0x9c
+    __kmalloc_track_caller+0x2d4/0x420
+    __devres_alloc_node+0x5c/0xc0
+    devm_request_threaded_irq+0x64/0x110
+    request_llce_pair_irq.isra.0+0x3c/0xac [llce_mailbox]
+    llce_rx_startup+0xf8/0x110 [llce_mailbox]
+    llce_mb_startup+0x3c/0x50 [llce_mailbox]
+    mbox_request_channel+0x21c/0x2b4
+    mbox_request_channel_byname+0xc4/0x150
+    llce_can_open+0xd8/0x1f0 [llce_can]
+    __dev_open+0x128/0x1f4
+    __dev_change_flags+0x1d4/0x254
+    dev_change_flags+0x30/0x70
+    do_setlink+0x214/0xaa0
+    __rtnl_newlink+0x52c/0x830
+    rtnl_newlink+0x5c/0x8c
+    rtnetlink_rcv_msg+0x174/0x4c0
+    netlink_rcv_skb+0x64/0x12c
+    rtnetlink_rcv+0x24/0x30
+    netlink_unicast+0x1b4/0x270
+    netlink_sendmsg+0x1b4/0x3b4
+    ____sys_sendmsg+0x1e0/0x234
+    ___sys_sendmsg+0x88/0xd0
+    __sys_sendmsg+0x74/0xcc
+    __arm64_sys_sendmsg+0x30/0x40
+    el0_svc_common.constprop.0+0x9c/0x174
+    do_el0_svc+0x78/0x9c
+    el0_svc+0x20/0x30
+    el0_sync_handler+0x1a4/0x1b0
+    el0_sync+0x180/0x1c0
+
+The reason is that DO_ONCE() will acquire a spin lock before the acctual
+irq allocation(which may sleep by using GFP_KERNEL flag), so drop these
+DO_ONCE() calls to fix this issue.
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mailbox/llce-mailbox.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mailbox/llce-mailbox.c b/drivers/mailbox/llce-mailbox.c
+index a300f3537870..3c6299df8c3e 100644
+--- a/drivers/mailbox/llce-mailbox.c
++++ b/drivers/mailbox/llce-mailbox.c
+@@ -773,7 +773,7 @@ static int llce_hif_startup(struct mbox_chan *chan)
+ 	struct llce_chan_priv *priv = chan->con_priv;
+ 	struct llce_mb *mb = priv->mb;
+ 
+-	DO_ONCE(request_llce_pair_irq, mb, &mb->rxin_irqs);
++	request_llce_pair_irq(mb, &mb->rxin_irqs);
+ 
+ 	return 0;
+ }
+@@ -784,7 +784,7 @@ static int llce_rx_startup(struct mbox_chan *chan)
+ 	struct llce_mb *mb = priv->mb;
+ 	unsigned long flags;
+ 
+-	DO_ONCE(request_llce_pair_irq, mb, &mb->rxout_irqs);
++	request_llce_pair_irq(mb, &mb->rxout_irqs);
+ 
+ 	/* State change must go under the lock protection */
+ 	spin_lock_irqsave(&priv->lock, flags);
+@@ -827,7 +827,7 @@ static int llce_tx_startup(struct mbox_chan *chan)
+ 	struct llce_mb *mb = priv->mb;
+ 	unsigned long flags;
+ 
+-	DO_ONCE(request_llce_pair_irq, mb, &mb->txack_irqs);
++	request_llce_pair_irq(mb, &mb->txack_irqs);
+ 
+ 	spin_lock_irqsave(&priv->lock, flags);
+ 	priv->state = LLCE_REGISTERED_CHAN;
+@@ -863,7 +863,7 @@ static int llce_logger_startup(struct mbox_chan *chan)
+ 	unsigned long flags;
+ 	int ret = 0;
+ 
+-	DO_ONCE(request_llce_irq, mb, &mb->logger_irq);
++	request_llce_irq(mb, &mb->logger_irq);
+ 
+ 	spin_lock_irqsave(&priv->lock, flags);
+ 	priv->state = LLCE_REGISTERED_CHAN;
+-- 
+2.25.1
+
