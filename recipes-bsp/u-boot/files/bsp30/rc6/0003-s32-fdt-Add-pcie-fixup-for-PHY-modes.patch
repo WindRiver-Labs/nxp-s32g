@@ -1,0 +1,72 @@
+From 18824d5ce2127e18a0dd9d387c33ca38eaf28594 Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Wed, 4 Aug 2021 13:35:31 +0300
+Subject: [PATCH 3/4] s32: fdt: Add pcie fixup for PHY modes
+
+Upstream-Status: Pending
+
+Issue: ALB-6998
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/fdt.c | 37 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index e4f2b0509b..ceceb8f8c3 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -566,6 +566,39 @@ static int set_pcie_mode(void *blob, int nodeoff, int id)
+ 	return 0;
+ }
+ 
++static int set_pcie_phy_mode(void *blob, int nodeoff, int id)
++{
++	int ret = 0;
++	char mode[10] = "crns";
++	enum serdes_phy_mode phy_mode;
++
++	phy_mode = s32_serdes_get_phy_mode_from_hwconfig(id);
++	if (phy_mode == PHY_MODE_INVALID) {
++		pr_err("Invalid PCIe%d PHY mode", id);
++		return -EINVAL;
++	}
++
++	switch (phy_mode) {
++	case CRNS:
++		break;
++	case CRSS:
++		strcpy(mode, "crss");
++		break;
++	case SRIS:
++		strcpy(mode, "sris");
++		break;
++	default:
++		pr_err("PCIe PHY mode not supported\n");
++		return -EINVAL;
++	}
++
++	ret = fdt_setprop_string(blob, nodeoff, "nxp,phy-mode", mode);
++	if (ret)
++		pr_err("Failed to set 'nxp,phy-mode'\n");
++
++	return ret;
++}
++
+ static int add_serdes_lines(void *blob, int id, int lanes, uint32_t phandle)
+ {
+ 	char serdes_lane[SERDES_LINE_NAME_LEN];
+@@ -696,6 +729,10 @@ static int prepare_pcie_node(void *blob, int id)
+ 	if (ret)
+ 		return ret;
+ 
++	ret = set_pcie_phy_mode(blob, nodeoff, id);
++	if (ret)
++		return ret;
++
+ 	ret = set_serdes_lines(blob, id);
+ 	if (ret)
+ 		return ret;
+-- 
+2.17.1
+

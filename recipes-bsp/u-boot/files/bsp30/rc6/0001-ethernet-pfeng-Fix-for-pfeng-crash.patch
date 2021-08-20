@@ -1,0 +1,141 @@
+From 65e8d61bdf12b77f8835f9b1c55dbc16abddae62 Mon Sep 17 00:00:00 2001
+From: Martin Sturala <martin.sturala@nxp.com>
+Date: Mon, 16 Aug 2021 22:52:07 +0200
+Subject: [PATCH 1/4] ethernet pfeng: Fix for pfeng crash
+
+PFE BMU buffers used unreserved address.
+Memory reservation was added into dtsi files, address
+and size is propagated from dtb into HW initialization.
+
+Upstream-Status: Pending
+
+Issue: ALB-7556
+Signed-off-by: Martin Sturala <martin.sturala@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g.dtsi          | 12 ++++++++++++
+ drivers/net/pfeng/hw_abi/pfeng_hw.h |  3 +++
+ drivers/net/pfeng/pfeng_drv.c       | 21 +++++++++++++++++++++
+ drivers/net/pfeng/pfeng_hw.c        |  8 +++++++-
+ 4 files changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index f10eb9238f..30be09af07 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -30,6 +30,17 @@
+ 		};
+ 	};
+ 
++	reserved-memory {
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++
++		pfe_reserved: pfe_reserved@0x83400000 {
++			no-map;
++			reg = <0 0x83400000 0 0x8000>; /* 32K */
++		};
++	};
++
+ 	serdes1: serdes@44180000 {
+ 		compatible = "fsl,s32gen1-serdes";
+ 		reg = <0x00 0x44100000 0x0 0x80000   /* dbi registers */
+@@ -186,6 +197,7 @@
+ 			"pfe1_rgmii", "pfe1_sgmii",
+ 			"pfe2_rgmii", "pfe2_sgmii";
+ 		status = "disabled";
++		memory-region = <&pfe_reserved>;
+ 	};
+ 
+ 	siul2_0@4009C000 {
+diff --git a/drivers/net/pfeng/hw_abi/pfeng_hw.h b/drivers/net/pfeng/hw_abi/pfeng_hw.h
+index ad6c250a8a..0bf4422fd0 100644
+--- a/drivers/net/pfeng/hw_abi/pfeng_hw.h
++++ b/drivers/net/pfeng/hw_abi/pfeng_hw.h
+@@ -61,6 +61,8 @@ struct pfe_platform_config {
+ 	u64 csr_clk_f;	/* CSR clk frequency */
+ 	char *fw_name;	/* FW name */
+ 	struct pfe_fw *fw;		/* Required firmware, embedded */
++	phys_addr_t bmu_addr;
++	phys_size_t bmu_addr_size;
+ };
+ 
+ struct pfe_platform {
+@@ -88,6 +90,7 @@ struct pfe_platform {
+ 	void **gpi_base;	   /* The GPI blocks base */
+ 	void **emac_base;	   /* The EMAC blocks base */
+ 	void *hif_base;
++	struct pfe_platform_config *cfg;
+ };
+ 
+ /* Eth driver functionality */
+diff --git a/drivers/net/pfeng/pfeng_drv.c b/drivers/net/pfeng/pfeng_drv.c
+index 85616a4d63..e755a3df05 100644
+--- a/drivers/net/pfeng/pfeng_drv.c
++++ b/drivers/net/pfeng/pfeng_drv.c
+@@ -543,7 +543,12 @@ struct pfeng_config pfeng_s32g274a_config = {
+ #if CONFIG_IS_ENABLED(OF_CONTROL)
+ static int pfeng_ofdata_to_platdata(struct udevice *dev)
+ {
++	int ret;
++	char node_name[100];
++	struct fdt_memory carveout;
++	int node = dev_of_offset(dev);
+ 	struct pfeng_pdata *pdata = dev_get_platdata(dev);
++	struct pfeng_priv *priv = dev_get_priv(dev);
+ 
+ 	if (!pdata) {
+ 		dev_err(dev, "no platform data");
+@@ -556,6 +561,22 @@ static int pfeng_ofdata_to_platdata(struct udevice *dev)
+ 		return -ENODEV;
+ 	}
+ 
++	ret = fdt_get_path(gd->fdt_blob, node, &node_name[0],
++			   sizeof(node_name));
++	if (ret) {
++		dev_err(dev, "PFE: Couldn't get path to reserved memory");
++		return -EINVAL;
++	}
++	ret = fdtdec_get_carveout(gd->fdt_blob, &node_name[0],
++				  "memory-region", 0, &carveout);
++	if (ret) {
++		dev_err(dev, "PFE: Couldn't get reserved memory regs");
++		return -EINVAL;
++	}
++
++	priv->pfe_cfg.bmu_addr = carveout.start;
++	priv->pfe_cfg.bmu_addr_size = carveout.end - carveout.start + 1;
++
+ 	pdata->config = (void *)dev_get_driver_data(dev);
+ 
+ 	return 0;
+diff --git a/drivers/net/pfeng/pfeng_hw.c b/drivers/net/pfeng/pfeng_hw.c
+index fbff8f15d2..19d80f49ec 100644
+--- a/drivers/net/pfeng/pfeng_hw.c
++++ b/drivers/net/pfeng/pfeng_hw.c
+@@ -1126,7 +1126,12 @@ static int pfeng_hw_init_bmu(struct pfe_platform *platform)
+ 
+ 	platform->bmu_buffers_size = PFE_CFG_BMU2_BUF_COUNT *
+ 				     (1U << PFE_CFG_BMU2_BUF_SIZE);
+-	platform->bmu_buffers_va = (void *)(u64)0x83400000;
++	if (platform->bmu_buffers_size != platform->cfg->bmu_addr_size) {
++		pr_err("PFE: BMU expecteted mem size is: 0x%llX check dtb config\n",
++		       platform->bmu_buffers_size);
++		return -EINVAL;
++	}
++	platform->bmu_buffers_va = (void *)(u64)platform->cfg->bmu_addr;
+ 	/* memalign(platform->bmu_buffers_size, platform->bmu_buffers_size);*/
+ 
+ 	if (!platform->bmu_buffers_va) {
+@@ -1891,6 +1896,7 @@ int pfeng_hw_init(struct pfe_platform_config *config)
+ 
+ 	memset(&pfe, 0U, sizeof(struct pfe_platform));
+ 	pfe.fw = config->fw;
++	pfe.cfg = config;
+ 
+ 	/* Map CBUS address space */
+ 	pfe.cbus_baseaddr = (void *)config->cbus_base;
+-- 
+2.17.1
+

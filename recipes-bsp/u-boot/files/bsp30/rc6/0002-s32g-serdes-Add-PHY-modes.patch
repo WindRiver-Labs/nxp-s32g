@@ -1,0 +1,262 @@
+From d262637dd92f1dea27fd82c3b47fcd0980e902f5 Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Mon, 2 Aug 2021 12:09:31 +0300
+Subject: [PATCH 2/4] s32g: serdes: Add PHY modes
+
+CRNS/CRSS/SRIS phy modes can be enabled by using 'hwconfig' u-boot
+environment variable, as in:
+'pcie0:mode=rc,clock=ext,phy_mode=sris;
+pcie1:mode=rc,clock=ext,phy_mode=sris'
+
+By default, phy_mode is CRNS.
+
+Upstream-Status: Pending
+
+Issue: ALB-6998
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../asm/arch-s32/s32-gen1/serdes_hwconfig.h   |  8 +++
+ .../asm/arch-s32/s32-gen1/serdes_regs.h       |  3 +
+ .../asm/arch-s32/s32-gen1/ss_pcie_regs.h      |  5 +-
+ drivers/pci/pcie_s32gen1.c                    | 11 ++++
+ drivers/pci/serdes_s32gen1.c                  | 62 ++++++++++++++++++-
+ drivers/pci/serdes_s32gen1.h                  |  3 +-
+ 6 files changed, 87 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h
+index 67fede5c77..7705154a84 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_hwconfig.h
+@@ -20,6 +20,13 @@ enum serdes_clock_fmhz {
+ 	CLK_125MHZ		/* For 2.5G mode */
+ };
+ 
++enum serdes_phy_mode {
++	PHY_MODE_INVALID = -1,
++	CRNS = 0, /* Common Reference Clock, No Spread Spectrum */
++	CRSS = 1, /* Common Reference Clock, Spread Spectrum */
++	SRIS = 2  /* Separate Reference Clock, Spread Spectrum */
++};
++
+ enum serdes_dev_type {
+ 	SERDES_INVALID = -1,
+ 	PCIE_EP = 0x1, /* EP mode is 0x0, use 0x1 to allow us to use masks */
+@@ -99,6 +106,7 @@ enum serdes_clock s32_serdes_get_clock_from_hwconfig(int id);
+ enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id);
+ enum serdes_xpcs_mode s32_serdes_get_xpcs_cfg_from_hwconfig(int id);
+ enum serdes_mode s32_serdes_get_op_mode_from_hwconfig(int id);
++enum serdes_phy_mode s32_serdes_get_phy_mode_from_hwconfig(int id);
+ bool is_pcie_enabled_in_hwconfig(int id);
+ 
+ #endif
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h
+index 1827779d6b..ebb9339383 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/serdes_regs.h
+@@ -137,6 +137,9 @@
+ #define PHY_GEN_CTRL_REF_USE_PAD_BIT	(17)
+ #define PHY_GEN_CTRL_REF_USE_PAD	BIT(PHY_GEN_CTRL_REF_USE_PAD_BIT)
+ 
++#define PHY_GEN_CTRL_RX_SRIS_MODE_BIT	(9)
++#define PHY_GEN_CTRL_RX_SRIS_MODE_MASK	BIT(PHY_GEN_CTRL_RX_SRIS_MODE_BIT)
++
+ #define EXT_PCLK_REQ				(1U << 0)
+ 
+ /* Field definitions for PHY_EXT_MPLLA/B Registers */
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h
+index 61a0d1a5ac..7a9a2ebc25 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2016-2020 NXP
++ * Copyright 2016-2021 NXP
+  */
+ 
+ #ifndef S32GEN1_SS_PCIE_REGS_H
+@@ -341,6 +341,9 @@
+ #define PCIE_DIRECT_SPEED_CHANGE_BIT  (17)
+ #define PCIE_DIRECT_SPEED_CHANGE      BIT(PCIE_DIRECT_SPEED_CHANGE_BIT)
+ 
++#define PCIE_SRIS_MODE_BIT			(8)
++#define PCIE_SRIS_MODE_MASK			BIT(PCIE_SRIS_MODE_BIT)
++
+ /* Field definitions for GEN3_RELATED */
+ 
+ #define PCIE_EQ_PHASE_2_3_BIT      (9)
+diff --git a/drivers/pci/pcie_s32gen1.c b/drivers/pci/pcie_s32gen1.c
+index 70045b23db..d793d04f08 100644
+--- a/drivers/pci/pcie_s32gen1.c
++++ b/drivers/pci/pcie_s32gen1.c
+@@ -593,6 +593,14 @@ bool s32_pcie_set_link_width(void __iomem *dbi,
+ 	return true;
+ }
+ 
++static int s32_pcie_check_phy_mode(int id, const char *mode)
++{
++	char pcie_name[10];
++
++	sprintf(pcie_name, "pcie%d", id);
++	return hwconfig_subarg_cmp(pcie_name, "phy_mode", mode);
++}
++
+ bool s32_pcie_init(void __iomem *dbi, int id, bool rc_mode,
+ 		enum serdes_link_width linkwidth)
+ {
+@@ -606,6 +614,9 @@ bool s32_pcie_init(void __iomem *dbi, int id, bool rc_mode,
+ 		W32(dbi + SS_PE0_GEN_CTRL_1,
+ 		    BUILD_MASK_VALUE(DEVICE_TYPE, PCIE_EP));
+ 
++	if (s32_pcie_check_phy_mode(id, "sris"))
++		BSET32(dbi + SS_PE0_GEN_CTRL_1, PCIE_SRIS_MODE_MASK);
++
+ 	/* Enable writing dbi registers */
+ 	s32_pcie_enable_dbi_rw(dbi);
+ 
+diff --git a/drivers/pci/serdes_s32gen1.c b/drivers/pci/serdes_s32gen1.c
+index 3db52d788f..b981ceba75 100644
+--- a/drivers/pci/serdes_s32gen1.c
++++ b/drivers/pci/serdes_s32gen1.c
+@@ -23,6 +23,7 @@
+ 
+ #define PCIE_DEFAULT_INTERNAL_CLK	CLK_INT
+ #define PCIE_DEFAULT_INTERNAL_CLK_FMHZ	CLK_100MHZ
++#define PCIE_DEFAULT_PHY_MODE		CRNS
+ 
+ #define SERDES_RC_MODE_STR "RootComplex"
+ #define SERDES_EP_MODE_STR "EndPoint"
+@@ -316,7 +317,20 @@ bool s32_serdes_init(struct s32_serdes *pcie)
+ 	/* Reset the Serdes module */
+ 	s32_assert_serdes_reset(pcie);
+ 
+-	if (IS_SERDES_PCIE(pcie->devtype) && !IS_SERDES_SGMII(pcie->devtype)) {
++	/* Do not configure SRIS or CRSS PHY MODE in conjunction
++	 * with any SGMII mode on the same SerDes subsystem
++	 */
++	if (pcie->phy_mode == CRSS || pcie->phy_mode == SRIS) {
++		if (IS_SERDES_PCIE(pcie->devtype) &&
++		    !IS_SERDES_SGMII(pcie->devtype)) {
++			if (s32_serdes_set_mode(pcie->dbi, pcie->id,
++						SERDES_MODE_PCIE_PCIE))
++				return false;
++		} else {
++			return false;
++		}
++	} else if (IS_SERDES_PCIE(pcie->devtype) &&
++			!IS_SERDES_SGMII(pcie->devtype)) {
+ 		if (s32_serdes_set_mode(pcie->dbi, pcie->id,
+ 					SERDES_MODE_PCIE_PCIE))
+ 			return false;
+@@ -366,6 +380,11 @@ bool s32_serdes_init(struct s32_serdes *pcie)
+ 		BCLR32(pcie->dbi + SS_SS_RW_REG_0, 1 << 23);
+ 	}
+ 
++	/* Enable PHY's SRIS mode in PCIe mode*/
++	if (pcie->phy_mode == SRIS)
++		BSET32(pcie->dbi + SS_PHY_GEN_CTRL,
++		       PHY_GEN_CTRL_RX_SRIS_MODE_MASK);
++
+ 	if (IS_SERDES_PCIE(pcie->devtype)) {
+ 
+ 		/* Monitor Serdes MPLL state */
+@@ -501,6 +520,21 @@ enum serdes_clock_fmhz s32_serdes_get_clock_fmhz_from_hwconfig(int id)
+ 	return clk;
+ }
+ 
++enum serdes_phy_mode s32_serdes_get_phy_mode_from_hwconfig(int id)
++{
++	char pcie_name[10];
++	enum serdes_phy_mode phy_mode = PCIE_DEFAULT_PHY_MODE;
++
++	sprintf(pcie_name, "pcie%d", id);
++
++	if (hwconfig_subarg_cmp(pcie_name, "phy_mode", "crss"))
++		phy_mode = CRSS;
++	else if (hwconfig_subarg_cmp(pcie_name, "phy_mode", "sris"))
++		phy_mode = SRIS;
++
++	return phy_mode;
++}
++
+ enum serdes_mode s32_serdes_get_op_mode_from_hwconfig(int id)
+ {
+ 	enum serdes_dev_type mod;
+@@ -529,6 +563,17 @@ enum serdes_mode s32_serdes_get_op_mode_from_hwconfig(int id)
+ 	return SERDES_MODE_INVAL;
+ }
+ 
++const char *get_pcie_phy_mode(struct s32_serdes *pcie)
++{
++	if (pcie->phy_mode == CRSS)
++		return "CRSS";
++	else if (pcie->phy_mode == SRIS)
++		return "SRIS";
++
++	/* Default PCIE PHY mode */
++	return "CRNS";
++}
++
+ static bool s32_serdes_is_xpcs_cfg_valid(struct s32_serdes *pcie)
+ {
+ 	bool ret = true;
+@@ -611,6 +656,7 @@ static int s32_serdes_probe(struct udevice *dev)
+ {
+ 	struct s32_serdes *pcie = dev_get_priv(dev);
+ 	char mode[SERDES_MODE_SIZE];
++	const char *pcie_phy_mode;
+ 	int ret = 0;
+ 	bool combo_mode;
+ 
+@@ -646,14 +692,24 @@ static int s32_serdes_probe(struct udevice *dev)
+ 	pcie->xpcs_mode = s32_serdes_get_xpcs_cfg_from_hwconfig(pcie->id);
+ 	pcie->fmhz = s32_serdes_get_clock_fmhz_from_hwconfig(pcie->id);
+ 
++	pcie->phy_mode = s32_serdes_get_phy_mode_from_hwconfig(pcie->id);
++
++	if (pcie->clktype == CLK_INT)
++		if (pcie->phy_mode == CRSS || pcie->phy_mode == SRIS) {
++			printf("CRSS or SRIS for PCIe%d PHY mode cannot be used with internal clock\n",
++			       pcie->id);
++			return -EINVAL;
++		}
++
+ 	/* In case of sgmii mode check xpcs configuration */
+ 	if (IS_SERDES_SGMII(pcie->devtype) &&
+ 	    !s32_serdes_is_xpcs_cfg_valid(pcie))
+ 		pcie->xpcs_mode = SGMII_INAVALID;
+ 
+-	printf("Using %s clock for PCIe%d\n",
++	pcie_phy_mode = get_pcie_phy_mode(pcie);
++	printf("Using %s clock for PCIe%d, %s\n",
+ 	       SERDES_CLK_MODE(pcie->clktype),
+-	       pcie->id);
++	       pcie->id, pcie_phy_mode);
+ 	if (IS_SERDES_SGMII(pcie->devtype) &&
+ 	    pcie->xpcs_mode != SGMII_INAVALID)
+ 		printf("Frequency %s configured for PCIe%d\n",
+diff --git a/drivers/pci/serdes_s32gen1.h b/drivers/pci/serdes_s32gen1.h
+index caca5f0135..bc30cb1838 100644
+--- a/drivers/pci/serdes_s32gen1.h
++++ b/drivers/pci/serdes_s32gen1.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  * S32Gen1 PCIe driver
+  */
+ 
+@@ -61,6 +61,7 @@ struct s32_serdes {
+ 	enum serdes_xpcs_mode xpcs_mode;
+ 	enum serdes_clock clktype;
+ 	enum serdes_clock_fmhz fmhz;
++	enum serdes_phy_mode phy_mode;
+ 	enum serdes_link_width linkwidth;
+ };
+ 
+-- 
+2.17.1
+

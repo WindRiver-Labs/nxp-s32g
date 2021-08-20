@@ -73,6 +73,10 @@ SRC_URI += " \
     file://bsp30/rc5/0006-s32gen1-ncore-Simplify-macros-in-compliance-with-the.patch \
     file://bsp30/rc5/0007-hse-enable-all-mus-when-running-hse-u-boot-cmds.patch \
     file://bsp30/rc5/0008-hse-enable-VDD_EFUSE-with-DCD-for-s32g274ardb2.patch \
+    file://bsp30/rc6/0001-ethernet-pfeng-Fix-for-pfeng-crash.patch \
+    file://bsp30/rc6/0002-s32g-serdes-Add-PHY-modes.patch \
+    file://bsp30/rc6/0003-s32-fdt-Add-pcie-fixup-for-PHY-modes.patch \
+    file://bsp30/rc6/0004-s32-Fix-memory-reservation-for-MMU-tables.patch \
     file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
     file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
