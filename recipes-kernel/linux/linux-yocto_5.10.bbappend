@@ -49,6 +49,26 @@ SRC_URI_append_nxp-s32g2xx = " \
     file://rc5/0048-gpio-siul2-Make-use-of-devm_gpiochip_add_data.patch \
     file://rc5/0049-gpio-siul2-Allow-to-be-referenced-as-interrupt-contr.patch \
     file://rc5/0001-Revert-hse-remove-uio-component-from-crypto-driver.patch \
+    file://rc6/0001-s32gen1-qspi-Print-read-speed-info-on-debug-level.patch \
+    file://rc6/0002-s32gen1-linflex-Fix-static-locking-context-imbalance.patch \
+    file://rc6/0003-s32gen1-thermal-Fix-static-code-issues.patch \
+    file://rc6/0004-s32v234-clk-Add-static-keyword-to-locally-used-membe.patch \
+    file://rc6/0005-s32gen1-ddr-Fix-statically-incorrect-return-type.patch \
+    file://rc6/0006-s32gen1-xpcs-make-members-used-only-in-this-file-sta.patch \
+    file://rc6/0007-s32gen1-flexcan-Fix-unexpected-unlock.patch \
+    file://rc6/0008-crypto-hse-remove-uio-implementation-artifact.patch \
+    file://rc6/0009-s32-gen1-serdes-Correctly-set-phy-id.patch \
+    file://rc6/0010-s32g-serdes-Add-SRIS-clock-mode.patch \
+    file://rc6/0011-s32gen1-pcie-Add-documentation-for-PCIE-PHY-mode.patch \
+    file://rc6/0012-s32gen1-reset-Fix-statically-type-mismatch.patch \
+    file://rc6/0013-hse-implement-suspend-resume-callbacks.patch \
+    file://rc6/0014-s32gen1-qspi-Add-static-keyword-to-locally-used-meth.patch \
+    file://rc6/0015-s32gen1-siul2-Fix-static-code-issues.patch \
+    file://rc6/0016-s32gen1-edma-Fix-some-statically-incorrect-casts.patch \
+    file://rc6/0017-s32gen1-clk-Fix-type-mismatch.patch \
+    file://rc6/0018-spi-fsl-dspi-Enable-modified-transfer-protocol.patch \
+    file://rc6/0019-s32gen1-pcie-Fix-some-static-code-issues.patch \
+    file://rc6/0001-Revert-crypto-hse-remove-uio-implementation-artifact.patch \
     file://0001-arch-arm64-s32g-disable-virtio_block-dts-node-by-def.patch \ 
     file://0002-s32gen1-pcie-Remove-duplicate-interrupt-resource-req.patch \
     file://0003-driver-pci-pci-s32gen1-remove-the-__init-macro.patch \ 
@@ -63,7 +83,6 @@ SRC_URI_append_nxp-s32g2xx = " \
     file://0012-dt-bindings-s32g274a-pfe-PFE-controller-reset-suppor.patch \ 
     file://0013-arch-arm64-dts-keep-i2c1-in-disabled-status.patch \
     file://0014-drivers-phy-s32gen1-serdes-drop-the-redundant-phy-id.patch \
-    file://0015-drivers-qspi-replace-dev_info-with-dev_dbg-in-qspi_r.patch \
     file://0016-dts-s32g274a-rdb2-disable-ARQ107-phy-node-explicitly.patch \
     file://0017-drivers-pci-modify-the-config-judgement-to-fix-build.patch \
     file://0001-drivers-llce-mailbox-delete-DO_ONCE-call-for-llce_ca.patch \

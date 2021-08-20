@@ -1,0 +1,87 @@
+From eea9f1b5415c340509fce71c08b7959a126b2709 Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Tue, 17 Aug 2021 15:49:59 +0300
+Subject: [PATCH 16/19] s32gen1: edma: Fix some statically incorrect casts
+
+commit eea9f1b5415c340509fce71c08b7959a126b2709 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-7521
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/dma/fsl-edma-common.c | 6 +++---
+ drivers/dma/fsl-edma.c        | 8 ++++----
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/dma/fsl-edma-common.c b/drivers/dma/fsl-edma-common.c
+index 58a65940eabf..d9ddf940fa64 100644
+--- a/drivers/dma/fsl-edma-common.c
++++ b/drivers/dma/fsl-edma-common.c
+@@ -2,7 +2,7 @@
+ //
+ // Copyright (c) 2013-2014 Freescale Semiconductor, Inc
+ // Copyright (c) 2017 Sysam, Angelo Dureghello  <angelo@sysam.it>
+-// Copyright 2020 NXP
++// Copyright 2020-2021 NXP
+ 
+ #include <linux/dmapool.h>
+ #include <linux/module.h>
+@@ -259,7 +259,7 @@ static size_t fsl_edma_desc_residue(struct fsl_edma_chan *fsl_chan,
+ {
+ 	struct fsl_edma_desc *edesc = fsl_chan->edesc;
+ 	const struct fsl_edma_drvdata *drvdata = fsl_chan->edma->drvdata;
+-	struct fsl_edma_hw_tcd *hw_tcd = (struct fsl_edma_hw_tcd *)
++	struct fsl_edma_hw_tcd __iomem *hw_tcd = (struct fsl_edma_hw_tcd __iomem *)
+ 		drvdata->ops->edma_get_tcd_addr(fsl_chan);
+ 	enum dma_transfer_direction dir = edesc->dirn;
+ 	dma_addr_t cur_addr, dma_addr;
+@@ -335,7 +335,7 @@ static void fsl_edma_set_tcd_regs(struct fsl_edma_chan *fsl_chan,
+ {
+ 	struct fsl_edma_engine *edma = fsl_chan->edma;
+ 	const struct fsl_edma_drvdata *drvdata = fsl_chan->edma->drvdata;
+-	struct fsl_edma_hw_tcd *hw_tcd = (struct fsl_edma_hw_tcd *)
++	struct fsl_edma_hw_tcd __iomem *hw_tcd = (struct fsl_edma_hw_tcd __iomem *)
+ 		drvdata->ops->edma_get_tcd_addr(fsl_chan);
+ 
+ 	/*
+diff --git a/drivers/dma/fsl-edma.c b/drivers/dma/fsl-edma.c
+index 8c42263120d2..c5442ce6c6ff 100644
+--- a/drivers/dma/fsl-edma.c
++++ b/drivers/dma/fsl-edma.c
+@@ -501,7 +501,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
+ 	struct fsl_edma_engine *fsl_edma;
+ 	const struct fsl_edma_drvdata *drvdata = NULL;
+ 	struct fsl_edma_chan *fsl_chan;
+-	struct fsl_edma_hw_tcd *hw_tcd;
++	struct fsl_edma_hw_tcd __iomem *hw_tcd;
+ 	struct edma_regs *regs;
+ 	struct resource *res;
+ 	unsigned int ch;
+@@ -630,7 +630,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
+ 	for (i = 0; i < fsl_edma->n_chans; i++) {
+ 		struct fsl_edma_chan *fsl_chan = &fsl_edma->chans[i];
+ 
+-		hw_tcd = (struct fsl_edma_hw_tcd *)
++		hw_tcd = (struct fsl_edma_hw_tcd __iomem *)
+ 			fsl_edma->drvdata->ops->edma_get_tcd_addr(fsl_chan);
+ 
+ 		edma_writew(fsl_edma, 0x0, &hw_tcd->csr);
+@@ -708,10 +708,10 @@ static int fsl_edma_resume_early(struct device *dev)
+ 	int i;
+ 
+ 	for (i = 0; i < fsl_edma->n_chans; i++) {
+-		struct fsl_edma_hw_tcd *hw_tcd;
++		struct fsl_edma_hw_tcd __iomem *hw_tcd;
+ 
+ 		fsl_chan = &fsl_edma->chans[i];
+-		hw_tcd = (struct fsl_edma_hw_tcd *)
++		hw_tcd = (struct fsl_edma_hw_tcd __iomem *)
+ 			fsl_edma->drvdata->ops->edma_get_tcd_addr(fsl_chan);
+ 
+ 		fsl_chan->pm_state = RUNNING;
+-- 
+2.17.1
+

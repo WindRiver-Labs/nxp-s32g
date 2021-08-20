@@ -1,0 +1,54 @@
+From 074b3283511c6fe11bc4d30fba0e8fe8ffe07c47 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Wed, 18 Aug 2021 15:28:52 +0300
+Subject: [PATCH 06/19] s32gen1: xpcs: make members used only in this file
+ static
+
+commit 074b3283511c6fe11bc4d30fba0e8fe8ffe07c47 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-7524
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/net/pcs/fsl-s32gen1-xpcs.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/pcs/fsl-s32gen1-xpcs.c b/drivers/net/pcs/fsl-s32gen1-xpcs.c
+index 6ca1ed2da610..06c36f51fa4c 100644
+--- a/drivers/net/pcs/fsl-s32gen1-xpcs.c
++++ b/drivers/net/pcs/fsl-s32gen1-xpcs.c
+@@ -265,7 +265,7 @@ static unsigned int xpcs_read(struct s32gen1_xpcs *xpcs, const char *name,
+ 	return val;
+ }
+ 
+-const struct regmap_range xpcs_wr_ranges[] = {
++static const struct regmap_range xpcs_wr_ranges[] = {
+ 	regmap_reg_range(0x1F0000, 0x1F0000),
+ 	regmap_reg_range(0x1F0004, 0x1F0004),
+ 	regmap_reg_range(0x1F8000, 0x1F8003),
+@@ -286,7 +286,7 @@ const struct regmap_range xpcs_wr_ranges[] = {
+ 	regmap_reg_range(0x1F80E1, 0x1F80E1),
+ };
+ 
+-const struct regmap_range xpcs_rd_ranges[] = {
++static const struct regmap_range xpcs_rd_ranges[] = {
+ 	regmap_reg_range(0x1F0001, 0x1F0003),
+ 	regmap_reg_range(0x1F0005, 0x1F0006),
+ 	regmap_reg_range(0x1F000F, 0x1F000F),
+@@ -766,8 +766,8 @@ static int xpcs_init_plls(struct s32gen1_xpcs *xpcs)
+ 	return 0;
+ }
+ 
+-int serdes_bifurcation_pll_transit(struct s32gen1_xpcs *xpcs,
+-				   enum s32gen1_xpc_pll target_pll)
++static int serdes_bifurcation_pll_transit(struct s32gen1_xpcs *xpcs,
++					  enum s32gen1_xpc_pll target_pll)
+ {
+ 	int ret = 0;
+ 	struct device *dev = get_xpcs_device(xpcs);
+-- 
+2.17.1
+

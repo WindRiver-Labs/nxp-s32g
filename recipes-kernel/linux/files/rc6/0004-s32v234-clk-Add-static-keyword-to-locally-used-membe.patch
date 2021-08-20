@@ -1,0 +1,42 @@
+From 8c52d225b69ce315d94c6ad6cc3b74fc622b53dc Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Tue, 17 Aug 2021 17:43:19 +0300
+Subject: [PATCH 04/19] s32v234: clk: Add 'static' keyword to locally used
+ member
+
+commit 8c52d225b69ce315d94c6ad6cc3b74fc622b53dc from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-7519
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/clk/s32/s32v234/clk.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/s32/s32v234/clk.c b/drivers/clk/s32/s32v234/clk.c
+index c0104e1c077b..484e9599ed9b 100644
+--- a/drivers/clk/s32/s32v234/clk.c
++++ b/drivers/clk/s32/s32v234/clk.c
+@@ -1,6 +1,6 @@
+ /*
+  * Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017-2019 NXP
++ * Copyright 2017-2019,2021 NXP
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -22,7 +22,7 @@ static void __iomem *mc_cgm3_base;
+ static void __iomem *mc_me_base;
+ static void __iomem *src_base;
+ 
+-DEFINE_SPINLOCK(s32v234_lock);
++static DEFINE_SPINLOCK(s32v234_lock);
+ 
+ /* sources for multiplexer clocks, this is used multiple times */
+ PNAME(osc_sels) = {"firc", "fxosc", };
+-- 
+2.17.1
+

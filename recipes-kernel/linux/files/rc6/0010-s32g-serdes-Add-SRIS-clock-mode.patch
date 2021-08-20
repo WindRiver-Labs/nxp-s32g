@@ -1,0 +1,257 @@
+From 180f8288de505fd4d257974e06f171ec239a56af Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Mon, 2 Aug 2021 13:31:49 +0300
+Subject: [PATCH 10/19] s32g: serdes: Add SRIS clock mode
+
+commit 180f8288de505fd4d257974e06f171ec239a56af from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-6998
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../boot/dts/freescale/fsl-s32-gen1.dtsi      |  2 +
+ drivers/pci/controller/dwc/pci-s32gen1.c      | 32 +++++++++++++
+ drivers/pci/controller/dwc/pci-s32gen1.h      |  4 ++
+ .../phy/freescale/phy-fsl-s32gen1-serdes.c    | 46 +++++++++++++++++++
+ .../linux/pcie/fsl-s32gen1-pcie-phy-submode.h | 14 ++++++
+ 5 files changed, 98 insertions(+)
+ create mode 100644 include/linux/pcie/fsl-s32gen1-pcie-phy-submode.h
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+index 68d6f2708216..d3992f87e3ed 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+@@ -898,6 +898,7 @@
+ 			 */
+ 			 0x82000000 0x0 0x00000000 0x58 0x00000000 0x7 0xfffe0000>;
+ 
++		nxp,phy-mode = "crns";
+ 		num-lanes = <2>;
+ 		max-link-speed = <3>;
+ 		bus-range = <0x0 0xff>;
+@@ -971,6 +972,7 @@
+ 			 */
+ 			 0x82000000 0x0 0x00000000 0x48 0x00000000 0x7 0xfffe0000>;
+ 
++		nxp,phy-mode = "crns";
+ 		num-lanes = <1>;
+ 		max-link-speed = <3>;
+ 		bus-range = <0x0 0xff>;
+diff --git a/drivers/pci/controller/dwc/pci-s32gen1.c b/drivers/pci/controller/dwc/pci-s32gen1.c
+index d036d6f34772..94fdd5a2c289 100644
+--- a/drivers/pci/controller/dwc/pci-s32gen1.c
++++ b/drivers/pci/controller/dwc/pci-s32gen1.c
+@@ -809,6 +809,7 @@ static int s32gen1_pcie_dt_init(struct platform_device *pdev,
+ 	struct device_node *np = dev->of_node;
+ 	struct dw_pcie *pcie = &s32_pp->pcie;
+ 	struct resource *res;
++	const char *pcie_phy_mode;
+ 	const struct of_device_id *match;
+ 	const struct s32gen1_pcie_data *data;
+ 	enum dw_pcie_device_mode mode;
+@@ -832,6 +833,21 @@ static int s32gen1_pcie_dt_init(struct platform_device *pdev,
+ 		return ret;
+ 	}
+ 
++	ret = of_property_read_string(np, "nxp,phy-mode", &pcie_phy_mode);
++	if (ret) {
++		dev_info(dev, "Missing 'nxp,phy-mode' property, using default CRNS\n");
++		s32_pp->phy_mode = CRNS;
++	} else if (!strcmp(pcie_phy_mode, "crns")) {
++		s32_pp->phy_mode = CRNS;
++	} else if (!strcmp(pcie_phy_mode, "crss")) {
++		s32_pp->phy_mode = CRSS;
++	} else if (!strcmp(pcie_phy_mode, "sris")) {
++		s32_pp->phy_mode = SRIS;
++	} else {
++		dev_info(dev, "Unsupported 'nxp,phy-mode' specified, using default CRNS\n");
++		s32_pp->phy_mode = CRNS;
++	}
++
+ 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
+ 	pcie->dbi_base = devm_ioremap_resource(dev, res);
+ 	if (IS_ERR(pcie->dbi_base))
+@@ -919,6 +935,10 @@ static int init_pcie(struct s32gen1_pcie *pci)
+ 		W32(pci, ctrl, PE0_GEN_CTRL_1,
+ 		    BUILD_MASK_VALUE(DEVICE_TYPE, PCIE_RC));
+ 
++	if (pci->phy_mode == SRIS)
++		BSET32(pci, ctrl, PE0_GEN_CTRL_1,
++		       SRIS_MODE_MASK);
++
+ 	/* Enable writing dbi registers */
+ 	dw_pcie_dbi_ro_wr_en(pcie);
+ 
+@@ -1020,6 +1040,12 @@ static int init_pcie_phy(struct s32gen1_pcie *s32_pp)
+ 		return ret;
+ 	}
+ 
++	ret = phy_set_mode_ext(s32_pp->phy0, PHY_MODE_PCIE, s32_pp->phy_mode);
++	if (ret) {
++		dev_err(dev, "Failed to set mode on 'serdes_lane0' PHY\n");
++		return ret;
++	}
++
+ 	ret = phy_power_on(s32_pp->phy0);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to power on 'serdes_lane0' PHY\n");
+@@ -1040,6 +1066,12 @@ static int init_pcie_phy(struct s32gen1_pcie *s32_pp)
+ 		return ret;
+ 	}
+ 
++	ret = phy_set_mode_ext(s32_pp->phy1, PHY_MODE_PCIE, s32_pp->phy_mode);
++	if (ret) {
++		dev_err(dev, "Failed to set mode on 'serdes_lane1' PHY\n");
++		return ret;
++	}
++
+ 	ret = phy_power_on(s32_pp->phy1);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to power on 'serdes_lane1' PHY\n");
+diff --git a/drivers/pci/controller/dwc/pci-s32gen1.h b/drivers/pci/controller/dwc/pci-s32gen1.h
+index d01ae1a94ada..0f3efecd12df 100644
+--- a/drivers/pci/controller/dwc/pci-s32gen1.h
++++ b/drivers/pci/controller/dwc/pci-s32gen1.h
+@@ -13,6 +13,7 @@
+ #include <linux/types.h>
+ #include <linux/version.h>
+ #include <linux/phy/phy.h>
++#include <linux/pcie/fsl-s32gen1-pcie-phy-submode.h>
+ #include "pcie-designware.h"
+ 
+ #define BUILD_BIT_VALUE(field, x) (((x) & (1)) << field##_BIT)
+@@ -37,6 +38,8 @@
+ #define   DEVICE_TYPE_MASK		(0x0000000F)
+ #define   DEVICE_TYPE			((DEVICE_TYPE_MASK) << \
+ 					(DEVICE_TYPE_LSB))
++#define   SRIS_MODE_BIT			(8)
++#define   SRIS_MODE_MASK		BIT(SRIS_MODE_BIT)
+ 
+ #define PCI_EXP_CAP_ID_OFFSET	0x70
+ 
+@@ -91,6 +94,7 @@ struct s32gen1_pcie {
+ 	void __iomem *atu_base;
+ 
+ 	int id;
++	enum pcie_phy_mode phy_mode;
+ 	enum pcie_link_speed linkspeed;
+ 
+ #ifdef CONFIG_PCI_DW_DMA
+diff --git a/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c b/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c
+index a8a75438e550..9e21340c1663 100644
+--- a/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c
++++ b/drivers/phy/freescale/phy-fsl-s32gen1-serdes.c
+@@ -10,6 +10,7 @@
+ #include <linux/module.h>
+ #include <linux/of_address.h>
+ #include <linux/pcs/fsl-s32gen1-xpcs.h>
++#include <linux/pcie/fsl-s32gen1-pcie-phy-submode.h>
+ #include <linux/phy/phy.h>
+ #include <linux/platform_device.h>
+ #include <linux/processor.h>
+@@ -34,6 +35,7 @@
+ 
+ #define PCIE_PHY_GEN_CTRL	(0x0)
+ #define  REF_USE_PAD_MASK	BIT(17)
++#define  RX_SRIS_MODE_MASK	BIT(9)
+ #define PCIE_PHY_MPLLA_CTRL	(0x10)
+ #define  MPLLA_STATE_MASK	BIT(31)
+ #define  MPLL_STATE_MASK	BIT(30)
+@@ -78,6 +80,7 @@ struct serdes_ctrl {
+ 	struct clk_bulk_data *clks;
+ 	int nclks;
+ 	u32 ss_mode;
++	enum pcie_phy_mode phy_mode;
+ 	bool ext_clk;
+ };
+ 
+@@ -203,6 +206,10 @@ static int pci_phy_power_on_common(struct serdes *serdes)
+ 
+ 	ctrl = readl(sctrl->ss_base + PCIE_PHY_GEN_CTRL);
+ 
++	/* if PCIE PHY is in SRIS mode */
++	if (sctrl->phy_mode == SRIS)
++		ctrl |= RX_SRIS_MODE_MASK;
++
+ 	if (sctrl->ext_clk)
+ 		ctrl |= REF_USE_PAD_MASK;
+ 	else
+@@ -410,6 +417,44 @@ static int serdes_phy_init(struct phy *p)
+ 	return -EINVAL;
+ }
+ 
++static int serdes_phy_set_mode_ext(struct phy *p,
++				   enum phy_mode mode, int submode)
++{
++	int id = p->id;
++	struct serdes *serdes = phy_get_drvdata(p);
++
++	if (p->attrs.mode != PHY_MODE_PCIE)
++		return -EINVAL;
++
++	/* Check if same PCIE PHY mode is set on both lanes */
++	if (id == 1)
++		if (submode != serdes->ctrl.phy_mode)
++			return -EINVAL;
++
++	if (mode == PHY_MODE_PCIE) {
++		/* Do not configure SRIS or CRSS PHY MODE in conjunction
++		 * with any SGMII mode on the same SerDes subsystem
++		 */
++		if (submode == CRSS || submode == SRIS) {
++			if (serdes->ctrl.ss_mode != 0)
++				return -EINVAL;
++		}
++
++		/* CRSS or SRIS PCIE PHY mode cannot be used
++		 * with internal clock
++		 */
++		if (!serdes->ctrl.ext_clk)
++			if (submode == CRSS || submode == SRIS)
++				return -EINVAL;
++
++		serdes->ctrl.phy_mode = submode;
++
++		return 0;
++	}
++
++	return -EINVAL;
++}
++
+ static void serdes_phy_release(struct phy *p)
+ {
+ 	if (p->attrs.mode == PHY_MODE_ETHERNET)
+@@ -474,6 +519,7 @@ static int serdes_phy_configure(struct phy *phy, union phy_configure_opts *opts)
+ static const struct phy_ops serdes_ops = {
+ 	.reset		= serdes_phy_reset,
+ 	.init		= serdes_phy_init,
++	.set_mode	= serdes_phy_set_mode_ext,
+ 	.power_on	= serdes_phy_power_on,
+ 	.power_off	= serdes_phy_power_off,
+ 	.release	= serdes_phy_release,
+diff --git a/include/linux/pcie/fsl-s32gen1-pcie-phy-submode.h b/include/linux/pcie/fsl-s32gen1-pcie-phy-submode.h
+new file mode 100644
+index 000000000000..5e40e52ae098
+--- /dev/null
++++ b/include/linux/pcie/fsl-s32gen1-pcie-phy-submode.h
+@@ -0,0 +1,14 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/**
++ * Copyright 2021 NXP
++ */
++#ifndef FSL_S32GEN1_PCIE_PHY_SUBMODE_H
++#define FSL_S32GEN1_PCIE_PHY_SUBMODE_H
++
++enum pcie_phy_mode {
++	CRNS = 0, /* Common Reference Clock, No Spread Spectrum */
++	CRSS = 1, /* Common Reference Clock, Spread Spectrum */
++	SRIS = 2  /* Separate Reference Clock, Spread Spectrum */
++};
++
++#endif
+-- 
+2.17.1
+

@@ -1,0 +1,48 @@
+From e30690ba031f47622e3a2aa0674f3dedb80f928c Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Tue, 17 Aug 2021 14:58:25 +0300
+Subject: [PATCH 05/19] s32gen1: ddr: Fix statically incorrect return type
+
+commit e30690ba031f47622e3a2aa0674f3dedb80f928c from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Upstream-Status: Pending
+
+Issue: ALB-7531
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/ddr/s32-gen1/ddr.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/ddr/s32-gen1/ddr.c b/drivers/ddr/s32-gen1/ddr.c
+index 872c909011f0..054c137ecc5e 100644
+--- a/drivers/ddr/s32-gen1/ddr.c
++++ b/drivers/ddr/s32-gen1/ddr.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  */
+ 
+@@ -139,13 +139,13 @@ static void __iomem *get_perf_map_by_phandle(struct device *dev)
+ 	perf_node = of_parse_phandle(dev->of_node, "perf-phandle", 0);
+ 	if (!perf_node) {
+ 		dev_info(dev, "perf-phandle node not found\n");
+-		return ERR_PTR(-ENODEV);
++		return (void __iomem *)ERR_PTR(-ENODEV);
+ 	}
+ 
+ 	perf_regs = of_iomap(perf_node, 0);
+ 	if (!perf_regs) {
+ 		dev_warn(dev, "Cannot map PERF registers\n");
+-		return ERR_PTR(-ENOMEM);
++		return (void __iomem *)ERR_PTR(-ENOMEM);
+ 	}
+ 	of_node_put(perf_node);
+ 
+-- 
+2.17.1
+
