@@ -1,0 +1,48 @@
+From 806997463e3a5cf9b4e8ad8299857a7820822e7a Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Tue, 24 Aug 2021 18:58:46 +0800
+Subject: [PATCH] drivers: llce_can: put echo skb before sending message
+
+The can_put_echo_skb() will put the skb into its priv->echo_skb[],
+but due to the low system of nxp-s32g2, if can_put_echo_skb() is called
+after mbox_send_message(), there will be following fail messages:
+
+	llcecanxx: can_put_echo_skb: BUG! echo_skb 0 is occupied!
+
+This is because the priv->echo_skb[] is not empty when can_put_echo_skb()
+called, so move can_put_echo_skb() to be called before mbox_send_message()
+to fix this issue.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/net/can/llce/llce_can.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/can/llce/llce_can.c b/drivers/net/can/llce/llce_can.c
+index 3c1f073353e1..d4f794c3e49f 100644
+--- a/drivers/net/can/llce/llce_can.c
++++ b/drivers/net/can/llce/llce_can.c
+@@ -476,15 +476,15 @@ static netdev_tx_t llce_can_start_xmit(struct sk_buff *skb,
+ 
+ 	netif_stop_queue(dev);
+ 
++	/* Put the skb on can loopback stack */
++	can_put_echo_skb(skb, dev, 0);
++
+ 	ret = mbox_send_message(llce->tx, &msg);
+ 	if (ret < 0) {
+ 		netdev_err(dev, "Failed to send CAN frame\n");
+ 		return NETDEV_TX_BUSY;
+ 	}
+ 
+-	/* Put the skb on can loopback stack */
+-	can_put_echo_skb(skb, dev, 0);
+-
+ 	return NETDEV_TX_OK;
+ }
+ 
+-- 
+2.25.1
+

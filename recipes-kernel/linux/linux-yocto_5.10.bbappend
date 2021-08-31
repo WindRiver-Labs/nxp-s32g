@@ -6,68 +6,7 @@ LINUX_VERSION_nxp-s32g2xx ?= "5.10.x"
 
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI_append_nxp-s32g2xx = " \
-    file://rc5/0001-ethernet-gmac-Fix-missing-coherency-for-gmac-on-s32-.patch \
-    file://rc5/0002-dts-Update-GMAC-on-s32-platform-to-be-dma-coherent.patch \
-    file://rc5/0003-doc-Add-dma-coherent-property-to-s32-GMAC-documentat.patch \
-    file://rc5/0004-can-llce-move-llce-can-utils-into-a-new-header.patch \
-    file://rc5/0005-dt-bindings-Add-LLCE-logger-channel.patch \
-    file://rc5/0006-mailbox-llce-Add-channel-for-can-logger.patch \
-    file://rc5/0007-dtsi-mailbox-llce-Add-logger-interrupt.patch \
-    file://rc5/0008-dt-bindings-mailbox-Document-LLCE-logger-interrupt.patch \
-    file://rc5/0009-dt-bindings-mailbox-Document-LLCE-logger-channel.patch \
-    file://rc5/0010-llce-logger-Use-mailbox-for-communication-with-llce-.patch \
-    file://rc5/0011-dts-Adapt-LLCE-logger-node-to-latest-driver-design.patch \
-    file://rc5/0012-dt-bindings-net-can-Update-LLCE-CAN-logger-documenta.patch \
-    file://rc5/0013-can-llce-Add-logging-parameter.patch \
-    file://rc5/0014-llce-core-Add-load_fw-parameter.patch \
-    file://rc5/0015-llce-logger-include-id-and-flags-in-dump.patch \
-    file://rc5/0016-llce-logger-simplify-the-way-the-log-is-generated.patch \
-    file://rc5/0017-llce-share-status-memory-region-between-core-and-mai.patch \
-    file://rc5/0018-dts-s32g-add-shared-memory-region-to-LLCE-mailbox.patch \
-    file://rc5/0019-dt-bindings-mailbox-Update-LLCE-memory-regions.patch \
-    file://rc5/0020-llce-logger-Add-hardware-interface-to-log.patch \
-    file://rc5/0021-mailbox-Lazy-irq-request-for-llce-channels.patch \
-    file://rc5/0022-mailbox-llce-Add-config_platform-parameter.patch \
-    file://rc5/0023-llce-logger-Add-PM-ops.patch \
-    file://rc5/0024-Revert-sram-Add-LLCE-sram-awareness.patch \
-    file://rc5/0025-Revert-sram-Add-power-management-operations.patch \
-    file://rc5/0026-Revert-dts-bindings-sram-Add-llce-sram-compatible.patch \
-    file://rc5/0027-llce-Replace-memory-pools-with-mapped-areas.patch \
-    file://rc5/0028-bindings-mfd-Add-shared-memory-to-LLCE-core.patch \
-    file://rc5/0029-can-Add-hardware-timestamp-to-CAN-messages.patch \
-    file://rc5/0030-can-Move-LLCE-CAN-and-Logger-drivers-into-a-new-fold.patch \
-    file://rc5/0031-mailbox-can-Fix-LLCE_RELESE_RX_INDEX-typo.patch \
-    file://rc5/0032-mailbox-llce-Use-16-channels-for-logger.patch \
-    file://rc5/0033-can-llce-Move-RX-related-functionality-into-a-common.patch \
-    file://rc5/0034-can-llce-logger-Provide-the-logs-over-SocketCAN.patch \
-    file://rc5/0042-ethernet-dwmac-s32cc-Change-functions-to-static-to-f.patch \
-    file://rc5/0043-hse-prevent-subsequent-requests-after-fatal-error.patch \
-    file://rc5/0044-hse-remove-uio-component-from-crypto-driver.patch \
-    file://rc5/0045-llce-can-Add-compatibility-with-LLCE-firmware-1.0.2-.patch \
-    file://rc5/0046-gpio-s32gen1-Set-IRQ-chip-name-based-on-device-name.patch \
-    file://rc5/0047-gpio-siul2-List-pads-and-EIRQ-controlls-as-registers.patch \
-    file://rc5/0048-gpio-siul2-Make-use-of-devm_gpiochip_add_data.patch \
-    file://rc5/0049-gpio-siul2-Allow-to-be-referenced-as-interrupt-contr.patch \
     file://rc5/0001-Revert-hse-remove-uio-component-from-crypto-driver.patch \
-    file://rc6/0001-s32gen1-qspi-Print-read-speed-info-on-debug-level.patch \
-    file://rc6/0002-s32gen1-linflex-Fix-static-locking-context-imbalance.patch \
-    file://rc6/0003-s32gen1-thermal-Fix-static-code-issues.patch \
-    file://rc6/0004-s32v234-clk-Add-static-keyword-to-locally-used-membe.patch \
-    file://rc6/0005-s32gen1-ddr-Fix-statically-incorrect-return-type.patch \
-    file://rc6/0006-s32gen1-xpcs-make-members-used-only-in-this-file-sta.patch \
-    file://rc6/0007-s32gen1-flexcan-Fix-unexpected-unlock.patch \
-    file://rc6/0008-crypto-hse-remove-uio-implementation-artifact.patch \
-    file://rc6/0009-s32-gen1-serdes-Correctly-set-phy-id.patch \
-    file://rc6/0010-s32g-serdes-Add-SRIS-clock-mode.patch \
-    file://rc6/0011-s32gen1-pcie-Add-documentation-for-PCIE-PHY-mode.patch \
-    file://rc6/0012-s32gen1-reset-Fix-statically-type-mismatch.patch \
-    file://rc6/0013-hse-implement-suspend-resume-callbacks.patch \
-    file://rc6/0014-s32gen1-qspi-Add-static-keyword-to-locally-used-meth.patch \
-    file://rc6/0015-s32gen1-siul2-Fix-static-code-issues.patch \
-    file://rc6/0016-s32gen1-edma-Fix-some-statically-incorrect-casts.patch \
-    file://rc6/0017-s32gen1-clk-Fix-type-mismatch.patch \
-    file://rc6/0018-spi-fsl-dspi-Enable-modified-transfer-protocol.patch \
-    file://rc6/0019-s32gen1-pcie-Fix-some-static-code-issues.patch \
     file://rc6/0001-Revert-crypto-hse-remove-uio-implementation-artifact.patch \
     file://0001-arch-arm64-s32g-disable-virtio_block-dts-node-by-def.patch \ 
     file://0002-s32gen1-pcie-Remove-duplicate-interrupt-resource-req.patch \
@@ -86,4 +25,5 @@ SRC_URI_append_nxp-s32g2xx = " \
     file://0016-dts-s32g274a-rdb2-disable-ARQ107-phy-node-explicitly.patch \
     file://0017-drivers-pci-modify-the-config-judgement-to-fix-build.patch \
     file://0001-drivers-llce-mailbox-delete-DO_ONCE-call-for-llce_ca.patch \
+    file://0002-drivers-llce_can-put-echo-skb-before-sending-message.patch \
 "
