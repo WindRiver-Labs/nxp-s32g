@@ -15,14 +15,10 @@ PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN ?= "."
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=https \
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
 	file://0002-pfe-oal-modify-the-GFP-flag-to-GFP_ATOMIC-for-kzallo.patch \
-	file://0004-sw-change-kmalloc-flag-to-GFP_ATOMIC-to-fix-debug-ca.patch \
-	file://0001-pfe-sw-add-mac-address-delete-operations-to-fix-kmem.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} \
 	file://${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} \
-	file://0001-version-BLN_PFE-DRV_S32G_A53_LNX_BETA_0.9.4_CD1_FORD.patch \
-	file://0005-pfeng-sw-add-tx-spin_lock-process-for-hif-to-fix-deb.patch \
 	"
-SRCREV = "3a548033d5126c9354a8529903d0842769718b1e"
+SRCREV = "919cef634c4300cad72d4f72785b352803b25e23"
 
 PATCHTOOL = "git"
 
@@ -40,7 +36,7 @@ FW_INSTALL_DIR = "${D}/lib/firmware"
 FW_INSTALL_CLASS_NAME ?= "s32g_pfe_class.fw"
 FW_INSTALL_UTIL_NAME ?= "s32g_pfe_util.fw"
 
-EXTRA_OEMAKE_append = " KERNELDIR=${STAGING_KERNEL_DIR} MDIR=${MDIR} -C ${MDIR} V=1 drv-build"
+EXTRA_OEMAKE:append = " KERNELDIR=${STAGING_KERNEL_DIR} MDIR=${MDIR} -C ${MDIR} V=1 drv-build"
 
 # Build PFE for both 1.1 and 2.0 SoC revision
 # The user can choose to build specific version only by overwriting this variable
@@ -113,11 +109,11 @@ addtask do_deploy after do_install
 do_package_qa[noexec] = "1"
 do_package_qa_setscene[noexec] = "1"
 
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_CLASS_NAME} \
+FILES:${PN} += "/lib/firmware/${FW_INSTALL_CLASS_NAME} \
     /lib/firmware/${FW_INSTALL_UTIL_NAME} \
     ${sysconfdir}/modules-load.d/* \
 "
 
 
 COMPATIBLE_MACHINE = "^$"
-COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
+COMPATIBLE_MACHINE:nxp-s32g2xx = "nxp-s32g2xx"
