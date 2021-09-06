@@ -11,13 +11,10 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/BSD-3-Clause;md5=550794465ba0ec
 inherit module deploy
 
 URL ?= "git://source.codeaurora.org/external/autobsps32/ipcf/ipc-shm;protocol=https"
-BRANCH ?= "release/SW32G2_IPCF_2.1.1_D2103"
+BRANCH ?= "release/bsp30.0"
 SRC_URI = "${URL};branch=${BRANCH}"
-SRCREV = "c70c0208ec295186eda80608f08994f2f8e5bcb5"
+SRCREV = "56d3710e01052a94ad9b6f559e0390d77c059277"
 
-SRC_URI += " \
-	file://0001-ipc-shm-os-modify-tasklet-declaration-to-compatible-.patch \
-"
 
 S = "${WORKDIR}/git"
 DESTDIR="${D}"
