@@ -17,6 +17,8 @@ SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=
 	file://0002-pfe-oal-modify-the-GFP-flag-to-GFP_ATOMIC-for-kzallo.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} \
 	file://${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} \
+	${@bb.utils.contains('PREFERRED_PROVIDER_virtual/kernel', 'linux-yocto-rt', 'file://0001-pfe-pfeng-bman-enable-preempt-when-hif-channle-fill-.patch', '', d)} \
+	${@bb.utils.contains('PREFERRED_PROVIDER_virtual/kernel', 'linux-yocto-rt', 'file://0002-pfe-sw-move-mutex-lock-below-of-destroy-the-workqueu.patch', '', d)} \
 	"
 SRCREV = "919cef634c4300cad72d4f72785b352803b25e23"
 

@@ -1,0 +1,71 @@
+From 0f3343f5d6addd7361a89a42957fcbf06f790f43 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Sat, 18 Sep 2021 15:03:12 +0800
+Subject: [PATCH 2/2] pfe: sw: move mutex lock below of destroy the workqueue
+
+In pfeng driver, there is a workqueue of mailbox for route table, and
+for protecting the shared resources in mailbox, a lock is introduced.
+But there will be following warning:
+
+ ======================================================
+ WARNING: possible circular locking dependency detected
+ 5.10.63-rt47-yocto-preempt-rt #1 Tainted: G        W  O     
+ ------------------------------------------------------
+ rmmod/622 is trying to acquire lock:
+ ffffff8810a11170 ((wq_completion)pfe_mbox_intr/1){+.+.}-{0:0}, at: flush_workqueue+0x70/0x4d0
+ 
+ but task is already holding lock:
+ ffffff8811884ca0 (&mbox->lock){+.+.}-{0:0}, at: oal_mbox_destroy+0x4c/0x100 [pfeng]
+ 
+ which lock already depends on the new lock.
+ 
+ 
+ the existing dependency chain (in reverse order) is:
+ 
+ ......
+
+The reason is that, oal_mbox_destroy() will aquire the lock then call
+flush_workqueue(), which will try to compelete all the remain queue workers,
+while the worker function mbox_handle_signal() will try to aquire the lock
+too, then the warning call trace will show, so move the lock aquire operation
+to be after of the workqueue destroy in oal_mbox_destroy() to fix the issue.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ sw/oal/src/oal_mbox_linux.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/sw/oal/src/oal_mbox_linux.c b/sw/oal/src/oal_mbox_linux.c
+index 10d4ce3..aa3492e 100644
+--- a/sw/oal/src/oal_mbox_linux.c
++++ b/sw/oal/src/oal_mbox_linux.c
+@@ -433,18 +433,18 @@ void oal_mbox_destroy(oal_mbox_t *mbox)
+ 		(void)oal_mbox_detach_timer(mbox);
+ 	}
+ 
+-	if(mutex_lock_interruptible(&mbox->lock))
+-	{
+-		NXP_LOG_ERROR("mbox locking failed\n");
+-		return; /* probably with leak of the mbox */
+-	}
+-
+ 	if (mbox->intr.queue)
+ 	{
+ 		drain_workqueue(mbox->intr.queue);
+ 		destroy_workqueue(mbox->intr.queue);
+ 	}
+ 
++	if(mutex_lock_interruptible(&mbox->lock))
++	{
++		NXP_LOG_ERROR("mbox locking failed\n");
++		return; /* probably with leak of the mbox */
++	}
++
+ 	if (mbox->intr.fifo)
+ 	{
+ 		fifo_destroy(mbox->intr.fifo);
+-- 
+2.25.1
+

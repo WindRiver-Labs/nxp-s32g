@@ -1,0 +1,86 @@
+From e479bf122bdee199473468deb4c23523daa561e7 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Wed, 15 Sep 2021 20:00:00 +0800
+Subject: [PATCH 1/2] pfe: pfeng-bman: enable preempt when hif channle fill rx
+ buffers
+
+With rt kernel, when pfeng driver probe, pfeng_hif_chnl_fill_rx_buffers()
+will be called to fill the rx buffer(where the related DMA resources will be
+allocated and mapped into the driver.), but this fill operation of rx buffer
+is protected with preemption disabled, which not so reasonable, wo remove it,
+or else there will be following call trace:
+
+ BUG: sleeping function called from invalid context at kernel/locking/rtmutex.c:969
+ in_atomic(): 1, irqs_disabled(): 0, non_block: 0, pid: 280, name: systemd-udevd
+ 2 locks held by systemd-udevd/280:
+  #0: ffffff8802ddc2b0 (&dev->mutex){....}-{0:0}, at: device_driver_attach+0x4c/0xd4
+  #1: ffffff885f2f08d0 ((l).lock){+.+.}-{2:2}, at: rmqueue_pcplist.constprop.0+0x84/0x384
+ Preemption disabled at:
+ [<ffffffc00911e76c>] pfeng_hif_chnl_fill_rx_buffers+0x4c/0xd0 [pfeng]
+ CPU: 0 PID: 280 Comm: systemd-udevd Tainted: G           O      5.10.63-rt47-yocto-preempt-rt #1
+ Hardware name: Freescale S32G274 (DT)
+ Call trace:
+  dump_backtrace+0x0/0x1d4
+  show_stack+0x24/0x30
+  dump_stack+0xf0/0x13c
+  ___might_sleep+0x17c/0x1f0
+  rt_spin_lock+0x6c/0x104
+  rmqueue_pcplist.constprop.0+0x84/0x384
+  rmqueue.isra.0+0x5c/0xb70
+  get_page_from_freelist+0x140/0x28c
+  __alloc_pages_nodemask+0x198/0x4cc
+  pfeng_bman_buf_alloc_and_map+0x3c/0xd0 [pfeng]
+  pfeng_hif_chnl_refill_rx_pool+0xa0/0xe0 [pfeng]
+  pfeng_hif_chnl_fill_rx_buffers+0x58/0xd0 [pfeng]
+  pfeng_hif_chnl_drv_create+0x2fc/0x3c0 [pfeng]
+  pfeng_hif_create+0x68/0xe0 [pfeng]
+  pfeng_drv_probe+0x76c/0x81c [pfeng]
+  platform_drv_probe+0x60/0xb4
+  really_probe+0x2d4/0x540
+  driver_probe_device+0xb0/0x170
+  device_driver_attach+0xcc/0xd4
+  __driver_attach+0xfc/0x18c
+  bus_for_each_dev+0x7c/0xd0
+  driver_attach+0x30/0x3c
+  bus_add_driver+0x140/0x234
+  driver_register+0x84/0x140
+  __platform_driver_register+0x54/0x60
+  pfeng_platform_driver_init+0x30/0x1000 [pfeng]
+  do_one_initcall+0xb0/0x510
+  do_init_module+0x60/0x2a0
+  load_module+0x654/0x700
+  __do_sys_finit_module+0xd0/0x12c
+  __arm64_sys_finit_module+0x2c/0x40
+  el0_svc_common.constprop.0+0x9c/0x1a0
+  do_el0_svc+0x78/0xa0
+  el0_svc+0x20/0x30
+  el0_sync_handler+0x1a4/0x1b0
+  el0_sync+0x180/0x1c0
+ ------------[ cut here ]------------
+
+This patch is to fix it.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ sw/linux-pfeng/pfeng-bman.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/sw/linux-pfeng/pfeng-bman.c b/sw/linux-pfeng/pfeng-bman.c
+index 06f0458..e5e743a 100644
+--- a/sw/linux-pfeng/pfeng-bman.c
++++ b/sw/linux-pfeng/pfeng-bman.c
+@@ -419,9 +419,7 @@ int pfeng_hif_chnl_fill_rx_buffers(struct pfeng_hif_chnl *chnl)
+ 
+ 	while (pfe_hif_chnl_can_accept_rx_buf(chnl->priv)) {
+ 
+-		preempt_disable();
+ 		ret = pfeng_hif_chnl_refill_rx_pool(chnl, 1);
+-		preempt_enable();
+ 		if (ret)
+ 			break;
+ 		cnt++;
+-- 
+2.25.1
+
