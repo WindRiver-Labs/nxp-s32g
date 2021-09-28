@@ -64,7 +64,7 @@ The following table summarizes the valid Wind River Linux distros for this BSP.
 For the supported kernel type for this BSP, please check the TARGET_SUPPORTED_KTYPES
 by running 'bitbake -e virtual/kernel | grep "^TARGET_SUPPORTED_KTYPES="'.
 
-Note: The preempt-rt ktype is not available for this BSP/Machine at this time.
+Note: The preempt-rt ktype is available for this BSP/Machine at this time.
 
 
 3. Board Specific Patches
@@ -408,7 +408,7 @@ in the wrlinux. More complex usage and testing can refer to the document
 "S32G Linux PFE Driver User’s Manual".
 
 About the detailed pfe port map information can refer to the chapter "Ethernet Hardware Support on S32G274A"
-of the document "Linux BSP 27.0 User Manual for S32G274A".
+of the document "Linux BSP 30.0 User Manual for S32G".
 
 Note:
 
@@ -515,11 +515,11 @@ needs). As a Secure Monitor, the TF-A provides power management services
 to other software components, via a standard API/ABI called PSCI. For
 details of ATF, please refer to the sections
 
-	"11 ARM Trusted Firmware"
+	"21 ARM Trusted Firmware"
 and
-	"22 Power Management"
+	"19 Power Management"
 
-in "S32G274_BSP28.0_User_Manual.pdf".
+in "S32G274_BSP30.0_User_Manual.pdf".
 
 NOTICE:
     For hardware reasons, the power management features are only supported
@@ -652,28 +652,12 @@ to verify this feature:
 
 For ATF feature, there are some known issues.
 
-  1. DHCP over GMAC fails with ATF enabled
-
-     Same as SDK, the DHCP over GMAC port can not work with ATF enabled,
-     but without ATF, it works well, the root cause is unknown, and there
-     is an ticket to track this issue:
-	https://support.nxp.com/s/case/5002p00002SDyIXAA1/dhcp-over-gmac-fails-in-bsp-28-when-booted-with-tfa
-     this should be fixed in future.
-
-  2. STR fail when pfe enabled
-
-     Same as SDK, pfe is an optional feature too, and if it is enabled,
-     the STR will fail when trying to resume from sleep. and the board will
-     hang there. There is an ticket to track this issue:
-	https://support.nxp.com/s/case/5002p00002SDkgKAAT/str-fail-with-pfe-enabled-and-gmac-dhcp-fail-using-bsp28-yocto-project
-     this should be fixed in future.
-
-  3. USB devices can not be identified after STR
+  1. USB devices can not be identified after STR
 
      Same as SDK, the usb devices can not be identified after STR, because
      the USB driver does not support STR currentlly, there is a STR supported
      driver list in section:
-	"22.3 Suspend to RAM" in "S32G274_BSP28.0_User_Manual.pdf"
+	"19.3 Suspend to RAM" in "S32G274_BSP30.0_User_Manual.pdf"
 
      And this list will be updated in future.
 
