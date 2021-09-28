@@ -472,10 +472,10 @@ If users want to verify LLCE CAN feature, please add the following lines in
 
 	PNWHITELIST_wr-nxp-s32g2xx += "llce"
 	IMAGE_INSTALL_append_nxp-s32g2xx = " llce"
-	LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN = "<path-to-llce-firmware>/dte.bin"
-	LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN = "<path-to-llce-firmware>/frpe.bin"
-	LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN = "<path-to-llce-firmware>/ppe_tx.bin"
-	LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN = "<path-to-llce-firmware>/ppe_rx.bin"
+	LLCE_LOCAL_FIRMWARE_DIR = "<path-to-llce-firmwares>"
+
+	the variable LLCE_LOCAL_FIRMWARE_DIR indecates the firmwares(dte.bin,
+	frpe.bin, ppe_tx.bin and ppe_rx.bin) location.
 
 then build the project as usual. Boot up the board with the new built WIC
 image, make sure that the test llcecan ports are connected. As an example,

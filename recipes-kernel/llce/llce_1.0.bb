@@ -10,16 +10,18 @@ inherit deploy
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
 
-LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN ?= "."
-LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN ?= "."
-LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN ?= "."
-LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN ?= "."
+FW_INSTALL_DIR = "${D}/lib/firmware"
+FW_INSTALL_DTE_NAME ?= "dte.bin"
+FW_INSTALL_FRPE_NAME ?= "frpe.bin"
+FW_INSTALL_PPE-TX_NAME ?= "ppe_tx.bin"
+FW_INSTALL_PPE-RX_NAME ?= "ppe_rx.bin"
+LLCE_LOCAL_FIRMWARE_DIR ?= "."
 
 SRC_URI = " \
-	file://${LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN} \
-	file://${LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN} \
-	file://${LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN} \
-	file://${LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN} \
+	file://${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME} \
+	file://${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME} \
+	file://${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME} \
+	file://${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME} \
 	file://LIENCES.txt \
 "
 
@@ -32,39 +34,32 @@ INHIBIT_SYSROOT_STRIP = "1"
 
 S = "${WORKDIR}"
 
-FW_INSTALL_DIR = "${D}/lib/firmware"
-FW_INSTALL_DTE_NAME ?= "dte.bin"
-FW_INSTALL_FRPE_NAME ?= "frpe.bin"
-FW_INSTALL_PPE-TX_NAME ?= "ppe_tx.bin"
-FW_INSTALL_PPE-RX_NAME ?= "ppe_rx.bin"
-
-
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 do_install() {
 
-	echo  ${LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN} ];then
+        echo  ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME}
+        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME} ];then
                 mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR_DTE_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_DTE_NAME}"
+                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_DTE_NAME}"
         fi
 
-	echo ${LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN} ];then
+        echo ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME}
+        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME} ];then
                 mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR_FRPE_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_FRPE_NAME}"
+                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_FRPE_NAME}"
         fi
 
-	echo ${LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN} ];then
+        echo ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME}
+        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME} ];then
                 mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR_PPE-TX_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_PPE-TX_NAME}"
+                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_PPE-TX_NAME}"
         fi
 
-	echo ${LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN} ];then
+        echo ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME}
+        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME} ];then
                 mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR_PPE-RX_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_PPE-RX_NAME}"
+                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_PPE-RX_NAME}"
         fi
 }
 
