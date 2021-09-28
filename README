@@ -390,12 +390,12 @@ version 0.9.4, which have to be downloaded from NXP Software.
 following line in your local.conf:
 
 	IMAGE_INSTALL_append_nxp-s32g2xx = " pfe"
-	PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN = "<The class firmware fully directory path and file, eg: lib/firmware/s32g_pfe_class.fw>"
-	PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN = "<The util firmware fully directory path and file, eg: lib/firmware/s32g_pfe_util.fw>"
-   These two variables indicate the location where can get the firmwares
-   s32g_pfe_class.fw and s32g_pfe_util.fw respectively. And after setting
-   the above variables, the firmwares can be installed into WIC image's
-   first boot partition automatically when build WIC image.
+        PFE_LOCAL_FIRMWARE_DIR = "<The firmwares fully directory path, eg: lib/firmware/>"
+
+    The variable PFE_LOCAL_FIRMWARE_DIR indicates the location where can
+    get the firmwares s32g_pfe_class.fw and s32g_pfe_util.fw.
+    And after setting the above variables, the firmwares can be installed
+    into WIC image's first boot partition automatically when build WIC image.
 
 2. Built and install them:
 

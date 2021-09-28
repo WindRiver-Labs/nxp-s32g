@@ -9,14 +9,16 @@ LIC_FILES_CHKSUM = "file://LICENSE-GPL2.txt;md5=5dcdfe25f21119aa5435eab9d0256af7
 inherit module deploy
 
 # Dummy entry to keep the recipe parser happy if we don't use this recipe
-PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN ?= "."
-PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN ?= "."
+PFE_LOCAL_FIRMWARE_DIR ?= "."
+FW_INSTALL_DIR = "${D}/lib/firmware"
+FW_INSTALL_CLASS_NAME ?= "s32g_pfe_class.fw"
+FW_INSTALL_UTIL_NAME ?= "s32g_pfe_util.fw"
 
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=https \
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
 	file://0002-pfe-oal-modify-the-GFP-flag-to-GFP_ATOMIC-for-kzallo.patch \
-	file://${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} \
-	file://${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} \
+	file://${PFE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_CLASS_NAME} \
+	file://${PFE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_UTIL_NAME} \
 	${@bb.utils.contains('PREFERRED_PROVIDER_virtual/kernel', 'linux-yocto-rt', 'file://0001-pfe-pfeng-bman-enable-preempt-when-hif-channle-fill-.patch', '', d)} \
 	${@bb.utils.contains('PREFERRED_PROVIDER_virtual/kernel', 'linux-yocto-rt', 'file://0002-pfe-sw-move-mutex-lock-below-of-destroy-the-workqueu.patch', '', d)} \
 	"
@@ -34,9 +36,6 @@ INHIBIT_SYSROOT_STRIP = "1"
 S = "${WORKDIR}/git"
 MDIR = "${S}/sw/linux-pfeng"
 INSTALL_DIR = "${D}/${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net/ethernet/nxp/pfe"
-FW_INSTALL_DIR = "${D}/lib/firmware"
-FW_INSTALL_CLASS_NAME ?= "s32g_pfe_class.fw"
-FW_INSTALL_UTIL_NAME ?= "s32g_pfe_util.fw"
 
 EXTRA_OEMAKE:append = " KERNELDIR=${STAGING_KERNEL_DIR} MDIR=${MDIR} -C ${MDIR} V=1 drv-build"
 
@@ -81,14 +80,14 @@ module_do_install() {
 		install -D "${MDIR}/pfeng-${rev}.ko" "${INSTALL_DIR}/pfeng-${rev}.ko"
 	done
 
-	if [ -f ${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN} ];then
+	if [ -f ${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_CLASS_NAME} ];then
 		mkdir -p "${FW_INSTALL_DIR}"
-		install -D "${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR_CLASS_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_CLASS_NAME}"
+		install -D "${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_CLASS_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_CLASS_NAME}"
 	fi
 
-	if [ -f ${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN} ];then
+	if [ -f ${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_UTIL_NAME} ];then
 		mkdir -p "${FW_INSTALL_DIR}"
-		install -D "${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR_UTIL_BIN}" "${FW_INSTALL_DIR}/${FW_INSTALL_UTIL_NAME}"
+		install -D "${WORKDIR}/${PFE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_UTIL_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_UTIL_NAME}"
 	fi
 }
 
