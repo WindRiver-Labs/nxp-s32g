@@ -1,0 +1,48 @@
+From 191df0093792858b0ef49012f2de773ac5af9d77 Mon Sep 17 00:00:00 2001
+From: Vlad Pelin <vlad.pelin@nxp.com>
+Date: Fri, 15 Oct 2021 15:35:45 +0300
+Subject: [PATCH 5/5] pkcs: fix -fPIC on .o files
+
+Issue: ALB-7684
+Upstream-Status: Pending 
+
+Signed-off-by: Vlad Pelin <vlad.pelin@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Makefile | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 077d642..f64f7cf 100644
+--- a/Makefile
++++ b/Makefile
+@@ -8,7 +8,7 @@ endif
+ 
+ CC := $(CROSS_COMPILE)gcc
+ LD := $(CROSS_COMPILE)ld
+-CFLAGS ?= -Wall -g
++CFLAGS ?= -fPIC -Wall -g
+ LDFLAGS ?=
+ 
+ PKCS_LIB ?= libpkcs-hse.so
+@@ -42,7 +42,7 @@ INCLUDE = -I$(HSE_FWDIR)/interface \
+ all: $(PKCS_LIB)
+ 
+ $(PKCS_LIB): $(HSE_LIB).$(HSE_LIBVER) $(PKCS_OBJS)
+-	$(CC) $(CFLAGS) -shared -fPIC -L$(shell pwd) $(LDFLAGS) $(PKCS_OBJS) -o $@ -lhse
++	$(CC) -shared $(CFLAGS) -L$(shell pwd) $(LDFLAGS) $(PKCS_OBJS) -o $@ -lhse
+ 
+ $(PKCS_ODIR)/%.o: $(PKCS_SDIR)/%.c $(PKCS_ODIR)
+ 	$(CC) -c $(CFLAGS) $(INCLUDE) $(LDFLAGS) $< -o $@
+@@ -51,7 +51,7 @@ $(PKCS_ODIR):
+ 	mkdir -p $@
+ 
+ $(HSE_LIB).$(HSE_LIBVER): $(HSE_OBJS)
+-	$(CC) $(CFLAGS) -shared -fPIC -Wl,-soname,$(HSE_LIB).$(HSE_MAJOR) $(LDFLAGS) $(HSE_OBJS) -o $@
++	$(CC) -shared $(CFLAGS) -Wl,-soname,$(HSE_LIB).$(HSE_MAJOR) $(LDFLAGS) $(HSE_OBJS) -o $@
+ 	ln -s $@ $(HSE_LIB)
+ 
+ $(HSE_ODIR)/%.o: $(HSE_SDIR)/%.c $(HSE_ODIR)
+-- 
+2.17.1
+

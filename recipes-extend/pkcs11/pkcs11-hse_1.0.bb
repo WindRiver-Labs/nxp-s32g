@@ -14,6 +14,13 @@ SRCREV = "0fc8ecf67d7758ea395dd8bf8db87f787ca82fe8"
 SRC_URI[sha256sum] = "6af5c7cc0593c3721fe18c0f657b64ec1c7ebebb2103ed6e97f71fd6dcc26bdd"
 
 SRC_URI += " \
+    file://bsp31/rc2/0001-pkcs-standalone-HSE-UIO-driver-support.patch \
+    file://bsp31/rc3/0001-pkcs-update-makefile-and-folders.patch \
+    file://bsp31/rc3/0002-pkcs-update-.gitingore.patch \
+    file://bsp31/rc3/0003-pkcs-renamed-hse-usr.h-to-libhse.h.patch \
+    file://bsp31/rc3/0004-pkcs-switch-gCtx-access-from-extern-to-getter.patch \
+    file://bsp31/rc3/0005-pkcs-fix-fPIC-on-.o-files.patch \
+    file://bsp31/rc3/0001-pkcs11-hse-Makefile-using-internal-compile-variables.patch \
 "
 
 PACKAGE_ARCH = "${MACHINE_ARCH}"
@@ -30,10 +37,15 @@ do_compile() {
 
 do_install() {
     install -d ${D}${libdir}
-    install -m 0644 ${S}/pkcs11-hse.so ${D}${libdir}/libpkcs11-hse.so.1.0
-    ln -s libpkcs11-hse.so.1.0 ${D}${libdir}/libpkcs11-hse.so
+
+    install -m 0755 ${S}/libpkcs-hse.so ${D}${libdir}/libpkcs-hse.so.0.9.0
+    ln -s libpkcs-hse.so.0.9.0 ${D}${libdir}/libpkcs-hse.so
+    install -m 0755 ${S}/libhse.so.0.9.0 ${D}${libdir}/libhse.so.0.9.0
+    ln -s libhse.so.0.9.0 ${D}${libdir}/libhse.so.0
+
     install -d ${D}${includedir}
-    install -m 0644 ${S}/src/*.h ${D}${includedir}
+    install -m 0644 ${S}/libhse/*.h ${D}${includedir}
+    install -m 0644 ${S}/libpkcs/*.h ${D}${includedir}
 
     install -d ${D}${bindir}
     install -m 0755 ${S}/examples/pkcs-keyop ${D}${bindir}
