@@ -1,0 +1,30 @@
+From a3c4a995a76b9c5810d23ffc73d567c4b955841d Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 23 Sep 2021 10:20:15 +0300
+Subject: [PATCH 19/19] s32g2evb: Rename linux dtb to fsl-s32g2xxa-evb.dtb
+
+Issue: ALB-7737
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32g274a.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/configs/s32g274a.h b/include/configs/s32g274a.h
+index da4ed1aa5d..6295506ce3 100644
+--- a/include/configs/s32g274a.h
++++ b/include/configs/s32g274a.h
+@@ -20,7 +20,7 @@
+ #include <configs/s32-gen1.h>
+ 
+ #if defined(CONFIG_TARGET_S32G2XXAEVB)
+-#define FDT_FILE fsl-s32g274a-evb.dtb
++#define FDT_FILE fsl-s32g2xxa-evb.dtb
+ 
+ #if defined(CONFIG_USB)
+ #define CONFIG_USB_EHCI_MX6
+-- 
+2.17.1
+

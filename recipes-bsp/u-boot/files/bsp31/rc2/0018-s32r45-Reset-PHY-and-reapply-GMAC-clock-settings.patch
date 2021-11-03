@@ -1,0 +1,90 @@
+From 9949138c95a1442dd99795b2ad4aa928828d0956 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 22 Sep 2021 17:28:02 +0300
+Subject: [PATCH 18/19] s32r45: Reset PHY and reapply GMAC clock settings
+
+Due to the hardware design of the reset circuit on S32R45,
+the PHY does not properly reset after a software reboot.
+PHY's control register is not properly initialized afterwards
+and GMAC clock settings fail to apply.
+
+Issue: ALB-7481
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/s32r45evb.c | 38 ++++++++++++++++++++++++++++
+ configs/s32r45evb_defconfig          |  1 +
+ 2 files changed, 39 insertions(+)
+
+diff --git a/board/freescale/s32-gen1/s32r45evb.c b/board/freescale/s32-gen1/s32r45evb.c
+index 68f046a85c..7678179845 100644
+--- a/board/freescale/s32-gen1/s32r45evb.c
++++ b/board/freescale/s32-gen1/s32r45evb.c
+@@ -5,8 +5,17 @@
+ 
+ #include "asm/arch-s32/siul-s32r45.h"
+ #include "board_common.h"
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++#include "s32gen1_gmac_utils.h"
++#endif
+ #include <asm/arch/soc.h>
+ #include <common.h>
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++#include <linux/err.h>
++#include <miiphy.h>
++#endif
++
++#define S32R_PHY_ADDR_1 0x01
+ 
+ void setup_iomux_uart(void)
+ {
+@@ -19,3 +28,32 @@ void setup_iomux_uart(void)
+ #error "Unsupported UART pinmuxing configuration"
+ #endif
+ }
++
++/**
++ * Due to the hardware design of the reset circuit on S32R45,
++ * the PHY does not properly reset after a software reboot.
++ * PHY's control register is not correctly initialized afterwards
++ * and GMAC clock settings fail to apply.
++ */
++int last_stage_init(void)
++{
++#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
++	struct udevice *eth;
++	struct mii_dev *bus;
++	struct phy_device *phy;
++	phy_interface_t mode;
++
++	eth = eth_get_dev_by_name("eth_eqos");
++	bus = miiphy_get_dev_by_name("eth_eqos");
++
++	if (!IS_ERR_OR_NULL(eth) && !IS_ERR_OR_NULL(bus)) {
++		mode = eqos_get_interface_s32cc(eth);
++
++		/* phy_connect will reset the PHY */
++		phy = phy_connect(bus, S32R_PHY_ADDR_1, eth, mode);
++		if (phy)
++			setup_clocks_enet_gmac(mode, eth);
++	}
++#endif
++	return 0;
++}
+diff --git a/configs/s32r45evb_defconfig b/configs/s32r45evb_defconfig
+index 3086e46bbf..c9fbc1b901 100644
+--- a/configs/s32r45evb_defconfig
++++ b/configs/s32r45evb_defconfig
+@@ -15,6 +15,7 @@ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon loglevel=7"
+ CONFIG_ARCH_EARLY_INIT_R=y
+ CONFIG_BOARD_EARLY_INIT_F=y
++CONFIG_LAST_STAGE_INIT=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+-- 
+2.17.1
+

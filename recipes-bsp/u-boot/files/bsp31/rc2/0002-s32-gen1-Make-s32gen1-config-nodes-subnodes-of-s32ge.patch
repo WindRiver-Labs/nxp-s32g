@@ -1,0 +1,87 @@
+From 124c5636409d61865e6d5a2dfad8aa06ab11f6aa Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 20 Sep 2021 14:28:43 +0300
+Subject: [PATCH 02/19] s32-gen1: Make s32gen1 config nodes subnodes of s32gen1
+ menu item
+
+Issue: ALB-7724
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/Kconfig          | 16 ++++++++--------
+ board/freescale/s32-gen1/Kconfig |  4 ----
+ 2 files changed, 8 insertions(+), 12 deletions(-)
+
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 29335e87b5..920fbd831c 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -2,6 +2,12 @@ config S32V2
+ 	bool
+ 	default false
+ 
++if !TARGET_MPXS32V234
++config SYS_VENDOR
++	string
++	default "freescale"
++endif
++
+ config S32_GEN1
+ 	bool "S32 GEN1 Common Chassis"
+ 	imply CMD_GPIO
+@@ -44,12 +50,6 @@ config S32_SKIP_RELOC
+ 		memory. It's very useful for bring-up activities or when the DDR
+ 		memory is not stable.
+ 
+-if !TARGET_MPXS32V234
+-config SYS_VENDOR
+-	string
+-	default "freescale"
+-endif
+-
+ config XEN_SUPPORT
+ 	bool "Enable Xen EL2 Booting and set environment variables in order to boot directly into Xen Hypervisor"
+ 	default n
+@@ -59,6 +59,8 @@ config XEN_SUPPORT
+ 	  to directly load the Xen Image which will use a given Kernel Image as
+ 	  Dom0.
+ 
++if S32_GEN1
++source "board/freescale/s32-gen1/Kconfig"
+ endif
+ 
+ if S32V2
+@@ -96,6 +98,4 @@ config S32V234_FAST_BOOT
+ 
+ endif
+ 
+-if S32_GEN1
+-source "board/freescale/s32-gen1/Kconfig"
+ endif
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index c75cf8d2b8..7e0be7daab 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -66,8 +66,6 @@ config SYS_MEM_SIZE
+ 	help
+ 	  U-boot SRAM size (8 MB for Gen1)
+ 
+-if S32_GEN1
+-
+ config SYS_BOARD
+ 	string
+ 	default "s32-gen1"
+@@ -140,8 +138,6 @@ choice
+ 		  in the non-secure world.
+ endchoice
+ 
+-endif
+-
+ config S32GEN1_HWCONFIG
+ 	string "S32GEN1 HWConfig definition"
+ 	depends on S32_GEN1 && (PCIE_S32GEN1 || FSL_PFENG)
+-- 
+2.17.1
+

@@ -1,0 +1,51 @@
+From a348af8f7923f3d1657e6d2f7fb939c1a1f42292 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Date: Mon, 20 Sep 2021 12:05:51 +0300
+Subject: [PATCH 04/19] s32: Disable ECC region exclusion for S32GEN1 emulator
+
+Issue: ALB-7715
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index ed827e86d1..20f2ee10fa 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -702,7 +702,8 @@ static int s32_gentimer_init(void)
+ #endif
+ #endif /* CONFIG_S32_STANDALONE_BOOT_FLOW */
+ 
+-#if defined(CONFIG_SYS_FSL_DDRSS)
++#if defined(CONFIG_SYS_FSL_DDRSS) && \
++	!defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR)
+ #include "ddr_density.h"
+ 
+ static inline bool get_intersection(unsigned long s1, unsigned long e1,
+@@ -866,7 +867,8 @@ int dram_init_banksize(void)
+ #endif
+ 	s32_init_ram_size();
+ 
+-#ifdef CONFIG_SYS_FSL_DDRSS
++#if defined(CONFIG_SYS_FSL_DDRSS) && \
++	!defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR)
+ 	s32_exclude_ecc_from_dram();
+ #endif
+ 
+@@ -886,7 +888,8 @@ phys_size_t __weak get_effective_memsize(void)
+ #else
+ 	size = CONFIG_SYS_FSL_DRAM_SIZE1;
+ 
+-#ifdef CONFIG_SYS_FSL_DDRSS
++#if defined(CONFIG_SYS_FSL_DDRSS) && \
++	!defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR)
+ 	s32_exclude_ecc_range(CONFIG_SYS_FSL_DRAM_BASE1, &size);
+ #endif
+ 
+-- 
+2.17.1
+

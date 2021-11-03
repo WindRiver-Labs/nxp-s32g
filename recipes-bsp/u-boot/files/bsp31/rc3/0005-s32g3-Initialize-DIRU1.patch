@@ -1,0 +1,30 @@
+From 00efc6fa5233b2fbc672941047bb50074fd9fa67 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 4 Oct 2021 15:05:17 +0300
+Subject: [PATCH 05/14] s32g3: Initialize DIRU1
+
+Issue: ALB-7919
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/ncore.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c b/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c
+index f4d6cafc9e..76cb948985 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/ncore.c
+@@ -16,7 +16,7 @@
+ #define A53_CLUSTER0_CAIU	(0)
+ #define A53_CLUSTER1_CAIU	(1)
+ 
+-#define DIRU(n)			(NCORE_BASE_ADDR + 0x80000)
++#define DIRU(n)			(NCORE_BASE_ADDR + 0x80000 + (n) * 0x1000)
+ #define DIRUSFER(n)		(DIRU(n) + 0x10)
+ #define DIRUSFER_SFEN		BIT(0)
+ #define DIRUCASER(n) (DIRU(n) + 0x40)
+-- 
+2.17.1
+

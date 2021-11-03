@@ -1,0 +1,351 @@
+From d5c7adac89151f3ed66d43a3e13ce4039ae8fe7a Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Wed, 29 Sep 2021 15:14:55 +0300
+Subject: [PATCH 04/11] s32gen1: select A53 maximum clock frequency based on
+ SIUL2_MIDR2
+
+S32G2 and S32R each have one A53 maximum frequency, whereas
+S32G3 derivatives have different maximum frequencies based on
+the frequency field value inside SIUL2_MIDR2 register. Set the A53 clock
+to the indicated maximum value. Also, set other clock rates accordingly
+to derive the selected A53 maximum frequency. All clock frequencies that
+need to be set are defined on a MAX/MID/LOW convention corresponding to
+the A53 frequency.
+
+Issue: ALB-7717
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/include/asm/arch-s32/siul.h          | 10 +++++
+ drivers/clk/s32/early_clocks.c                | 26 +++++++++---
+ drivers/clk/s32/include/s32gen1_clk_funcs.h   |  2 +
+ drivers/clk/s32/include/s32gen1_clk_modules.h | 18 ++++++++
+ drivers/clk/s32/include/s32gen1_shared_clks.h |  3 +-
+ drivers/clk/s32/s32g274a_clk.c                | 13 ++++++
+ drivers/clk/s32/s32g398a_clk.c                | 41 +++++++++++++++++++
+ drivers/clk/s32/s32gen1_clk.c                 | 19 +++++++++
+ drivers/clk/s32/s32r45_clk.c                  | 13 ++++++
+ 9 files changed, 138 insertions(+), 7 deletions(-)
+
+diff --git a/arch/arm/include/asm/arch-s32/siul.h b/arch/arm/include/asm/arch-s32/siul.h
+index f807acb481..dd7840c65a 100644
+--- a/arch/arm/include/asm/arch-s32/siul.h
++++ b/arch/arm/include/asm/arch-s32/siul.h
+@@ -54,6 +54,10 @@
+ #define SIUL2_MIDR1_MAJOR_SHIFT		(4)
+ #define SIUL2_MIDR1_MAJOR_MASK		(0xF << SIUL2_MIDR1_MAJOR_SHIFT)
+ 
++/* SIUL2_MIDR2 masks */
++#define SIUL2_MIDR2_FREQ_SHIFT		(16)
++#define SIUL2_MIDR2_FREQ_MASK		(0xF << SIUL2_MIDR2_FREQ_SHIFT)
++
+ #ifdef CONFIG_S32_GEN1
+ #define SIUL2_MIDR2_SUBMINOR_SHIFT	(26)
+ #define SIUL2_MIDR2_SUBMINOR_MASK	(0xF << SIUL2_MIDR2_SUBMINOR_SHIFT)
+@@ -130,6 +134,12 @@ static inline int get_siul2_midr1_major(void)
+ 			>> SIUL2_MIDR1_MAJOR_SHIFT);
+ }
+ 
++static inline u32 get_siul2_midr2_freq(void)
++{
++	return ((readl(SIUL2_MIDR2) & SIUL2_MIDR2_FREQ_MASK)
++			>> SIUL2_MIDR2_FREQ_SHIFT);
++}
++
+ #if defined(CONFIG_S32_GEN1) && !defined(CONFIG_TARGET_TYPE_S32GEN1_SIMULATOR)
+ 
+ static inline int get_siul2_midr2_subminor(void)
+diff --git a/drivers/clk/s32/early_clocks.c b/drivers/clk/s32/early_clocks.c
+index 4e6d8f825c..8ec560679c 100644
+--- a/drivers/clk/s32/early_clocks.c
++++ b/drivers/clk/s32/early_clocks.c
+@@ -81,6 +81,8 @@ static int secboot_xbar_to_firc(void)
+ }
+ #endif
+ 
++static const struct siul2_freq_mapping *early_freqs;
++
+ static int enable_a53_clock(void)
+ {
+ 	int ret;
+@@ -98,12 +100,19 @@ static int enable_a53_clock(void)
+ 	if (rate != S32GEN1_FXOSC_FREQ)
+ 		return -EINVAL;
+ 
+-	rate = s32gen1_set_rate(&arm_pll_vco, S32GEN1_ARM_PLL_VCO_MAX_FREQ);
+-	if (rate != S32GEN1_ARM_PLL_VCO_MAX_FREQ)
++	rate = s32gen1_set_rate(&arm_pll_vco,
++			early_freqs->arm_pll_vco_freq);
++	if (rate != early_freqs->arm_pll_vco_freq)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&arm_pll_phi0,
++			early_freqs->arm_pll_phi0_freq);
++	if (rate != early_freqs->arm_pll_phi0_freq)
+ 		return -EINVAL;
+ 
+-	rate = s32gen1_set_rate(&a53_clk, S32GEN1_A53_MAX_FREQ);
+-	if (rate != S32GEN1_A53_MAX_FREQ)
++	rate = s32gen1_set_rate(&a53_clk,
++			early_freqs->a53_freq);
++	if (rate != early_freqs->a53_freq)
+ 		return -EINVAL;
+ 
+ 	return s32gen1_enable(&a53_clk);
+@@ -118,8 +127,9 @@ static int enable_xbar_clock(void)
+ 	if (ret)
+ 		return ret;
+ 
+-	rate = s32gen1_set_rate(&xbar_2x, S32GEN1_XBAR_2X_FREQ);
+-	if (rate != S32GEN1_XBAR_2X_FREQ)
++	rate = s32gen1_set_rate(&xbar_2x,
++			early_freqs->xbar_2x_freq);
++	if (rate != early_freqs->xbar_2x_freq)
+ 		return -EINVAL;
+ 
+ 	return s32gen1_enable(&xbar_2x);
+@@ -190,6 +200,10 @@ int enable_early_clocks(void)
+ 		return ret;
+ #endif
+ 
++	ret = s32gen1_get_early_clks_freqs(&early_freqs);
++	if (ret < 0)
++		return -EINVAL;
++
+ 	ret = enable_a53_clock();
+ 	if (ret)
+ 		return ret;
+diff --git a/drivers/clk/s32/include/s32gen1_clk_funcs.h b/drivers/clk/s32/include/s32gen1_clk_funcs.h
+index da71aeeaf3..cbc9771574 100644
+--- a/drivers/clk/s32/include/s32gen1_clk_funcs.h
++++ b/drivers/clk/s32/include/s32gen1_clk_funcs.h
+@@ -32,4 +32,6 @@ uint32_t s32gen1_platclk2mux(uint32_t clk_id);
+ 
+ int cc_compound_clk_get_pid(u32 id, u32 *parent_id);
+ 
++int s32gen1_get_early_clks_freqs(const struct siul2_freq_mapping **mapping);
++
+ #endif /* S32GEN1_CLK_FUNCS_H */
+diff --git a/drivers/clk/s32/include/s32gen1_clk_modules.h b/drivers/clk/s32/include/s32gen1_clk_modules.h
+index 2671ff147c..169d78fd2e 100644
+--- a/drivers/clk/s32/include/s32gen1_clk_modules.h
++++ b/drivers/clk/s32/include/s32gen1_clk_modules.h
+@@ -120,6 +120,15 @@
+ #define S32GEN1_PART_BLOCK_NO_STATUS(PARENT, PART, BLOCK) \
+ 	S32GEN1_PART_BLOCK_STATUS(PARENT, PART, BLOCK, false)
+ 
++#define SIUL2_FREQ_MAP(MIDR2, A53, VCO, PHI0, XBAR_2X)	\
++{							\
++	.siul2_midr2_freq = (MIDR2),			\
++	.a53_freq = (A53),				\
++	.arm_pll_vco_freq = (VCO),			\
++	.arm_pll_phi0_freq = (PHI0),			\
++	.xbar_2x_freq = (XBAR_2X),			\
++}
++
+ struct s32gen1_clk_priv {
+ 	void *accelpll;
+ 	void *armdfs;
+@@ -273,6 +282,15 @@ struct s32gen1_fixed_div {
+ 	u32 div;
+ };
+ 
++/* Map values read from SIUL2_MIDR2 register to actual frequencies */
++struct siul2_freq_mapping {
++	u32 siul2_midr2_freq;
++	unsigned long a53_freq;
++	unsigned long arm_pll_vco_freq;
++	unsigned long arm_pll_phi0_freq;
++	unsigned long xbar_2x_freq;
++};
++
+ static inline struct s32gen1_pll *obj2pll(struct s32gen1_clk_obj *mod)
+ {
+ 	return container_of(mod, struct s32gen1_pll, desc);
+diff --git a/drivers/clk/s32/include/s32gen1_shared_clks.h b/drivers/clk/s32/include/s32gen1_shared_clks.h
+index dd0db55d9d..6cda1b40d1 100644
+--- a/drivers/clk/s32/include/s32gen1_shared_clks.h
++++ b/drivers/clk/s32/include/s32gen1_shared_clks.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: BSD-3-Clause */
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef S32GEN1_SHARED_CLKS_H
+ #define S32GEN1_SHARED_CLKS_H
+@@ -14,6 +14,7 @@ extern struct s32gen1_clk serdes1_lane1_tx_clk;
+ extern struct s32gen1_clk serdes1_lane1_cdr_clk;
+ extern struct s32gen1_clk accel_pll_phi0_clk;
+ extern struct s32gen1_clk accel_pll_phi1_clk;
++extern const struct siul2_freq_mapping siul2_clk_freq_map[];
+ 
+ #endif
+ 
+diff --git a/drivers/clk/s32/s32g274a_clk.c b/drivers/clk/s32/s32g274a_clk.c
+index 45d9ff879f..8166b39951 100644
+--- a/drivers/clk/s32/s32g274a_clk.c
++++ b/drivers/clk/s32/s32g274a_clk.c
+@@ -5,10 +5,15 @@
+ #include <asm/arch/siul.h>
+ #include <dt-bindings/clock/s32g-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
++#include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <s32g_clk_funcs.h>
+ #include <s32gen1_clk_modules.h>
+ #include <s32gen1_scmi_clk.h>
+ 
++#define SIUL2_MIDR2_FREQ_VAL1		(0xB)
++
++#define S32GEN1_XBAR_2X_MAX_FREQ	(800 * MHZ)
++
+ /* GMAC_TS_CLK */
+ static struct s32gen1_fixed_clock gmac_ext_ts =
+ 		S32GEN1_FIXED_CLK_INIT();
+@@ -143,3 +148,11 @@ int cc_compound_clk_get_pid(u32 id, u32 *parent_id)
+ 
+ 	return 0;
+ }
++
++const struct siul2_freq_mapping siul2_clk_freq_map[] = {
++	SIUL2_FREQ_MAP(SIUL2_MIDR2_FREQ_VAL1, S32GEN1_A53_MAX_FREQ,
++			S32GEN1_ARM_PLL_VCO_MAX_FREQ,
++			S32GEN1_ARM_PLL_PHI0_MAX_FREQ,
++			S32GEN1_XBAR_2X_MAX_FREQ),
++	{} /* empty entry */
++};
+diff --git a/drivers/clk/s32/s32g398a_clk.c b/drivers/clk/s32/s32g398a_clk.c
+index 33298cdd1f..c77599f08b 100644
+--- a/drivers/clk/s32/s32g398a_clk.c
++++ b/drivers/clk/s32/s32g398a_clk.c
+@@ -5,11 +5,33 @@
+ #include <dt-bindings/clock/s32gen1-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
+ #include <dt-bindings/clock/s32g3-clock.h>
++#include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <linux/types.h>
+ #include <s32g_clk_funcs.h>
+ #include <s32gen1_clk_modules.h>
+ #include <s32gen1_scmi_clk.h>
+ 
++#define SIUL2_MIDR2_FREQ_VAL1		(0xB)
++#define SIUL2_MIDR2_FREQ_VAL2		(0xC)
++#define SIUL2_MIDR2_FREQ_VAL3		(0xE)
++
++#define S32GEN1_A53_MID_FREQ		(1100 * MHZ)
++#define S32GEN1_A53_LOW_FREQ		(1000 * MHZ)
++
++#define S32GEN1_ARM_PLL_VCO_MID_FREQ	(2200 * MHZ)
++#define S32GEN1_ARM_PLL_VCO_LOW_FREQ	(2000 * MHZ)
++
++#define S32GEN1_ARM_PLL_PHI0_MID_FREQ	(1100 * MHZ)
++#define S32GEN1_ARM_PLL_PHI0_LOW_FREQ	(1000 * MHZ)
++
++/* The XBAR_2X naming convention corresponds to the
++ * A53/VCO/PHI0 mapped frequencies, not to the order
++ * of the actual values
++ */
++#define S32GEN1_XBAR_2X_MAX_FREQ	(793220338UL)
++#define S32GEN1_XBAR_2X_MID_FREQ	(792 * MHZ)
++#define S32GEN1_XBAR_2X_LOW_FREQ	(800 * MHZ)
++
+ /* GMAC_TS_CLK */
+ static struct s32gen1_fixed_clock gmac_ext_ts =
+ 		S32GEN1_FIXED_CLK_INIT();
+@@ -155,3 +177,22 @@ int cc_compound_clk_get_pid(u32 id, u32 *parent_id)
+ 
+ 	return 0;
+ }
++
++const struct siul2_freq_mapping siul2_clk_freq_map[] = {
++
++	SIUL2_FREQ_MAP(SIUL2_MIDR2_FREQ_VAL1, S32GEN1_A53_LOW_FREQ,
++			S32GEN1_ARM_PLL_VCO_LOW_FREQ,
++			S32GEN1_ARM_PLL_PHI0_LOW_FREQ,
++			S32GEN1_XBAR_2X_LOW_FREQ),
++
++	SIUL2_FREQ_MAP(SIUL2_MIDR2_FREQ_VAL2, S32GEN1_A53_MID_FREQ,
++			S32GEN1_ARM_PLL_VCO_MID_FREQ,
++			S32GEN1_ARM_PLL_PHI0_MID_FREQ,
++			S32GEN1_XBAR_2X_MID_FREQ),
++
++	SIUL2_FREQ_MAP(SIUL2_MIDR2_FREQ_VAL3, S32GEN1_A53_MAX_FREQ,
++			S32GEN1_ARM_PLL_VCO_MAX_FREQ,
++			S32GEN1_ARM_PLL_PHI0_MAX_FREQ,
++			S32GEN1_XBAR_2X_MAX_FREQ),
++	{} /* empty entry */
++};
+diff --git a/drivers/clk/s32/s32gen1_clk.c b/drivers/clk/s32/s32gen1_clk.c
+index dd445d415b..652dd6a2d9 100644
+--- a/drivers/clk/s32/s32gen1_clk.c
++++ b/drivers/clk/s32/s32gen1_clk.c
+@@ -2,6 +2,7 @@
+ /*
+  * Copyright 2020-2021 NXP
+  */
++#include <asm/arch/siul.h>
+ #include <dt-bindings/clock/s32gen1-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
+ #include <s32gen1_clk_funcs.h>
+@@ -578,3 +579,21 @@ bool is_qspi_clk(uint32_t id)
+ {
+ 	return is_qspi1x_clk(id) || is_qspi2x_clk(id);
+ }
++
++int s32gen1_get_early_clks_freqs(const struct siul2_freq_mapping **mapping)
++{
++	u32 freq;
++	size_t i;
++
++	freq = get_siul2_midr2_freq();
++
++	/* Last entry is empty */
++	for (i = 0; siul2_clk_freq_map[i].siul2_midr2_freq != 0; i++)
++
++		if (siul2_clk_freq_map[i].siul2_midr2_freq == freq) {
++			*mapping = &siul2_clk_freq_map[i];
++			return 0;
++		}
++
++	return -EINVAL;
++}
+diff --git a/drivers/clk/s32/s32r45_clk.c b/drivers/clk/s32/s32r45_clk.c
+index 1f0547fa7c..b2645bfe0e 100644
+--- a/drivers/clk/s32/s32r45_clk.c
++++ b/drivers/clk/s32/s32r45_clk.c
+@@ -4,6 +4,7 @@
+  */
+ #include <dt-bindings/clock/s32r45-clock.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
++#include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <s32gen1_clk_funcs.h>
+ #include <s32gen1_clk_modules.h>
+ #include <s32gen1_scmi_clk.h>
+@@ -11,6 +12,10 @@
+ 
+ #define ARR_CLK(N)	S32R45_CLK_INDEX(N)
+ 
++#define SIUL2_MIDR2_FREQ_VAL1		(0xA)
++
++#define S32GEN1_XBAR_2X_MAX_FREQ	(800 * MHZ)
++
+ /* XBAR_2X */
+ static struct s32gen1_part_block xbar_div3_block =
+ 		S32GEN1_PART_BLOCK(cgm0_mux0_clk, 3, s32gen1_part_block2);
+@@ -326,3 +331,11 @@ int cc_compound_clk_get_pid(u32 id, u32 *parent_id)
+ 
+ 	return 0;
+ }
++
++const struct siul2_freq_mapping siul2_clk_freq_map[] = {
++	SIUL2_FREQ_MAP(SIUL2_MIDR2_FREQ_VAL1, S32GEN1_A53_MAX_FREQ,
++			S32GEN1_ARM_PLL_VCO_MAX_FREQ,
++			S32GEN1_ARM_PLL_PHI0_MAX_FREQ,
++			S32GEN1_XBAR_2X_MAX_FREQ),
++	{} /* empty entry */
++};
+-- 
+2.17.1
+

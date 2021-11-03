@@ -1,0 +1,39 @@
+From cf0c61969039b8744f5b8a19803085d2458b1171 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Tue, 21 Sep 2021 12:07:16 +0300
+Subject: [PATCH 14/19] sja1105: increase clock frequency to 4MHz
+
+Issue: ALB-4601
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/spi/sja1105.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/spi/sja1105.c b/drivers/spi/sja1105.c
+index d10754e4bd..04d7ba498c 100644
+--- a/drivers/spi/sja1105.c
++++ b/drivers/spi/sja1105.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2017-2018, 2020 NXP
++ * Copyright 2017-2018, 2020-2021 NXP
+  */
+ 
+ 
+@@ -16,7 +16,7 @@
+ #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+ 
+ #define SJA_DSPI_MODE	(SPI_CPHA | SPI_FMSZ_16)
+-#define SJA_DSPI_HZ	5000
++#define SJA_DSPI_HZ	4000000
+ 
+ #define sja_debug(fmt, ...) \
+ 	debug("[SJA1105]%s:%d " fmt, __func__, __LINE__, ##__VA_ARGS__);
+-- 
+2.17.1
+

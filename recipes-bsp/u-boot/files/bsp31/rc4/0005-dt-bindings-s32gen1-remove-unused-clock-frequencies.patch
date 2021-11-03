@@ -1,0 +1,56 @@
+From 211213251977f1d95212a48992f3e9dfd2ceb6f2 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Fri, 22 Oct 2021 15:46:01 +0300
+Subject: [PATCH 05/11] dt-bindings: s32gen1: remove unused clock frequencies
+
+S32GEN1_CLK_ARM_PLL_DFS1_FREQ is not used anymore.
+S32GEN1_XBAR_2X_FREQ is platform specific and its definition is used
+only in platform specific clock files as S32GEN1_XBAR_2X_MAX_FREQ right
+now.
+
+Issue: ALB-7717
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/clock/s32gen1-clock-freq.h | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index be31a77ff3..89e7d56d64 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -23,9 +23,7 @@
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1000 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
+-#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(800 * MHZ)
+ #define S32GEN1_QSPI_MAX_FREQ			(200 * MHZ)
+-#define S32GEN1_XBAR_2X_FREQ			(800 * MHZ)
+ 
+ #elif defined(CONFIG_NXP_S32R45)
+ #define S32GEN1_A53_MAX_FREQ			(800 * MHZ)
+@@ -33,9 +31,7 @@
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(800 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(0 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(0 * MHZ)
+-#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(800 * MHZ)
+ #define S32GEN1_QSPI_MAX_FREQ			(133333333)
+-#define S32GEN1_XBAR_2X_FREQ			(800 * MHZ)
+ 
+ #elif defined(CONFIG_NXP_S32G3XX)
+ #define S32GEN1_A53_MAX_FREQ			(1300 * MHZ)
+@@ -43,9 +39,7 @@
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1300 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
+-#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(793220338UL)
+ #define S32GEN1_QSPI_MAX_FREQ			(200 * MHZ)
+-#define S32GEN1_XBAR_2X_FREQ			(793220338UL)
+ #else
+ #error Undefined platform
+ #endif
+-- 
+2.17.1
+

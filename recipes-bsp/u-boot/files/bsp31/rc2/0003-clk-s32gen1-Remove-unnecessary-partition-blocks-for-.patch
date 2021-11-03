@@ -1,0 +1,74 @@
+From 45f858ab5dfb5890c098a7c2419baf1bffdf4036 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 20 Sep 2021 14:59:33 +0300
+Subject: [PATCH 03/19] clk/s32gen1: Remove unnecessary partition blocks for
+ cores
+
+MC_ME A53 cores have artificially defined blocks with no effect
+in the code. All of these are removed by the current commit.
+
+Issue: ALB-7724
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/clk/s32/enable_clk.c                  |  3 ---
+ drivers/clk/s32/include/s32gen1_clk_modules.h |  4 ----
+ drivers/clk/s32/s32gen1_clk.c                 | 10 +---------
+ 3 files changed, 1 insertion(+), 16 deletions(-)
+
+diff --git a/drivers/clk/s32/enable_clk.c b/drivers/clk/s32/enable_clk.c
+index 2640cb354b..92eac4d2a5 100644
+--- a/drivers/clk/s32/enable_clk.c
++++ b/drivers/clk/s32/enable_clk.c
+@@ -169,9 +169,6 @@ static int enable_part_block(struct s32gen1_clk_obj *module,
+ 	u32 cofb;
+ 
+ 	switch (block->block) {
+-	case s32gen1_part_core0 ... s32gen1_part_core3:
+-		/* Nothing to do here */
+-		break;
+ 	case s32gen1_part_block0 ... s32gen1_part_block15:
+ 		cofb = block->block - s32gen1_part_block0;
+ 		enable_part_cofb(block->partition, cofb,
+diff --git a/drivers/clk/s32/include/s32gen1_clk_modules.h b/drivers/clk/s32/include/s32gen1_clk_modules.h
+index 49d2141fd0..2671ff147c 100644
+--- a/drivers/clk/s32/include/s32gen1_clk_modules.h
++++ b/drivers/clk/s32/include/s32gen1_clk_modules.h
+@@ -171,10 +171,6 @@ enum s32gen1_clkm_type {
+ };
+ 
+ enum s32gen1_part_block_type {
+-	s32gen1_part_core0,
+-	s32gen1_part_core1,
+-	s32gen1_part_core2,
+-	s32gen1_part_core3,
+ 	s32gen1_part_block0,
+ 	s32gen1_part_block1,
+ 	s32gen1_part_block2,
+diff --git a/drivers/clk/s32/s32gen1_clk.c b/drivers/clk/s32/s32gen1_clk.c
+index 4f0e79857c..dd445d415b 100644
+--- a/drivers/clk/s32/s32gen1_clk.c
++++ b/drivers/clk/s32/s32gen1_clk.c
+@@ -99,16 +99,8 @@ static struct s32gen1_clk cgm1_mux0_clk =
+ 		S32GEN1_MODULE_CLK(cgm1_mux0);
+ 
+ /* A53_CORE */
+-static struct s32gen1_part_block arm_core0_block =
+-		S32GEN1_PART_BLOCK(cgm1_mux0_clk, 1, s32gen1_part_core0);
+-static struct s32gen1_part_block arm_core1_block =
+-		S32GEN1_PART_BLOCK(arm_core0_block, 1, s32gen1_part_core1);
+-static struct s32gen1_part_block arm_core2_block =
+-		S32GEN1_PART_BLOCK(arm_core1_block, 1, s32gen1_part_core2);
+-static struct s32gen1_part_block arm_core3_block =
+-		S32GEN1_PART_BLOCK(arm_core2_block, 1, s32gen1_part_core3);
+ static struct s32gen1_clk a53_core_clk =
+-		S32GEN1_FREQ_MODULE_CLK(arm_core3_block, 0,
++		S32GEN1_FREQ_MODULE_CLK(cgm1_mux0_clk, 0,
+ 					S32GEN1_A53_MAX_FREQ);
+ 
+ /* A53_CORE_DIV2 */
+-- 
+2.17.1
+

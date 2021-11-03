@@ -1,0 +1,39 @@
+From 14653cb5dd5b1c2b5282843b53ed4f83ba2f831d Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Mon, 20 Sep 2021 13:52:39 +0300
+Subject: [PATCH 12/19] pcie: s32g: Fix BARx_MASK register addresses
+
+For both S32G2 and S32G3, BAR2_MASK, BAR3_MASK, BAR4_MASK
+and BAR5_MASK register addresses were wrong.
+
+Issue: ALB-7727
+Upstream-Status: Pending 
+
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h
+index 7a9a2ebc25..be5ff89f61 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/ss_pcie_regs.h
+@@ -127,10 +127,10 @@
+ 
+ #define PCIE_BAR0_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x10)
+ #define PCIE_BAR1_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x14)
+-#define PCIE_BAR2_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x20)
+-#define PCIE_BAR3_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x24)
+-#define PCIE_BAR4_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x30)
+-#define PCIE_BAR5_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x34)
++#define PCIE_BAR2_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x18)
++#define PCIE_BAR3_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x1C)
++#define PCIE_BAR4_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x20)
++#define PCIE_BAR5_MASK(dbi_base) (PCIE_BAR_BASEADDRESS(dbi_base) + 0x24)
+ 
+ /* Instance PCIE_IATU */
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,55 @@
+From d16f85e1d5a3ecf19f4b94aa1643572af07801d3 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Mon, 11 Oct 2021 17:18:24 +0300
+Subject: [PATCH 12/14] s32-gen1: Change U-Boot base address
+
+Changed the SYS_TEXT_BASE/SYS_DATA_BASE addresses to align
+to the new memory layout (BL32 -> BL31 -> BL33 -> DRAM1_END),
+when the ATF Bootflow is enabled.
+
+The BL33 area now goes from 0xFFA00000 until 0xFFFFFFFF,
+and the U-Boot DT address has been changed accordingly.
+
+Issue: ALB-7902
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/Kconfig | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index 40c2aec34f..7795ab960d 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -43,7 +43,7 @@ config CUSTOM_SYS_DATA_BASE
+ 
+ config SYS_DATA_BASE
+ 	hex "Data Base" if CUSTOM_SYS_DATA_BASE
+-	default 0xff800000 if S32_ATF_BOOT_FLOW
++	default 0xffa00000 if S32_ATF_BOOT_FLOW
+ 	default 0x34000000
+ 	help
+ 	  U-boot data base address (normally SRAM base address)
+@@ -57,7 +57,7 @@ config CUSTOM_SYS_TEXT_BASE
+ 
+ config SYS_TEXT_BASE
+ 	hex "Text Base" if CUSTOM_SYS_TEXT_BASE
+-	default 0xff8a0000 if S32_ATF_BOOT_FLOW
++	default 0xffaa0000 if S32_ATF_BOOT_FLOW
+ 	default 0x340a0000
+ 
+ config SYS_MEM_SIZE
+@@ -106,7 +106,7 @@ config CUSTOM_DTB_SRAM_ADDR
+ 
+ config DTB_SRAM_ADDR
+ 	hex "SRAM address at which the dtb will be found" if CUSTOM_DTB_SRAM_ADDR
+-	default 0xff890000 if S32_ATF_BOOT_FLOW
++	default 0xffa90000 if S32_ATF_BOOT_FLOW
+ 	default 0x34090000
+ 
+ choice
+-- 
+2.17.1
+

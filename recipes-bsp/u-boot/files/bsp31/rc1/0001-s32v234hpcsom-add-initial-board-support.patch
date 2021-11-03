@@ -1,0 +1,364 @@
+From 7729faf3499040761db00e3a75f80ca18db6d270 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Fri, 20 Aug 2021 17:49:18 +0300
+Subject: [PATCH 1/5] s32v234hpcsom: add initial board support
+
+Add board files for S32V234 HPC SOM board.
+
+Issue: ALB-7474
+
+Upstream-Status: Pending
+
+Signed-off-by: Radu Pirea (NXP OSS) radu-nicolae.pirea@oss.nxp.com
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/Kconfig                    |   1 +
+ arch/arm/cpu/armv8/s32/Kconfig                |   4 +
+ arch/arm/mach-s32/Kconfig                     |   6 +-
+ board/freescale/Kconfig                       |   2 +
+ board/freescale/s32v234hpcsom/Kconfig         |  10 +
+ board/freescale/s32v234hpcsom/MAINTAINERS     |   4 +
+ board/freescale/s32v234hpcsom/Makefile        |   8 +
+ board/freescale/s32v234hpcsom/s32v234hpcsom.c | 177 ++++++++++++++++++
+ include/configs/s32v234hpcsom.h               |  45 +++++
+ 9 files changed, 253 insertions(+), 4 deletions(-)
+ create mode 100644 board/freescale/s32v234hpcsom/Kconfig
+ create mode 100644 board/freescale/s32v234hpcsom/MAINTAINERS
+ create mode 100644 board/freescale/s32v234hpcsom/Makefile
+ create mode 100644 board/freescale/s32v234hpcsom/s32v234hpcsom.c
+ create mode 100644 include/configs/s32v234hpcsom.h
+
+diff --git a/arch/arm/cpu/armv8/Kconfig b/arch/arm/cpu/armv8/Kconfig
+index d9658528e4..e7bd328e5a 100644
+--- a/arch/arm/cpu/armv8/Kconfig
++++ b/arch/arm/cpu/armv8/Kconfig
+@@ -111,6 +111,7 @@ config PSCI_RESET
+ 		   !TARGET_LS2081ARDB && !TARGET_LX2160ARDB && \
+ 		   !TARGET_LX2160AQDS && \
+ 		   !ARCH_UNIPHIER && \
++		   !TARGET_S32V234HPCSOM && \
+ 		   !TARGET_S32V234EVB && !TARGET_MPXS32V234 && \
+ 		   !TARGET_S32V234PCIE && \
+ 		   !TARGET_S32V234CCPB && \
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index 2410bc5bf5..82d353204c 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -32,6 +32,10 @@ choice
+ 	help
+ 	  S32 Target Board Selection
+ 
++config TARGET_S32V234HPCSOM
++	bool "Support HPC SOM Board"
++	select S32V2
++
+ config TARGET_S32V234CCPB
+ 	bool "Support s32v234ccpb"
+ 	select S32V234CCPB
+diff --git a/arch/arm/mach-s32/Kconfig b/arch/arm/mach-s32/Kconfig
+index 830ed1de6d..d88bab51f5 100644
+--- a/arch/arm/mach-s32/Kconfig
++++ b/arch/arm/mach-s32/Kconfig
+@@ -1,10 +1,8 @@
+ # SPDX-License-Identifier: GPL-2.0+
+-# Copyright 2020 NXP
++# Copyright 2020-2021 NXP
+ 
+ config MKIMAGE_T
+ 	string
+-	default "s32v234image" if TARGET_S32V234EVB || TARGET_S32V234PCIE || \
+-		TARGET_MPXS32V234 || TARGET_S32V234CCPB || \
+-		TARGET_CAMPPS32V2 || TARGET_CAMPPS32V2_REVB
++	default "s32v234image" if S32V2
+ 	default "s32gen1image" if S32_GEN1
+ 	depends on ARCH_S32
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 60012d3784..29335e87b5 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -70,6 +70,8 @@ source "board/freescale/s32v234ccpb/Kconfig"
+ 
+ source "board/freescale/campps32v2/Kconfig"
+ 
++source "board/freescale/s32v234hpcsom/Kconfig"
++
+ config SYS_DATA_BASE
+ 	hex "Data Base"
+ 	default 0x3E800000
+diff --git a/board/freescale/s32v234hpcsom/Kconfig b/board/freescale/s32v234hpcsom/Kconfig
+new file mode 100644
+index 0000000000..5f9151aefb
+--- /dev/null
++++ b/board/freescale/s32v234hpcsom/Kconfig
+@@ -0,0 +1,10 @@
++if TARGET_S32V234HPCSOM
++
++config SYS_BOARD
++	string
++	default "s32v234hpcsom"
++
++config SYS_CONFIG_NAME
++	string
++	default "s32v234hpcsom"
++endif
+diff --git a/board/freescale/s32v234hpcsom/MAINTAINERS b/board/freescale/s32v234hpcsom/MAINTAINERS
+new file mode 100644
+index 0000000000..f44db9d373
+--- /dev/null
++++ b/board/freescale/s32v234hpcsom/MAINTAINERS
+@@ -0,0 +1,4 @@
++S32V234 HPC SOM Board
++M:	-
++S:	Maintained
++F:	board/freescale/s32v234hpcsom/*
+diff --git a/board/freescale/s32v234hpcsom/Makefile b/board/freescale/s32v234hpcsom/Makefile
+new file mode 100644
+index 0000000000..0efad141ff
+--- /dev/null
++++ b/board/freescale/s32v234hpcsom/Makefile
+@@ -0,0 +1,8 @@
++# SPDX-License-Identifier: GPL-2.0+
++#
++# Copyright 2021 NXP
++#
++
++obj-y := s32v234hpcsom.o
++obj-y += lpddr2_config.o
++
+diff --git a/board/freescale/s32v234hpcsom/s32v234hpcsom.c b/board/freescale/s32v234hpcsom/s32v234hpcsom.c
+new file mode 100644
+index 0000000000..be434dd366
+--- /dev/null
++++ b/board/freescale/s32v234hpcsom/s32v234hpcsom.c
+@@ -0,0 +1,177 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2021 NXP
++ */
++
++#include <common.h>
++#include <asm/io.h>
++#include <asm/arch/xrdc.h>
++#include <asm/arch/soc.h>
++#include <fdt_support.h>
++#include <linux/libfdt.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++static void setup_iomux_uart(void)
++{
++	/* Muxing for linflex0 */
++
++	/* set PA12 - MSCR[12] - for UART0 TXD */
++	writel(SIUL2_MSCR_PORT_CTRL_UART_TXD, SIUL2_MSCRn(SIUL2_MSCR_PA12));
++
++	/* set PA11 - MSCR[11] - for UART0 RXD */
++	writel(SIUL2_MSCR_PORT_CTRL_UART_RXD, SIUL2_MSCRn(SIUL2_MSCR_PA11));
++	/* set UART0 RXD - IMCR[200] - to link to PA11 */
++	writel(SIUL2_IMCR_UART_RXD_to_pad, SIUL2_IMCRn(SIUL2_IMCR_UART0_RXD));
++
++	/* set PA14 - MSCR[14] - for UART1 TXD*/
++	writel(SIUL2_MSCR_PORT_CTRL_UART_TXD, SIUL2_MSCRn(SIUL2_MSCR_PA14));
++
++	/* set PA13 - MSCR[13] - for UART1 RXD */
++	writel(SIUL2_MSCR_PORT_CTRL_UART_RXD, SIUL2_MSCRn(SIUL2_MSCR_PA13));
++	/* set UART1 RXD - IMCR[202] - to link to PA13 */
++	writel(SIUL2_IMCR_UART_RXD_to_pad, SIUL2_IMCRn(SIUL2_IMCR_UART1_RXD));
++}
++
++static void setup_iomux_i2c(void)
++{
++	/* I2C0 - Serial Data Input */
++	writel(SIUL2_PAD_CTRL_I2C0_MSCR_SDA_AC15, SIUL2_MSCRn(SIUL2_MSCR_PG3));
++	writel(SIUL2_PAD_CTRL_I2C0_IMCR_SDA_AC15,
++	       SIUL2_IMCRn(SIUL2_IMCR_I2C0_DATA));
++
++	/* I2C0 - Serial Clock Input */
++	writel(SIUL2_PAD_CTRL_I2C0_MSCR_SCLK_AE15, SIUL2_MSCRn(SIUL2_MSCR_PG4));
++	writel(SIUL2_PAD_CTRL_I2C0_IMCR_SCLK_AE15,
++	       SIUL2_IMCRn(SIUL2_IMCR_I2C0_CLK));
++
++	/* I2C1 - Serial Data Input */
++	writel(SIUL2_PAD_CTRL_I2C1_MSCR_SDA, SIUL2_MSCRn(SIUL2_MSCR_PG5));
++	writel(SIUL2_PAD_CTRL_I2C1_IMCR_SDA,
++	       SIUL2_IMCRn(SIUL2_IMCR_I2C1_DATA));
++
++	/* I2C1 - Serial Clock Input */
++	writel(SIUL2_PAD_CTRL_I2C1_MSCR_SCLK, SIUL2_MSCRn(SIUL2_MSCR_PG6));
++	writel(SIUL2_PAD_CTRL_I2C1_IMCR_SCLK,
++	       SIUL2_IMCRn(SIUL2_IMCR_I2C1_CLK));
++
++	/* I2C2 - Serial Data Input */
++	writel(SIUL2_PAD_CTRL_I2C2_MSCR_SDA, SIUL2_MSCRn(SIUL2_MSCR_PB3));
++	writel(SIUL2_PAD_CTRL_I2C2_IMCR_SDA,
++	       SIUL2_IMCRn(SIUL2_IMCR_I2C2_DATA));
++
++	/* I2C2 - Serial Clock Input */
++	writel(SIUL2_PAD_CTRL_I2C2_MSCR_SCLK, SIUL2_MSCRn(SIUL2_MSCR_PB4));
++	writel(SIUL2_PAD_CTRL_I2C2_IMCR_SCLK,
++	       SIUL2_IMCRn(SIUL2_IMCR_I2C2_CLK));
++}
++
++void setup_iomux_sdhc(void)
++{
++	/* Set iomux PADS for USDHC */
++
++	/* PK6 pad: uSDHC clk */
++	writel(SIUL2_USDHC_PAD_CTRL_CLK, SIUL2_MSCRn(150));
++	writel(0x3, SIUL2_MSCRn(902));
++
++	/* PK7 pad: uSDHC CMD */
++	writel(SIUL2_USDHC_PAD_CTRL_CMD, SIUL2_MSCRn(151));
++	writel(0x3, SIUL2_MSCRn(901));
++
++	/* PK8 pad: uSDHC DAT0 */
++	writel(SIUL2_USDHC_PAD_CTRL_DAT0_3, SIUL2_MSCRn(152));
++	writel(0x3, SIUL2_MSCRn(903));
++
++	/* PK9 pad: uSDHC DAT1 */
++	writel(SIUL2_USDHC_PAD_CTRL_DAT0_3, SIUL2_MSCRn(153));
++	writel(0x3, SIUL2_MSCRn(904));
++
++	/* PK10 pad: uSDHC DAT2 */
++	writel(SIUL2_USDHC_PAD_CTRL_DAT0_3, SIUL2_MSCRn(154));
++	writel(0x3, SIUL2_MSCRn(905));
++
++	/* PK11 pad: uSDHC DAT3 */
++	writel(SIUL2_USDHC_PAD_CTRL_DAT0_3, SIUL2_MSCRn(155));
++	writel(0x3, SIUL2_MSCRn(906));
++}
++
++static void mscm_init(void)
++{
++	struct mscm_ir *mscmir = (struct mscm_ir *)MSCM_BASE_ADDR;
++	int i;
++
++	for (i = 0; i < MSCM_IRSPRC_NUM; i++)
++		writew(MSCM_IRSPRC_CPn_EN, &mscmir->irsprc[i]);
++}
++
++static void setup_xrdc(void)
++{
++	/* See S32V234 User Manual, chapter Extended Resource Domain Controller
++	 * (XRDC), section S32V234 specific MRC instance for SRAM controller
++	 * memory protection.
++	 * Let ISP, Camera, Decoder Pixel Interface and Encoder Bit Stream to
++	 * access the SRAM memory.
++	 */
++
++	/* Write start of the memory region. */
++	writel(XRDC_ADDR_MIN, XRDC_MRGD_W0_16);
++	/* Write end of the memory region. */
++	writel(XRDC_ADDR_MAX, XRDC_MRGD_W1_16);
++	/* Write valid bit for the memory region */
++	writel(XRDC_VALID, XRDC_MRGD_W3_16);
++
++	writel(XRDC_ADDR_MIN, XRDC_MRGD_W0_17);
++	writel(XRDC_ADDR_MAX, XRDC_MRGD_W1_17);
++	writel(XRDC_VALID, XRDC_MRGD_W3_17);
++
++	writel(XRDC_ADDR_MIN, XRDC_MRGD_W0_18);
++	writel(XRDC_ADDR_MAX, XRDC_MRGD_W1_18);
++	writel(XRDC_VALID, XRDC_MRGD_W3_18);
++
++	writel(XRDC_ADDR_MIN, XRDC_MRGD_W0_19);
++	writel(XRDC_ADDR_MAX, XRDC_MRGD_W1_19);
++	writel(XRDC_VALID, XRDC_MRGD_W3_19);
++}
++
++int board_early_init_f(void)
++{
++	clock_init();
++	mscm_init();
++
++	setup_iomux_uart();
++	setup_iomux_enet();
++	setup_iomux_i2c();
++#ifdef CONFIG_FSL_DCU_FB
++	setup_iomux_dcu();
++#endif
++#ifdef CONFIG_DCU_QOS_FIX
++	board_dcu_qos();
++#endif
++	setup_xrdc();
++
++	return 0;
++}
++
++int board_init(void)
++{
++	/* address of boot parameters */
++	gd->bd->bi_boot_params = CONFIG_SYS_FSL_DRAM_SIZE1 + 0x100;
++
++	return 0;
++}
++
++int checkboard(void)
++{
++	printf("Board: %s\n", CONFIG_SYS_CONFIG_NAME);
++
++	return 0;
++}
++
++#if defined(CONFIG_OF_FDT) && defined(CONFIG_OF_BOARD_SETUP)
++int ft_board_setup(void *blob, bd_t *bd)
++{
++	ft_cpu_setup(blob, bd);
++	return 0;
++}
++#endif
++
+diff --git a/include/configs/s32v234hpcsom.h b/include/configs/s32v234hpcsom.h
+new file mode 100644
+index 0000000000..ea5d475efc
+--- /dev/null
++++ b/include/configs/s32v234hpcsom.h
+@@ -0,0 +1,45 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright 2021 NXP
++ *
++ * Configuration settings for the NXP HPC SOM board, S32V SoC.
++ * Schematics 50519.
++ */
++
++#ifndef __S32V234HPCSOM_H
++#define __S32V234HPCSOM_H
++
++/* The configurations of this board depend on the definitions in this file and
++ * the ones in the header included at the end, configs/s32v234_common.h
++ */
++
++#define	FDT_FILE fsl-s32v234-hpcsom.dtb
++
++#define CONFIG_SYS_FSL_DRAM_SIZE1	0x20000000
++#define CONFIG_SYS_FSL_DRAM_SIZE2	0x20000000
++
++#define CONFIG_FSL_DCU_FB
++
++#define CONFIG_DDR_INIT_DELAY 100
++
++#define CONFIG_SYS_FSL_ESDHC_ADDR	USDHC_BASE_ADDR
++
++/* Ethernet config */
++
++#define CONFIG_FEC_FIXED_SPEED  1000
++#define CONFIG_FEC_XCV_TYPE     RGMII
++#define CONFIG_FEC_MXC_PHYADDR	0
++
++#define CONFIG_PCIE_EP_MODE
++
++#ifdef CONFIG_CMD_PCI
++#define CONFIG_GICSUPPORT
++#define CONFIG_CMD_IRQ
++#endif
++
++#define PCIE_EXTRA_ENV_SETTINGS "hwconfig=pcie:mode=ep,clock=ext"
++
++/* we include this file here because it depends on the above definitions */
++#include <configs/s32v234_common.h>
++
++#endif
+-- 
+2.17.1
+

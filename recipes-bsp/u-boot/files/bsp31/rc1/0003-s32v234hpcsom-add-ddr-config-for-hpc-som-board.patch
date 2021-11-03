@@ -1,0 +1,63 @@
+From 750c488ca1945e62045d691777ccf1f98fe73056 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Tue, 24 Aug 2021 14:34:51 +0300
+Subject: [PATCH 3/5] s32v234hpcsom: add ddr config for hpc som board
+
+Add DDR config for HPC SOM board.
+
+Issue: ALB-7476
+
+Upstream-Status: Pending
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32v234hpcsom/lpddr2_config.c | 36 +++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+ create mode 100644 board/freescale/s32v234hpcsom/lpddr2_config.c
+
+diff --git a/board/freescale/s32v234hpcsom/lpddr2_config.c b/board/freescale/s32v234hpcsom/lpddr2_config.c
+new file mode 100644
+index 0000000000..ad785bb58d
+--- /dev/null
++++ b/board/freescale/s32v234hpcsom/lpddr2_config.c
+@@ -0,0 +1,36 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2021 NXP
++ */
++
++#include <common.h>
++#include <asm/arch/lpddr2.h>
++
++/* The magic values used below are generated using DDR Tool */
++
++static const struct lpddr2_config s32v_lpddr2_config = {
++	.mdasp_module0 = 0x0000004F,
++	.mdasp_module1 = 0x0000006F,
++	.mdcfg0 = 0x33374133,
++	.mdcfg1 = 0xDAF00A82,
++	.mdcfg2 = 0x00000093,
++	.mdcfg3lp = 0x00170777,
++	.mdctl = 0x03110000,
++	.mdmisc = 0x00001688,
++	.mdscr_mr2 = 0x04028030,
++	.mdscr_mr3 = 0x01038030,
++	.mprddlctl_module0 = 0x44463E3E,
++	.mprddlctl_module1 = 0x4444403E,
++	.mpwrdlctl_module0 = 0x42464246,
++	.mpwrdlctl_module1 = 0x3A3E3C3C,
++	.mpdgctrl0_module0 = 0x20000000,
++	.mpdgctrl1_module0 = 0x00000000,
++	.mpdgctrl0_module1 = 0x20000000,
++	.mpdgctrl1_module1 = 0x00000000,
++	.frequency = 533,
++};
++
++const struct lpddr2_config *s32_get_lpddr2_config(void)
++{
++	return &s32v_lpddr2_config;
++}
+-- 
+2.17.1
+

@@ -1,0 +1,51 @@
+From 74adcf3e9ab654e4f1a171bc68175d55913d6413 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Wed, 13 Oct 2021 18:42:51 +0300
+Subject: [PATCH 09/14] s32r45: Update DDR firmware to 2020_06_SP2 Update 1
+
+This commit updates the DDR driver for S32R45 Rev2 to
+firmware 2020_06_SP2 generated with S32CT v1.4 Update 1.
+
+Issue: ALB-7757
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/s32r45/dmem_cfg.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/s32r45/dmem_cfg.c b/board/freescale/s32-gen1/s32r45/dmem_cfg.c
+index cf664a2301..55e391d2a5 100644
+--- a/board/freescale/s32-gen1/s32r45/dmem_cfg.c
++++ b/board/freescale/s32-gen1/s32r45/dmem_cfg.c
+@@ -31,7 +31,7 @@
+ 
+ #include "ddr_init.h"
+ 
+-u16 dmem_1d[] = {
++u16 dmem_1d_cfg[] = {
+ 	0x0000,
+ 	0x0000,
+ 	0x0000,
+@@ -864,9 +864,9 @@ u16 dmem_1d[] = {
+ 	0x0000,
+ };
+ 
+-size_t dmem_1d_size = ARRAY_SIZE(dmem_1d);
++size_t dmem_1d_cfg_size = ARRAY_SIZE(dmem_1d_cfg);
+ 
+-u16 dmem_2d[] = {
++u16 dmem_2d_cfg[] = {
+ 	0x0000,
+ 	0x0000,
+ 	0x0000,
+@@ -1571,4 +1571,4 @@ u16 dmem_2d[] = {
+ 	0x0000,
+ };
+ 
+-size_t dmem_2d_size = ARRAY_SIZE(dmem_2d);
++size_t dmem_2d_cfg_size = ARRAY_SIZE(dmem_2d_cfg);
+-- 
+2.17.1
+

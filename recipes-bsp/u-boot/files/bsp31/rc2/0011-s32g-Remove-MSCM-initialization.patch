@@ -1,0 +1,113 @@
+From a413a34c5654c914c915f1aa9f94e677fb400672 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 21 Sep 2021 10:53:43 +0300
+Subject: [PATCH 11/19] s32g: Remove MSCM initialization
+
+M7 IRQ routing should be handled by M7 cores, not A53.
+
+Issue: ALB-7725
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../asm/arch-s32/s32-gen1/s32-gen1-regs.h     | 47 -------------------
+ board/freescale/s32-gen1/common.c             | 10 ----
+ 2 files changed, 57 deletions(-)
+
+diff --git a/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h b/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
+index 084440952a..b6c4be4603 100644
+--- a/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
++++ b/arch/arm/include/asm/arch-s32/s32-gen1/s32-gen1-regs.h
+@@ -108,7 +108,6 @@
+ #define EDMA0_CHANNEL_31_BASE_ADDR		(PER_GROUP1_BASE + 0x00067000)
+ #define PIT0_BASE_ADDR				(PER_GROUP1_BASE + 0x00088000)
+ #define CRC0_BASE_ADDR				(PER_GROUP1_BASE + 0x00090000)
+-#define MSCM_BASE_ADDR				(PER_GROUP1_BASE + 0x00098000)
+ #define SRAM_CTL_BASE_ADDR			(PER_GROUP1_BASE + 0x0009C000)
+ #define XRDC_BASE_ADDR				(PER_GROUP1_BASE + 0x000A4000)
+ #ifdef CONFIG_NXP_S32R45
+@@ -211,52 +210,6 @@
+ #define MC_CGM2_BASE_ADDR			(PER_GROUP8_BASE + 0x00018000)
+ #endif
+ 
+-/* MSCM interrupt router */
+-#define MSCM_IRSPRC_CPn_EN		0xF
+-#define MSCM_IRSPRC_NUM			240
+-
+-#if !(defined(__KERNEL_STRICT_NAMES) || defined(__ASSEMBLY__))
+-#include <asm/types.h>
+-
+-struct mscm_cpn {
+-	u32 cpntype;		/* Processor n Type Register */
+-	u32 cpnnum;		/* Processor n Number Register */
+-	u32 cpnrev;		/* Processor n Count Register	*/
+-	u32 cpncfg0;		/* Processor n Configuration 0 Register */
+-	u32 cpncfg1;		/* Processor n Configuration 1 Register */
+-	u32 cpncfg2;		/* Processor n Configuration 2 Register */
+-	u32 cpncfg3;		/* Processor n Configuration 3 Register */
+-	u32 reserved_1c;
+-};
+-
+-struct mscm_ircp {
+-	u32 isr0;		/* Interrupt Status Register. */
+-	u32 gr0;		/* Interrupt Generation Register. */
+-	u32 isr1;		/* Interrupt Status Register. */
+-	u32 gr1;		/* Interrupt Generation Register. */
+-	u32 isr2;		/* Interrupt Status Register. */
+-	u32 gr2;		/* Interrupt Generation Register. */
+-	u32 isr3;		/* Interrupt Status Register. */
+-	u32 gr3;		/* Interrupt Generation Register. */
+-};
+-
+-/* MSCM Interrupt Router */
+-struct mscm_ir {
+-	struct mscm_cpn cpx;		/* Processor x */
+-	struct mscm_cpn cpn[7]; 	/* Processor 0-6 */
+-	u32 reserved_0x080[64];
+-	struct mscm_ircp ircp[7];
+-	u32 reserved_0x2e0[72];
+-	u32 ircpcfg;			/* Interrupt Router Configuration
+-					   Register. */
+-	u32 reserved_0x404[255];
+-	u32 irnmic;			/* Interrupt Router Non-Maskable
+-					   Interrupt Control Register */
+-	u32 reserved_0x804[31];
+-	u16 irsprc[MSCM_IRSPRC_NUM];	/* Interrupt Router Shared Peripheral
+-					   Routing Control Register */
+-};
+-#endif
+ #include "dma_macros.h"
+ 
+ #endif	/* __ASM_ARCH_S32XXXX_GEN1_REGS_H__ */
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index da9c383b58..7835c29587 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -18,15 +18,6 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+-static void mscm_init(void)
+-{
+-	struct mscm_ir *mscmir = (struct mscm_ir *)MSCM_BASE_ADDR;
+-	int i;
+-
+-	for (i = 0; i < MSCM_IRSPRC_NUM; i++)
+-		writew(MSCM_IRSPRC_CPn_EN, &mscmir->irsprc[i]);
+-}
+-
+ int board_phy_config(struct phy_device *phydev)
+ {
+ 	if (phydev->drv->config)
+@@ -37,7 +28,6 @@ int board_phy_config(struct phy_device *phydev)
+ 
+ int board_early_init_f(void)
+ {
+-	mscm_init();
+ 	setup_iomux_uart();
+ 
+ 	return 0;
+-- 
+2.17.1
+

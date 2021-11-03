@@ -1,0 +1,81 @@
+From 67bcfe495c795dcb7f90e91bb4f290ff876f291b Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Wed, 20 Oct 2021 15:39:44 +0300
+Subject: [PATCH 03/11] s32gen1: dts: remove clock rate for early configured
+ clocks
+
+Certain clocks have their rates set during enable_early_clock()
+procedure and there is no need to have their rates re-set during s32gen1
+clock driver probe. This will also enable early clocks to have their
+rates configurable at run-time because the s32gen1 driver will not
+enforce any rate defined in the dts.
+
+Issue: ALB-7717
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 11 ++---------
+ arch/arm/dts/fsl-s32g398a.dtsi |  2 +-
+ 2 files changed, 3 insertions(+), 10 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index 1ba7d63b7c..9ff1faa931 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -210,10 +210,6 @@
+ 				<&clks S32GEN1_CLK_ARM_PLL_PHI0>;
+ 			assigned-clock-parents =
+ 				<&clks S32GEN1_CLK_FXOSC>;
+-			assigned-clock-rates =
+-				<0>,
+-				<S32GEN1_ARM_PLL_VCO_MAX_FREQ>,
+-				<S32GEN1_ARM_PLL_PHI0_MAX_FREQ>;
+ 		};
+ 
+ 		armdfs: armdfs@40054000 {
+@@ -224,7 +220,7 @@
+ 				<&clks S32GEN1_CLK_ARM_PLL_DFS1>,
+ 				<&clks S32GEN1_CLK_ARM_PLL_DFS2>;
+ 			assigned-clock-rates =
+-				<S32GEN1_CLK_ARM_PLL_DFS1_FREQ>,
++				<0>,
+ 				<800000000>;
+ 		};
+ 
+@@ -343,7 +339,7 @@
+ 				<0>,
+ 				<0>,
+ 				<80000000>,
+-				<S32GEN1_XBAR_2X_FREQ>,
++				<0>,
+ 				<40000000>,
+ 				<40000000>,
+ 				<80000000>,
+@@ -364,9 +360,6 @@
+ 			assigned-clock-parents =
+ 				<&clks S32GEN1_CLK_ARM_PLL_PHI0>,
+ 				<0>;
+-			assigned-clock-rates =
+-				<0>,
+-				<S32GEN1_A53_MAX_FREQ>;
+ 		};
+ 
+ 		mc_cgm5: mc_cgm5@40068000 {
+diff --git a/arch/arm/dts/fsl-s32g398a.dtsi b/arch/arm/dts/fsl-s32g398a.dtsi
+index 4d04353b85..993b2e456c 100644
+--- a/arch/arm/dts/fsl-s32g398a.dtsi
++++ b/arch/arm/dts/fsl-s32g398a.dtsi
+@@ -79,7 +79,7 @@
+ 			<0>,
+ 			<0>,
+ 			<80000000>,
+-			<S32GEN1_XBAR_2X_FREQ>,
++			<0>,
+ 			<40000000>,
+ 			<40000000>,
+ 			<80000000>,
+-- 
+2.17.1
+
