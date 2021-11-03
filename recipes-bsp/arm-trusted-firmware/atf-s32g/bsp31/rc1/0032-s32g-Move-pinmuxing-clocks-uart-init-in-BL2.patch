@@ -1,0 +1,202 @@
+From 04db86f1dcc4328bd66b5dc51622aeccc166fd5f Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 4 Dec 2019 09:47:41 +0200
+Subject: [PATCH 032/269] s32g: Move pinmuxing, clocks, uart init in BL2
+
+Replicate U-Boot's platform setup in a more constrained scope, covering
+only the A53 core and LinfFlexD_0 domains.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4275
+Issue: ALB-4276
+---
+ plat/s32g/platform.mk        |  8 +++++---
+ plat/s32g/s32g274a_bl2_el3.c | 24 +++++++++++++++---------
+ plat/s32g/s32g275_bl31.c     |  8 --------
+ plat/s32g/s32g_lowlevel.S    | 15 ++++++++++++---
+ plat/s32g/s32g_pinctrl.c     |  1 +
+ 5 files changed, 33 insertions(+), 23 deletions(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 4c06c8ee2..3811fada5 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -24,13 +24,13 @@ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel.S \
+ 
+ BL2_SOURCES		+= plat/s32g/s32g274a_bl2_el3.c \
+ 			   drivers/io/io_storage.c \
+-			   plat/s32g/s32g_ncore.c
++			   plat/s32g/s32g_ncore.c \
++			   plat/s32g/s32g_clocks.c \
++			   plat/s32g/s32g_pinctrl.c
+ 
+ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   plat/s32g/s32g_psci.c \
+ 			   plat/s32g/s32g_mc_me.c \
+-			   plat/s32g/s32g_clocks.c \
+-			   plat/s32g/s32g_pinctrl.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   drivers/arm/gic/v3/gicv3_main.c \
+@@ -52,6 +52,8 @@ USE_COHERENT_MEM	:= 0
+ # Set RESET_TO_BL31 to boot from BL31
+ PROGRAMMABLE_RESET_ADDRESS	:= 1
+ RESET_TO_BL31			:= 0
++# We need SMP boot in order to make specific initializations such as
++# secure GIC registers, which U-Boot and then Linux won't be able to.
+ COLD_BOOT_SINGLE_CPU		:= 0
+ 
+ ### Platform-specific defines ###
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index ba7eb8bf7..e30082727 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -7,16 +7,14 @@
+ #include <platform.h>
+ #include <common/bl_common.h>
+ #include <s32g_ncore.h>
++#include <drivers/console.h>
++#include "s32g_pinctrl.h"
++#include "s32g_clocks.h"
++#include "s32g_linflexuart.h"
++
+ 
+ void bl2_platform_setup(void)
+ {
+-	asm volatile("b .");
+-	ncore_init();
+-	ncore_caiu_online(A53_CLUSTER0_CAIU);
+-	asm volatile ("movz x9, #0x3400, lsl 16");
+-	asm volatile ("dc ivac, x9");
+-
+-	/* TODO: LinFlexD init */
+ 	return;
+ }
+ 
+@@ -40,12 +38,20 @@ struct bl_load_info *plat_get_bl_image_load_info(void)
+ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 				  u_register_t arg2, u_register_t arg3)
+ {
+-	/* TODO */
++	s32g_plat_config_pinctrl();
++	s32g_plat_clock_init();
++
++	ncore_init();
++	ncore_caiu_online(A53_CLUSTER0_CAIU);
+ }
+ 
+ void bl2_el3_plat_arch_setup(void)
+ {
+-	/* TODO */
++	static struct console_s32g console;
++
++	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
++			      S32G_UART_BAUDRATE, &console);
++
+ }
+ 
+ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index c0dc2fb8b..6884d9ece 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -96,23 +96,15 @@ entry_point_info_t *bl31_plat_get_next_image_ep_info(uint32_t type)
+ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 		u_register_t arg2, u_register_t arg3)
+ {
+-	static struct console_s32g console;
+-
+ #if RESET_TO_BL31
+ 	assert((void *)arg0 == NULL); /* from bl2 */
+ 	assert((void *)arg1 == NULL); /* plat params from bl2 */
+ #endif
+ 
+-	s32g_plat_config_pinctrl();
+-	s32g_plat_clock_init();
+-
+ 	SET_PARAM_HEAD(&bl33_image_ep_info, PARAM_EP, VERSION_1, 0);
+ 	bl33_image_ep_info.pc = S32G_BL33_IMAGE_BASE;
+ 	bl33_image_ep_info.spsr = s32g_get_spsr_for_bl33_entry();
+ 	SET_SECURITY_STATE(bl33_image_ep_info.h.attr, NON_SECURE);
+-
+-	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+-			S32G_UART_BAUDRATE, &console);
+ }
+ 
+ static void s32g_el3_mmu_fixup(void)
+diff --git a/plat/s32g/s32g_lowlevel.S b/plat/s32g/s32g_lowlevel.S
+index f5e69db76..175b14d25 100644
+--- a/plat/s32g/s32g_lowlevel.S
++++ b/plat/s32g/s32g_lowlevel.S
+@@ -20,10 +20,11 @@
+ .globl s32g_core_release_var
+ 
+ 
++/* Clobber list: x8,x9,x10 */
+ func plat_reset_handler
+-	/* Set the CAIUTC[IsolEn] bit for the primary A53 cluster. This is so
+-	 * cache invalidate operations from the early TF-A boot code won't
+-	 * cause Ncore to crash.
++	/* Ncore quirks: set the CAIUTC[IsolEn] bit for the primary A53 cluster.
++	 * This is so cache invalidate operations from the early TF-A boot code
++	 * won't cause Ncore to crash.
+ 	 */
+ 	movz	x8, #S32G_NCORE_CAIU0_BASE_ADDR_H, lsl #16
+ 	ldr	x9, [x8, #NCORE_CAIUTC_OFF]
+@@ -31,9 +32,14 @@ func plat_reset_handler
+ 	lsl	x10, x10, #NCORE_CAIUTC_ISOLEN_SHIFT
+ 	orr	x9, x9, x10
+ 	str	x9, [x8, #NCORE_CAIUTC_OFF]
++
++	/* Initialize SRAM, as BootROM did us no favours */
++//	bl sram_init
++
+ 	ret
+ endfunc plat_reset_handler
+ 
++
+ /* Set SMPEN bit on u-boot's behalf */
+ func s32g_smp_fixup
+ 	mrs x14, S3_1_c15_c2_1
+@@ -44,6 +50,7 @@ func s32g_smp_fixup
+ 	ret
+ endfunc s32g_smp_fixup
+ 
++
+ /* Clobber list: x0,x1,x7,x8
+  */
+ func plat_is_my_cpu_primary
+@@ -55,6 +62,7 @@ func plat_is_my_cpu_primary
+ 	ret
+ endfunc plat_is_my_cpu_primary
+ 
++
+ /* Out: x0
+  * Clobber list: x0,x1,x8
+  */
+@@ -79,6 +87,7 @@ func s32g_core_pos_by_mpidr
+ 	ret
+ endfunc s32g_core_pos_by_mpidr
+ 
++
+ /* Clobber list: x7 */
+ func plat_core_pos_by_mpidr
+ 	mov	x7, x30
+diff --git a/plat/s32g/s32g_pinctrl.c b/plat/s32g/s32g_pinctrl.c
+index 66103db3d..8d1e3a31c 100644
+--- a/plat/s32g/s32g_pinctrl.c
++++ b/plat/s32g/s32g_pinctrl.c
+@@ -10,6 +10,7 @@
+ 
+ static void linflex_config_pinctrl(int lf)
+ {
++	asm volatile ("b	.");
+ 	assert(lf == 0);
+ 
+ 	/* set PC09 - MSCR[41] - for UART0 TXD */
+-- 
+2.17.1
+

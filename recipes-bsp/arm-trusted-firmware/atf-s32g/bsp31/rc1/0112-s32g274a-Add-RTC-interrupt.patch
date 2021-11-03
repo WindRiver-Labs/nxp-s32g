@@ -1,0 +1,197 @@
+From 9c681f956b36e8c9444683484896c7ef468df8ce Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Sat, 22 Feb 2020 12:37:15 +0200
+Subject: [PATCH 112/269] s32g274a: Add RTC interrupt
+
+Route RTC interrupt to A53_0 at EL3 so we wake up from wfi.
+Allow the secondary cores to receive the SGI in order to wake from wfi
+and proceed all the way to the kernel.
+
+NOTE - Work In Progress: apparently the secondary core's context is not
+completely restored, so that it eventually crashes inside the kernel,
+in secondary_start_kernel() at the first operation with the stack.
+While this issue is being debugged, the boot process of the secondaries
+is stopped short inside the TF-A via a branch-to-self.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4910
+Issue: ALB-4909
+---
+ plat/s32g/include/platform_def.h |  7 +++
+ plat/s32g/s32g275_bl31.c         |  2 +
+ plat/s32g/s32g_psci.c            | 76 ++++++++++++++++++++++++++++++--
+ 3 files changed, 82 insertions(+), 3 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index cbb69bf5d..bc5785858 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -89,6 +89,8 @@
+ #define S32G275_GIC_SIZE	0x100000
+ /* SGI to use for kicking the secondary cores out of wfi */
+ #define S32G_SECONDARY_WAKE_SGI	15
++/* RTC interrupt (used to wake the system from low-power states) */
++#define S32G_RTC_INT		153
+ 
+ #define S32G_XRDC_BASE		0x401A4000
+ #define S32G_XRDC_SIZE		0x10000
+@@ -120,6 +122,11 @@
+ #define SSRAM_CSR_BACKUP_SIZE	(1024)
+ #define SSRAM_CSR_BACKUP	(BL1_RO_BASE - SSRAM_CSR_BACKUP_SIZE)
+ 
++/* RTC definitions space */
++#define S32G_RTC_BASE		0x40060000
++#define RTC_RTCS_OFFSET		0x8
++#define RTC_RTCS_RTCF		BIT(29)
++
+ /* Top of the 4GB of physical memory, accessible through the
+  * extended memory map.
+  */
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index fbe6426e4..1d2720e4a 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -67,6 +67,8 @@ static uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
+ static const interrupt_prop_t interrupt_props[] = {
+ 	INTR_PROP_DESC(S32G_SECONDARY_WAKE_SGI, GIC_HIGHEST_SEC_PRIORITY,
+ 		       INTR_GROUP0, GIC_INTR_CFG_EDGE),
++	INTR_PROP_DESC(S32G_RTC_INT, GIC_HIGHEST_SEC_PRIORITY,
++		       INTR_GROUP0, GIC_INTR_CFG_EDGE),
+ };
+ 
+ static unsigned int plat_s32g275_mpidr_to_core_pos(unsigned long mpidr);
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index 56a5622b8..cdca6e884 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -11,10 +11,12 @@
+ #include <common/debug.h>	/* printing macros such as INFO() */
+ #include <plat/common/platform.h>
+ #include <drivers/arm/gicv3.h>
++#include <lib/mmio.h>
+ 
+ #include "s32g_ncore.h"
+ #include "s32g_mc_me.h"
+ #include "platform_def.h"
++#include "s32g_lowlevel.h"	/* plat_is_my_cpu_primary() */
+ 
+ IMPORT_SYM(unsigned long, __BL31_START__, bl31_start);
+ IMPORT_SYM(unsigned long, __BL31_END__, bl31_end);
+@@ -75,7 +77,8 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	return PSCI_E_SUCCESS;
+ }
+ 
+-/** Executed by the woken (secondary) core after it exits the wfi holding pen.
++/** Executed by the woken (secondary) core after it exits the wfi holding pen
++ *  during cold boot.
+  */
+ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ {
+@@ -92,15 +95,72 @@ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ 			     __func__, intid, S32G_SECONDARY_WAKE_SGI);
+ 		gicv3_clear_interrupt_pending(intid, pos);
+ 	}
++
++	write_scr_el3(read_scr_el3() & ~SCR_IRQ_BIT);
+ }
+ 
+ /* Temp fixups to work around the fact that we are not really powering down
+  * the SoC upon suspend (not yet). Place here all necessary fixups, so we can
+  * easily revert them.
++ *
++ * This should only be executed by the primary core, the one expecting
++ * to take the wake-up interrupt.
+  */
+ static void s32g_pwr_down_wfi_fixups(void)
+ {
+ 	disable_mmu_el3();
++
++	/* The primary core needs to wait for the RTC interrupt. The secondary
++	 * cores need a similar configuration, but for the wakeup SGI.
++	 * This all assumes the RTC is routed *by PE*, to the primary core.A
++	 *
++	 * Also mask the exception in D,A,I,F so we wake from wfi without
++	 * having to handle the exception immediately.
++	 */
++	if (plat_is_my_cpu_primary()) {
++		write_scr_el3(read_scr_el3() | SCR_FIQ_BIT);
++		disable_fiq();
++	} else {
++		write_scr_el3(read_scr_el3() | SCR_IRQ_BIT);
++		disable_irq();
++	}
++}
++
++static void s32g_rtc_acknowledge_irq(void)
++{
++	mmio_write_32(S32G_RTC_BASE + RTC_RTCS_OFFSET, RTC_RTCS_RTCF);
++}
++
++static void s32g_primary_resume_post_wfi_fixups(void)
++{
++	/* Clear and acknowledge RTC interrupt that woke us up */
++	s32g_rtc_acknowledge_irq();
++	gicv3_acknowledge_interrupt();
++	/* ICC_CTLR_EL3[EOImode_EL3] is 0, interrupt is both priority-dropped
++	 * and deactivated.
++	 */
++	gicv3_end_of_interrupt(S32G_RTC_INT);
++
++	/* Wake up the secondaries, which are still in wfi */
++	NOTICE("S32G TF-A: waking up secondaries...\n");
++	plat_ic_raise_el3_sgi(S32G_SECONDARY_WAKE_SGI, 0x80000001);
++	plat_ic_raise_el3_sgi(S32G_SECONDARY_WAKE_SGI, 0x80000100);
++	plat_ic_raise_el3_sgi(S32G_SECONDARY_WAKE_SGI, 0x80000101);
++}
++
++static void s32g_secondary_resume_post_wfi_fixups(void)
++{
++	const unsigned int intid = S32G_SECONDARY_WAKE_SGI;
++	int pos = plat_my_core_pos();
++
++	gicv3_clear_interrupt_pending(intid, pos);
++
++	write_scr_el3(read_scr_el3() & ~SCR_IRQ_BIT);
++	/* disable NS interrupts until the kernel is ready to process them */
++	write_icc_igrpen1_el3(read_icc_igrpen1_el3() &
++			      ~IGRPEN1_EL3_ENABLE_G1NS_BIT);
++
++	return;
+ }
+ 
+ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+@@ -115,7 +175,6 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 	 * and instead *expect* to return from wfi rather than panicking as
+ 	 * psci_power_down_wfi() does.
+ 	 */
+-
+ 	s32g_pwr_down_wfi_fixups();
+ 
+ 	/*
+@@ -123,8 +182,19 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 	 */
+ 	dsb();
+ 	wfi();
+-	bl31_warm_entrypoint();
+ 
++	if (plat_is_my_cpu_primary())
++		s32g_primary_resume_post_wfi_fixups();
++	else {
++		s32g_secondary_resume_post_wfi_fixups();
++		/* FIXME temporarily prevent the secondary core from
++		 * progressing; as it stands, it will successfully execute
++		 * inside the kernel space, but will crash eventually.
++		 */
++		asm volatile ("b	.");
++	}
++
++	bl31_warm_entrypoint();
+ 	plat_panic_handler();
+ }
+ 
+-- 
+2.17.1
+

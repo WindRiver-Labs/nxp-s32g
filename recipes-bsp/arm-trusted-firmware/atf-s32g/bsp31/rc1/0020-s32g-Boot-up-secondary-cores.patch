@@ -1,0 +1,538 @@
+From 99eac6f33d7c06d7fa4779c6abbbb9e53c1a4915 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Tue, 16 Apr 2019 15:56:53 +0300
+Subject: [PATCH 020/269] s32g: Boot up secondary cores
+
+Configure the secondary cores so we can have SMP in Linux after cold
+boot.
+Some MC_ME and MC_RGM support is required to kick the secondary cores
+out of reset. The cores are then held in a wfe loop and woken by the
+primary CPU when Linux calls psci_cpu_on() during kernel boot.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3704
+---
+ plat/s32g/include/mc.h           |  81 +++++++++++++++++++++
+ plat/s32g/include/platform_def.h |  10 +--
+ plat/s32g/mc.c                   | 118 +++++++++++++++++++++++++++++++
+ plat/s32g/platform.mk            |   1 +
+ plat/s32g/s32g275_bl31.c         | 103 ++++++++++++++++++---------
+ plat/s32g/s32g_helpers.S         |  24 ++++++-
+ plat/s32g/s32g_psci.c            |  16 ++++-
+ 7 files changed, 314 insertions(+), 39 deletions(-)
+ create mode 100644 plat/s32g/include/mc.h
+ create mode 100644 plat/s32g/mc.c
+
+diff --git a/plat/s32g/include/mc.h b/plat/s32g/include/mc.h
+new file mode 100644
+index 000000000..cda632595
+--- /dev/null
++++ b/plat/s32g/include/mc.h
+@@ -0,0 +1,81 @@
++/*
++ * Magic Carpet (MC) modules definitions for S32G274A and compatible SoCs
++ *
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef __S32G_MC_ME_H__
++#define __S32G_MC_ME_H__
++
++#include "platform_def.h"
++
++/*
++ * MC Mode Entry
++ */
++
++#define S32G_MC_ME_BASE_ADDR	0x40088000ul
++#define S32G_MC_ME_SIZE		0x1000ul
++
++#define S32G_MC_ME_PRIMARY_CORE_MASK	((1ul << S32G_PLAT_PRIMARY_CPU) & 0xF)
++#define S32G_MC_ME_SECONDARY_CORE_MASK	(~S32G_MC_ME_PRIMARY_CORE_MASK & 0xF)
++
++/* CTL_KEY register */
++#define S32G_MC_ME_CTL_KEY		S32G_MC_ME_BASE_ADDR
++#define S32G_MC_ME_CTL_KEY_KEY		0x00005AF0
++#define S32G_MC_ME_CTL_KEY_INVERTEDKEY	0x0000A50F
++
++/* PRTNn registers */
++#define S32G_MC_ME_PRTN_N_BASE(n) \
++	(S32G_MC_ME_BASE_ADDR + 0x100 + (n) * 0x200)
++#define S32G_MC_ME_PRTN_N_PCONF(n) \
++	(S32G_MC_ME_PRTN_N_BASE(n) + 0x4)
++#define S32G_MC_ME_PRTN_N_PUPD(n) \
++	(S32G_MC_ME_PRTN_N_BASE(n) + 0x8)
++/* PRTNn_PCONF[PCE] mask */
++#define S32G_MC_ME_PRTN_N_PCONF_PCE_MASK	0x1ul
++/* PRTNn_PUPD[PCUD] mask */
++#define S32G_MC_ME_PRTN_N_PUPD_PCUD_MASK	0x1ul
++
++/* PRTNn_COREm registers */
++#define S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m) \
++	(S32G_MC_ME_BASE_ADDR + 0x140 + (n) * 0x200 + (m) * 0x20)
++#define S32G_MC_ME_PRTN_N_CORE_M_ADDR(n, m) \
++	(S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m) + 0xc)
++#define S32G_MC_ME_PRTN_N_CORE_M_PCONF(n, m) \
++	S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m)
++#define S32G_MC_ME_PRTN_N_CORE_M_PUPD(n, m) \
++	(S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m) + 0x4)
++#define S32G_MC_ME_PRTN_N_CORE_M_STAT(n, m) \
++	(S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m) + 0x8)
++/* PRTNn_COREm_PCONF[CCE] mask */
++#define S32G_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK		0x1ul
++/* PRTNn_COREm_PUPD[CCUPD] mask */
++#define S32G_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK	0x1ul
++/* PRTNn_COREm_STAT[CCS] mask */
++#define S32G_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK		0x1ul
++
++#define S32G_MC_ME_CA53_PART	1
++
++/*
++ * MC Reset Generation Module
++ */
++#define S32G_MC_RGM_BASE_ADDR	0x40078000ul
++#define S32G_MC_RGM_SIZE	0x1000ul
++#define S32G_MC_RGM_PRST_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x40)
++#define S32G_MC_RGM_PSTAT_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x140)
++/* Peripheral reset */
++#define S32G_MC_RGM_PRST(p)	(S32G_MC_RGM_PRST_BASE_ADDR + 0x8 * p)
++#define S32G_MC_RGM_PSTAT(p)	(S32G_MC_RGM_PSTAT_BASE_ADDR + 0x8 * p)
++
++/* Software-resettable domain/partition 1: CA53 cores */
++#define S32G_MC_RGM_RST_DOMAIN_CA53	1
++/* Bit corresponding to CA53_n in the cores' RGM reset partition (n=0..3) */
++#define S32G_MC_RGM_RST_CA53_BIT(n)	BIT(n + 1)
++/* The entire domain defined by S32G_MC_RGM_RST_DOMAIN_CA53 can be reset */
++#define S32G_MC_RGM_RST_CA53_PART_BIT	BIT(0)
++
++void s32g_kick_secondary_ca53_cores(void);
++
++
++#endif /* __S32G_MC_ME_H__ */
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 50d2d618e..37e4412f7 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -26,7 +26,7 @@
+ #define S32G_MPIDR_CPU_CLUSTER_MASK	0xFFF
+ /* Cluster mask is the most significant 0xF from the CPU_CLUSTER_MASK */
+ #define S32G_MPIDR_CLUSTER_SHIFT	U(8)
+-#define S32G_PLAT_PRIMARY_CPU		0x0	/* Cluster 0, cpu 0*/
++#define S32G_PLAT_PRIMARY_CPU		0x0u	/* Cluster 0, cpu 0*/
+ 
+ #define S32G_CACHE_WRITEBACK_SHIFT	6
+ #define CACHE_WRITEBACK_GRANULE		(1 << S32G_CACHE_WRITEBACK_SHIFT)
+@@ -130,9 +130,9 @@
+ #endif
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+-/* FIXME revisit these */
+-#define MAX_MMAP_REGIONS		6
+-#define MAX_XLAT_TABLES			6
++/* To limit usage, keep these in sync with sizeof(s32g_mmap) */
++#define MAX_MMAP_REGIONS		8
++#define MAX_XLAT_TABLES			8
+ #endif
+ #if defined IMAGE_BL33
+ #pragma warning "BL33 image is being built; you should configure it out."
+@@ -174,6 +174,8 @@ int console_s32g_putc(int c, struct console_s32g *console);
+ int console_s32g_flush(struct console_s32g *console);
+ int xrdc_enable(void *xrdc_addr);
+ int plat_core_pos_by_mpidr(u_register_t mpidr);
++int plat_is_my_cpu_primary(void);
+ void s32g_smp_fixup(void);
++void s32g_gic_setup(void);
+ #endif /* __ASSEMBLY__ */
+ #endif /* PLATFORM_DEF_H */
+diff --git a/plat/s32g/mc.c b/plat/s32g/mc.c
+new file mode 100644
+index 000000000..28036893d
+--- /dev/null
++++ b/plat/s32g/mc.c
+@@ -0,0 +1,118 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <utils_def.h>
++#include <lib/mmio.h>
++#include <common/debug.h>
++#include "mc.h"
++
++
++void plat_secondary_cold_boot_setup(void);
++
++/**
++ * PRTNn_COREm accessors for less finger-twitching
++ */
++static void mc_me_part_core_addr_write(uint32_t val, uint32_t part,
++				       uint32_t core)
++{
++	mmio_write_32(S32G_MC_ME_PRTN_N_CORE_M_ADDR(part, core), val);
++}
++
++static void mc_me_part_core_pconf_write_cce(uint32_t cce_bit, uint32_t p,
++					    uint32_t c)
++{
++	uint32_t pconf;
++
++	pconf = mmio_read_32(S32G_MC_ME_PRTN_N_CORE_M_PCONF(p, c)) &
++			~S32G_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK;
++	pconf |= (cce_bit & S32G_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK);
++	mmio_write_32(S32G_MC_ME_PRTN_N_CORE_M_PCONF(p, c), pconf);
++}
++
++static void mc_me_part_core_pupd_write_ccupd(uint32_t ccupd_bit, uint32_t p,
++					    uint32_t c)
++{
++	uint32_t pupd;
++
++	pupd = mmio_read_32(S32G_MC_ME_PRTN_N_CORE_M_PUPD(p, c)) &
++			~S32G_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK;
++	pupd |= (ccupd_bit & S32G_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK);
++	mmio_write_32(S32G_MC_ME_PRTN_N_CORE_M_PUPD(p, c), pupd);
++}
++
++static void mc_me_part_pconf_write_pce(uint32_t pce_bit, uint32_t p)
++{
++	uint32_t pconf;
++
++	pconf = mmio_read_32(S32G_MC_ME_PRTN_N_PCONF(p) &
++			~S32G_MC_ME_PRTN_N_PCONF_PCE_MASK);
++	pconf |= (pce_bit & S32G_MC_ME_PRTN_N_PCONF_PCE_MASK);
++	mmio_write_32(S32G_MC_ME_PRTN_N_PCONF(p), pconf);
++}
++
++static void mc_me_part_pupd_write_pcud(uint32_t pcud_bit, uint32_t p)
++{
++	uint32_t pupd;
++
++	pupd = mmio_read_32(S32G_MC_ME_PRTN_N_PCONF(p) &
++			~S32G_MC_ME_PRTN_N_PUPD_PCUD_MASK);
++	pupd |= (pcud_bit & S32G_MC_ME_PRTN_N_PUPD_PCUD_MASK);
++	mmio_write_32(S32G_MC_ME_PRTN_N_PCONF(p), pupd);
++}
++
++static void mc_me_apply_hw_changes(void)
++{
++	mmio_write_32(S32G_MC_ME_CTL_KEY, S32G_MC_ME_CTL_KEY_KEY);
++	mmio_write_32(S32G_MC_ME_CTL_KEY, S32G_MC_ME_CTL_KEY_INVERTEDKEY);
++}
++
++/** Reset and initialize secondary A53 core identified by its number
++ *  in one of the MC_ME partitions
++ */
++static void s32g_kick_secondary_ca53_core(uint32_t part, uint32_t core)
++{
++	uintptr_t core_start_addr = (uintptr_t)&plat_secondary_cold_boot_setup;
++	uint32_t reset;
++	uint32_t status = 0;
++
++	/* The MC_ME provides the 32 low-order bits for the core's
++	 * start address
++	 */
++	mc_me_part_core_addr_write((uint32_t)core_start_addr, part, core);
++
++	/* Reset the requested secondary core */
++	/* TODO: shouldn't this come last, after configuring the reset addr? */
++	reset = mmio_read_32(S32G_MC_RGM_PRST(S32G_MC_RGM_RST_DOMAIN_CA53));
++	reset &= ~(S32G_MC_RGM_RST_CA53_BIT(core));
++	mmio_write_32(S32G_MC_RGM_PRST(S32G_MC_RGM_RST_DOMAIN_CA53), reset);
++
++	/* Enable clock and make changes effective */
++	mc_me_part_core_pconf_write_cce(1, part,
++			core & S32G_MC_ME_SECONDARY_CORE_MASK);
++	mc_me_part_core_pupd_write_ccupd(1, part,
++			core & S32G_MC_ME_SECONDARY_CORE_MASK);
++	mc_me_apply_hw_changes();
++
++	/* Wait for the hardware to update state */
++	while ((status & S32G_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK) == 0) {
++		status = mmio_read_32(S32G_MC_ME_PRTN_N_CORE_M_STAT(part,
++					core & S32G_MC_ME_SECONDARY_CORE_MASK));
++	}
++}
++
++/** Reset and initialize all secondary A53 cores
++ */
++void s32g_kick_secondary_ca53_cores(void)
++{
++	/* Enable partition clocks */
++	mc_me_part_pconf_write_pce(1, S32G_MC_ME_CA53_PART);
++	mc_me_part_pupd_write_pcud(1, S32G_MC_ME_CA53_PART);
++	mc_me_apply_hw_changes();
++
++	/* TODO read secondary core IDs dynamically */
++	s32g_kick_secondary_ca53_core(S32G_MC_ME_CA53_PART, 1);
++	s32g_kick_secondary_ca53_core(S32G_MC_ME_CA53_PART, 2);
++	s32g_kick_secondary_ca53_core(S32G_MC_ME_CA53_PART, 3);
++}
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 98537d000..a694ac048 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -19,6 +19,7 @@ PLAT_BL_COMMON_SOURCES	+= ${XLAT_TABLES_LIB_SRCS}
+ 
+ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   plat/s32g/s32g_psci.c \
++			   plat/s32g/mc.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   drivers/arm/gic/v3/gicv3_main.c \
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index f258f2adb..65303fba5 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -13,9 +13,8 @@
+ 
+ #include "platform_def.h"
+ #include "s32g_psci.h"
++#include "mc.h"
+ 
+-IMPORT_SYM(uintptr_t, __RO_START__, BL31_RO_START);
+-IMPORT_SYM(uintptr_t, __RO_END__, BL31_RO_END);
+ IMPORT_SYM(uintptr_t, __RW_START__, BL31_RW_START);
+ IMPORT_SYM(uintptr_t, __RW_END__, BL31_RW_END);
+ 
+@@ -28,14 +27,33 @@ static const mmap_region_t s32g_mmap[] = {
+ 			MT_DEVICE | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_PMEM_START, S32G_PMEM_LEN,
+ 			MT_MEMORY | MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(S32G_MC_ME_BASE_ADDR, S32G_MC_ME_SIZE,
++			MT_DEVICE | MT_RW),
++	MAP_REGION_FLAT(S32G_MC_RGM_BASE_ADDR, S32G_MC_RGM_SIZE,
++			MT_DEVICE | MT_RW),
+ 	{0},
+ };
+ 
+ static entry_point_info_t bl33_image_ep_info;
+ 
++static uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
++
++static const interrupt_prop_t interrupt_props[] = {};
++
++static unsigned int plat_s32g275_mpidr_to_core_pos(unsigned long mpidr);
+ /* Declare it here to avoid including plat/common/platform.h */
+ unsigned int plat_my_core_pos(void);
+ 
++const gicv3_driver_data_t s32g275_gic_data = {
++	.gicd_base = PLAT_GICD_BASE,
++	.gicr_base = PLAT_GICR_BASE,
++	.rdistif_num = PLATFORM_CORE_COUNT,
++	.rdistif_base_addrs = rdistif_base_addrs,
++	.interrupt_props = interrupt_props,
++	.interrupt_props_num = ARRAY_SIZE(interrupt_props),
++	.mpidr_to_core_pos = plat_s32g275_mpidr_to_core_pos,
++};
++
+ 
+ static uint32_t s32g_get_spsr_for_bl33_entry(void)
+ {
+@@ -87,29 +105,68 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 
+ static void s32g_el3_mmu_fixup(void)
+ {
+-	unsigned long rw_start = BL31_RW_START;
+-	unsigned long rw_size = BL31_RW_END - BL31_RW_START;
+-	unsigned long code_start = BL_CODE_BASE;
+-	unsigned long code_size = BL_CODE_END - BL_CODE_BASE;
+-
++	const unsigned long code_start = BL_CODE_BASE;
++	const unsigned long code_size = BL_CODE_END - BL_CODE_BASE;
++	const unsigned long rw_start = BL31_RW_START;
++	const unsigned long rw_size = BL31_RW_END - BL31_RW_START;
++	mmap_region_t regions[] = {
++		{
++			.base_pa = code_start,
++			.base_va = code_start,
++			.size = code_size,
++			.attr = MT_CODE | MT_SECURE,
++		},
++		{
++			.base_pa = rw_start,
++			.base_va = rw_start,
++			.size = rw_size,
++			.attr = MT_RW | MT_MEMORY | MT_SECURE,
++		},
++	};
++	int i;
++
++	/* The calls to mmap_add_region() consume mmap regions,
++	 * so they must be counted in the static asserts
++	 */
++	_Static_assert(ARRAY_SIZE(s32g_mmap) + ARRAY_SIZE(regions) - 1 <=
++		       MAX_MMAP_REGIONS,
++		       "Fewer MAX_MMAP_REGIONS than in s32g_mmap will likely "
++		       "result in a MMU exception at runtime");
++	_Static_assert(ARRAY_SIZE(s32g_mmap) + ARRAY_SIZE(regions) - 1 <=
++		       MAX_XLAT_TABLES,
++		       "Fewer MAX_XLAT_TABLES than in s32g_mmap will likely "
++		       "result in a MMU exception at runtime");
+ 	/* MMU initialization; while technically not necessary on cold boot,
+ 	 * it is required for warm boot path processing
+ 	 */
+-	mmap_add_region(code_start, code_start, code_size,
+-		MT_CODE | MT_SECURE);
+-	mmap_add_region(rw_start, rw_start, rw_size,
+-		MT_RW | MT_MEMORY | MT_SECURE);
++	for (i = 0; i < ARRAY_SIZE(regions); i++)
++		mmap_add_region(regions[i].base_pa, regions[i].base_va,
++				regions[i].size, regions[i].attr);
++
+ 	mmap_add(s32g_mmap);
+ 
+ 	init_xlat_tables();
+ 	enable_mmu_el3(0);
+ }
+ 
+-void bl31_plat_arch_setup(void)
++void s32g_gic_setup(void)
+ {
++	if (plat_is_my_cpu_primary()) {
++#if IMAGE_BL31
++		gicv3_driver_init(&s32g275_gic_data);
++#endif
++		gicv3_distif_init();
++	}
++	gicv3_rdistif_init(plat_my_core_pos());
++	gicv3_cpuif_enable(plat_my_core_pos());
++}
+ 
++void bl31_plat_arch_setup(void)
++{
+ 	s32g_smp_fixup();
+ 	s32g_el3_mmu_fixup();
++	/* kick secondary cores out of reset (but will leave them in wfe) */
++	s32g_kick_secondary_ca53_cores();
+ }
+ 
+ static unsigned int plat_s32g275_mpidr_to_core_pos(unsigned long mpidr)
+@@ -117,29 +174,9 @@ static unsigned int plat_s32g275_mpidr_to_core_pos(unsigned long mpidr)
+ 	return (unsigned int)plat_core_pos_by_mpidr(mpidr);
+ }
+ 
+-static uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
+-
+-static const interrupt_prop_t interrupt_props[] = {};
+-
+-const gicv3_driver_data_t s32g275_gic_data = {
+-	.gicd_base = PLAT_GICD_BASE,
+-	.gicr_base = PLAT_GICR_BASE,
+-	.rdistif_num = PLATFORM_CORE_COUNT,
+-	.rdistif_base_addrs = rdistif_base_addrs,
+-	.interrupt_props = interrupt_props,
+-	.interrupt_props_num = ARRAY_SIZE(interrupt_props),
+-	.mpidr_to_core_pos = plat_s32g275_mpidr_to_core_pos,
+-};
+-
+ void bl31_platform_setup(void)
+ {
+-#if IMAGE_BL31
+-	gicv3_driver_init(&s32g275_gic_data);
+-#endif
+-
+-	gicv3_distif_init();
+-	gicv3_rdistif_init(plat_my_core_pos());
+-	gicv3_cpuif_enable(plat_my_core_pos());
++	s32g_gic_setup();
+ }
+ 
+ /* Last-minute modifications before exiting BL31:
+diff --git a/plat/s32g/s32g_helpers.S b/plat/s32g/s32g_helpers.S
+index 9b598b7d8..c0110d62a 100644
+--- a/plat/s32g/s32g_helpers.S
++++ b/plat/s32g/s32g_helpers.S
+@@ -20,6 +20,7 @@
+ 
+ .globl s32g_smp_fixup
+ 
++.globl s32g_core_release_var;
+ 
+ /* Set SMPEN bit on u-boot's behalf */
+ func s32g_smp_fixup
+@@ -53,8 +54,29 @@ func plat_my_core_pos
+ 	ret
+ endfunc plat_my_core_pos
+ 
++/*
++ * Clobber list: x7, x8
++ */
+ func plat_secondary_cold_boot_setup
+-	b	.
++	dsb	sy
++	ldr	x7, =s32g_core_release_var
++	bl	plat_my_core_pos
++	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
++pen:
++	/* index with current core id */
++	ldr	w8, [x7, x0]
++	cbnz	w8, wfi_done
++	/* TODO: replace these with a wfi and use an SGI to wake the core */
++	sevl
++	wfe
++	wfe
++	b	pen
++wfi_done:
++	/* reset condition variable */
++	mov	x8, #0
++	str	w8, [x7, x0]
++	/* point of no return */
++	b	bl31_warm_entrypoint
+ endfunc plat_secondary_cold_boot_setup
+ 
+ func platform_mem_init
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index 3589adc63..46a9e0d5d 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -9,6 +9,7 @@
+ #include <assert.h>
+ #include <common/debug.h>	/* printing macros such as INFO() */
+ #include <plat/common/platform.h>
++
+ #include "platform_def.h"
+ 
+ IMPORT_SYM(unsigned long, __BL31_START__, bl31_start);
+@@ -17,6 +18,8 @@ IMPORT_SYM(unsigned long, __BL31_END__, bl31_end);
+ /* See firmware-design, psci-lib-integration-guide for details */
+ static uintptr_t warmboot_entry;
+ 
++uint32_t s32g_core_release_var[PLATFORM_CORE_COUNT];
++
+ /* FIXME revisit tree composition */
+ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 	PLATFORM_SYSTEM_COUNT,
+@@ -27,13 +30,24 @@ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 
+ static int s32g_pwr_domain_on(u_register_t mpidr)
+ {
+-	NOTICE("S32G TF-A: %s\n", __func__);
++	int pos;
++
++	pos = plat_core_pos_by_mpidr(mpidr);
++	NOTICE("S32G TF-A: %s: booting up core %d\n", __func__, pos);
++
++	s32g_core_release_var[pos] = 1;
++	dsbsy();
++	sev();
++
+ 	return PSCI_E_SUCCESS;
+ }
+ 
+ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ {
+ 	NOTICE("S32G TF-A: %s\n", __func__);
++	/* At cold boot, the primary core has already done this. */
++	s32g_smp_fixup();
++	s32g_gic_setup();
+ }
+ 
+ /* Temp fixups to work around the fact that we are not really powering down
+-- 
+2.17.1
+

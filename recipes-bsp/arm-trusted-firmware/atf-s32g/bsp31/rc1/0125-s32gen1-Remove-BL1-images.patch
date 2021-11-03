@@ -1,0 +1,337 @@
+From d760bdfe217eb7996438f15c86c0964161320fd7 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 18 May 2020 12:43:02 +0300
+Subject: [PATCH 125/269] s32gen1: Remove BL1 images
+
+Issue: ALB-4907
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/export/common/tbbr/tbbr_img_def_exp.h | 11 +--
+ plat/s32g/include/platform_def.h              | 20 +----
+ plat/s32g/include/s32g_storage.h              |  3 +-
+ plat/s32g/s32g274a_bl2_el3.c                  | 75 ++++---------------
+ plat/s32g/s32g274a_storage.c                  | 75 +------------------
+ 5 files changed, 19 insertions(+), 165 deletions(-)
+
+diff --git a/include/export/common/tbbr/tbbr_img_def_exp.h b/include/export/common/tbbr/tbbr_img_def_exp.h
+index 5e84783d0..18f012513 100644
+--- a/include/export/common/tbbr/tbbr_img_def_exp.h
++++ b/include/export/common/tbbr/tbbr_img_def_exp.h
+@@ -91,16 +91,7 @@
+ /* FW_CONFIG */
+ #define FW_CONFIG_ID			U(31)
+ 
+-/* IVT and Application Boot Code Header */
+-#define S32G_SRAM_IVT_ABC_ID		U(32)
+-#define S32G_STANDBY_SRAM_IVT_ABC_ID	U(33)
+-
+-/* Resume path bootstrap code resident in Standby SRAM */
+-#define S32G_SRAM_BOOTSTRAP_CODE_ID		U(34)
+-#define S32G_STANDBY_SRAM_BOOTSTRAP_CODE_ID	U(35)
+-
+ /* Max Images */
+-#define MAX_IMAGE_IDS			U(36)
+-
++#define MAX_IMAGE_IDS			U(32)
+ 
+ #endif /* ARM_TRUSTED_FIRMWARE_EXPORT_COMMON_TBBR_TBBR_IMG_DEF_EXP_H */
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 777f7224b..898810da7 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -103,24 +103,8 @@
+ #define S32G_SRAM_END		(S32G_SRAM_BASE + S32G_SRAM_SIZE)
+ 
+ #define S32G_SSRAM_BASE		(0x24000000)
+-#define S32G_SSRAM_LIMIT	(0x24008000)
+-
+-#define BL1_RO_BASE		(S32G_SSRAM_BASE + PAGE_SIZE)
+-#define BL1_RO_LIMIT		(S32G_SSRAM_LIMIT)
+-#define BL1_RW_BASE		(S32G_SRAM_BASE)
+-#define BL1_RW_LIMIT		(BL1_RW_BASE + 0x10000)
+-
+-#define MMC_BL1_IVT_ABC_BASE		(0x113000)
+-#define BL1_IVT_ABC_SIZE		(1024)
+-#define SRAM_BL1_IVT_ABC_BASE		(S32G_SRAM_BASE)
+-#define SSRAM_BL1_IVT_ABC_BASE		(S32G_SSRAM_BASE)
+-
+-#define MMC_BL1_RO_BASE			(MMC_BL1_IVT_ABC_BASE + 1024)
+-#define BL1_BOOTSTRAP_CODE_SIZE		(BL1_RO_LIMIT - BL1_RO_BASE)
+-#define SRAM_BL1_RO_BASE		(S32G_SRAM_BASE + 1024)
+-
+-#define SSRAM_CSR_BACKUP_SIZE	(1024)
+-#define SSRAM_CSR_BACKUP	(BL1_RO_BASE - SSRAM_CSR_BACKUP_SIZE)
++#define S32G_SSRAM_SIZE		(0x8000)
++#define S32G_SSRAM_LIMIT	(S32G_SSRAM_BASE + S32G_SSRAM_SIZE)
+ 
+ /* RTC definitions space */
+ #define S32G_RTC_BASE		0x40060000
+diff --git a/plat/s32g/include/s32g_storage.h b/plat/s32g/include/s32g_storage.h
+index 372f2b5a0..eb833201c 100644
+--- a/plat/s32g/include/s32g_storage.h
++++ b/plat/s32g/include/s32g_storage.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -8,7 +8,6 @@
+ 
+ enum s32g_boot_source {
+ 	S32G_MMC_BOOT,
+-	S32G_SRAM_BOOT,
+ 	/* TODO add FIP, QSPI, SD/MMC */
+ };
+ 
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index daab4296b..9d4a05a2d 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -17,8 +17,10 @@
+ #include "s32g_storage.h"
+ #include "s32g_mc_rgm.h"
+ #include "s32g_mc_me.h"
++#include "bl31_ssram.h"
+ #include <nxp/s32g/ddr/ddrss.h>
+ #include <drivers/generic_delay_timer.h>
++#include <ssram_mailbox.h>
+ 
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[] = {
+ 	{
+@@ -49,65 +51,8 @@ static bl_mem_params_node_t s32g_bl2_mem_params_descs[] = {
+ 				      image_info_t, 0),
+ 		.image_info.image_max_size = S32G_BL33_IMAGE_SIZE,
+ 		.image_info.image_base = S32G_BL33_IMAGE_BASE,
+-		.next_handoff_image_id = S32G_SRAM_IVT_ABC_ID,
+-	},
+-
+-	{
+-		.image_id = S32G_SRAM_IVT_ABC_ID,
+-
+-		SET_STATIC_PARAM_HEAD(ep_info, PARAM_EP, VERSION_2,
+-				      entry_point_info_t,
+-				      NON_SECURE | EXECUTABLE),
+-
+-		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+-				      image_info_t, 0),
+-		.image_info.image_max_size = BL1_IVT_ABC_SIZE,
+-		.image_info.image_base = SRAM_BL1_IVT_ABC_BASE,
+-		.next_handoff_image_id = S32G_SRAM_BOOTSTRAP_CODE_ID,
+-	},
+-
+-	{
+-		.image_id = S32G_SRAM_BOOTSTRAP_CODE_ID,
+-
+-		SET_STATIC_PARAM_HEAD(ep_info, PARAM_EP, VERSION_2,
+-				      entry_point_info_t,
+-				      NON_SECURE | EXECUTABLE),
+-
+-		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+-				      image_info_t, 0),
+-		.image_info.image_max_size = BL1_BOOTSTRAP_CODE_SIZE,
+-		.image_info.image_base = SRAM_BL1_RO_BASE,
+-		.next_handoff_image_id = S32G_STANDBY_SRAM_IVT_ABC_ID,
+-	},
+-
+-	{
+-		.image_id = S32G_STANDBY_SRAM_IVT_ABC_ID,
+-
+-		SET_STATIC_PARAM_HEAD(ep_info, PARAM_EP, VERSION_2,
+-				      entry_point_info_t,
+-				      NON_SECURE | EXECUTABLE),
+-
+-		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+-				      image_info_t, 0),
+-		.image_info.image_max_size = BL1_IVT_ABC_SIZE,
+-		.image_info.image_base = SSRAM_BL1_IVT_ABC_BASE,
+-		.next_handoff_image_id = S32G_STANDBY_SRAM_BOOTSTRAP_CODE_ID,
+-	},
+-
+-	{
+-		.image_id = S32G_STANDBY_SRAM_BOOTSTRAP_CODE_ID,
+-
+-		SET_STATIC_PARAM_HEAD(ep_info, PARAM_EP, VERSION_2,
+-				      entry_point_info_t,
+-				      NON_SECURE | EXECUTABLE),
+-
+-		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+-				      image_info_t, 0),
+-		.image_info.image_max_size = BL1_BOOTSTRAP_CODE_SIZE,
+-		.image_info.image_base = BL1_RO_BASE,
+ 		.next_handoff_image_id = INVALID_IMAGE_ID,
+ 	},
+-
+ 	{
+ 		.image_id = INVALID_IMAGE_ID,
+ 		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+@@ -185,18 +130,26 @@ enum reset_cause get_reset_cause(void)
+ 	return CAUSE_ERROR;
+ }
+ 
++static void copy_bl31ssram_image(void)
++{
++	/* Copy bl31 ssram stage. This includes IVT */
++	memcpy((void *)S32G_SSRAM_BASE, bl31ssram, bl31ssram_len);
++}
++
+ void bl2_el3_plat_arch_setup(void)
+ {
+ 	static struct console_s32g console;
++	void sram_clr(uintptr_t start, size_t size);
+ 	extern struct ddrss_conf ddrss_conf;
+ 	extern struct ddrss_firmware ddrss_firmware;
+-	extern void sram_clr(uintptr_t start, size_t size);
+ 
+ 	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+ 			      S32G_UART_BAUDRATE, &console);
+ 
+-	sram_clr(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT);
+-	ddrss_init(&ddrss_conf, &ddrss_firmware);
++	sram_clr(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE);
++	copy_bl31ssram_image();
++	/* This will also populate CSR section from bl31ssram */
++	ddrss_init(&ddrss_conf, &ddrss_firmware, BL31SSRAM_CSR_BASE);
+ }
+ 
+ REGISTER_BL_IMAGE_DESCS(s32g_bl2_mem_params_descs)
+diff --git a/plat/s32g/s32g274a_storage.c b/plat/s32g/s32g274a_storage.c
+index 8cbb0dfde..674adafa6 100644
+--- a/plat/s32g/s32g274a_storage.c
++++ b/plat/s32g/s32g274a_storage.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -19,11 +19,8 @@
+ 
+ static const io_dev_connector_t *s32g_mmc_io_dev;
+ static uintptr_t s32g_mmc_boot_dev_handle;
+-static const io_dev_connector_t *s32g_sram_io_dev;
+-static uintptr_t s32g_sram_boot_dev_handle;
+ 
+ static int s32g_check_mmc_dev(const uintptr_t spec);
+-static int s32g_check_sram_dev(const uintptr_t spec);
+ 
+ static const io_block_spec_t bl31_mmc_spec = {
+ 	.offset = BL31_MMC_OFFSET,
+@@ -35,26 +32,6 @@ static const io_block_spec_t bl33_mmc_spec = {
+ 	.length = ROUND_TO_MMC_BLOCK_SIZE(BL33_MMC_SIZE),
+ };
+ 
+-static const io_block_spec_t bl1_ivt_abc_mmc_spec = {
+-	.offset = MMC_BL1_IVT_ABC_BASE,
+-	.length = ROUND_TO_MMC_BLOCK_SIZE(BL1_IVT_ABC_SIZE),
+-};
+-
+-static const io_block_spec_t bl1_bootstrap_code_mmc_spec = {
+-	.offset = MMC_BL1_RO_BASE,
+-	.length = ROUND_TO_MMC_BLOCK_SIZE(BL1_BOOTSTRAP_CODE_SIZE),
+-};
+-
+-static const io_block_spec_t bl1_ivt_abc_sram_spec = {
+-	.offset = SRAM_BL1_IVT_ABC_BASE,
+-	.length = BL1_IVT_ABC_SIZE,
+-};
+-
+-static const io_block_spec_t bl1_bootstrap_code_sram_spec = {
+-	.offset = SRAM_BL1_RO_BASE,
+-	.length = BL1_BOOTSTRAP_CODE_SIZE,
+-};
+-
+ static const struct plat_io_policy s32g_policies[] = {
+ 	[BL31_IMAGE_ID] = {
+ 		&s32g_mmc_boot_dev_handle,
+@@ -66,26 +43,6 @@ static const struct plat_io_policy s32g_policies[] = {
+ 		(uintptr_t)&bl33_mmc_spec,
+ 		s32g_check_mmc_dev
+ 	},
+-	[S32G_SRAM_IVT_ABC_ID] = {
+-		&s32g_mmc_boot_dev_handle,
+-		(uintptr_t)&bl1_ivt_abc_mmc_spec,
+-		s32g_check_mmc_dev
+-	},
+-	[S32G_SRAM_BOOTSTRAP_CODE_ID] = {
+-		&s32g_mmc_boot_dev_handle,
+-		(uintptr_t)&bl1_bootstrap_code_mmc_spec,
+-		s32g_check_mmc_dev
+-	},
+-	[S32G_STANDBY_SRAM_IVT_ABC_ID] = {
+-		&s32g_sram_boot_dev_handle,
+-		(uintptr_t)&bl1_ivt_abc_sram_spec,
+-		s32g_check_sram_dev
+-	},
+-	[S32G_STANDBY_SRAM_BOOTSTRAP_CODE_ID] = {
+-		&s32g_sram_boot_dev_handle,
+-		(uintptr_t)&bl1_bootstrap_code_sram_spec,
+-		s32g_check_sram_dev
+-	},
+ };
+ 
+ static int s32g_check_mmc_dev(const uintptr_t spec)
+@@ -102,20 +59,6 @@ static int s32g_check_mmc_dev(const uintptr_t spec)
+ 	return 0;
+ }
+ 
+-static int s32g_check_sram_dev(const uintptr_t spec)
+-{
+-	uintptr_t local_handle;
+-	int ret;
+-
+-	ret = io_open(s32g_sram_boot_dev_handle, spec, &local_handle);
+-	if (ret)
+-		return ret;
+-	/* must be closed, as load_image() will do another io_open() */
+-	io_close(local_handle);
+-
+-	return 0;
+-}
+-
+ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+ 			  uintptr_t *image_spec)
+ {
+@@ -163,21 +106,6 @@ static void plat_s32g_io_setup(enum s32g_boot_source boot_source)
+ 
+ 		break;
+ 
+-	case S32G_SRAM_BOOT:
+-		handle = s32g_sram_boot_dev_handle;
+-
+-		if (register_io_dev_memmap(&s32g_sram_io_dev))
+-			goto err_register;
+-
+-		if (io_dev_open(s32g_sram_io_dev,
+-				(uintptr_t)&bl1_ivt_abc_sram_spec,
+-				&s32g_sram_boot_dev_handle))
+-			goto err_io_dev_open;
+-
+-		if (io_dev_init(s32g_sram_boot_dev_handle, 0))
+-			goto err_io_dev_init;
+-
+-		break;
+ 	default:
+ 		ERROR("Unknown boot source: %d", boot_source);
+ 		goto err_boot_source;
+@@ -196,5 +124,4 @@ err_register:
+ void s32g_io_setup(void)
+ {
+ 	plat_s32g_io_setup(S32G_MMC_BOOT);
+-	plat_s32g_io_setup(S32G_SRAM_BOOT);
+ }
+-- 
+2.17.1
+

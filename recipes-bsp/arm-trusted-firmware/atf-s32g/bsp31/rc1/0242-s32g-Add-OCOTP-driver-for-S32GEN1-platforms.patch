@@ -1,0 +1,278 @@
+From 9942f6db29a2d8a1f4187a388e16d535febeaaa2 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 25 Jun 2021 13:19:50 +0300
+Subject: [PATCH 242/269] s32g: Add OCOTP driver for S32GEN1 platforms
+
+This is a minimal support with read operation only.
+
+Issue: ALB-7128
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ocotp.c         | 154 +++++++++++++++++++++++++++++++
+ include/drivers/nxp/s32g/ocotp.h |  21 +++++
+ plat/nxp/s32g/platform.mk        |   1 +
+ plat/nxp/s32g/s32g_bl31.c        |  30 ++++++
+ 4 files changed, 206 insertions(+)
+ create mode 100644 drivers/nxp/s32g/ocotp.c
+ create mode 100644 include/drivers/nxp/s32g/ocotp.h
+
+diff --git a/drivers/nxp/s32g/ocotp.c b/drivers/nxp/s32g/ocotp.c
+new file mode 100644
+index 000000000..fef55af31
+--- /dev/null
++++ b/drivers/nxp/s32g/ocotp.c
+@@ -0,0 +1,154 @@
++// SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
++/*
++ * Copyright 2021 NXP
++ */
++#include "s32g_dt.h"
++#include <common/debug.h>
++#include <drivers/nxp/s32g/ocotp.h>
++#include <lib/libc/errno.h>
++#include <lib/libc/stdbool.h>
++#include <lib/libc/stddef.h>
++#include <lib/mmio.h>
++#include <lib/utils_def.h>
++
++#define OCOTP_WORD(X)		BIT(X)
++#define OCOTP_WORD_RANGE(L, H)	GENMASK(H, L)
++
++#define CTRL_SYS		0x0
++#define   CTRL_AUTH_KEY		(0x12 << 16)
++#define   CTRL_RD_WR(X)		((X) << 2)
++#define   CTRL_READ_FUSE	1
++#define ADDR_SYS		0x4
++#define RDATA_SYS		0xC
++#define STATUS_SYS		0x50
++#define   STATUS_BUSY		BIT(0)
++#define   STATUS_CRC_FAIL	BIT(1)
++#define   STATUS_ERROR		BIT(2)
++
++struct s32gen1_ocotp {
++	struct dt_node_info dt_info;
++};
++
++struct s32gen1_fuse_map {
++	const uint32_t *map;
++	size_t n_banks;
++};
++
++static const uint32_t s32g_fuse_map[] = {
++	[0] = OCOTP_WORD_RANGE(2, 6),
++	[1] = OCOTP_WORD_RANGE(5, 7),
++	[2] = OCOTP_WORD_RANGE(0, 4),
++	[4] = OCOTP_WORD(6),
++	[5] = OCOTP_WORD_RANGE(1, 2),
++	[6] = OCOTP_WORD(7),
++	[7] = OCOTP_WORD_RANGE(0, 1),
++	[11] = OCOTP_WORD_RANGE(0, 7),
++	[12] = OCOTP_WORD_RANGE(0, 2) | OCOTP_WORD(7),
++	[13] = OCOTP_WORD_RANGE(2, 4),
++	[14] = OCOTP_WORD(1) | OCOTP_WORD(4) | OCOTP_WORD(5),
++	[15] = OCOTP_WORD_RANGE(5, 7),
++};
++
++static const struct s32gen1_fuse_map s32g_map = {
++	.map = s32g_fuse_map,
++	.n_banks = ARRAY_SIZE(s32g_fuse_map),
++};
++
++static struct s32gen1_ocotp gocotp = {
++	. dt_info = {
++		.status = DT_DISABLED,
++	},
++};
++
++static uint32_t get_bank_index(int offset)
++{
++	return (offset - S32GEN1_OCOTP_BANK_OFFSET) / S32GEN1_OCOTP_BANK_SIZE;
++}
++
++static uint32_t get_word_index(int offset)
++{
++	return offset % S32GEN1_OCOTP_BANK_SIZE / S32GEN1_OCOTP_WORD_SIZE;
++}
++
++static bool is_valid_word(const struct s32gen1_fuse_map *map,
++			  uint32_t bank, uint32_t word)
++{
++	if (bank >= map->n_banks)
++		return false;
++
++	return !!(map->map[bank] & OCOTP_WORD(word));
++}
++
++static uint32_t wait_if_busy(uintptr_t base)
++{
++	uint32_t status;
++
++	do {
++		status = mmio_read_32(base + STATUS_SYS);
++	} while (status & STATUS_BUSY);
++
++	return status;
++}
++
++static int read_ocotp(uintptr_t base, uint32_t reg, uint32_t *val)
++{
++	uint32_t status;
++
++	status = wait_if_busy(base);
++
++	if (status & STATUS_ERROR) {
++		mmio_write_32(base + STATUS_SYS, status);
++
++		status = wait_if_busy(base);
++	}
++
++	status = mmio_read_32(base + STATUS_SYS);
++	if (status & STATUS_ERROR) {
++		ERROR("Failed to clear OCOTP\n");
++		return -EIO;
++	}
++
++	mmio_write_32(base + ADDR_SYS, reg);
++	mmio_write_32(base + CTRL_SYS,
++		      CTRL_AUTH_KEY | CTRL_RD_WR(CTRL_READ_FUSE));
++
++	status = wait_if_busy(base);
++	if (status & STATUS_ERROR)
++		return -EIO;
++
++	*val = mmio_read_32(base + RDATA_SYS);
++
++	return 0;
++}
++
++int s32gen1_ocotp_read(int offset, uint32_t *val)
++{
++	uint32_t bank, word;
++
++	if (gocotp.dt_info.status != DT_ENABLED)
++		return -ENXIO;
++
++	if (offset < 0)
++		return -EINVAL;
++
++	bank = get_bank_index(offset);
++	word = get_word_index(offset);
++
++	if (!is_valid_word(&s32g_map, bank, word)) {
++		ERROR("OCOTP: [bank %u word %u] is not a valid fuse\n",
++			bank, word);
++		return -EINVAL;
++	}
++
++	return read_ocotp(gocotp.dt_info.base, offset, val);
++}
++
++int s32gen1_ocotp_init(void *fdt, int fdt_offset)
++{
++	/* Register active nodes only */
++	dt_fill_device_info(&gocotp.dt_info, fdt_offset);
++	if (gocotp.dt_info.status != DT_ENABLED)
++		return -ENXIO;
++
++	return 0;
++}
+diff --git a/include/drivers/nxp/s32g/ocotp.h b/include/drivers/nxp/s32g/ocotp.h
+new file mode 100644
+index 000000000..cc45b519f
+--- /dev/null
++++ b/include/drivers/nxp/s32g/ocotp.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause */
++/*
++ * Copyright 2021 NXP
++ */
++#ifndef S32GEN1_OCOTP_H
++#define S32GEN1_OCOTP_H
++
++#include <lib/libc/stdint.h>
++
++#define S32GEN1_OCOTP_BANK_OFFSET	0x200U
++#define S32GEN1_OCOTP_BANK_SIZE		0x20U
++#define S32GEN1_OCOTP_WORD_SIZE		0x4U
++
++/* Bank 0, word 6 */
++#define S32GEN1_OCOTP_DIE_PROCESS_ADDR	0x218
++#define S32GEN1_OCOTP_DIE_PROCESS_MASK	0x3
++
++int s32gen1_ocotp_init(void *fdt, int fdt_offset);
++int s32gen1_ocotp_read(int offset, uint32_t *val);
++
++#endif
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index b8f993699..b64bf1f09 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -84,6 +84,7 @@ BL31_SOURCES		+= plat/nxp/s32g/s32g_bl31.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   lib/utils/crc8.c \
++			   drivers/nxp/s32g/ocotp.c \
+ 			   drivers/nxp/s32g/pmic/vr5510.c \
+ 			   drivers/nxp/s32g/s32g_wkpu.c \
+ 			   drivers/nxp/s32g/clk/clk.c \
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index ab4cd31c0..0d8922988 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -14,6 +14,7 @@
+ #include <plat/common/platform.h>
+ 
+ #include "drivers/generic_delay_timer.h"
++#include "ocotp.h"
+ #include "platform_def.h"
+ #include "pmic/vr5510.h"
+ #include "s32g_pm.h"
+@@ -330,6 +331,34 @@ static void dt_init_wkpu(void)
+ 	}
+ }
+ 
++static void dt_init_ocotp(void)
++{
++	void *fdt;
++	int ocotp_node;
++	int ret;
++
++	if (dt_open_and_check() < 0) {
++		INFO("ERROR fdt check\n");
++		return;
++	}
++
++	if (fdt_get_address(&fdt) == 0) {
++		INFO("ERROR fdt\n");
++		return;
++	}
++
++	ocotp_node = fdt_node_offset_by_compatible(fdt, -1,
++			"fsl,s32g-ocotp");
++	if (ocotp_node == -1)
++		return;
++
++	ret = s32gen1_ocotp_init(fdt, ocotp_node);
++	if (ret) {
++		INFO("Failed to initialize WKPU\n");
++		return;
++	}
++}
++
+ void bl31_plat_arch_setup(void)
+ {
+ 	s32g_smp_fixup();
+@@ -406,6 +435,7 @@ void bl31_platform_setup(void)
+ 
+ 	dt_init_pmic();
+ 	dt_init_wkpu();
++	dt_init_ocotp();
+ 
+ 	ret = pmic_disable_wdg();
+ 	if (ret)
+-- 
+2.17.1
+

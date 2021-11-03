@@ -1,0 +1,330 @@
+From 4c9326bb9e688412a0a3b405fe1848ee3f0da3db Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 23 Mar 2021 09:17:14 +0200
+Subject: [PATCH 221/269] s32g: Add SCMI reset domain implementation
+
+Issue: ALB-6624
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/rst/s32gen1_rst.c            | 112 ++++++++++++++++++
+ .../drivers/nxp/s32g/clk/s32gen1_scmi_clk.h   |   4 +-
+ .../drivers/nxp/s32g/clk/s32gen1_scmi_rst.h   |  13 ++
+ plat/nxp/s32g/platform.mk                     |   2 +
+ plat/nxp/s32g/s32g_scmi_clk.c                 |   2 -
+ plat/nxp/s32g/s32g_scmi_rst.c                 |  88 ++++++++++++++
+ plat/nxp/s32g/s32g_svc.c                      |   3 +-
+ 7 files changed, 220 insertions(+), 4 deletions(-)
+ create mode 100644 drivers/nxp/s32g/rst/s32gen1_rst.c
+ create mode 100644 include/drivers/nxp/s32g/clk/s32gen1_scmi_rst.h
+ create mode 100644 plat/nxp/s32g/s32g_scmi_rst.c
+
+diff --git a/drivers/nxp/s32g/rst/s32gen1_rst.c b/drivers/nxp/s32g/rst/s32gen1_rst.c
+new file mode 100644
+index 000000000..01f865b2b
+--- /dev/null
++++ b/drivers/nxp/s32g/rst/s32gen1_rst.c
+@@ -0,0 +1,112 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2021 NXP
++ */
++#include <clk/clk.h>
++#include <clk/mc_rgm_regs.h>
++#include <clk/s32gen1_clk_modules.h>
++#include <clk/s32gen1_scmi_clk.h>
++#include <lib/mmio.h>
++#include <drivers/delay_timer.h>
++
++#define S32GEN1_RESET_TIMEOUT_US	(1000)
++
++#define spin_until_cond(COND, TIMEOUT_US)		\
++do {							\
++	uint64_t _timeout = timeout_init_us(TIMEOUT_US);\
++	do {						\
++		if (COND)				\
++			break;				\
++	} while (!timeout_elapsed(_timeout));		\
++} while (0)
++
++static bool in_reset(uintptr_t pstat, uint32_t mask, bool asserted)
++{
++	bool res;
++
++	if (asserted)
++		res = !!(mmio_read_32(pstat) & mask);
++	else
++		res = !(mmio_read_32(pstat) & mask);
++
++	return res;
++}
++
++static int get_reset_regs(unsigned long id, uintptr_t rgm,
++			  uintptr_t *prst, uintptr_t *pstat)
++{
++	uint32_t rgm_set;
++
++	/* MC_RGM valid reset IDs */
++	switch (id) {
++	case 0 ... 17:
++		rgm_set = 0;
++		break;
++	case 64 ... 68:
++		rgm_set = 1;
++		break;
++	case 128 ... 130:
++		rgm_set = 2;
++		break;
++	case 192 ... 194:
++		rgm_set = 3;
++		break;
++	default:
++		ERROR("Wrong reset id: %lu\n", id);
++		return -EINVAL;
++	};
++
++	*prst = RGM_PRST(rgm, rgm_set);
++	*pstat = RGM_PSTAT(rgm, rgm_set);
++
++	return 0;
++}
++
++static int s32gen1_assert_rgm(uintptr_t rgm, bool asserted, uint32_t id)
++{
++	uintptr_t prst, pstat;
++	uint32_t id_offset = id % 32;
++	uint32_t prst_val, stat_mask = PSTAT_PERIPH_n_STAT(id_offset);
++	const char *msg;
++	int ret;
++
++	ret = get_reset_regs(id, rgm, &prst, &pstat);
++	if (ret)
++		return ret;
++
++	prst_val = mmio_read_32(prst);
++	if (asserted) {
++		msg = "assert";
++		prst_val |= PRST_PERIPH_n_RST(id_offset);
++	} else {
++		msg = "deassert";
++		prst_val &= ~PRST_PERIPH_n_RST(id_offset);
++	}
++
++	mmio_write_32(prst, prst_val);
++	spin_until_cond(in_reset(pstat, stat_mask, asserted),
++			S32GEN1_RESET_TIMEOUT_US);
++	if (asserted) {
++		if (mmio_read_32(pstat) & stat_mask)
++			return 0;
++	} else {
++		if (!(mmio_read_32(pstat) & stat_mask))
++			return 0;
++	}
++
++	ERROR("Failed to %s reset for id %u\n", msg, id);
++	return -EINVAL;
++}
++
++int s32gen1_reset_periph(uint32_t periph_id, bool assert)
++{
++	static struct clk_driver *drv;
++	struct s32gen1_clk_priv *priv;
++
++	if (!drv)
++		drv = get_clk_driver_by_name(S32GEN1_CLK_DRV_NAME);
++
++	priv = get_clk_drv_data(drv);
++
++	return s32gen1_assert_rgm((uintptr_t)priv->rgm, assert, periph_id);
++}
+diff --git a/include/drivers/nxp/s32g/clk/s32gen1_scmi_clk.h b/include/drivers/nxp/s32g/clk/s32gen1_scmi_clk.h
+index 1c222acb9..e860d3d46 100644
+--- a/include/drivers/nxp/s32g/clk/s32gen1_scmi_clk.h
++++ b/include/drivers/nxp/s32g/clk/s32gen1_scmi_clk.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: BSD-3-Clause */
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ #ifndef S32GEN1_SCMI_CLK_H
+ #define S32GEN1_SCMI_CLK_H
+@@ -9,6 +9,8 @@
+ #include <stdint.h>
+ #include <stdbool.h>
+ 
++#define S32GEN1_CLK_DRV_NAME	"clks"
++
+ #define SCMI_ARRAY_ENTRY(ID, PLAT_ID, NAME) \
+ 	[INDEX(ID)] = { .plat_id = (PLAT_ID), .name = (NAME), }
+ 
+diff --git a/include/drivers/nxp/s32g/clk/s32gen1_scmi_rst.h b/include/drivers/nxp/s32g/clk/s32gen1_scmi_rst.h
+new file mode 100644
+index 000000000..cf0a82b25
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/s32gen1_scmi_rst.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2021 NXP
++ */
++#ifndef S32GEN1_SCMI_RST_H
++#define S32GEN1_SCMI_RST_H
++
++#include <stdint.h>
++
++int s32gen1_reset_periph(uint32_t periph_id, bool assert);
++
++#endif
++
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index c9ae5750f..23fa2471a 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -49,6 +49,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/clk/plat_clk.c \
+ 			   drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   drivers/nxp/s32g/clk/s32gen1_clk.c \
++			   drivers/nxp/s32g/rst/s32gen1_rst.c \
+ 			   drivers/nxp/s32g/clk/set_par_rate.c \
+ 			   drivers/nxp/uart/linflexuart.c \
+ 			   lib/cpus/aarch64/cortex_a53.S\
+@@ -77,6 +78,7 @@ BL31_SOURCES		+= plat/nxp/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32g/s32g_vr5510.c \
+ 			   plat/nxp/s32g/s32g_svc.c \
+ 			   plat/nxp/s32g/s32g_scmi_clk.c \
++			   plat/nxp/s32g/s32g_scmi_rst.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   lib/utils/crc8.c \
+diff --git a/plat/nxp/s32g/s32g_scmi_clk.c b/plat/nxp/s32g/s32g_scmi_clk.c
+index 86a4c2d0a..6ef86e956 100644
+--- a/plat/nxp/s32g/s32g_scmi_clk.c
++++ b/plat/nxp/s32g/s32g_scmi_clk.c
+@@ -12,8 +12,6 @@
+ #include <errno.h>
+ #include <lib/utils_def.h>
+ 
+-#define S32GEN1_CLK_DRV_NAME	"clks"
+-
+ #ifndef S32GEN1_CLK_MAX_AGENTS
+ #define S32GEN1_CLK_MAX_AGENTS	2
+ #endif
+diff --git a/plat/nxp/s32g/s32g_scmi_rst.c b/plat/nxp/s32g/s32g_scmi_rst.c
+new file mode 100644
+index 000000000..53a486d91
+--- /dev/null
++++ b/plat/nxp/s32g/s32g_scmi_rst.c
+@@ -0,0 +1,88 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/* Copyright 2021 NXP */
++#include <cdefs.h>
++#include <common/debug.h>
++#include <drivers/st/scmi.h>
++#include <drivers/st/scmi-msg.h>
++#include <dt-bindings/reset/s32g-scmi-reset.h>
++#include <clk/s32gen1_scmi_rst.h>
++
++struct reset_entry {
++	const char *name;
++	uint32_t id;
++	bool part;
++};
++
++#define PART_RESET(ID, NAME) \
++{ .part = true, .id = (ID), .name = (NAME) }
++
++#define PERIPH_RESET(ID, NAME) \
++{ .part = false, .id = (ID), .name = NAME }
++
++static const struct reset_entry reset_table[] = {
++	/* Partitions */
++	[S32GEN1_SCMI_RST_PART0] = PART_RESET(0, "partition0"),
++	[S32GEN1_SCMI_RST_PART1] = PART_RESET(1, "partition1"),
++	[S32GEN1_SCMI_RST_PART2] = PART_RESET(2, "partition2"),
++	[S32GEN1_SCMI_RST_PART3] = PART_RESET(3, "partition3"),
++	/* Peripherals. See Reset chapter from RM */
++	[S32GEN1_SCMI_RST_CM7_0] = PERIPH_RESET(0, "cm7_0"),
++	[S32GEN1_SCMI_RST_CM7_1] = PERIPH_RESET(1, "cm7_1"),
++	[S32GEN1_SCMI_RST_CM7_2] = PERIPH_RESET(2, "cm7_2"),
++	[S32GEN1_SCMI_RST_DDR] = PERIPH_RESET(3, "ddr"),
++	[S32GEN1_SCMI_RST_PCIE0] = PERIPH_RESET(4, "pcie0"),
++	[S32GEN1_SCMI_RST_SERDES0] = PERIPH_RESET(5, "serdes0"),
++	[S32GEN1_SCMI_RST_PCIE1] = PERIPH_RESET(16, "pcie1"),
++	[S32GEN1_SCMI_RST_SERDES1] = PERIPH_RESET(17, "serdes1"),
++	[S32GEN1_SCMI_RST_A53_0] = PERIPH_RESET(65, "a53_0"),
++	[S32GEN1_SCMI_RST_A53_1] = PERIPH_RESET(66, "a53_1"),
++	[S32GEN1_SCMI_RST_A53_2] = PERIPH_RESET(67, "a53_2"),
++	[S32GEN1_SCMI_RST_A53_3] = PERIPH_RESET(68, "a53_3"),
++	[S32G_SCMI_RST_PFE] = PERIPH_RESET(128, "pfe"),
++	[S32G_SCMI_RST_LLCE] = PERIPH_RESET(192, "llce"),
++};
++
++uint32_t get_reset_block(uint32_t scmi_id)
++{
++	return reset_table[scmi_id].id;
++}
++
++
++size_t plat_scmi_rstd_count(unsigned int agent_id __unused)
++{
++	return ARRAY_SIZE(reset_table);
++}
++
++const char *plat_scmi_rstd_get_name(unsigned int agent_id __unused,
++				    unsigned int scmi_id)
++{
++	if (scmi_id >= ARRAY_SIZE(reset_table))
++		return NULL;
++
++	return reset_table[scmi_id].name;
++}
++
++int32_t plat_scmi_rstd_autonomous(unsigned int agent_id __unused,
++				  unsigned int scmi_id __unused,
++				  unsigned int state __unused)
++{
++	return SCMI_NOT_SUPPORTED;
++}
++
++int32_t plat_scmi_rstd_set_state(unsigned int agent_id __unused,
++				 unsigned int scmi_id,
++				 bool assert_not_deassert)
++{
++	int ret;
++
++	if (scmi_id >= ARRAY_SIZE(reset_table))
++		return SCMI_OUT_OF_RANGE;
++
++	ret = s32gen1_reset_periph(get_reset_block(scmi_id),
++				   assert_not_deassert);
++	if (ret)
++		return SCMI_HARDWARE_ERROR;
++
++	return SCMI_SUCCESS;
++}
++
+diff --git a/plat/nxp/s32g/s32g_svc.c b/plat/nxp/s32g/s32g_svc.c
+index 759dbd1cd..651e2a696 100644
+--- a/plat/nxp/s32g/s32g_svc.c
++++ b/plat/nxp/s32g/s32g_svc.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -38,6 +38,7 @@ struct response {
+ static const uint8_t s32g_protocols[] = {
+ 	SCMI_PROTOCOL_ID_BASE,
+ 	SCMI_PROTOCOL_ID_CLOCK,
++	SCMI_PROTOCOL_ID_RESET_DOMAIN,
+ };
+ 
+ const char *plat_scmi_vendor_name(void)
+-- 
+2.17.1
+

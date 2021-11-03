@@ -1,0 +1,73 @@
+From 0b2c4bf193128134e2290d07e6c93ce443bad769 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 2 Jul 2020 14:33:16 +0300
+Subject: [PATCH 134/269] s32g: Use saved entry point for secondary cores
+
+Current version of the implementation uses a hard-coded value
+(bl31_warm_entrypoint) as entry point for secondary cores.
+
+This can lead to unexpected results when the framework
+uses a custom entry point.
+
+This commit saves the entry point during plat_setup_psci_ops
+callback and uses it as part of plat_secondary_cold_boot_setup.
+
+Issue: ALB-4909
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/bl31_lowlevel.S | 6 ++++--
+ plat/s32g/s32g_psci.c     | 7 ++++---
+ 2 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/plat/s32g/bl31_lowlevel.S b/plat/s32g/bl31_lowlevel.S
+index a57f6583d..092141699 100644
+--- a/plat/s32g/bl31_lowlevel.S
++++ b/plat/s32g/bl31_lowlevel.S
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -206,5 +206,7 @@ wfi_done:
+ 	bl	plat_my_core_pos	/* x0: my core index */
+ 	bl	wait_ncore_caiu_online
+ 	/* point of no return */
+-	b	bl31_warm_entrypoint
++	ldr	x7, =s32g_warmboot_entry
++	ldr	x7, [x7]
++	br	x7
+ endfunc plat_secondary_cold_boot_setup
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index 6ccdf5fa1..3b01b26f2 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -27,9 +27,10 @@ IMPORT_SYM(unsigned long, __BL31_START__, bl31_start);
+ IMPORT_SYM(unsigned long, __BL31_END__, bl31_end);
+ 
+ /* See firmware-design, psci-lib-integration-guide for details */
+-static uintptr_t warmboot_entry;
++/* Used by plat_secondary_cold_boot_setup */
++uintptr_t s32g_warmboot_entry;
+ 
+-uint32_t s32g_core_release_var[PLATFORM_CORE_COUNT];
++volatile uint32_t s32g_core_release_var[PLATFORM_CORE_COUNT];
+ 
+ /* FIXME revisit tree composition */
+ static const unsigned char s32g_power_domain_tree_desc[] = {
+@@ -422,7 +423,7 @@ const plat_psci_ops_t s32g_psci_pm_ops = {
+ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
+ 			const plat_psci_ops_t **psci_ops)
+ {
+-	warmboot_entry = sec_entrypoint;
++	s32g_warmboot_entry = sec_entrypoint;
+ 
+ 	*psci_ops = &s32g_psci_pm_ops;
+ 
+-- 
+2.17.1
+

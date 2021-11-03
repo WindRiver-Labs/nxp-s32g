@@ -1,0 +1,125 @@
+From d6e431f6da9075aabca696c19c42617188fcc85f Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 22 Oct 2021 07:50:56 +0300
+Subject: [PATCH 05/16] s32g: emu: Skip STR related features
+
+This skips everything that's related to STR image loading
+because it is not available on emulator.
+
+Issue: ALB-7712
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/s32g_bl2_el3.c | 22 ++++++++++++++++------
+ plat/nxp/s32/s32g/s32g_psci.c    |  4 ++++
+ 2 files changed, 20 insertions(+), 6 deletions(-)
+
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index e6f59dd3a..808409741 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -507,12 +507,7 @@ enum reset_cause get_reset_cause(void)
+ 	return CAUSE_ERROR;
+ }
+ 
+-static void copy_bl31ssram_image(void)
+-{
+-	/* Copy bl31 ssram stage. This includes IVT */
+-	memcpy((void *)S32G_SSRAM_BASE, bl31ssram, bl31ssram_len);
+-}
+-
++#if S32G_EMU == 0
+ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ {
+ 	s32g_warm_entrypoint_t resume_entrypoint;
+@@ -527,6 +522,7 @@ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ 
+ 	resume_entrypoint();
+ }
++#endif
+ 
+ #define MMU_ROUND_UP_TO_4K(x)	\
+ 			(((x) & ~0xfff) == (x) ? (x) : ((x) & ~0xfff) + 0x1000)
+@@ -627,6 +623,8 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ {
+ 	size_t index;
+ 	bl_mem_params_node_t *params = s32g_bl2_mem_params_descs;
++	/* No resume on emulator */
++#if S32G_EMU == 0
+ 	struct s32g_ssram_mailbox *ssram_mb = (void *)BL31SSRAM_MAILBOX;
+ 
+ 	if ((get_reset_cause() == CAUSE_WAKEUP_DURING_STANDBY) &&
+@@ -635,6 +633,7 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 		resume_bl31(ssram_mb);
+ 		panic();
+ 	}
++#endif
+ 
+ 	s32g_early_plat_init(false);
+ 	console_s32g_register();
+@@ -650,12 +649,21 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	bl_mem_params_desc_num = index;
+ }
+ 
++#if S32G_EMU == 0
++static void copy_bl31ssram_image(void)
++{
++	/* Copy bl31 ssram stage. This includes IVT */
++	memcpy((void *)S32G_SSRAM_BASE, bl31ssram, bl31ssram_len);
++}
++#endif
++
+ void bl2_el3_plat_arch_setup(void)
+ {
+ 	uint32_t ret;
+ 
+ 	s32g_el3_mmu_fixup();
+ 
++#if S32G_EMU == 0
+ 	dt_init_ocotp();
+ 	dt_init_pmic();
+ 
+@@ -673,6 +681,8 @@ void bl2_el3_plat_arch_setup(void)
+ 	s32g_ssram_clear();
+ 
+ 	copy_bl31ssram_image();
++#endif
++
+ 	/* This will also populate CSR section from bl31ssram */
+ 	ret = ddr_init();
+ 	if (ret)
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32g/s32g_psci.c
+index d4eea0958..8b2a39240 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32g/s32g_psci.c
+@@ -103,6 +103,7 @@ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ 	write_scr_el3(read_scr_el3() & ~SCR_IRQ_BIT);
+ }
+ 
++#if S32G_EMU == 0
+ static void copy_bl31sram_image(void)
+ {
+ 	uint32_t npages;
+@@ -131,6 +132,7 @@ static void copy_bl31sram_image(void)
+ 	if (ret)
+ 		ERROR("Failed to change the attributes of BL31 SRAM memory\n");
+ }
++#endif
+ 
+ static void bl31sram_entry(void)
+ {
+@@ -218,7 +220,9 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 		plat_secondary_cold_boot_setup();
+ 	}
+ 
++#if S32G_EMU == 0
+ 	copy_bl31sram_image();
++#endif
+ 	platform_suspend(pos);
+ 
+ 	/* Unreachable code */
+-- 
+2.17.1
+

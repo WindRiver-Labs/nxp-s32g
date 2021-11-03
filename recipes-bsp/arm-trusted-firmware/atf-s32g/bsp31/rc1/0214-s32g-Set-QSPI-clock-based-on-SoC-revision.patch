@@ -1,0 +1,86 @@
+From 72ee1b6f58ba533cc16cd1d7d74c32ed2c260bbe Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 1 Feb 2021 14:33:06 +0200
+Subject: [PATCH 214/269] s32g: Set QSPI clock based on SoC revision
+
+Issue: ALB-6390
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/clk/early_clocks.c | 25 +++++++++++++++++++++++++
+ plat/nxp/s32g/include/s32g_clocks.h |  1 +
+ plat/nxp/s32g/s32g_bl31.c           |  1 +
+ 3 files changed, 27 insertions(+)
+
+diff --git a/drivers/nxp/s32g/clk/early_clocks.c b/drivers/nxp/s32g/clk/early_clocks.c
+index 1ac57e32f..65daed1f0 100644
+--- a/drivers/nxp/s32g/clk/early_clocks.c
++++ b/drivers/nxp/s32g/clk/early_clocks.c
+@@ -67,6 +67,9 @@ static struct clk mc_cgm0_mux14 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX14);
+ static struct clk lin_baud = CLK_INIT(S32GEN1_CLK_LIN_BAUD);
+ static struct clk sdhc = CLK_INIT(S32GEN1_CLK_SDHC);
+ 
++/* QSPI */
++static struct clk qspi2x = CLK_INIT(S32GEN1_CLK_QSPI_2X);
++
+ /* DDR clock */
+ static struct clk ddr_pll_mux = CLK_INIT(S32GEN1_CLK_DDR_PLL_MUX);
+ static struct clk ddr_pll_vco = CLK_INIT(S32GEN1_CLK_DDR_PLL_VCO);
+@@ -172,6 +175,28 @@ static int enable_sdhc_clock(void)
+ 	return s32gen1_enable(&sdhc, 1);
+ }
+ 
++int s32g_correct_qspi_clock(void)
++{
++	int ret;
++	unsigned long rate, freq;
++
++	if (is_s32gen1_soc_rev1())
++		freq = S32G274A_QSPI_FREQ * 2;
++	else
++		freq = S32G274A_REV2_QSPI_FREQ * 2;
++
++	ret = s32gen1_enable(&qspi2x, 0);
++	if (ret)
++		return ret;
++
++	rate = s32gen1_set_rate(&qspi2x, freq);
++	if (rate != freq)
++		return -EINVAL;
++
++	return s32gen1_enable(&qspi2x, 1);
++
++}
++
+ static int enable_ddr_clock(void)
+ {
+ 	int ret;
+diff --git a/plat/nxp/s32g/include/s32g_clocks.h b/plat/nxp/s32g/include/s32g_clocks.h
+index 7b62d890a..125c11415 100644
+--- a/plat/nxp/s32g/include/s32g_clocks.h
++++ b/plat/nxp/s32g/include/s32g_clocks.h
+@@ -346,6 +346,7 @@ void s32g_sw_clks2firc(void);
+ void s32g_disable_dfs(enum s32g_dfs_type dfs);
+ void s32g_disable_pll(enum s32g_pll_type pll, uint32_t ndivs);
+ void s32g_disable_fxosc(void);
++int s32g_correct_qspi_clock(void);
+ 
+ int sw_mux_clk_config(enum s32g_mc_cgm cgm, uint8_t mux, uint8_t source);
+ 
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 5cc17d3cf..85dc8130b 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -406,6 +406,7 @@ void bl31_platform_setup(void)
+ 	s32g_gic_setup();
+ 
+ 	dt_clk_init();
++	s32g_correct_qspi_clock();
+ 
+ 	generic_delay_timer_init();
+ 
+-- 
+2.17.1
+

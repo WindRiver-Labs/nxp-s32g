@@ -1,0 +1,149 @@
+From 358bc1ac5ecf047d70b40ede550d2d27bddfb7eb Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 3 Nov 2020 08:55:27 +0200
+Subject: [PATCH 186/269] scmi: base: Add implementation for reset agent
+ configuration
+
+Issue: ALB-5510
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/scmi-msg/base.c    | 31 +++++++++++++++++++++++++++++++
+ drivers/scmi-msg/base.h    | 14 ++++++++++++++
+ include/drivers/scmi-msg.h |  9 +++++++++
+ 3 files changed, 54 insertions(+)
+
+diff --git a/drivers/scmi-msg/base.c b/drivers/scmi-msg/base.c
+index 2d7203451..c2304d86d 100644
+--- a/drivers/scmi-msg/base.c
++++ b/drivers/scmi-msg/base.c
+@@ -2,6 +2,7 @@
+ /*
+  * Copyright (c) 2015-2019, Arm Limited and Contributors. All rights reserved.
+  * Copyright (c) 2019-2020, Linaro Limited
++ * Copyright 2020 NXP
+  */
+ #include <assert.h>
+ #include <string.h>
+@@ -13,8 +14,17 @@
+ 
+ #include "common.h"
+ 
++#define SCMI_RESET_FLAG_MASK 0x1
++
+ static bool message_id_is_supported(unsigned int message_id);
+ 
++#pragma weak plat_scmi_reset_agent
++
++int32_t plat_scmi_reset_agent(unsigned int agent_id)
++{
++	return 0;
++}
++
+ static void report_version(struct scmi_msg *msg)
+ {
+ 	struct scmi_protocol_version_p2a return_values = {
+@@ -168,6 +178,26 @@ static void discover_list_protocols(struct scmi_msg *msg)
+ 	scmi_write_response(msg, outargs, sizeof(outargs));
+ }
+ 
++static void reset_agent_config(struct scmi_msg *msg)
++{
++	const struct scmi_base_reset_agent_a2p *a2p = NULL;
++	struct scmi_base_reset_agent_p2a p2a = {
++		.status = SCMI_SUCCESS,
++	};
++
++	if (msg->in_size != sizeof(*a2p)) {
++		scmi_status_response(msg, SCMI_PROTOCOL_ERROR);
++		return;
++	}
++
++	a2p = (void *)msg->in;
++
++	if (a2p->flags & SCMI_RESET_FLAG_MASK)
++		p2a.status = plat_scmi_reset_agent(a2p->agent_id);
++
++	scmi_write_response(msg, &p2a, sizeof(p2a));
++}
++
+ static const scmi_msg_handler_t scmi_base_handler_table[] = {
+ 	[SCMI_PROTOCOL_VERSION] = report_version,
+ 	[SCMI_PROTOCOL_ATTRIBUTES] = report_attributes,
+@@ -177,6 +207,7 @@ static const scmi_msg_handler_t scmi_base_handler_table[] = {
+ 	[SCMI_BASE_DISCOVER_IMPLEMENTATION_VERSION] =
+ 					discover_implementation_version,
+ 	[SCMI_BASE_DISCOVER_LIST_PROTOCOLS] = discover_list_protocols,
++	[SCMI_BASE_RESET_AGENT_CONFIG] = reset_agent_config,
+ };
+ 
+ static bool message_id_is_supported(unsigned int message_id)
+diff --git a/drivers/scmi-msg/base.h b/drivers/scmi-msg/base.h
+index c4a9c64a4..85e84a5e7 100644
+--- a/drivers/scmi-msg/base.h
++++ b/drivers/scmi-msg/base.h
+@@ -2,6 +2,7 @@
+ /*
+  * Copyright (c) 2015-2019, Arm Limited and Contributors. All rights reserved.
+  * Copyright (c) 2019-2020, Linaro Limited
++ * Copyright 2020 NXP
+  */
+ 
+ #ifndef SCMI_MSG_BASE_H
+@@ -20,6 +21,7 @@ enum scmi_base_message_id {
+ 	SCMI_BASE_DISCOVER_LIST_PROTOCOLS		= 0x006,
+ 	SCMI_BASE_DISCOVER_AGENT			= 0x007,
+ 	SCMI_BASE_NOTIFY_ERRORS				= 0x008,
++	SCMI_BASE_RESET_AGENT_CONFIG			= 0x00b,
+ };
+ 
+ /*
+@@ -72,4 +74,16 @@ struct scmi_base_discover_list_protocols_p2a {
+ 	uint32_t protocols[];
+ };
+ 
++/**
++ * BASE_RESET_AGENT_CONFIGURATION
++ */
++struct scmi_base_reset_agent_a2p {
++	uint32_t agent_id;
++	uint32_t flags;
++};
++
++struct scmi_base_reset_agent_p2a {
++	int32_t status;
++};
++
+ #endif /* SCMI_MSG_BASE_H */
+diff --git a/include/drivers/scmi-msg.h b/include/drivers/scmi-msg.h
+index a9a99cf52..81730769d 100644
+--- a/include/drivers/scmi-msg.h
++++ b/include/drivers/scmi-msg.h
+@@ -2,6 +2,7 @@
+ /*
+  * Copyright (c) 2015-2019, Arm Limited and Contributors. All rights reserved.
+  * Copyright (c) 2019, Linaro Limited
++ * Copyright 2020 NXP
+  */
+ 
+ #ifndef SCMI_MSG_H
+@@ -82,6 +83,14 @@ size_t plat_scmi_protocol_count(void);
+  */
+ const uint8_t *plat_scmi_protocol_list(unsigned int agent_id);
+ 
++/*
++ * Reset platform resource settings that were previously configured by an agent
++ *
++ * @agent_id: SCMI agent ID
++ * Return an SCMI compliant error code
++ */
++int32_t plat_scmi_reset_agent(unsigned int agent_id);
++
+ /* Get the name of the SCMI vendor for the platform */
+ const char *plat_scmi_vendor_name(void);
+ 
+-- 
+2.17.1
+

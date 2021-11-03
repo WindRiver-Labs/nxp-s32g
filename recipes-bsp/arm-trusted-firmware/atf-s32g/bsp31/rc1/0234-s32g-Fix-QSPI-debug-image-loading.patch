@@ -1,0 +1,72 @@
+From 657a5637191a951d255d4e8f22b9a9cdf78792df Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Tue, 18 May 2021 13:12:43 +0300
+Subject: [PATCH 234/269] s32g: Fix QSPI debug image loading
+
+Issue: ALB-6995
+Upstream-Status: Pending 
+
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/s32g_storage.c | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/plat/nxp/s32g/s32g_storage.c b/plat/nxp/s32g/s32g_storage.c
+index 8a0347d9b..8ef43b86c 100644
+--- a/plat/nxp/s32g/s32g_storage.c
++++ b/plat/nxp/s32g/s32g_storage.c
+@@ -60,6 +60,7 @@ static const io_uuid_spec_t bl33_uuid_spec = {
+ 
+ static io_block_spec_t qspi_fip_memmap_spec = {
+ 	.offset = FIP_QSPI_OFFSET,
++	.length = FIP_MAXIMUM_SIZE,
+ };
+ 
+ static struct plat_io_policy s32g_policies[] = {
+@@ -177,16 +178,20 @@ static void set_fip_img_source(struct plat_io_policy *policy)
+ 	 * will be the one obtained in bl2_plat_handle_post_image_load.
+ 	 */
+ 	if (boot_source == BOOT_SOURCE_QSPI) {
+-		qspi_fip_memmap_spec.length =
+-			image_info->image_size;
++		/* io_dev_init will check the header before image_info->image_size
++		 * is computed.
++		 */
++		qspi_fip_memmap_spec.length = image_info->image_size ?
++			image_info->image_size : qspi_fip_memmap_spec.length;
+ 		*policy = (struct plat_io_policy) {
+ 			.dev_handle = &s32g_memmap_dev_handle,
+ 			.image_spec = (uintptr_t)&qspi_fip_memmap_spec,
+ 			.check = s32g_check_memmap_dev,
+ 		};
+ 	} else {
+-		fip_mmc_spec.length =
+-			ROUND_TO_MMC_BLOCK_SIZE(image_info->image_size);
++		fip_mmc_spec.length = image_info->image_size ?
++			ROUND_TO_MMC_BLOCK_SIZE(image_info->image_size) :
++			fip_mmc_spec.length;
+ 		*policy = (struct plat_io_policy) {
+ 			.dev_handle = &s32g_mmc_dev_handle,
+ 			.image_spec = (uintptr_t)&fip_mmc_spec,
+@@ -246,7 +251,7 @@ void s32g_io_setup(void)
+ 		if (io_dev_open(s32g_mmc_io_conn, (uintptr_t)&fip_mmc_spec,
+ 				&s32g_mmc_dev_handle))
+ 			goto err;
+-		if (io_dev_init(s32g_mmc_dev_handle, 0))
++		if (io_dev_init(s32g_mmc_dev_handle, FIP_IMAGE_ID))
+ 			goto err;
+ 	}
+ 
+@@ -255,7 +260,7 @@ void s32g_io_setup(void)
+ 	if (io_dev_open(s32g_fip_io_conn, (uintptr_t)&bl31_uuid_spec,
+ 			&s32g_fip_dev_handle))
+ 		goto err;
+-	if (io_dev_init(s32g_fip_dev_handle, 0))
++	if (io_dev_init(s32g_fip_dev_handle, FIP_IMAGE_ID))
+ 		goto err;
+ 
+ 	return;
+-- 
+2.17.1
+

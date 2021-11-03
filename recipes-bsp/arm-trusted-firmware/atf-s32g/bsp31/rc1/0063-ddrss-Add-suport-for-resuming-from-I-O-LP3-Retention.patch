@@ -1,0 +1,210 @@
+From 31b075ceba2727f1702a2bceed5a902dc5a9cbe0 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 30 Jan 2020 13:01:20 +0200
+Subject: [PATCH 063/269] ddrss: Add suport for resuming from I/O LP3 Retention
+ Mode
+
+Issue: ALB-4507
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c         | 125 +++++++++++++++++++++++++++
+ include/drivers/nxp/s32g/ddr/ddrss.h |   4 +
+ plat/s32g/include/s32g_mc_rgm.h      |   2 +
+ plat/s32g/s32g274a_bl2_el3.c         |   9 +-
+ 4 files changed, 137 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index e2a0cf342..204cb6c91 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -225,3 +225,128 @@ void ddrss_to_io_lp3_retention_mode(void)
+ 	mmio_write_32(DDR_RET_CONTROL,
+ 		      mmio_read_32(DDR_RET_CONTROL) & (~DDR_RET_CONTROL_MASK));
+ }
++
++static void load_csr(uintptr_t load_from)
++{
++	int i, j;
++	uint16_t csr;
++	uint64_t ssram_data;
++	extern uintptr_t csr_to_store[];
++	extern size_t csr_to_store_length;
++
++	mmio_write_16(MICROCONTMUXSEL, 0);
++	mmio_write_16(UCCLKHCLKENABLES, HCLKEN_MASK | UCCLKEN_MASK);
++
++	for (i = 0; i < csr_to_store_length / 4; i++) {
++		ssram_data = mmio_read_64(load_from);
++		for (j = 0; j < 4; j++) {
++			csr = (uint16_t)((ssram_data >> (j * 16)) & 0xffff);
++			mmio_write_16(DDRSS_BASE_ADDR
++					+ csr_to_store[i * 4 + j], csr);
++		}
++		load_from += 8;
++	}
++
++	ssram_data = mmio_read_64(load_from);
++	for (j = 0; j < csr_to_store_length % 4; j++) {
++		csr = (uint16_t)((ssram_data >> (j * 16)) & 0xffff);
++		mmio_write_16(DDRSS_BASE_ADDR
++				+ csr_to_store[i * 4 + j], csr);
++	}
++
++	mmio_write_16(UCCLKHCLKENABLES, HCLKEN_MASK);
++	mmio_write_16(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
++}
++
++void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf,
++			  struct ddrss_firmware *ddrss_firmware)
++{
++	write_regconf_32(ddrss_conf->ddrc_conf, ddrss_conf->ddrc_conf_length);
++
++	mmio_write_32(INIT0, mmio_read_32(INIT0) | SKIP_DRAM_INIT_MASK);
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) | SELFREF_SW_MASK);
++
++	/* Enable parity for all AXI interfaces */
++	mmio_write_32(REG_GRP0, mmio_read_32(REG_GRP0) | AXI_PARITY_EN(0x1ff));
++	mmio_write_32(REG_GRP0,
++		      mmio_read_32(REG_GRP0) | AXI_PARITY_TYPE(0x1ff));
++
++	/* Enable DFI1 for LPDDR4 */
++	mmio_write_32(REG_GRP0, mmio_read_32(REG_GRP0) | DFI1_ENABLED_MASK);
++
++	/* De-assert reset to controller and AXI ports */
++	mmio_write_32(S32G_MC_RGM_PRST(0),
++		      mmio_read_32(S32G_MC_RGM_PRST(0)) & (~PERIPH_3_RST));
++	while (mmio_read_32(S32G_MC_RGM_PSTAT(0)) & PERIPH_3_RST)
++		;
++
++	/* Enable HIF, CAM Queueing */
++	mmio_write_32(DBG1, 0);
++
++	mmio_write_32(RFSHCTL3, mmio_read_32(RFSHCTL3) | DIS_AUTO_REFRESH_MASK);
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) & (~POWERDOWN_EN_MASK));
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) & (~SELFREF_EN_MASK));
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) & (~EN_DFI_DRAM_CLK_DISABLE_MASK));
++
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) & (~SW_DONE_MASK));
++	while (mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK)
++		;
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) & (~DFI_INIT_COMPLETE_EN_MASK));
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) | SW_DONE_MASK);
++	while (!(mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK))
++		;
++	mmio_write_32(DFIMISC, CTL_IDLE_EN_MASK | DIS_DYN_ADR_TRI_MASK);
++	while (mmio_read_32(DFIMISC) & DFI_INIT_COMPLETE_EN_MASK)
++		;
++
++	mmio_write_32(MICROCONTMUXSEL, 0);
++	write_regconf_16(ddrss_conf->ddrphy_conf,
++			 ddrss_conf->ddrphy_conf_length);
++	mmio_write_32(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
++
++	/* Reload saved CSRs */
++	load_csr((uintptr_t)STANDBY_SRAM_BASE);
++
++	write_regconf_16(ddrss_conf->pie, ddrss_conf->pie_length);
++	while (mmio_read_16(CALBUSY) & CALBUSY_MASK)
++		;
++
++	/* Init the PHY to mission mode */
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) & (~SW_DONE_MASK));
++	while (mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK)
++		;
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_INIT_START_MASK);
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) | SW_DONE_MASK);
++	while (!(mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK))
++		;
++	while (!(mmio_read_32(DFISTAT) & DFI_INIT_COMPLETE_MASK))
++		;
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) & (~SW_DONE_MASK));
++	while (mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK)
++		;
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) & (~DFI_INIT_START_MASK));
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_INIT_COMPLETE_EN_MASK);
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) | SW_DONE_MASK);
++	while (!(mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK))
++		;
++
++	/* Exiting Self-Refresh */
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) & (~SELFREF_SW_MASK));
++	while (mmio_read_32(STAT) & SELFREF_TYPE_MASK)
++		;
++	while ((mmio_read_32(STAT) & OPERATING_MODE_MASK)
++			!= OPERATING_MODE_NORMAL)
++		;
++
++	mmio_write_32(RFSHCTL3,
++		      mmio_read_32(RFSHCTL3) & (~DIS_AUTO_REFRESH_MASK));
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) | POWERDOWN_EN_MASK);
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) | SELFREF_EN_MASK);
++	mmio_write_32(PWRCTL,
++		      mmio_read_32(PWRCTL) | EN_DFI_DRAM_CLK_DISABLE_MASK);
++
++	/* Enable AXI ports */
++	mmio_write_32(PCTRL_0, PORT_EN_MASK);
++	mmio_write_32(PCTRL_1, PORT_EN_MASK);
++	mmio_write_32(PCTRL_2, PORT_EN_MASK);
++}
+diff --git a/include/drivers/nxp/s32g/ddr/ddrss.h b/include/drivers/nxp/s32g/ddr/ddrss.h
+index f2adbc16c..cd8043442 100644
+--- a/include/drivers/nxp/s32g/ddr/ddrss.h
++++ b/include/drivers/nxp/s32g/ddr/ddrss.h
+@@ -131,7 +131,9 @@
+ #define DDR_SUBSYSTEM			(DDRSS_BASE_ADDR + 0x50000)
+ #define REG_GRP0			(DDR_SUBSYSTEM + 0x0)
+ #define AXI_PARITY_EN_MASK		(0x1ff0)
++#define AXI_PARITY_EN(e)		((e << 4) & AXI_PARITY_EN_MASK)
+ #define AXI_PARITY_TYPE_MASK		(0x1ff0000)
++#define AXI_PARITY_TYPE(t)		((t << 16) & AXI_PARITY_TYPE_MASK)
+ #define DFI1_ENABLED_MASK		BIT(0)
+ 
+ #define MAIL_TRAINING_SUCCESS		(0x07)
+@@ -165,5 +167,7 @@ struct ddrss_firmware {
+ 
+ void ddrss_init(struct ddrss_conf *ddrss_conf,
+ 		struct ddrss_firmware *ddrss_firmware);
++void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf,
++			  struct ddrss_firmware *ddrss_firmware);
+ 
+ #endif
+diff --git a/plat/s32g/include/s32g_mc_rgm.h b/plat/s32g/include/s32g_mc_rgm.h
+index e055fec4e..f4e93750d 100644
+--- a/plat/s32g/include/s32g_mc_rgm.h
++++ b/plat/s32g/include/s32g_mc_rgm.h
+@@ -15,6 +15,8 @@
+ #define S32G_MC_RGM_PRST(p)	(S32G_MC_RGM_PRST_BASE_ADDR + 0x8 * p)
+ #define S32G_MC_RGM_PSTAT(p)	(S32G_MC_RGM_PSTAT_BASE_ADDR + 0x8 * p)
+ 
++#define PERIPH_3_RST		BIT(3)
++
+ /* Software-resettable domain/partition 1: CA53 cores */
+ #define S32G_MC_RGM_RST_DOMAIN_CA53	1
+ /* Bit corresponding to CA53_n in the cores' RGM reset partition (n=0..3) */
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index 3a2b214c4..3d8460857 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -122,10 +122,13 @@ void bl2_el3_plat_arch_setup(void)
+ 	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+ 			      S32G_UART_BAUDRATE, &console);
+ 
+-	if (get_reset_cause() != CAUSE_WAKEUP_DURING_STANDBY) {
+-		s32g_sram_init(STANDBY_SRAM_BASE, STANDBY_SRAM_USED_FOR_CSR);
+-		ddrss_init(&ddrss_conf, &ddrss_firmware);
++	if (get_reset_cause() == CAUSE_WAKEUP_DURING_STANDBY) {
++		ddrss_to_normal_mode(&ddrss_conf, &ddrss_firmware);
++		return;
+ 	}
++
++	s32g_sram_init(STANDBY_SRAM_BASE, STANDBY_SRAM_USED_FOR_CSR);
++	ddrss_init(&ddrss_conf, &ddrss_firmware);
+ }
+ 
+ REGISTER_BL_IMAGE_DESCS(s32g_bl2_mem_params_descs)
+-- 
+2.17.1
+

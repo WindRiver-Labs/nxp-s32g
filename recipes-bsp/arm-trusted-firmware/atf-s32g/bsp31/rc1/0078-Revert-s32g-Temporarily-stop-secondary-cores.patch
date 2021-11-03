@@ -1,0 +1,39 @@
+From bdaa3b29751105f7731a32265f1caabca5c73920 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Thu, 16 Jan 2020 05:37:22 +0200
+Subject: [PATCH 078/269] Revert "s32g: Temporarily stop secondary cores"
+
+This reverts commit a476ee8b1eebd59b42564a686d6cdbc6bf906d63.
+This finally enables Linux SMP boot.
+
+NOTE:
+  - PFE (CONFIG_FSL_PFENG) must be disabled from U-Boot. Investigation
+  in progress.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4497
+---
+ plat/s32g/bl31_lowlevel.S | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/plat/s32g/bl31_lowlevel.S b/plat/s32g/bl31_lowlevel.S
+index e0a73b943..a57f6583d 100644
+--- a/plat/s32g/bl31_lowlevel.S
++++ b/plat/s32g/bl31_lowlevel.S
+@@ -168,10 +168,6 @@ endfunc wait_ncore_caiu_online
+ 
+ 
+ func plat_secondary_cold_boot_setup
+-	/* FIXME temporarily prevent the secondaries from progressing, to
+-	 * allow SMP boot debugging
+-	 */
+-	b	.
+ 	bl	s32g_gic_fixups_for_secondary
+ 	bl	plat_my_core_pos
+ 	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
+-- 
+2.17.1
+

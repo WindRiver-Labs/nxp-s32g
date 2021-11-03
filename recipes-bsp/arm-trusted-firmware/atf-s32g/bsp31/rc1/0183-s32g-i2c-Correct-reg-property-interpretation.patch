@@ -1,0 +1,49 @@
+From 54267bdfb8862abe67b25c720f83a7aa6323c01c Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 29 Sep 2020 10:08:12 +0300
+Subject: [PATCH 183/269] s32g: i2c: Correct "reg" property interpretation
+
+Use fdt_get_reg_props_by_index to read "reg" property. It will take
+into consideration the number of cells used for address and size
+specification.
+
+Issue: ALB-4294, ALB-5510
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/i2c/s32g_i2c.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/nxp/s32g/i2c/s32g_i2c.c b/drivers/nxp/s32g/i2c/s32g_i2c.c
+index 961da5a72..d7b98fc3f 100644
+--- a/drivers/nxp/s32g/i2c/s32g_i2c.c
++++ b/drivers/nxp/s32g/i2c/s32g_i2c.c
+@@ -3,6 +3,7 @@
+  * Copyright 2020 NXP
+  */
+ 
++#include <common/fdt_wrappers.h>
+ #include <stdio.h>
+ #include <lib/mmio.h>
+ #include <libfdt.h>
+@@ -411,9 +412,13 @@ void s32g_i2c_get_setup_from_fdt(void *fdt, int node,
+ 				 struct s32g_i2c_bus *bus)
+ {
+ 	const fdt32_t *cuint;
++	int ret;
+ 
+-	cuint = fdt_getprop(fdt, node, "reg", NULL);
+-	bus->base = cuint == NULL ? 0 : fdt32_to_cpu(*cuint);
++	ret = fdt_get_reg_props_by_index(fdt, node, 0, &bus->base, NULL);
++	if (ret) {
++		ERROR("Invalid I2C base address\n");
++		return;
++	}
+ 
+ 	cuint = fdt_getprop(fdt, node, "clock-frequency", NULL);
+ 	bus->speed = cuint == NULL ? S32G_DEFAULT_SPEED : fdt32_to_cpu(*cuint);
+-- 
+2.17.1
+

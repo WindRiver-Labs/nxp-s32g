@@ -1,0 +1,409 @@
+From 65068e6ff35ba1c893a4f4974e1b501409a4dc13 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Sun, 5 Aug 2018 12:25:42 +0300
+Subject: [PATCH 001/269] s32g: Compiling skeleton
+
+Nothing's working, of course, just building BL31 image.
+
+Depending on the compiler optimization level, we might end up with too
+large a bl31 memory footprint, resulting in __BL31_END__ being placed in
+the u-boot section. Pulling addresses around to make images fit even
+with -O0.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3452
+---
+ plat/s32g/include/plat_macros.S  |  23 ++++++
+ plat/s32g/include/platform_def.h | 123 +++++++++++++++++++++++++++++++
+ plat/s32g/platform.mk            |  46 ++++++++++++
+ plat/s32g/s32g275_bl31.c         | 112 ++++++++++++++++++++++++++++
+ plat/s32g/s32g_helpers.S         |  42 +++++++++++
+ 5 files changed, 346 insertions(+)
+ create mode 100644 plat/s32g/include/plat_macros.S
+ create mode 100644 plat/s32g/include/platform_def.h
+ create mode 100644 plat/s32g/platform.mk
+ create mode 100644 plat/s32g/s32g275_bl31.c
+ create mode 100644 plat/s32g/s32g_helpers.S
+
+diff --git a/plat/s32g/include/plat_macros.S b/plat/s32g/include/plat_macros.S
+new file mode 100644
+index 000000000..a84f5996a
+--- /dev/null
++++ b/plat/s32g/include/plat_macros.S
+@@ -0,0 +1,23 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#ifndef __PLAT_MACROS_S__
++#define __PLAT_MACROS_S__
++
++#include <asm_macros.S>
++
++/* ---------------------------------------------
++ * The below required platform porting macro
++ * prints out relevant GIC and CCI registers
++ * whenever an unhandled exception is taken in
++ * BL31.
++ * Clobbers: x0 - x10, x16, x17, sp
++ * ---------------------------------------------
++ */
++.macro plat_crash_print_regs
++.endm
++
++#endif /* __PLAT_MACROS_S__ */
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+new file mode 100644
+index 000000000..80685118f
+--- /dev/null
++++ b/plat/s32g/include/platform_def.h
+@@ -0,0 +1,123 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++/*
++ * BIG FIXME, TODO, etc: review these definitions. Some of them might not have
++ * been correctly and thorougly understood at the time of this writing.
++ */
++
++#ifndef PLATFORM_DEF_H
++#define PLATFORM_DEF_H
++
++#include <common_def.h>
++#include <tbbr_img_def.h>
++
++#define S32G_CACHE_WRITEBACK_SHIFT	6
++#define CACHE_WRITEBACK_GRANULE		(1 << S32G_CACHE_WRITEBACK_SHIFT)
++#define PLAT_PHY_ADDR_SPACE_SIZE        (1ull << 36)
++#define PLAT_VIRT_ADDR_SPACE_SIZE	(1ull << 32)
++
++#define PLATFORM_CORE_COUNT		4
++#define PLATFORM_SYSTEM_COUNT		1
++
++#define PLAT_NUM_PWR_DOMAINS		(PLATFORM_SYSTEM_COUNT + \
++					 PLATFORM_CORE_COUNT)
++
++#define PLAT_MAX_OFF_STATE		2
++#define PLAT_MAX_RET_STATE		1
++#define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL1
++#define PLAT_MAX_PWR_LVL_STATES		2
++
++#define PLAT_PRIMARY_CPU		0x0
++#define PLATFORM_MAX_CPU_PER_CLUSTER	4
++#define COUNTER_FREQUENCY		0x40000000 /* FXOSC */
++
++/* +----------------------+
++ * | Memory layout macros |
++ * |----------------------|
++ * | FIXME Nice ASCII art,|
++ * |      please remove it|
++ * v ... ... ... ... ...  v
++ */
++/* SRAM is actually at 0x3400_0000; we are mirroring it in the
++ * Virtual Code RAM
++ */
++#define S32G_SRAM_BASE			0x38000000
++#define S32G_SRAM_SIZE			0x00A00000
++/* Note: depending on the compiler optimization level, this may or may not be
++ * enough to prevent overflowing onto the adjacent SRAM image. Handle with care,
++ * wear a helmet and compile with -Os.
++ */
++#define S32G_BL31_OFF_IN_SRAM		0x00002000
++/* U-boot address in SRAM */
++#define S32G_BL33_IMAGE_BASE		0x38020000
++
++#define BL31_BASE			(S32G_SRAM_BASE + S32G_BL31_OFF_IN_SRAM)
++/* Make sure bl31 does not overlap with u-boot */
++#define BL31_LIMIT			(S32G_BL33_IMAGE_BASE - 1)
++
++/* FIXME value randomly chosen; should probably be revisited */
++#define PLATFORM_STACK_SIZE		0x4000
++/* ^ ... ... ... ... ...  ^
++ * |                      |
++ * +----------------------+
++ */
++
++#define MAX_IO_HANDLES			4
++#define MAX_IO_DEVICES			3
++
++#if defined IMAGE_BL1
++/* To use in blX_platform_setup() */
++#define FIRMWARE_WELCOME_STR_S32G	"This is S32G BL1\n"
++#pragma warning "BL1 image is being built; you should configure it out."
++#endif
++#if defined IMAGE_BL2 || defined IMAGE_BL2U
++#define FIRMWARE_WELCOME_STR_S32G_BL2	"This is S32G BL2\n"
++#pragma warning "BL2 image is being built; you should configure it out."
++#endif
++#if defined IMAGE_BL31
++#define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
++/* FIXME revisit these */
++#define MAX_MMAP_REGIONS		8
++#define MAX_XLAT_TABLES			4
++#endif
++#if defined IMAGE_BL33
++#pragma warning "BL33 image is being built; you should configure it out."
++#endif
++
++/* Serial console configurations */
++#define S32G_LINFLEX0_BASE	0x401C8000
++#define S32G_UART_BASE		S32G_LINFLEX0_BASE
++#define S32G_UART_BAUDRATE	115200
++/* TODO revisit this; for now we'll hard-code the clock/divider settings instead
++ * of deriving them
++ */
++#define S32G_UART_CLOCK_HZ		133333333
++
++/* LINFLEX registers */
++#define S32G_LINFLEX_LINCR1		0x0
++#define S32G_LINFLEX_LINSR		0x8
++#define S32G_LINFLEX_UARTCR		0x10
++#define S32G_LINFLEX_UARTSR		0x14
++#define S32G_LINFLEX_LINIBRR		0x28
++#define S32G_LINFLEX_LINFBRR		0x24
++#define S32G_LINFLEX_BDRL		0x38
++#define S32G_LINFLEX_UARTPTO		0x50
++
++#ifndef __ASSEMBLY__
++struct console_s32g {
++	console_t console;
++	uint32_t  size;
++	uintptr_t base;
++	uint32_t  clock;
++	uint32_t  baud;
++};
++
++int console_s32g_register(uintptr_t baseaddr, uint32_t clock, uint32_t baud,
++			  struct console_s32g *console);
++int console_s32g_putc(int c, struct console_s32g *console);
++#endif /* __ASSEMBLY__ */
++#endif /* PLATFORM_DEF_H */
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+new file mode 100644
+index 000000000..f24f37b45
+--- /dev/null
++++ b/plat/s32g/platform.mk
+@@ -0,0 +1,46 @@
++#
++# Copyright 2019 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++include lib/xlat_tables_v2/xlat_tables.mk
++
++PLAT_INCLUDES		+= -Iplat/s32g/include \
++			   -Iinclude/common/tbbr \
++			   -Iinclude/plat/arm/common \
++			   -Iinclude/plat/arm/soc/common \
++			   -Iinclude/lib/psci
++PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_helpers.S \
++			   plat/s32g/include/plat_macros.S \
++			   drivers/console/aarch64/console.S
++PLAT_BL_COMMON_SOURCES	+= ${XLAT_TABLES_LIB_SRCS}
++
++BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
++			   plat/common/plat_psci_common.c \
++			   plat/common/plat_gicv3.c \
++			   drivers/arm/gic/v3/gicv3_main.c
++BL31_SOURCES		+= lib/cpus/aarch64/cortex_a53.S
++
++
++# Disable the PSCI platform compatibility layer
++ENABLE_PLAT_COMPAT	:= 0
++
++MULTI_CONSOLE_API	:= 1
++LOAD_IMAGE_V2		:= 1
++USE_COHERENT_MEM	:= 0
++
++# Prepare the stage for BL31-only boot
++PROGRAMMABLE_RESET_ADDRESS	:= 1
++RESET_TO_BL31			:= 1
++COLD_BOOT_SINGLE_CPU		:= 0
++
++### Devel & Debug options ###
++CFLAGS			+= -O0
++# Enable dump of processor register state upon exceptions while running BL31
++CRASH_REPORTING		:= 1
++# As verbose as it can be
++LOG_LEVEL		:= 50
++# Enable simulator-specific workarounds. To be removed after hw is available.
++S32G_VIRTUAL_PLATFORM	:= 1
++$(eval $(call add_define_val,S32G_VIRTUAL_PLATFORM,1))
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+new file mode 100644
+index 000000000..7b3744dff
+--- /dev/null
++++ b/plat/s32g/s32g275_bl31.c
+@@ -0,0 +1,112 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <arch_helpers.h>
++#include <assert.h>
++#include <bl_common.h>
++#include <psci.h>
++#include "platform_def.h"
++
++/* TODO should probably be moved to s32g_psci.c */
++static uintptr_t warmboot_entry;
++
++static entry_point_info_t bl33_image_ep_info;
++
++/* TODO should probably be moved to s32g_psci.c */
++static plat_psci_ops_t s32g_psci_pm_ops = { /* FIXME must implement these */
++	.system_reset = NULL,
++	.pwr_domain_on = NULL,
++	.pwr_domain_on_finish = NULL,
++	.pwr_domain_off = NULL,
++};
++
++const unsigned char s32g_power_domain_tree_desc[] = {
++	PLATFORM_SYSTEM_COUNT,
++	PLATFORM_CORE_COUNT,
++};
++
++static uint32_t s32g_get_spsr_for_bl33_entry(void)
++{
++	uint32_t spsr;
++	unsigned long el_status, mode;
++	unsigned int dbg_current_el;
++
++	/* xDBGx print current EL */
++	dbg_current_el = get_current_el();
++	printf("Current EL is %u\n", dbg_current_el);
++
++	/* figure out what mode we enter the non-secure world */
++	el_status = read_id_aa64pfr0_el1() >> ID_AA64PFR0_EL2_SHIFT;
++	el_status &= ID_AA64PFR0_ELX_MASK;
++
++	mode = (el_status) ? MODE_EL2 : MODE_EL1;
++	assert(mode == MODE_EL2); /* FIXME debugging only! this must go */
++
++	spsr = SPSR_64(mode, MODE_SP_ELX, DISABLE_ALL_EXCEPTIONS);
++
++	return spsr;
++}
++
++entry_point_info_t *bl31_plat_get_next_image_ep_info(uint32_t type)
++{
++	assert(sec_state_is_valid(type));
++
++	return &bl33_image_ep_info;
++}
++
++void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
++		u_register_t arg2, u_register_t arg3)
++{
++	SET_PARAM_HEAD(&bl33_image_ep_info, PARAM_EP, VERSION_1, 0);
++	bl33_image_ep_info.pc = S32G_BL33_IMAGE_BASE;
++	bl33_image_ep_info.spsr = s32g_get_spsr_for_bl33_entry();
++	SET_SECURITY_STATE(bl33_image_ep_info.h.attr, NON_SECURE);
++}
++
++void bl31_plat_arch_setup(void)
++{
++	/* TODO implement this */
++}
++
++void bl31_platform_setup(void)
++{
++	/* TODO implement this */
++}
++
++int plat_core_pos_by_mpidr(u_register_t mpidr)
++{
++	unsigned int cpu_id;
++
++	mpidr &= MPIDR_AFFINITY_MASK;
++
++	if (mpidr & ~(MPIDR_CLUSTER_MASK | MPIDR_CPU_MASK))
++		return -1;
++
++	cpu_id = MPIDR_AFFLVL0_VAL(mpidr);
++
++	if (cpu_id > PLATFORM_MAX_CPU_PER_CLUSTER)
++		return -1;
++
++	return cpu_id;
++}
++
++unsigned int plat_get_syscnt_freq2(void)
++{
++	return COUNTER_FREQUENCY;
++}
++
++const unsigned char *plat_get_power_domain_tree_desc(void)
++{
++	return s32g_power_domain_tree_desc;
++}
++
++int plat_setup_psci_ops(uintptr_t sec_entrypoint,
++			const plat_psci_ops_t **psci_ops)
++{
++	warmboot_entry = sec_entrypoint;
++	*psci_ops = &s32g_psci_pm_ops;
++	return 0;
++}
+diff --git a/plat/s32g/s32g_helpers.S b/plat/s32g/s32g_helpers.S
+new file mode 100644
+index 000000000..1ed5ed0cc
+--- /dev/null
++++ b/plat/s32g/s32g_helpers.S
+@@ -0,0 +1,42 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <asm_macros.S>
++#include "platform_def.h"
++
++.globl plat_is_my_cpu_primary
++.globl plat_secondary_cold_boot_setup
++.globl platform_mem_init
++.globl plat_my_core_pos
++.globl plat_my_core_pos
++
++/*
++ * All these helper functions have been copied copied from
++ * imx8_helpers.S (plat/imx) or ls_helpers.S (plat/layerscape).
++ */
++func plat_is_my_cpu_primary
++	mrs	x0, mpidr_el1
++	and	x0, x0, #(MPIDR_CPU_MASK)
++	cmp	x0, #PLAT_PRIMARY_CPU
++	cset	x0, eq
++	ret
++endfunc plat_is_my_cpu_primary
++
++func plat_secondary_cold_boot_setup
++	b	.
++endfunc plat_secondary_cold_boot_setup
++
++func platform_mem_init
++	ret
++endfunc platform_mem_init
++
++func plat_my_core_pos
++	mrs	x0, mpidr_el1
++	and	x1, x0, #MPIDR_CPU_MASK
++	and 	x0, x0, #MPIDR_CLUSTER_MASK
++	add	x0, x1, x0, LSR #6
++	ret
++endfunc plat_my_core_pos
+-- 
+2.17.1
+

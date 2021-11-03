@@ -1,0 +1,108 @@
+From 989b1b320d76d14ed2ac00b41a9f4e2851fd63e2 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 6 May 2020 14:14:18 +0300
+Subject: [PATCH 114/269] s32g: Replace all s32g275 mentions with s32g274a
+
+Issue: ALB-4907
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h              |  8 ++++----
+ plat/s32g/platform.mk                         |  2 +-
+ plat/s32g/{s32g275_bl31.c => s32g274a_bl31.c} | 12 ++++++------
+ 3 files changed, 11 insertions(+), 11 deletions(-)
+ rename plat/s32g/{s32g275_bl31.c => s32g274a_bl31.c} (94%)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index bc5785858..35417d7b1 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -83,10 +83,10 @@
+ #define S32G_XRDC_0_PAC_0_SIZE		SIZE_1M
+ 
+ /* GIC (re)definitions */
+-#define S32G275_GIC_BASE	0x50800000
+-#define PLAT_GICD_BASE		S32G275_GIC_BASE
+-#define PLAT_GICR_BASE		(S32G275_GIC_BASE + 0x80000)
+-#define S32G275_GIC_SIZE	0x100000
++#define S32G274A_GIC_BASE	0x50800000
++#define PLAT_GICD_BASE		S32G274A_GIC_BASE
++#define PLAT_GICR_BASE		(S32G274A_GIC_BASE + 0x80000)
++#define S32G274A_GIC_SIZE	0x100000
+ /* SGI to use for kicking the secondary cores out of wfi */
+ #define S32G_SECONDARY_WAKE_SGI	15
+ /* RTC interrupt (used to wake the system from low-power states) */
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index d0211a74d..002d73d97 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -54,7 +54,7 @@ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   ${DDR_DRV}/ddrss_firmware.c \
+ 			   ${DDR_DRV}/ddrss_regconf.c
+ 
+-BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
++BL31_SOURCES		+= plat/s32g/s32g274a_bl31.c \
+ 			   plat/s32g/s32g_psci.c \
+ 			   plat/s32g/s32g274a_pm.c \
+ 			   plat/common/plat_psci_common.c \
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g274a_bl31.c
+similarity index 94%
+rename from plat/s32g/s32g275_bl31.c
+rename to plat/s32g/s32g274a_bl31.c
+index 1d2720e4a..f79710b83 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g274a_bl31.c
+@@ -33,7 +33,7 @@ IMPORT_SYM(uintptr_t, __RW_END__, BL31_RW_END);
+ static const mmap_region_t s32g_mmap[] = {
+ 	MAP_REGION_FLAT(S32G_UART_BASE, S32G_UART_SIZE,
+ 			MT_DEVICE | MT_RW | MT_NS),
+-	MAP_REGION_FLAT(S32G275_GIC_BASE, S32G275_GIC_SIZE,
++	MAP_REGION_FLAT(S32G274A_GIC_BASE, S32G274A_GIC_SIZE,
+ 			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(S32G_XRDC_BASE, S32G_XRDC_SIZE,
+ 			MT_DEVICE | MT_RW | MT_SECURE),
+@@ -71,18 +71,18 @@ static const interrupt_prop_t interrupt_props[] = {
+ 		       INTR_GROUP0, GIC_INTR_CFG_EDGE),
+ };
+ 
+-static unsigned int plat_s32g275_mpidr_to_core_pos(unsigned long mpidr);
++static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr);
+ /* Declare it here to avoid including plat/common/platform.h */
+ unsigned int plat_my_core_pos(void);
+ 
+-const gicv3_driver_data_t s32g275_gic_data = {
++const gicv3_driver_data_t s32g274a_gic_data = {
+ 	.gicd_base = PLAT_GICD_BASE,
+ 	.gicr_base = PLAT_GICR_BASE,
+ 	.rdistif_num = PLATFORM_CORE_COUNT,
+ 	.rdistif_base_addrs = rdistif_base_addrs,
+ 	.interrupt_props = interrupt_props,
+ 	.interrupt_props_num = ARRAY_SIZE(interrupt_props),
+-	.mpidr_to_core_pos = plat_s32g275_mpidr_to_core_pos,
++	.mpidr_to_core_pos = plat_s32g274a_mpidr_to_core_pos,
+ };
+ 
+ 
+@@ -168,7 +168,7 @@ static void s32g_el3_mmu_fixup(void)
+ 
+ void s32g_gic_setup(void)
+ {
+-	gicv3_driver_init(&s32g275_gic_data);
++	gicv3_driver_init(&s32g274a_gic_data);
+ 	gicv3_distif_init();
+ 	gicv3_rdistif_init(plat_my_core_pos());
+ 	gicv3_cpuif_enable(plat_my_core_pos());
+@@ -188,7 +188,7 @@ void bl31_plat_arch_setup(void)
+ 	s32g_kick_secondary_ca53_cores();
+ }
+ 
+-static unsigned int plat_s32g275_mpidr_to_core_pos(unsigned long mpidr)
++static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr)
+ {
+ 	return (unsigned int)plat_core_pos_by_mpidr(mpidr);
+ }
+-- 
+2.17.1
+

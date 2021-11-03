@@ -1,0 +1,472 @@
+From e9f18e9bc0d48e3c06960d24e1b60b88046abf72 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Mon, 2 Dec 2019 15:23:06 +0200
+Subject: [PATCH 029/269] s32g: Add BL2 stubs
+
+Add platform callbacks for BL2 boot in EL3. Nothing is working, of
+course, but it does compile with zero warnings.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4277
+---
+ plat/s32g/bl31_lowlevel.S        | 135 ++++++++++++++++++++++++++++++
+ plat/s32g/include/platform_def.h |  11 +--
+ plat/s32g/platform.mk            |  20 +++--
+ plat/s32g/s32g274a_bl2_el3.c     |  49 +++++++++++
+ plat/s32g/s32g_lowlevel.S        | 137 +++----------------------------
+ 5 files changed, 216 insertions(+), 136 deletions(-)
+ create mode 100644 plat/s32g/bl31_lowlevel.S
+ create mode 100644 plat/s32g/s32g274a_bl2_el3.c
+
+diff --git a/plat/s32g/bl31_lowlevel.S b/plat/s32g/bl31_lowlevel.S
+new file mode 100644
+index 000000000..cd8335eab
+--- /dev/null
++++ b/plat/s32g/bl31_lowlevel.S
+@@ -0,0 +1,135 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <asm_macros.S>
++#include <drivers/arm/gicv3.h>
++#include "platform_def.h"
++
++.globl _rename_this_plat_secondary_cold_boot_setup
++
++
++/* Clear GICR_WAKER[ProcessorSleep] bit.
++ * Returns in x8 the base address of the current Redistributor.
++ *
++ * Clobber list: x7,x8,x9,x10,x11
++ */
++func gicr_waker_wake
++	mov	x11, x30
++	mov	x7, x0
++	bl	plat_my_core_pos
++
++	/* Find offset of our Redistributor */
++	mov	x8, #PLAT_GICR_BASE
++dec:
++	cbz	x0, clear_ps
++	mov	x9, #2
++	add	x8, x8, x9, lsl #16
++	mov	x9, #1
++	sub	x0, x0, x9
++	b	dec
++clear_ps:
++	/* Clear the PS bit */
++	ldr	w9, [x8, #GICR_WAKER]
++	movz	w10, #1
++	mvn	w10, w10, lsl #WAKER_PS_SHIFT
++	and	w9, w9, w10
++	str	w9, [x8, #GICR_WAKER]
++	dsb	st
++	isb
++	/* Wait for hw confirmation */
++children_asleep:
++	ldr	w9, [x8, #GICR_WAKER]
++	tbnz	w9, #WAKER_CA_SHIFT, children_asleep
++
++	mov	x0, x7
++	mov	x30, x11
++	ret
++endfunc gicr_waker_wake
++
++
++/* GICR and GICC initializations for the secondary core.
++ *
++ * This is a close equivalent of gicv3_cpuif_enable() that we need to make
++ * ourselves here, because:
++ *   a) GICR_WAKER must be cleared before accessing most of the ICC_* regs;
++ *   b) the ICC_* registers are not memory-mapped, so the primary core cannot
++ *   do these initializations on our behalf.
++ *
++ * Clobber list: x7,x8,x9,x10,x11,x13
++ */
++func s32g_gic_fixups_for_secondary
++	mov	x13, x30
++	bl	gicr_waker_wake
++
++	/* Clear any pending interrupts before we go into wfi */
++	mov	x7, #0x1
++	lsl	x7, x7, #16	/* #GICR_SGIBASE_OFFSET */
++	add	x7, x7, #0x280	/* partial offset of #GICR_ICPENDR0 */
++	mov	x9, xzr
++	mvn	x9, x9
++	str	w9, [x8, x7] /* x8 was set by gicr_waker_wake */
++	dsb	sy
++
++	/* SRE */
++	mrs	x8, ICC_SRE_EL3
++	orr	x8, x8, #0xf
++	msr	ICC_SRE_EL3, x8
++	isb
++	/* Switch to NS state to write non secure ICC_SRE_EL2 and ICC_SRE_EL1 */
++	mov	x8, xzr
++	msr	SCR_EL3, x8
++	isb
++	/* ICC_SRE_EL2 and ICC_SRE_EL1 are left to the lower levels */
++
++	/* Revert to secure state and set up the rest of SCR_EL3 */
++	mov	x8, xzr
++	orr	x8, x8, #SCR_RW_BIT
++	/* Leave IRQ, FIQ, EA bits cleared */
++	msr	SCR_EL3, x8
++	isb
++
++	/* Set interrupt priority filter */
++	movz	x8, #0xff
++	msr	ICC_PMR_EL1, x8
++	isb
++
++	msr	ICC_CTLR_EL3, xzr
++	msr	ICC_CTLR_EL1, xzr
++
++	/* Enable Group 0 (must come after ICC_PMR_EL1) */
++	movz	x8, #0x1
++	msr	ICC_IGRPEN0_EL1, x8
++
++	isb
++
++	mov	x30, x13
++	ret
++endfunc s32g_gic_fixups_for_secondary
++
++
++/*
++ * Clobber list: x0,x7,x8,x9,x10,x11,x13
++ * FIXME rename this, it is no longer the entrypoint
++ */
++func _rename_this_plat_secondary_cold_boot_setup
++	bl	s32g_gic_fixups_for_secondary
++	bl	plat_my_core_pos
++	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
++	ldr	x7, =s32g_core_release_var
++pen:
++	dsb	sy
++	/* index with current core id */
++	ldr	w8, [x7, x0]
++	cbnz	w8, wfi_done
++	wfi
++	b	pen
++wfi_done:
++	/* reset condition variable */
++	mov	x8, #0
++	str	w8, [x7, x0]
++	/* point of no return */
++	b	bl31_warm_entrypoint
++endfunc _rename_this_plat_secondary_cold_boot_setup
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 3d9d9230b..af00dced7 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -109,6 +109,11 @@
+  * wear a helmet and compile with -Os.
+  */
+ 
++/* BL2 image in SRAM */
++#define S32G_BL2_OFF_IN_SRAM	0x00700000
++#define BL2_BASE		(S32G_SRAM_BASE + S32G_BL2_OFF_IN_SRAM)
++#define BL2_LIMIT		(S32G_SRAM_BASE + S32G_BL31_OFF_IN_SRAM - 1)
++
+ /* BL31 and BL33 location in SRAM
+  */
+ 
+@@ -117,7 +122,7 @@
+  * also, U-Boot will be able to reclaim the beginning of SRAM for its MMU
+  * tables without overwriting our exception vectors
+  */
+-#define S32G_BL31_OFF_IN_SRAM		0x00700000
++#define S32G_BL31_OFF_IN_SRAM		0x00800000
+ #define BL31_LIMIT			(S32G_SRAM_BASE + S32G_SRAM_SIZE - 1)
+ /* U-boot address in SRAM */
+ #define S32G_BL33_OFF_IN_SRAM		0x20000
+@@ -138,10 +143,6 @@
+ #define FIRMWARE_WELCOME_STR_S32G	"This is S32G BL1\n"
+ #pragma warning "BL1 image is being built; you should configure it out."
+ #endif
+-#if defined IMAGE_BL2 || defined IMAGE_BL2U
+-#define FIRMWARE_WELCOME_STR_S32G_BL2	"This is S32G BL2\n"
+-#pragma warning "BL2 image is being built; you should configure it out."
+-#endif
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+ /* To limit usage, keep these in sync with sizeof(s32g_mmap) */
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index ff27ce3de..7dcc86593 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -14,11 +14,16 @@ PLAT_INCLUDES		+= -Iplat/s32g/include \
+ 			   -Iinclude/lib \
+ 			   -Iinclude/drivers \
+ 			   -Iinclude/lib/psci
++
++BL2_AT_EL3		:= 1
++
++
+ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel.S \
+ 			   plat/s32g/s32g_linflexuart.S \
+-			   plat/s32g/include/plat_macros.S \
+-			   plat/s32g/s32g_xrdc.c
+-PLAT_BL_COMMON_SOURCES	+= ${XLAT_TABLES_LIB_SRCS}
++			   lib/cpus/aarch64/cortex_a53.S
++
++BL2_SOURCES		+= plat/s32g/s32g274a_bl2_el3.c \
++			   drivers/io/io_storage.c
+ 
+ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   plat/s32g/s32g_psci.c \
+@@ -30,7 +35,10 @@ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   drivers/arm/gic/v3/gicv3_main.c \
+ 			   drivers/arm/gic/v3/gicv3_helpers.c \
+ 			   drivers/arm/gic/common/gic_common.c
+-BL31_SOURCES		+= lib/cpus/aarch64/cortex_a53.S
++BL31_SOURCES		+= plat/s32g/bl31_lowlevel.S \
++			   plat/s32g/include/plat_macros.S \
++			   plat/s32g/s32g_xrdc.c
++BL31_SOURCES		+= ${XLAT_TABLES_LIB_SRCS}
+ 
+ 
+ # Disable the PSCI platform compatibility layer
+@@ -40,9 +48,9 @@ MULTI_CONSOLE_API	:= 1
+ LOAD_IMAGE_V2		:= 1
+ USE_COHERENT_MEM	:= 0
+ 
+-# Prepare the stage for BL31-only boot
++# Set RESET_TO_BL31 to boot from BL31
+ PROGRAMMABLE_RESET_ADDRESS	:= 1
+-RESET_TO_BL31			:= 1
++RESET_TO_BL31			:= 0
+ COLD_BOOT_SINGLE_CPU		:= 0
+ 
+ ### Platform-specific defines ###
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+new file mode 100644
+index 000000000..a31bf5219
+--- /dev/null
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -0,0 +1,49 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <platform.h>
++#include <common/bl_common.h>
++
++
++void bl2_platform_setup(void)
++{
++	/* TODO: Ncore init, LinFlexD init */
++}
++
++struct bl_params *plat_get_next_bl_params(void)
++{
++	/* TODO */
++	return NULL;
++}
++
++void plat_flush_next_bl_params(void)
++{
++	/* TODO */
++}
++
++struct bl_load_info *plat_get_bl_image_load_info(void)
++{
++	/* TODO */
++	return NULL;
++}
++
++void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
++				  u_register_t arg2, u_register_t arg3)
++{
++	/* TODO */
++}
++
++void bl2_el3_plat_arch_setup(void)
++{
++	/* TODO */
++}
++
++int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
++			  uintptr_t *image_spec)
++{
++	/* TODO */
++	return 0;
++}
+diff --git a/plat/s32g/s32g_lowlevel.S b/plat/s32g/s32g_lowlevel.S
+index e9bd2b8fd..4c22a6c68 100644
+--- a/plat/s32g/s32g_lowlevel.S
++++ b/plat/s32g/s32g_lowlevel.S
+@@ -6,14 +6,13 @@
+ 
+ #include <asm_macros.S>
+ #include <console_macros.S>
+-#include <drivers/arm/gicv3.h>
+ #include "platform_def.h"
+ 
+ .globl plat_is_my_cpu_primary
+-.globl plat_secondary_cold_boot_setup
+ .globl platform_mem_init
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
++.globl plat_secondary_cold_boot_setup
+ 
+ .globl s32g_smp_fixup
+ 
+@@ -51,129 +50,6 @@ func plat_my_core_pos
+ 	ret
+ endfunc plat_my_core_pos
+ 
+-/* Clear GICR_WAKER[ProcessorSleep] bit.
+- * Returns in x8 the base address of the current Redistributor.
+- *
+- * Clobber list: x7,x8,x9,x10,x11
+- */
+-func gicr_waker_wake
+-	mov	x11, x30
+-	mov	x7, x0
+-	bl	plat_my_core_pos
+-
+-	/* Find offset of our Redistributor */
+-	mov	x8, #PLAT_GICR_BASE
+-dec:
+-	cbz	x0, clear_ps
+-	mov	x9, #2
+-	add	x8, x8, x9, lsl #16
+-	mov	x9, #1
+-	sub	x0, x0, x9
+-	b	dec
+-clear_ps:
+-	/* Clear the PS bit */
+-	ldr	w9, [x8, #GICR_WAKER]
+-	movz	w10, #1
+-	mvn	w10, w10, lsl #WAKER_PS_SHIFT
+-	and	w9, w9, w10
+-	str	w9, [x8, #GICR_WAKER]
+-	dsb	st
+-	isb
+-	/* Wait for hw confirmation */
+-children_asleep:
+-	ldr	w9, [x8, #GICR_WAKER]
+-	tbnz	w9, #WAKER_CA_SHIFT, children_asleep
+-
+-	mov	x0, x7
+-	mov	x30, x11
+-	ret
+-endfunc gicr_waker_wake
+-
+-/* GICR and GICC initializations for the secondary core.
+- *
+- * This is a close equivalent of gicv3_cpuif_enable() that we need to make
+- * ourselves here, because:
+- *   a) GICR_WAKER must be cleared before accessing most of the ICC_* regs;
+- *   b) the ICC_* registers are not memory-mapped, so the primary core cannot
+- *   do these initializations on our behalf.
+- *
+- * Clobber list: x7,x8,x9,x10,x11,x13
+- */
+-func s32g_gic_fixups_for_secondary
+-	mov	x13, x30
+-	bl	gicr_waker_wake
+-
+-	/* Clear any pending interrupts before we go into wfi */
+-	mov	x7, #0x1
+-	lsl	x7, x7, #16	/* #GICR_SGIBASE_OFFSET */
+-	add	x7, x7, #0x280	/* partial offset of #GICR_ICPENDR0 */
+-	mov	x9, xzr
+-	mvn	x9, x9
+-	str	w9, [x8, x7] /* x8 was set by gicr_waker_wake */
+-	dsb	sy
+-
+-	/* SRE */
+-	mrs	x8, ICC_SRE_EL3
+-	orr	x8, x8, #0xf
+-	msr	ICC_SRE_EL3, x8
+-	isb
+-	/* Switch to NS state to write non secure ICC_SRE_EL2 and ICC_SRE_EL1 */
+-	mov	x8, xzr
+-	msr	SCR_EL3, x8
+-	isb
+-	/* ICC_SRE_EL2 and ICC_SRE_EL1 are left to the lower levels */
+-
+-	/* Revert to secure state and set up the rest of SCR_EL3 */
+-	mov	x8, xzr
+-	orr	x8, x8, #SCR_RW_BIT
+-	/* Leave IRQ, FIQ, EA bits cleared */
+-	msr	SCR_EL3, x8
+-	isb
+-
+-	/* Set interrupt priority filter */
+-	movz	x8, #0xff
+-	msr	ICC_PMR_EL1, x8
+-	isb
+-
+-	msr	ICC_CTLR_EL3, xzr
+-	msr	ICC_CTLR_EL1, xzr
+-
+-	/* Enable Group 0 (must come after ICC_PMR_EL1) */
+-	movz	x8, #0x1
+-	msr	ICC_IGRPEN0_EL1, x8
+-
+-	isb
+-
+-	mov	x30, x13
+-	ret
+-endfunc s32g_gic_fixups_for_secondary
+-
+-/*
+- * Clobber list: x0,x7,x8,x9,x10,x11,x13
+- */
+-func plat_secondary_cold_boot_setup
+-	bl	s32g_gic_fixups_for_secondary
+-	bl	plat_my_core_pos
+-	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
+-	ldr	x7, =s32g_core_release_var
+-pen:
+-	dsb	sy
+-	/* index with current core id */
+-	ldr	w8, [x7, x0]
+-	cbnz	w8, wfi_done
+-	wfi
+-	b	pen
+-wfi_done:
+-	/* reset condition variable */
+-	mov	x8, #0
+-	str	w8, [x7, x0]
+-	/* point of no return */
+-	b	bl31_warm_entrypoint
+-endfunc plat_secondary_cold_boot_setup
+-
+-func platform_mem_init
+-	ret
+-endfunc platform_mem_init
+ 
+ /* In:	x0 -  MPIDR_EL1
+  * Out:	x0
+@@ -195,3 +71,14 @@ func plat_core_pos_by_mpidr
+ 	mov	x30, x7
+ 	ret
+ endfunc plat_core_pos_by_mpidr
++
++
++func platform_mem_init
++	ret
++endfunc platform_mem_init
++
++
++func plat_secondary_cold_boot_setup
++	/* FIXME I WAS HERE */
++	ret
++endfunc plat_secondary_cold_boot_setup
+-- 
+2.17.1
+

@@ -1,0 +1,105 @@
+From db5886084e6bc899dda9897b6e7f095845190f7a Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Tue, 7 Jan 2020 12:31:19 +0200
+Subject: [PATCH 052/269] s32g: Move MC_RGM definitions to a separate header
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4474
+---
+ plat/s32g/include/s32g_mc_me.h  | 18 ------------------
+ plat/s32g/include/s32g_mc_rgm.h | 25 +++++++++++++++++++++++++
+ plat/s32g/s32g275_bl31.c        |  1 +
+ plat/s32g/s32g_mc_me.c          |  1 +
+ 4 files changed, 27 insertions(+), 18 deletions(-)
+ create mode 100644 plat/s32g/include/s32g_mc_rgm.h
+
+diff --git a/plat/s32g/include/s32g_mc_me.h b/plat/s32g/include/s32g_mc_me.h
+index 04efa7f74..faad4bf75 100644
+--- a/plat/s32g/include/s32g_mc_me.h
++++ b/plat/s32g/include/s32g_mc_me.h
+@@ -68,24 +68,6 @@
+ #define S32G_MC_ME_USDHC_REQ	0
+ 
+ 
+-/*
+- * MC Reset Generation Module
+- */
+-#define S32G_MC_RGM_BASE_ADDR	0x40078000ul
+-#define S32G_MC_RGM_SIZE	0x1000ul
+-#define S32G_MC_RGM_PRST_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x40)
+-#define S32G_MC_RGM_PSTAT_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x140)
+-/* Peripheral reset */
+-#define S32G_MC_RGM_PRST(p)	(S32G_MC_RGM_PRST_BASE_ADDR + 0x8 * p)
+-#define S32G_MC_RGM_PSTAT(p)	(S32G_MC_RGM_PSTAT_BASE_ADDR + 0x8 * p)
+-
+-/* Software-resettable domain/partition 1: CA53 cores */
+-#define S32G_MC_RGM_RST_DOMAIN_CA53	1
+-/* Bit corresponding to CA53_n in the cores' RGM reset partition (n=0..3) */
+-#define S32G_MC_RGM_RST_CA53_BIT(n)	BIT(n + 1)
+-/* The entire domain defined by S32G_MC_RGM_RST_DOMAIN_CA53 can be reset */
+-#define S32G_MC_RGM_RST_CA53_PART_BIT	BIT(0)
+-
+ void s32g_kick_secondary_ca53_cores(void);
+ void mc_me_enable_partition_block(uint32_t part, uint32_t block);
+ 
+diff --git a/plat/s32g/include/s32g_mc_rgm.h b/plat/s32g/include/s32g_mc_rgm.h
+new file mode 100644
+index 000000000..e8274b153
+--- /dev/null
++++ b/plat/s32g/include/s32g_mc_rgm.h
+@@ -0,0 +1,25 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#ifndef __S32G_MC_RGM_H__
++#define __S32G_MC_RGM_H__
++
++#define S32G_MC_RGM_BASE_ADDR	0x40078000ul
++#define S32G_MC_RGM_SIZE	0x1000ul
++#define S32G_MC_RGM_PRST_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x40)
++#define S32G_MC_RGM_PSTAT_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x140)
++/* Peripheral reset */
++#define S32G_MC_RGM_PRST(p)	(S32G_MC_RGM_PRST_BASE_ADDR + 0x8 * p)
++#define S32G_MC_RGM_PSTAT(p)	(S32G_MC_RGM_PSTAT_BASE_ADDR + 0x8 * p)
++
++/* Software-resettable domain/partition 1: CA53 cores */
++#define S32G_MC_RGM_RST_DOMAIN_CA53	1
++/* Bit corresponding to CA53_n in the cores' RGM reset partition (n=0..3) */
++#define S32G_MC_RGM_RST_CA53_BIT(n)	BIT(n + 1)
++/* The entire domain defined by S32G_MC_RGM_RST_DOMAIN_CA53 can be reset */
++#define S32G_MC_RGM_RST_CA53_PART_BIT	BIT(0)
++
++#endif /* __S32G_MC_RGM_H__ */
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 79831088e..2aa1cd51a 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -15,6 +15,7 @@
+ #include "platform_def.h"
+ #include "s32g_psci.h"
+ #include "s32g_mc_me.h"
++#include "s32g_mc_rgm.h"
+ #include "s32g_linflexuart.h"
+ #include "s32g_lowlevel.h"
+ #include "s32g_xrdc.h"
+diff --git a/plat/s32g/s32g_mc_me.c b/plat/s32g/s32g_mc_me.c
+index a5f7d9f08..ead2ba675 100644
+--- a/plat/s32g/s32g_mc_me.c
++++ b/plat/s32g/s32g_mc_me.c
+@@ -7,6 +7,7 @@
+ #include <lib/mmio.h>
+ #include <common/debug.h>
+ #include "s32g_mc_me.h"
++#include "s32g_mc_rgm.h"
+ 
+ void plat_secondary_cold_boot_setup(void);
+ 
+-- 
+2.17.1
+

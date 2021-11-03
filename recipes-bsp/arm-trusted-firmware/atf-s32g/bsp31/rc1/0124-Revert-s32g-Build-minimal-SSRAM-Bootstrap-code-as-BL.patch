@@ -1,0 +1,187 @@
+From 57a1c47da9d533477033e011ff424a60fb82d24d Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Fri, 15 May 2020 16:11:23 +0300
+Subject: [PATCH 124/269] Revert "s32g: Build minimal SSRAM Bootstrap code as
+ BL1"
+
+This reverts commit 38dc2a3c1690ebbdb23892c390c45253603edbb0.
+
+Issue: ALB-4907
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c     | 14 +++----
+ plat/s32g/include/platform_def.h |  4 +-
+ plat/s32g/platform.mk            |  2 -
+ plat/s32g/s32g_ssram_bl1.c       | 64 --------------------------------
+ 4 files changed, 8 insertions(+), 76 deletions(-)
+ delete mode 100644 plat/s32g/s32g_ssram_bl1.c
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index b9f5580c5..a5ca9d689 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -68,7 +68,7 @@ static void store_csr(uintptr_t store_at)
+ 	int i, j;
+ 	uint16_t csr;
+ 	uint64_t ssram_data;
+-	extern uintptr_t csr_to_store[];
++	extern uint32_t csr_to_store[];
+ 	extern size_t csr_to_store_length;
+ 
+ 	mmio_write_16(MICROCONTMUXSEL, 0);
+@@ -98,7 +98,7 @@ static void store_csr(uintptr_t store_at)
+ }
+ 
+ void ddrss_init(struct ddrss_conf *ddrss_conf,
+-		struct ddrss_firmware *ddrss_firmware)
++		struct ddrss_firmware *ddrss_firmware, uintptr_t csr_array)
+ {
+ 	write_regconf_32(ddrss_conf->ddrc_conf, ddrss_conf->ddrc_conf_length);
+ 
+@@ -146,7 +146,7 @@ void ddrss_init(struct ddrss_conf *ddrss_conf,
+ 	/* Store a predefined list of CSRs in Standby SRAM, to be used
+ 	 * when resuming the DDRSS from I/O LP3 Retention Mode
+ 	 */
+-	store_csr((uintptr_t)SSRAM_CSR_BACKUP);
++	store_csr(csr_array);
+ 
+ 	mmio_write_32(SWCTL, 0);
+ 	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_INIT_START_MASK);
+@@ -231,7 +231,7 @@ static void load_csr(uintptr_t load_from)
+ 	int i, j;
+ 	uint16_t csr;
+ 	uint64_t ssram_data;
+-	extern uintptr_t csr_to_store[];
++	extern uint32_t csr_to_store[];
+ 	extern size_t csr_to_store_length;
+ 
+ 	mmio_write_16(MICROCONTMUXSEL, 0);
+@@ -258,7 +258,7 @@ static void load_csr(uintptr_t load_from)
+ 	mmio_write_16(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
+ }
+ 
+-void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf)
++void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf, uintptr_t csr_array)
+ {
+ 	write_regconf_32(ddrss_conf->ddrc_conf, ddrss_conf->ddrc_conf_length);
+ 
+@@ -304,7 +304,7 @@ void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf)
+ 	mmio_write_32(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
+ 
+ 	/* Reload saved CSRs */
+-	load_csr((uintptr_t)SSRAM_CSR_BACKUP);
++	load_csr(csr_array);
+ 
+ 	write_regconf_16(ddrss_conf->pie, ddrss_conf->pie_length);
+ 	while (mmio_read_16(CALBUSY) & CALBUSY_MASK)
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 4a93609b9..777f7224b 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -202,9 +202,7 @@
+ #if defined IMAGE_BL1
+ /* To use in blX_platform_setup() */
+ #define FIRMWARE_WELCOME_STR_S32G	"This is S32G BL1\n"
+-/* We're using TF-A infrastructure to build suspend/resume bootstrap code as
+- * a BL1 stage; nevertheless, we are still cold-booting at BL2.
+- */
++#pragma warning "BL1 image is being built; you should configure it out."
+ #endif
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index ae86e30e3..ea6305e9c 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -36,8 +36,6 @@ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   drivers/delay_timer/generic_delay_timer.c \
+ 			   lib/cpus/aarch64/cortex_a53.S
+ 
+-BL1_SOURCES		+= plat/s32g/s32g_ssram_bl1.c
+-
+ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/s32g/s32g274a_bl2_el3.c \
+ 			   plat/s32g/s32g_clocks.c \
+diff --git a/plat/s32g/s32g_ssram_bl1.c b/plat/s32g/s32g_ssram_bl1.c
+deleted file mode 100644
+index bf04ff754..000000000
+--- a/plat/s32g/s32g_ssram_bl1.c
++++ /dev/null
+@@ -1,64 +0,0 @@
+-/*
+- * Copyright 2020 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <plat/common/platform.h>
+-
+-int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+-			  uintptr_t *image_spec)
+-{
+-	return 0;
+-}
+-
+-int io_open(uintptr_t dev_handle, const uintptr_t spec, uintptr_t *handle)
+-{
+-	return 0;
+-}
+-
+-int io_size(uintptr_t handle, size_t *length)
+-{
+-	return 0;
+-}
+-
+-int io_read(uintptr_t handle, uintptr_t buffer, size_t length,
+-	    size_t *length_read)
+-{
+-	return 0;
+-}
+-
+-int io_close(uintptr_t handle)
+-{
+-	return 0;
+-}
+-
+-int io_dev_close(uintptr_t dev_handle)
+-{
+-	return 0;
+-}
+-
+-void plat_secondary_cold_boot_setup(void)
+-{
+-}
+-
+-void platform_mem_init(void)
+-{
+-}
+-
+-void bl1_early_platform_setup(void)
+-{
+-}
+-
+-void bl1_plat_arch_setup(void)
+-{
+-}
+-
+-void bl1_platform_setup(void)
+-{
+-}
+-
+-struct meminfo *bl1_plat_sec_mem_layout(void)
+-{
+-	return NULL;
+-}
+-- 
+2.17.1
+

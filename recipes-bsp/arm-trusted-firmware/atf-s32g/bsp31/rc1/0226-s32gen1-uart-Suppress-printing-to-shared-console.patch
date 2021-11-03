@@ -1,0 +1,73 @@
+From 0d733052008a5e7f8c0590790460dd8d455c40cf Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Tue, 20 Apr 2021 19:10:02 +0300
+Subject: [PATCH 226/269] s32gen1:uart: Suppress printing to shared console
+
+Sharing our console with Linux is not a safe way of printing, because of
+possible differences in our UART driver vs. whatever Linux context may
+use.
+Add a compile-time variable in platform.mk and conditionally suppress
+printing in BL31. The switch can be turned on if deemed safe from the
+UART sharing viewpoint.
+This patch should be considered a workaround.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-6945
+---
+ plat/nxp/s32g/platform.mk   | 7 +++++++
+ plat/nxp/s32g/s32g_bl31.c   | 2 ++
+ plat/nxp/s32g/s32g_resume.c | 2 ++
+ 3 files changed, 11 insertions(+)
+
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index 3b010220d..611a052f0 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -174,6 +174,13 @@ COLD_BOOT_SINGLE_CPU		:= 0
+ # Which LinFlexD to use as a UART device
+ S32G_LINFLEX_MODULE	:= 0
+ $(eval $(call add_define_val,S32G_LINFLEX_MODULE,$(S32G_LINFLEX_MODULE)))
++# Sharing the LinFlexD UART is not always a safe option. Different drivers
++# (e.g. Linux and TF-A) can configure the UART controller differently; even so,
++# there is no hardware lock to prevent concurrent access to the device. For now,
++# opt to suppress output (except for crash reporting). For debugging and other
++# similarly safe contexts, output can be turned back on using this switch.
++S32G_USE_LINFLEX_IN_BL31	?= 0
++$(eval $(call add_define_val,S32G_USE_LINFLEX_IN_BL31,$(S32G_USE_LINFLEX_IN_BL31)))
+ # Whether we're going to run a hypervisor (EL2) or jump straight into the
+ # bootloader (EL1)
+ S32G_HAS_HV		?= 0
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 85dc8130b..428f33049 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -337,7 +337,9 @@ void bl31_plat_arch_setup(void)
+ 	s32g_smp_fixup();
+ 	s32g_el3_mmu_fixup();
+ 
++#if (S32G_USE_LINFLEX_IN_BL31 == 1)
+ 	console_s32g_register();
++#endif
+ }
+ 
+ static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr)
+diff --git a/plat/nxp/s32g/s32g_resume.c b/plat/nxp/s32g/s32g_resume.c
+index db94597e0..b8b647e34 100644
+--- a/plat/nxp/s32g/s32g_resume.c
++++ b/plat/nxp/s32g/s32g_resume.c
+@@ -43,7 +43,9 @@ void s32g_resume_entrypoint(void)
+ 	reset_rtc();
+ 	s32gen1_wkpu_reset();
+ 
++#if (S32G_USE_LINFLEX_IN_BL31 == 1)
+ 	console_s32g_register();
++#endif
+ 	plat_gic_restore();
+ 	bl31_warm_entrypoint();
+ }
+-- 
+2.17.1
+

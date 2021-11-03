@@ -1,0 +1,46 @@
+From fe65c432c8701b20df59e1eb50b3d5992504c2e1 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Tue, 14 Apr 2020 11:15:14 +0300
+Subject: [PATCH 093/269] tbbr_img_def_exp: Add ids for S32G Standby SRAM
+ images
+
+Due to a hardware limitation, the IVT and BOOTSTRAP_CODE images
+have to be loaded once from MMC to SRAM, and then from SRAM to
+STANDBY_SRAM. Since these two load steps have to be done by different
+means, the first with an io_mmc device and the second with an
+io_memmap one, two sets of image ids are needed.
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/export/common/tbbr/tbbr_img_def_exp.h | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/include/export/common/tbbr/tbbr_img_def_exp.h b/include/export/common/tbbr/tbbr_img_def_exp.h
+index 18f012513..5e84783d0 100644
+--- a/include/export/common/tbbr/tbbr_img_def_exp.h
++++ b/include/export/common/tbbr/tbbr_img_def_exp.h
+@@ -91,7 +91,16 @@
+ /* FW_CONFIG */
+ #define FW_CONFIG_ID			U(31)
+ 
++/* IVT and Application Boot Code Header */
++#define S32G_SRAM_IVT_ABC_ID		U(32)
++#define S32G_STANDBY_SRAM_IVT_ABC_ID	U(33)
++
++/* Resume path bootstrap code resident in Standby SRAM */
++#define S32G_SRAM_BOOTSTRAP_CODE_ID		U(34)
++#define S32G_STANDBY_SRAM_BOOTSTRAP_CODE_ID	U(35)
++
+ /* Max Images */
+-#define MAX_IMAGE_IDS			U(32)
++#define MAX_IMAGE_IDS			U(36)
++
+ 
+ #endif /* ARM_TRUSTED_FIRMWARE_EXPORT_COMMON_TBBR_TBBR_IMG_DEF_EXP_H */
+-- 
+2.17.1
+

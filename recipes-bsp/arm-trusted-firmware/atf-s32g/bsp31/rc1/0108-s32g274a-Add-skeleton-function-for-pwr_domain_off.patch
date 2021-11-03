@@ -1,0 +1,44 @@
+From 471422ba549655b9e76bbace9eb3e00c28f21d23 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 12 Feb 2020 17:37:30 +0200
+Subject: [PATCH 108/269] s32g274a: Add skeleton function for pwr_domain_off
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4910
+---
+ plat/s32g/s32g_psci.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index e33a5e33b..56a5622b8 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -157,9 +157,14 @@ static void s32g_pwr_domain_suspend_pwrdown_early(
+ 	NOTICE("S32G TF-A: %s\n", __func__);
+ }
+ 
++static void s32g_pwr_domain_off(const psci_power_state_t *target_state)
++{
++	NOTICE("S32G TF-A: %s\n", __func__);
++}
++
+ const plat_psci_ops_t s32g_psci_pm_ops = {
+ 	/* cap: PSCI_CPU_OFF */
+-	.pwr_domain_off = NULL,
++	.pwr_domain_off = s32g_pwr_domain_off,
+ 	/* cap: PSCI_CPU_ON_AARCH64 */
+ 	.pwr_domain_on = s32g_pwr_domain_on,
+ 	.pwr_domain_on_finish = s32g_pwr_domain_on_finish,
+-- 
+2.17.1
+

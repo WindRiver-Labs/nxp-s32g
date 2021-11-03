@@ -1,0 +1,121 @@
+From 5cf20ee96d1a8c10b28d8e682ef254cb43d32a46 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 19 Mar 2020 18:11:36 +0200
+Subject: [PATCH 086/269] s32g274a: bl2: Also load bl33 from sd/mmc
+
+Issue: ALB-4274
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h | 12 +++++++++++-
+ plat/s32g/s32g274a_bl2_el3.c     | 14 ++++++++++++++
+ plat/s32g/s32g274a_storage.c     | 10 ++++++++++
+ plat/s32g/s32g275_bl31.c         |  5 +++--
+ 4 files changed, 38 insertions(+), 3 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 85b4ccf3b..6abb75173 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -134,10 +134,20 @@
+ 
+ /* U-boot address in SRAM */
+ #define S32G_BL33_OFF_IN_SRAM	0x00020000
+-#define S32G_BL33_IMAGE_BASE	(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
++#define BL33_ENTRYPOINT		(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
++/* The image found on sdcard at BL33_MMC_OFFSET also includes an Application
++ * Boot Code image header. Therefore, we'll load it all at BL33_ENTRYPOINT
++ * minus the header size such that the actual BL33 code ends up at the
++ * expected address.
++ */
++#define APP_BOOT_CODE_IMG_HDR_SIZE	(0x40)
++#define S32G_BL33_IMAGE_BASE	(BL33_ENTRYPOINT - APP_BOOT_CODE_IMG_HDR_SIZE)
+ #define S32G_BL33_LIMIT		(S32G_SRAM_END)
+ #define S32G_BL33_IMAGE_SIZE	(S32G_BL33_LIMIT - S32G_BL33_IMAGE_BASE)
+ 
++#define BL33_MMC_OFFSET		(0x2000)
++#define BL33_MMC_SIZE		(0xb0000)
++
+ /* BL31 location in DDR - physical addresses only, as the MMU is not
+  * configured at that point yet
+  */
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index 7cc392800..12a612b30 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -35,6 +35,20 @@ static bl_mem_params_node_t s32g_bl2_mem_params_descs[] = {
+ 				      image_info_t, IMAGE_ATTRIB_PLAT_SETUP),
+ 		.image_info.image_max_size = BL31_LIMIT - BL31_BASE,
+ 		.image_info.image_base = BL31_BASE,
++		.next_handoff_image_id = BL33_IMAGE_ID,
++	},
++
++	{
++		.image_id = BL33_IMAGE_ID,
++
++		SET_STATIC_PARAM_HEAD(ep_info, PARAM_EP, VERSION_2,
++				      entry_point_info_t,
++				      NON_SECURE | EXECUTABLE),
++
++		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
++				      image_info_t, IMAGE_ATTRIB_PLAT_SETUP),
++		.image_info.image_max_size = S32G_BL33_IMAGE_SIZE,
++		.image_info.image_base = S32G_BL33_IMAGE_BASE,
+ 		.next_handoff_image_id = INVALID_IMAGE_ID,
+ 	},
+ 
+diff --git a/plat/s32g/s32g274a_storage.c b/plat/s32g/s32g274a_storage.c
+index 9219f680c..048025c30 100644
+--- a/plat/s32g/s32g274a_storage.c
++++ b/plat/s32g/s32g274a_storage.c
+@@ -21,12 +21,22 @@ static const io_block_spec_t bl31_mmc_spec = {
+ 	.length = BL31_MMC_SIZE,
+ };
+ 
++static const io_block_spec_t bl33_mmc_spec = {
++	.offset = BL33_MMC_OFFSET,
++	.length = BL33_MMC_SIZE,
++};
++
+ static const struct plat_io_policy s32g_policies[] = {
+ 	[BL31_IMAGE_ID] = {
+ 		&s32g_mmc_boot_dev_handle,
+ 		(uintptr_t)&bl31_mmc_spec,
+ 		s32g_check_mmc_dev
+ 	},
++	[BL33_IMAGE_ID] = {
++		&s32g_mmc_boot_dev_handle,
++		(uintptr_t)&bl33_mmc_spec,
++		s32g_check_mmc_dev
++	},
+ };
+ 
+ static int s32g_check_mmc_dev(const uintptr_t spec)
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 104653264..1e01fc1af 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -52,7 +52,8 @@ static const mmap_region_t s32g_mmap[] = {
+ 	 */
+ 	MAP_REGION_FLAT(NCORE_BASE_ADDR, S32G_NCORE_SIZE,
+ 			MT_DEVICE | MT_RW),
+-	MAP_REGION_FLAT(S32G_BL33_IMAGE_BASE, S32G_BL33_IMAGE_SIZE,
++	MAP_REGION_FLAT(BL33_ENTRYPOINT,
++			MMU_ROUND_UP_TO_4K(S32G_BL33_IMAGE_SIZE),
+ 			MT_MEMORY | MT_RW),
+ 	MAP_REGION_FLAT(S32G_PMEM_START, S32G_PMEM_LEN,
+ 			MT_MEMORY | MT_RW | MT_SECURE),
+@@ -112,7 +113,7 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 		u_register_t arg2, u_register_t arg3)
+ {
+ 	SET_PARAM_HEAD(&bl33_image_ep_info, PARAM_EP, VERSION_1, 0);
+-	bl33_image_ep_info.pc = S32G_BL33_IMAGE_BASE;
++	bl33_image_ep_info.pc = BL33_ENTRYPOINT;
+ 	bl33_image_ep_info.spsr = s32g_get_spsr_for_bl33_entry();
+ 	SET_SECURITY_STATE(bl33_image_ep_info.h.attr, NON_SECURE);
+ }
+-- 
+2.17.1
+

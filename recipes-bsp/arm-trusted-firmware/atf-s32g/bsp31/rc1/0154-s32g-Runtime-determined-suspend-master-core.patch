@@ -1,0 +1,311 @@
+From a4cc06c6cf3b3e40a0ca0558bfc59d920c9a27d5 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 14 Jul 2020 16:21:29 +0300
+Subject: [PATCH 154/269] s32g: Runtime determined suspend master core
+
+This commit eliminates the separation between the primary (core 0) and
+secondary cores. The primary core is always the one that initiates
+the suspend transition or the last online core.
+
+Issue: ALB-4910
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/bl31_sram/bl31_sram.mk     |  1 +
+ plat/nxp/s32g/bl31_sram/bl31sram_main.c  |  2 +-
+ plat/nxp/s32g/include/s32g_bl_common.h   | 21 +++++++++
+ plat/nxp/s32g/include/s32g_linflexuart.h |  4 +-
+ plat/nxp/s32g/include/s32g_lowlevel.h    |  5 --
+ plat/nxp/s32g/s32g_bl2_el3.c             |  1 +
+ plat/nxp/s32g/s32g_bl31.c                | 23 +++++++++
+ plat/nxp/s32g/s32g_psci.c                | 60 ++++++++++--------------
+ plat/nxp/s32g/s32g_resume.c              |  8 ++--
+ 9 files changed, 79 insertions(+), 46 deletions(-)
+ create mode 100644 plat/nxp/s32g/include/s32g_bl_common.h
+
+diff --git a/plat/nxp/s32g/bl31_sram/bl31_sram.mk b/plat/nxp/s32g/bl31_sram/bl31_sram.mk
+index 6a688b441..2db6f9b62 100644
+--- a/plat/nxp/s32g/bl31_sram/bl31_sram.mk
++++ b/plat/nxp/s32g/bl31_sram/bl31_sram.mk
+@@ -9,6 +9,7 @@ BL31SRAM_SOURCES = plat/common/aarch64/platform_up_stack.S \
+ 		   plat/nxp/s32g/bl31_sram/bl31sram_main.c \
+ 		   plat/nxp/s32g/s32g_clocks.c \
+ 		   plat/nxp/s32g/s32g_linflexuart.S \
++		   plat/nxp/s32g/s32g_lowlevel_common.S \
+ 		   plat/nxp/s32g/s32g_mc_me.c \
+ 		   ${DDR_DRV}/ddrss.c \
+ 
+diff --git a/plat/nxp/s32g/bl31_sram/bl31sram_main.c b/plat/nxp/s32g/bl31_sram/bl31sram_main.c
+index 53b6bd3b9..a330df3e2 100644
+--- a/plat/nxp/s32g/bl31_sram/bl31sram_main.c
++++ b/plat/nxp/s32g/bl31_sram/bl31sram_main.c
+@@ -27,7 +27,7 @@ void bl31sram_main(void)
+ 	s32g_disable_fxosc();
+ 
+ 	/* Set standby master core and request the standby transition */
+-	s32g_set_stby_master_core(S32G_STBY_MASTER_PART, S32G_STBY_MASTER_CORE);
++	s32g_set_stby_master_core(S32G_STBY_MASTER_PART, plat_my_core_pos());
+ 
+ 	/*
+ 	 * A torn-apart variant of psci_power_down_wfi()
+diff --git a/plat/nxp/s32g/include/s32g_bl_common.h b/plat/nxp/s32g/include/s32g_bl_common.h
+new file mode 100644
+index 000000000..70d7f1ec8
+--- /dev/null
++++ b/plat/nxp/s32g/include/s32g_bl_common.h
+@@ -0,0 +1,21 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef S32G_BL_COMMON_H
++#define S32G_BL_COMMON_H
++
++#include <stdbool.h>
++#include <stdint.h>
++
++void s32g_gic_setup(void);
++void plat_gic_save(void);
++void plat_gic_restore(void);
++void s32g_early_plat_init(bool skip_ddr_clk);
++int prepare_pmic(void);
++
++void update_core_state(uint32_t core, uint32_t state);
++bool is_last_core(void);
++
++#endif
+diff --git a/plat/nxp/s32g/include/s32g_linflexuart.h b/plat/nxp/s32g/include/s32g_linflexuart.h
+index 2b4fb031d..581c8a407 100644
+--- a/plat/nxp/s32g/include/s32g_linflexuart.h
++++ b/plat/nxp/s32g/include/s32g_linflexuart.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -24,6 +24,8 @@
+ #define S32G_LINFLEX_UARTPTO	(0x50)
+ 
+ #ifndef __ASSEMBLY__
++#include <drivers/console.h>
++
+ struct console_s32g {
+ 	console_t console;
+ 	uint32_t  size;
+diff --git a/plat/nxp/s32g/include/s32g_lowlevel.h b/plat/nxp/s32g/include/s32g_lowlevel.h
+index e38b534f6..21e9a18cd 100644
+--- a/plat/nxp/s32g/include/s32g_lowlevel.h
++++ b/plat/nxp/s32g/include/s32g_lowlevel.h
+@@ -13,10 +13,5 @@
+ int plat_core_pos_by_mpidr(u_register_t mpidr);
+ int plat_is_my_cpu_primary(void);
+ void s32g_smp_fixup(void);
+-void s32g_gic_setup(void);
+-void plat_gic_save(void);
+-void plat_gic_restore(void);
+-void s32g_early_plat_init(bool skip_ddr_clk);
+-int prepare_pmic(void);
+ 
+ #endif /* S32G_LOWLEVEL_H */
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index 2e6dc0914..b3c4c485a 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -16,6 +16,7 @@
+ #include "s32g_mc_me.h"
+ #include "bl31_ssram.h"
+ #include "s32g_lowlevel.h"
++#include "s32g_bl_common.h"
+ #include <nxp/s32g/ddr/ddrss.h>
+ #include <drivers/generic_delay_timer.h>
+ #include <ssram_mailbox.h>
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 29ca83379..1bc803b36 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -28,6 +28,7 @@
+ #include "s32g_pinctrl.h"
+ #include "s32g_xrdc.h"
+ #include "s32gen1-wkpu.h"
++#include "s32g_bl_common.h"
+ 
+ #define S32G_MAX_I2C_MODULES 5
+ 
+@@ -103,6 +104,27 @@ const gicv3_driver_data_t s32g274a_gic_data = {
+ 	.mpidr_to_core_pos = plat_s32g274a_mpidr_to_core_pos,
+ };
+ 
++volatile uint32_t s32g_core_release_var[PLATFORM_CORE_COUNT];
++
++void update_core_state(uint32_t core, uint32_t state)
++{
++	s32g_core_release_var[core] = state;
++	flush_dcache_range((uintptr_t)&s32g_core_release_var[core],
++			   sizeof(s32g_core_release_var[core]));
++}
++
++bool is_last_core(void)
++{
++	size_t i, on = 0U;
++
++	inv_dcache_range((uintptr_t)s32g_core_release_var,
++			 sizeof(s32g_core_release_var));
++	for (i = 0U; i < ARRAY_SIZE(s32g_core_release_var); i++)
++		if (s32g_core_release_var[i])
++			on++;
++
++	return (on == 1);
++}
+ 
+ static uint32_t s32g_get_spsr_for_bl33_entry(void)
+ {
+@@ -341,6 +363,7 @@ static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr)
+ 
+ void bl31_platform_setup(void)
+ {
++	update_core_state(plat_my_core_pos(), 1);
+ 	s32g_gic_setup();
+ 
+ 	generic_delay_timer_init();
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 29bbc31fb..3786c742e 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -6,11 +6,12 @@
+ #include "bl31_sram.h"
+ #include "platform_def.h"
+ #include "s32g_clocks.h"
+-#include "s32g_lowlevel.h"	/* plat_is_my_cpu_primary() */
++#include "s32g_lowlevel.h"
+ #include "s32g_mc_me.h"
+ #include "s32g_ncore.h"
+ #include "ssram_mailbox.h"
+ #include "s32g_resume.h"
++#include "s32g_bl_common.h"
+ 
+ #include <arch_helpers.h>
+ #include <assert.h>
+@@ -29,8 +30,6 @@ IMPORT_SYM(unsigned long, __BL31_END__, bl31_end);
+ /* Used by plat_secondary_cold_boot_setup */
+ uintptr_t s32g_warmboot_entry;
+ 
+-volatile uint32_t s32g_core_release_var[PLATFORM_CORE_COUNT];
+-
+ /* FIXME revisit tree composition */
+ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 	PLATFORM_SYSTEM_COUNT,
+@@ -44,13 +43,6 @@ static bool is_core_in_secondary_cluster(int pos)
+ 	return (pos == 2 || pos == 3);
+ }
+ 
+-static void update_core_state(uint32_t core, uint32_t state)
+-{
+-	s32g_core_release_var[core] = state;
+-	flush_dcache_range((uintptr_t)&s32g_core_release_var[core],
+-			   sizeof(s32g_core_release_var[core]));
+-}
+-
+ /** Executed by the primary core as part of the PSCI_CPU_ON call,
+  *  e.g. during Linux kernel boot.
+  */
+@@ -64,13 +56,6 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 
+ 	if (s32g_core_in_reset(pos))
+ 		s32g_kick_secondary_ca53_core(pos, core_start_addr);
+-	else
+-		return 0;
+-
+-	/* TODO: this sequence should be revisited for full cpu hotplug support
+-	 * (i.e. turning on/off cpus in an arbitrary order). For now, it only
+-	 * works at boot.
+-	 */
+ 
+ 	/* Do some chores on behalf of the secondary core. ICC setup must be
+ 	 * done by the secondaries, because the interface is not memory-mapped.
+@@ -155,27 +140,12 @@ static void set_warm_entry(void)
+ 	mmio_write_64(warm_entry, (uintptr_t)s32g_resume_entrypoint);
+ }
+ 
+-static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+-					const psci_power_state_t *target_state)
++static void __dead2 platform_suspend(void)
+ {
+-	unsigned int pos = plat_my_core_pos();
+-	unsigned int i;
+-
+-	NOTICE("S32G TF-A: %s: cpu = %u\n", __func__, pos);
+-
+-	copy_bl31sram_image();
+-
+-	if (!plat_is_my_cpu_primary()) {
+-		update_core_state(pos, 0);
+-		plat_secondary_cold_boot_setup();
+-
+-		/* Unreachable code */
+-		plat_panic_handler();
+-	}
++	size_t i;
+ 
+-	for (i = 0; i < PLATFORM_CORE_COUNT; i++) {
++	for (i = 0; i < PLATFORM_CORE_COUNT; i++)
+ 		gicv3_cpuif_disable(i);
+-	}
+ 
+ 	plat_gic_save();
+ 	set_warm_entry();
+@@ -214,6 +184,26 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 	plat_panic_handler();
+ }
+ 
++static void __dead2 s32g_pwr_domain_pwr_down_wfi(
++					const psci_power_state_t *target_state)
++{
++	unsigned int pos = plat_my_core_pos();
++
++	NOTICE("S32G TF-A: %s: cpu = %u\n", __func__, pos);
++
++	copy_bl31sram_image();
++
++	if (!is_last_core()) {
++		update_core_state(pos, 0);
++		plat_secondary_cold_boot_setup();
++	}
++
++	platform_suspend();
++
++	/* Unreachable code */
++	plat_panic_handler();
++}
++
+ static void s32g_pwr_domain_suspend_finish(
+ 					const psci_power_state_t *target_state)
+ {
+diff --git a/plat/nxp/s32g/s32g_resume.c b/plat/nxp/s32g/s32g_resume.c
+index 08ca24651..fed32f88b 100644
+--- a/plat/nxp/s32g/s32g_resume.c
++++ b/plat/nxp/s32g/s32g_resume.c
+@@ -3,12 +3,12 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#include <lib/el3_runtime/cpu_data.h>
+-#include <lib/el3_runtime/context_mgmt.h>
+-#include <bl31/bl31.h>		/* for bl31_warm_entrypoint() */
++#include "s32g_bl_common.h"
+ #include "s32g_linflexuart.h"
+-#include "s32g_lowlevel.h"
+ #include "s32g_resume.h"
++#include <bl31/bl31.h>		/* for bl31_warm_entrypoint() */
++#include <lib/el3_runtime/context_mgmt.h>
++#include <lib/el3_runtime/cpu_data.h>
+ 
+ void s32g_ncore_isol_cluster0(void);
+ 
+-- 
+2.17.1
+

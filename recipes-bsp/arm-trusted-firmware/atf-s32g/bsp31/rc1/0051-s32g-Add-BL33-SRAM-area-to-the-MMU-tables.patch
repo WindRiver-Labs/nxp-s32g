@@ -1,0 +1,98 @@
+From ab6352365d47e95c0f27615df83ad3cde713d87f Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Mon, 6 Jan 2020 18:27:35 +0200
+Subject: [PATCH 051/269] s32g: Add BL33 SRAM area to the MMU tables
+
+BL33 (U-Boot) must be mapped, otherwise MMU initialization will render
+it inaccessible when we el3_exit().
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4474
+---
+ plat/s32g/include/platform_def.h | 22 +++++++++++-----------
+ plat/s32g/s32g275_bl31.c         |  6 ++++--
+ 2 files changed, 15 insertions(+), 13 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 04b871849..846a837d1 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -81,11 +81,8 @@
+ #define S32G_SRAM_BASE		0x34000000
+ #define S32G_SRAM_SIZE		0x00800000
+ #define S32G_SRAM_END		(S32G_SRAM_BASE + S32G_SRAM_SIZE)
+-#define S32G_DDR0_BASE		0x80000000
+-/* FIXME this should be a compile-time option; in addition, on S32G we actually
+- * have 2 DDR controllers
+- */
+-#define S32G_DDR0_END		0x90000000	/* Keep in sync with u-boot! */
++#define S32G_DDR0_BASE		0x800000000ULL
++#define S32G_DDR0_END		0x900000000ULL	/* Keep in sync with u-boot! */
+ #define S32G_DDR_SIZE		(S32G_DDR0_END - S32G_DDR0_BASE)
+ 
+ /* Protected zone at the very top of DDR for our future use */
+@@ -129,19 +126,22 @@
+  */
+ #define TEMP_S32G_BL31_READ_ADDR_IN_SRAM	0x34200000ull
+ 
++/* U-boot address in SRAM */
++#define S32G_BL33_OFF_IN_SRAM		0x00020000
++#define S32G_BL33_IMAGE_BASE		(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
++
+ /* BL2 may reside before or after BL31 in SRAM */
+ #if (S32G_BL2_OFF_IN_SRAM < S32G_BL31_OFF_IN_SRAM)
+ #define BL2_LIMIT		(BL31_BASE - 1)
+ #define BL31_LIMIT		(S32G_SRAM_END)
++#define S32G_BL33_LIMIT		(BL2_BASE - 1)
+ #else
+ #define BL2_LIMIT		(S32G_SRAM_END)
+ #define BL31_LIMIT		(BL2_BASE - 1)
++#define S32G_BL33_LIMIT		(BL31_BASE - 1)
+ #endif
+ 
+-/* U-boot address in SRAM */
+-#define S32G_BL33_OFF_IN_SRAM		0x00020000
+-#define S32G_BL33_IMAGE_BASE		(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
+-
++#define S32G_BL33_IMAGE_SIZE	(S32G_BL33_LIMIT - S32G_BL33_IMAGE_BASE + 1)
+ 
+ /* FIXME value randomly chosen; should probably be revisited */
+ #define PLATFORM_STACK_SIZE		0x4000
+@@ -159,8 +159,8 @@
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+ /* To limit usage, keep these in sync with sizeof(s32g_mmap) */
+-#define MAX_MMAP_REGIONS		8
+-#define MAX_XLAT_TABLES			8
++#define MAX_MMAP_REGIONS		9
++#define MAX_XLAT_TABLES			9
+ #endif
+ #if defined IMAGE_BL33
+ #pragma warning "BL33 image is being built; you should configure it out."
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index db9b7f8af..79831088e 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -31,12 +31,14 @@ static const mmap_region_t s32g_mmap[] = {
+ 			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(S32G_XRDC_BASE, S32G_XRDC_SIZE,
+ 			MT_DEVICE | MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(S32G_PMEM_START, S32G_PMEM_LEN,
+-			MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_MC_ME_BASE_ADDR, S32G_MC_ME_SIZE,
+ 			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(S32G_MC_RGM_BASE_ADDR, S32G_MC_RGM_SIZE,
+ 			MT_DEVICE | MT_RW),
++	MAP_REGION_FLAT(S32G_BL33_IMAGE_BASE, S32G_BL33_IMAGE_SIZE,
++			MT_MEMORY | MT_RW),
++	MAP_REGION_FLAT(S32G_PMEM_START, S32G_PMEM_LEN,
++			MT_MEMORY | MT_RW | MT_SECURE),
+ 	{0},
+ };
+ 
+-- 
+2.17.1
+

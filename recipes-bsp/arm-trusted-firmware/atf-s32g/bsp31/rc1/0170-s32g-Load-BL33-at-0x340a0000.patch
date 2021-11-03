@@ -1,0 +1,31 @@
+From 109bb29a52bee59cb734005315da72db2226885d Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 23 Jul 2020 10:58:52 +0300
+Subject: [PATCH 170/269] s32g: Load BL33 at 0x340a0000
+
+Issue: ALB-4768
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/platform_def.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/platform_def.h b/plat/nxp/s32g/include/platform_def.h
+index 25863e92a..b5d32ebea 100644
+--- a/plat/nxp/s32g/include/platform_def.h
++++ b/plat/nxp/s32g/include/platform_def.h
+@@ -157,8 +157,7 @@
+ #define DTB_SIZE		(BL2_BASE - DTB_BASE)
+ 
+ /* U-boot address in SRAM */
+-#define S32G_BL33_OFF_IN_SRAM	0x00020000
+-#define S32G_BL33_IMAGE_BASE	(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
++#define S32G_BL33_IMAGE_BASE	(S32G_SRAM_BASE + 0xa0000)
+ #define S32G_BL33_LIMIT		(S32G_SRAM_END)
+ #define S32G_BL33_IMAGE_SIZE	(S32G_BL33_LIMIT - S32G_BL33_IMAGE_BASE)
+ 
+-- 
+2.17.1
+

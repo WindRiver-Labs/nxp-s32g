@@ -1,0 +1,319 @@
+From ab3a2b2b82f0ee9951ea7267e2e33793ee954de6 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Date: Thu, 9 Sep 2021 08:04:16 +0300
+Subject: [PATCH 1/3] s32g2: Move PMIC watchdog disablement from BL31 to BL2
+
+Moving VR5510 watchdog disablement from BL31 into BL2 to
+avoid occasional board restarts. With these changes the watchdog
+is disabled in the first 350ms of boot.
+
+Upstream-Status: Pending
+
+Issue: ALB-7689
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/platform_def.h   |  2 +-
+ plat/nxp/s32g/include/s32g_bl_common.h |  3 +
+ plat/nxp/s32g/s32g_bl2_el3.c           |  8 +++
+ plat/nxp/s32g/s32g_bl31.c              | 80 --------------------------
+ plat/nxp/s32g/s32g_bl_common.c         | 79 ++++++++++++++++++++++++-
+ plat/nxp/s32g/s32g_common.mk           |  8 +--
+ 6 files changed, 94 insertions(+), 86 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/platform_def.h b/plat/nxp/s32g/include/platform_def.h
+index 3cdb6c2ed..c7f3597c1 100644
+--- a/plat/nxp/s32g/include/platform_def.h
++++ b/plat/nxp/s32g/include/platform_def.h
+@@ -222,7 +222,7 @@
+ #endif
+ 
+ #if defined IMAGE_BL2
+-#define MAX_MMAP_REGIONS		16
++#define MAX_MMAP_REGIONS		17
+ #define MAX_XLAT_TABLES			(MAX_MMAP_REGIONS + BL31SRAM_MAX_PAGES)
+ #endif
+ #if defined IMAGE_BL33
+diff --git a/plat/nxp/s32g/include/s32g_bl_common.h b/plat/nxp/s32g/include/s32g_bl_common.h
+index b1cb987d2..b9ac14915 100644
+--- a/plat/nxp/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32g/include/s32g_bl_common.h
+@@ -45,4 +45,7 @@ struct s32g_i2c_driver *s32g_add_i2c_module(void *fdt, int fdt_node);
+ void s32g_reinit_i2c(void);
+ 
+ bool s32gen1_is_wkp_short_boot(void);
++
++void dt_init_pmic(void);
++void dt_init_ocotp(void);
+ #endif
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index c57da23a2..d1f582190 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -536,6 +536,7 @@ static const mmap_region_t s32g_mmap[] = {
+ 	MAP_REGION_FLAT(S32G_QSPI_BASE, S32G_QSPI_SIZE, MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(FIP_BASE, FIP_MAXIMUM_SIZE, MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_FLASH_BASE, FIP_MAXIMUM_SIZE, MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(DTB_BASE, BL2_BASE - DTB_BASE, MT_MEMORY | MT_RW),
+ 	{0},
+ };
+ 
+@@ -620,6 +621,13 @@ void bl2_el3_plat_arch_setup(void)
+ 
+ 	s32g_el3_mmu_fixup();
+ 
++	dt_init_ocotp();
++	dt_init_pmic();
++
++	ret = pmic_setup();
++	if (ret)
++		ERROR("Failed to disable VR5510 watchdog\n");
++
+ 	s32g_sram_clear(S32G_BL33_IMAGE_BASE, DTB_BASE);
+ 	/* Clear only the necessary part for the FIP header. The rest will
+ 	 * be cleared in bl2_plat_handle_post_image_load, before loading
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 79647c639..44820f501 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -256,52 +256,6 @@ void plat_gic_restore(void)
+ 		gicv3_rdistif_init_restore(i, &rdisif_ctxs[i]);
+ }
+ 
+-static void dt_init_pmic(void)
+-{
+-	void *fdt;
+-	int pmic_node;
+-	int i2c_node;
+-	struct s32g_i2c_driver *i2c_driver;
+-	int ret;
+-
+-	if (dt_open_and_check() < 0) {
+-		INFO("ERROR fdt check\n");
+-		return;
+-	}
+-
+-	if (fdt_get_address(&fdt) == 0) {
+-		INFO("ERROR fdt\n");
+-		return;
+-	}
+-
+-	pmic_node = -1;
+-	while (true) {
+-		pmic_node = fdt_node_offset_by_compatible(fdt, pmic_node,
+-				"fsl,vr5510");
+-		if (pmic_node == -1)
+-			break;
+-
+-		i2c_node = fdt_parent_offset(fdt, pmic_node);
+-		if (i2c_node == -1) {
+-			INFO("Failed to get parent of PMIC node\n");
+-			return;
+-		}
+-
+-		i2c_driver = s32g_add_i2c_module(fdt, i2c_node);
+-		if (i2c_driver == NULL) {
+-			INFO("PMIC isn't subnode of an I2C node\n");
+-			return;
+-		}
+-
+-		ret = vr5510_register_instance(fdt, pmic_node,
+-					       &i2c_driver->bus);
+-		if (ret) {
+-			INFO("Failed to register VR5510 instance\n");
+-			return;
+-		}
+-	}
+-}
+-
+ static void dt_init_wkpu(void)
+ {
+ 	void *fdt;
+@@ -331,34 +285,6 @@ static void dt_init_wkpu(void)
+ 	}
+ }
+ 
+-static void dt_init_ocotp(void)
+-{
+-	void *fdt;
+-	int ocotp_node;
+-	int ret;
+-
+-	if (dt_open_and_check() < 0) {
+-		INFO("ERROR fdt check\n");
+-		return;
+-	}
+-
+-	if (fdt_get_address(&fdt) == 0) {
+-		INFO("ERROR fdt\n");
+-		return;
+-	}
+-
+-	ocotp_node = fdt_node_offset_by_compatible(fdt, -1,
+-			"fsl,s32g-ocotp");
+-	if (ocotp_node == -1)
+-		return;
+-
+-	ret = s32gen1_ocotp_init(fdt, ocotp_node);
+-	if (ret) {
+-		INFO("Failed to initialize WKPU\n");
+-		return;
+-	}
+-}
+-
+ void bl31_plat_arch_setup(void)
+ {
+ 	s32g_smp_fixup();
+@@ -429,18 +355,12 @@ void clk_tree_init(void)
+ 
+ void bl31_platform_setup(void)
+ {
+-	int ret;
+-
+ 	generic_delay_timer_init();
+ 
+ 	dt_init_pmic();
+ 	dt_init_wkpu();
+ 	dt_init_ocotp();
+ 
+-	ret = pmic_setup();
+-	if (ret)
+-		ERROR("Failed to disable VR5510 watchdog\n");
+-
+ 	update_core_state(plat_my_core_pos(), 1);
+ 	s32g_gic_setup();
+ 
+diff --git a/plat/nxp/s32g/s32g_bl_common.c b/plat/nxp/s32g/s32g_bl_common.c
+index 7b09bfa28..3ce740709 100644
+--- a/plat/nxp/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32g/s32g_bl_common.c
+@@ -1,13 +1,16 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ 
++#include <s32g_dt.h>
+ #include <common/debug.h>
+ #include <lib/mmio.h>
+ #include <libfdt.h>
+ #include <drivers/generic_delay_timer.h>
++#include <drivers/nxp/s32g/pmic/vr5510.h>
++#include <drivers/nxp/s32g/ocotp.h>
+ #include <lib/utils_def.h>
+ #include "platform_def.h"
+ #include "s32g_pinctrl.h"
+@@ -105,3 +108,77 @@ void s32g_reinit_i2c(void)
+ 		s32g_i2c_init(&i2c_drivers[i].bus);
+ }
+ 
++void dt_init_pmic(void)
++{
++	void *fdt = NULL;
++	int pmic_node;
++	int i2c_node;
++	struct s32g_i2c_driver *i2c_driver;
++	int ret;
++
++	if (dt_open_and_check() < 0) {
++		INFO("ERROR fdt check\n");
++		return;
++	}
++
++	if (fdt_get_address(&fdt) == 0) {
++		INFO("ERROR fdt\n");
++		return;
++	}
++
++	pmic_node = -1;
++	while (true) {
++		pmic_node = fdt_node_offset_by_compatible(fdt, pmic_node,
++				"fsl,vr5510");
++		if (pmic_node == -1)
++			break;
++
++		i2c_node = fdt_parent_offset(fdt, pmic_node);
++		if (i2c_node == -1) {
++			INFO("Failed to get parent of PMIC node\n");
++			return;
++		}
++
++		i2c_driver = s32g_add_i2c_module(fdt, i2c_node);
++		if (i2c_driver == NULL) {
++			INFO("PMIC isn't subnode of an I2C node\n");
++			return;
++		}
++
++		ret = vr5510_register_instance(fdt, pmic_node,
++					       &i2c_driver->bus);
++		if (ret) {
++			INFO("Failed to register VR5510 instance\n");
++			return;
++		}
++	}
++}
++
++void dt_init_ocotp(void)
++{
++	void *fdt = NULL;
++	int ocotp_node;
++	int ret;
++
++	if (dt_open_and_check() < 0) {
++		INFO("ERROR fdt check\n");
++		return;
++	}
++
++	if (fdt_get_address(&fdt) == 0) {
++		INFO("ERROR fdt\n");
++		return;
++	}
++
++	ocotp_node = fdt_node_offset_by_compatible(fdt, -1,
++			"fsl,s32g-ocotp");
++	if (ocotp_node == -1)
++		return;
++
++	ret = s32gen1_ocotp_init(fdt, ocotp_node);
++	if (ret) {
++		INFO("Failed to initialize WKPU\n");
++		return;
++	}
++}
++
+diff --git a/plat/nxp/s32g/s32g_common.mk b/plat/nxp/s32g/s32g_common.mk
+index c0e26d263..95f9da5cf 100644
+--- a/plat/nxp/s32g/s32g_common.mk
++++ b/plat/nxp/s32g/s32g_common.mk
+@@ -74,6 +74,10 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/rst/s32gen1_rst.c \
+ 			   drivers/nxp/s32g/clk/set_par_rate.c \
+ 			   drivers/nxp/uart/linflexuart.c \
++			   drivers/nxp/s32g/ocotp.c \
++			   lib/utils/crc8.c \
++			   plat/nxp/s32g/s32g_vr5510.c \
++			   drivers/nxp/s32g/pmic/vr5510.c \
+ 			   common/fdt_wrappers.c \
+ 			   ${GICV3_SOURCES} \
+ 			   ${BL31SRAM_SRC_DUMP} \
+@@ -97,15 +101,11 @@ BL31_SOURCES		+= plat/nxp/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32g/s32g_psci.c \
+ 			   plat/nxp/s32g/s32g_resume.c \
+ 			   plat/nxp/s32g/s32g_pm.c \
+-			   plat/nxp/s32g/s32g_vr5510.c \
+ 			   plat/nxp/s32g/s32g_svc.c \
+ 			   plat/nxp/s32g/s32g_scmi_clk.c \
+ 			   plat/nxp/s32g/s32g_scmi_rst.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+-			   lib/utils/crc8.c \
+-			   drivers/nxp/s32g/ocotp.c \
+-			   drivers/nxp/s32g/pmic/vr5510.c \
+ 			   drivers/nxp/s32g/s32g_wkpu.c \
+ 			   drivers/nxp/s32g/clk/clk.c \
+ 			   drivers/nxp/s32g/clk/fixed_clk.c \
+-- 
+2.17.1
+

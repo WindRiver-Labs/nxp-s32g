@@ -1,0 +1,249 @@
+From c925e5a6d5fce52cea7785572ca65c43d1488668 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Tue, 28 Jan 2020 15:33:54 +0200
+Subject: [PATCH 073/269] s32g274a: Reconfigure Ncore before starting secondary
+ cluster
+
+The secondary CA53 cluster is not configured as an Ncore master at boot.
+We mustn't do that before we've taken at least one of A53 cores 2 or 3
+out of reset. That comes with a double barrier between the primary core
+and the secondary, whereby the latter waits in a 'wfi' holding pen, then
+again waits for Ncore to be configured.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4497
+---
+ plat/s32g/bl31_lowlevel.S        | 65 ++++++++++++++++++++++++++++----
+ plat/s32g/include/platform_def.h |  1 +
+ plat/s32g/include/s32g_ncore.h   |  1 +
+ plat/s32g/platform.mk            |  2 +-
+ plat/s32g/s32g_ncore.c           |  7 ++++
+ plat/s32g/s32g_psci.c            | 20 +++++++++-
+ 6 files changed, 87 insertions(+), 9 deletions(-)
+
+diff --git a/plat/s32g/bl31_lowlevel.S b/plat/s32g/bl31_lowlevel.S
+index 315ec15bb..a59368353 100644
+--- a/plat/s32g/bl31_lowlevel.S
++++ b/plat/s32g/bl31_lowlevel.S
+@@ -7,6 +7,7 @@
+ #include <asm_macros.S>
+ #include <drivers/arm/gicv3.h>
+ #include "platform_def.h"
++#include "s32g_ncore.h"
+ 
+ .globl s32g_smp_fixup
+ .globl plat_secondary_cold_boot_setup
+@@ -103,7 +104,6 @@ func s32g_gic_fixups_for_secondary
+ 	/* Revert to secure state and set up the rest of SCR_EL3 */
+ 	mov	x8, xzr
+ 	orr	x8, x8, #SCR_RW_BIT
+-	/* Leave IRQ, FIQ, EA bits cleared */
+ 	msr	SCR_EL3, x8
+ 	isb
+ 
+@@ -126,6 +126,35 @@ func s32g_gic_fixups_for_secondary
+ endfunc s32g_gic_fixups_for_secondary
+ 
+ 
++/* Wait until CSADSER[DVMSNPEN1<n>] becomes set, meaning that we're safe
++ * to run with caches enabled on this cluster.
++ *
++ * In: x0 - core pos (0..3)
++ * Clobber list: x7, x8, x9, x13
++ */
++func wait_ncore_caiu_online
++	mov	x13, x30
++
++	cmp	x0, #0x2
++	blt	caiu0
++	mov	x7, #0x2
++	b	csadse0_addr
++caiu0:
++	mov	x7, #0x1
++csadse0_addr:
++	mov	x8, #NCORE_BASE_ADDR
++	mov	x9, #CSR_OFF
++	add	x8, x8, x9
++caiu_loop:
++	ldr	x9, [x8, #CSADSER_OFF]	/* CSADSE0 */
++	and	x9, x9, x7
++	cbz	x9, caiu_loop
++
++	mov	x30, x13
++	ret
++endfunc wait_ncore_caiu_online
++
++
+ func plat_secondary_cold_boot_setup
+ 	/* FIXME temporarily prevent the secondaries from progressing, to
+ 	 * allow SMP boot debugging
+@@ -135,17 +164,39 @@ func plat_secondary_cold_boot_setup
+ 	bl	plat_my_core_pos
+ 	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
+ 	ldr	x7, =s32g_core_release_var
+-pen:
++wfi_pen:
+ 	dsb	sy
+-	/* index with current core id */
++	/* Invalidate cache before reading s32g_core_release_var[my_core_pos];
++	 * Save x0, x1 first.
++	 */
++	mov	x9, x0
++	mov	x10, x1
++	add	x0, x7, x0
++	mov	x1, #4
++	bl	inv_dcache_range
++	mov	x0, x9
++	mov	x1, x10
++	/* index s32g_core_release_var with current core id */
+ 	ldr	w8, [x7, x0]
+ 	cbnz	w8, wfi_done
++
++	/* Make sure interrupts are taken to EL3 before going into wfi */
++	mrs	x8, SCR_EL3
++	orr	x9, x8, #SCR_FIQ_BIT
++	orr	x9, x8, #SCR_IRQ_BIT
++	msr	SCR_EL3, x9
++	/* Wait for the primary core to finish GIC setup on my behalf */
+ 	wfi
+-	b	pen
++	/* Restore SCR_EL3 */
++	msr	SCR_EL3, x8
++
++	b	wfi_pen
+ wfi_done:
+-	/* reset condition variable */
+-	mov	x8, #0
+-	str	w8, [x7, x0]
++	/* Wait for the master core to perform additional initializations
++	 * such as ncore_init for my cluster
++	 */
++	bl	plat_my_core_pos	/* x0: my core index */
++	bl	wait_ncore_caiu_online
+ 	/* point of no return */
+ 	b	bl31_warm_entrypoint
+ endfunc plat_secondary_cold_boot_setup
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 0a3161b5e..5cace495b 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -68,6 +68,7 @@
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
+ 
+ #define GPR_BASE_ADDR		0x4007C400UL
++#define GPR06_OFF		0x18
+ #define GPR09_OFF		0x24
+ #define CA53_0_0_RVBARADDR_39_32_OFF	(0)
+ #define CA53_0_0_RVBARADDR_39_32_MASK	(0xFFUL)
+diff --git a/plat/s32g/include/s32g_ncore.h b/plat/s32g/include/s32g_ncore.h
+index 92ff40770..fffc0517d 100644
+--- a/plat/s32g/include/s32g_ncore.h
++++ b/plat/s32g/include/s32g_ncore.h
+@@ -64,6 +64,7 @@
+ #ifndef __ASSEMBLY__
+ void ncore_caiu_online(uint32_t caiu);
+ void ncore_init(void);
++bool ncore_is_caiu_online(uint32_t caiu);
+ #endif
+ 
+ #endif /* S32G_NCORE_H */
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index e28def764..ad919bbdc 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -24,11 +24,11 @@ BL2_AT_EL3		:= 1
+ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   plat/s32g/s32g_linflexuart.S \
+ 			   plat/s32g/s32g_mc_me.c \
++			   plat/s32g/s32g_ncore.c \
+ 			   lib/cpus/aarch64/cortex_a53.S
+ 
+ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/s32g/s32g274a_bl2_el3.c \
+-			   plat/s32g/s32g_ncore.c \
+ 			   plat/s32g/s32g_clocks.c \
+ 			   plat/s32g/s32g_pinctrl.c \
+ 			   plat/s32g/s32g274a_storage.c \
+diff --git a/plat/s32g/s32g_ncore.c b/plat/s32g/s32g_ncore.c
+index fe2b75df4..bdd5b3417 100644
+--- a/plat/s32g/s32g_ncore.c
++++ b/plat/s32g/s32g_ncore.c
+@@ -56,6 +56,13 @@ void ncore_caiu_online(uint32_t caiu)
+ 							CSADSER_DVMSNPEN(caiu));
+ }
+ 
++bool ncore_is_caiu_online(uint32_t caiu)
++{
++	uint32_t stat = mmio_read_32(CSADSER);
++
++	return ((stat & CSADSER_DVMSNPEN(caiu)) != 0);
++}
++
+ void ncore_init(void)
+ {
+ 	uint32_t numdirus, diru;
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index 3a41672d1..e33a5e33b 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -12,6 +12,8 @@
+ #include <plat/common/platform.h>
+ #include <drivers/arm/gicv3.h>
+ 
++#include "s32g_ncore.h"
++#include "s32g_mc_me.h"
+ #include "platform_def.h"
+ 
+ IMPORT_SYM(unsigned long, __BL31_START__, bl31_start);
+@@ -30,6 +32,11 @@ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 	PLATFORM_CORE_COUNT / 2
+ };
+ 
++static bool is_core_in_secondary_cluster(int pos)
++{
++	return (pos == 2 || pos == 3);
++}
++
+ /** Executed by the running (primary) core as part of the PSCI_CPU_ON
+  *  call, e.g. during Linux kernel boot.
+  */
+@@ -38,9 +45,13 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	int pos;
+ 
+ 	pos = plat_core_pos_by_mpidr(mpidr);
+-	s32g_core_release_var[pos] = 1;
+ 	dsbsy();
+ 
++	/* TODO: this sequence should be revisited for full cpu hotplug support
++	 * (i.e. turning on/off cpus in an arbitrary order). For now, it only
++	 * works at boot.
++	 */
++
+ 	/* Do some chores on behalf of the secondary core. ICC setup must be
+ 	 * done by the secondaries, because the interface is not memory-mapped.
+ 	 */
+@@ -48,11 +59,18 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	/* GICR_IGROUPR0, GICR_IGRPMOD0 */
+ 	gicv3_set_interrupt_type(S32G_SECONDARY_WAKE_SGI, pos, INTR_GROUP0);
+ 	/* GICR_ISENABLER0 */
++	assert(plat_ic_is_sgi(S32G_SECONDARY_WAKE_SGI));
+ 	gicv3_enable_interrupt(S32G_SECONDARY_WAKE_SGI, pos);
+ 
+ 	/* Kick the secondary core out of wfi */
+ 	NOTICE("S32G TF-A: %s: booting up core %d\n", __func__, pos);
++	s32g_core_release_var[pos] = 1;
++	flush_dcache_range((uintptr_t)&s32g_core_release_var[pos],
++			   sizeof(s32g_core_release_var[pos]));
+ 	plat_ic_raise_el3_sgi(S32G_SECONDARY_WAKE_SGI, mpidr);
++	if (is_core_in_secondary_cluster(pos) &&
++			!ncore_is_caiu_online(A53_CLUSTER1_CAIU))
++		ncore_caiu_online(A53_CLUSTER1_CAIU);
+ 
+ 	return PSCI_E_SUCCESS;
+ }
+-- 
+2.17.1
+

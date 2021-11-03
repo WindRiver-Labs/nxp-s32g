@@ -1,0 +1,36 @@
+From 1fe2128d44a74e863d6cfd0526f9dc2e6505ae46 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Mon, 6 Jan 2020 18:24:01 +0200
+Subject: [PATCH 050/269] s32g: Exclude s32g_xrdc.c from build
+
+The XRDC driver is becoming ever more obsolete. The latest addition to
+the table is the discontinuity of the DDR physical address space,
+whereby the first and the last 2GB may not be adjacent. Since we aren't
+in fact using XRDC at all, remove it from the build for now.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4474
+---
+ plat/s32g/platform.mk | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 37304c8d4..a26c633de 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -41,8 +41,7 @@ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   drivers/arm/gic/v3/gicv3_helpers.c \
+ 			   drivers/arm/gic/common/gic_common.c
+ BL31_SOURCES		+= plat/s32g/bl31_lowlevel.S \
+-			   plat/s32g/include/plat_macros.S \
+-			   plat/s32g/s32g_xrdc.c
++			   plat/s32g/include/plat_macros.S
+ BL31_SOURCES		+= ${XLAT_TABLES_LIB_SRCS}
+ 
+ 
+-- 
+2.17.1
+

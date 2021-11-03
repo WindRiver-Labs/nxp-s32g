@@ -1,0 +1,30 @@
+From 81a19b281d520238912189f3d85220f9b13c400f Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 20 Feb 2019 08:56:46 +0200
+Subject: [PATCH 014/269] s32g: Correctly parametrize add_define_val
+
+Use the actual value of the added macro, instead of hard-coding it.
+
+Issue: ALB-3702
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/platform.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 6ba1ab1ee..98537d000 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -47,4 +47,4 @@ CRASH_REPORTING		:= 1
+ LOG_LEVEL		:= 50
+ # Enable simulator-specific workarounds. To be removed after hw is available.
+ S32G_VIRTUAL_PLATFORM	:= 1
+-$(eval $(call add_define_val,S32G_VIRTUAL_PLATFORM,1))
++$(eval $(call add_define_val,S32G_VIRTUAL_PLATFORM,$(S32G_VIRTUAL_PLATFORM)))
+-- 
+2.17.1
+

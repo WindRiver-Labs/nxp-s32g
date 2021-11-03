@@ -1,0 +1,54 @@
+From 3e8576f613065095bc39e834b342552cd71790fa Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 15 Nov 2019 15:48:42 +0200
+Subject: [PATCH 023/269] s32g: Remove simulator specific code from console
+ support
+
+Issue: ALB-4320
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/s32g_helpers.S | 16 +---------------
+ 1 file changed, 1 insertion(+), 15 deletions(-)
+
+diff --git a/plat/s32g/s32g_helpers.S b/plat/s32g/s32g_helpers.S
+index 28433369b..e98d5a68f 100644
+--- a/plat/s32g/s32g_helpers.S
++++ b/plat/s32g/s32g_helpers.S
+@@ -243,11 +243,9 @@ wait_init_mode:
+ 	movz	w16, #5		/* fbr */
+ 	str	w16, [x0, #S32G_LINFLEX_LINFBRR]
+ 
+-#ifdef S32G_VIRTUAL_PLATFORM
+-	/* Set preset timeout register value. Otherwise, print is very slow. */
++	/* Set preset timeout register value. */
+ 	movz	w16, #0xf
+ 	str	w16, [x0, #S32G_LINFLEX_UARTPTO]
+-#endif /* S32G_VIRTUAL_PLATFORM */
+ 
+ 	/* 8-bit data, no parity, Tx/Rx enabled, UART mode */
+ 	movz	w16, #0x40	/* UARTCR_PC1 */
+@@ -265,18 +263,6 @@ wait_init_mode:
+ 	orr	w16, w16, w17
+ 	movz	w17, #0x100	/* UARTCR_TFBM */
+ 	orr	w16, w16, w17
+-#ifdef S32G_VIRTUAL_PLATFORM
+-	/* Note: Setting the ROSE bit without also setting OSR is illegal; this
+-	 * only works because of a functional simulator quirk. We're keeping it,
+-	 * though, for easier debugging and sped-up output (on VDK only!).
+-	 * Also, these settings only speed up the output; the input would be
+-	 * totally crippled, unless UARTCR[OSR] is also set (see s32g-uboot for
+-	 * the complete hack).
+-	 *
+-	 * To be revised on actual Si. */
+-	movz	w17, #0x80, lsl #16	/* UARTCRT_ROSE */
+-	orr	w16, w16, w17
+-#endif /* S32G_VIRTUAL_PLATFORM */
+ 	str	w16, [x0, #S32G_LINFLEX_UARTCR]
+ 
+ 	ldr	w16, [x0, #S32G_LINFLEX_LINCR1]
+-- 
+2.17.1
+

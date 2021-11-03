@@ -1,0 +1,33 @@
+From fe896f9755762ac96573d83f0fbd550a19877b8f Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 6 Jul 2020 15:14:42 +0300
+Subject: [PATCH 150/269] s32g: bl31sram: Disable MMU before enabling DDR
+ retention
+
+MMU has to be disable befored entering the DDR retention mode
+due to translation tables which are stored in DDR.
+
+Issue: ALB-4910
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/bl31_sram/bl31sram_main.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/plat/nxp/s32g/bl31_sram/bl31sram_main.c b/plat/nxp/s32g/bl31_sram/bl31sram_main.c
+index e16aa8f60..53b6bd3b9 100644
+--- a/plat/nxp/s32g/bl31_sram/bl31sram_main.c
++++ b/plat/nxp/s32g/bl31_sram/bl31sram_main.c
+@@ -20,6 +20,7 @@ static void disable_ddr_clk(void)
+ 
+ void bl31sram_main(void)
+ {
++	disable_mmu_el3();
+ 	ddrss_to_io_lp3_retention_mode();
+ 	disable_ddr_clk();
+ 
+-- 
+2.17.1
+

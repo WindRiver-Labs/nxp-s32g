@@ -1,0 +1,35 @@
+From 9138b347fd740fe999076cb1b33bf399345841ef Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 8 Jan 2020 11:04:04 +0200
+Subject: [PATCH 057/269] s32g: Do not init SRAM area for BL31 any longer
+
+BL31 is now in DDR.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4474
+---
+ plat/s32g/s32g_lowlevel_bl2.S | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/plat/s32g/s32g_lowlevel_bl2.S b/plat/s32g/s32g_lowlevel_bl2.S
+index ba8726ed1..be8efe07e 100644
+--- a/plat/s32g/s32g_lowlevel_bl2.S
++++ b/plat/s32g/s32g_lowlevel_bl2.S
+@@ -47,11 +47,6 @@ func plat_reset_handler
+ 	ldr	x1,=__BL2_END__
+ 	sub	x1, x1, x0
+ 	bl	s32g_sram_init
+-	/* Target area for BL31 needs to be initialized, also */
+-	ldr	x0,=BL31_BASE
+-	ldr	x1,=BL31_LIMIT
+-	sub	x1, x1, x0
+-	bl	s32g_sram_init
+ 
+ 	mov	x30, x7
+ 	ret
+-- 
+2.17.1
+

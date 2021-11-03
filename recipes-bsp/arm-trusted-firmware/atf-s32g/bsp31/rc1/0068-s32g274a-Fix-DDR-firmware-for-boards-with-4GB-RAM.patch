@@ -1,0 +1,37 @@
+From a2161bdb0f79d62975d2d5768685bffcf7f267c9 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 22 Jan 2020 08:44:06 +0200
+Subject: [PATCH 068/269] s32g274a: Fix DDR firmware for boards with 4GB RAM
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+ISsue: ALB-4536
+---
+ drivers/nxp/s32g/ddr/ddrss_regconf.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss_regconf.c b/drivers/nxp/s32g/ddr/ddrss_regconf.c
+index fc87f2220..22c8dba0b 100644
+--- a/drivers/nxp/s32g/ddr/ddrss_regconf.c
++++ b/drivers/nxp/s32g/ddr/ddrss_regconf.c
+@@ -353,13 +353,13 @@ static struct regconf ddrc_configuration[] = {
+ 	{ 0x401b8, 0x00000000 },
+ 	{ 0x401c0, 0x00000001 },
+ 	{ 0x401c4, 0x00000001 },
+-	{ 0x40200, 0x00000016 },
++	{ 0x40200, 0x00000017 },
+ 	{ 0x40204, 0x00080808 },
+ 	{ 0x40208, 0x00000000 },
+ 	{ 0x4020c, 0x00000000 },
+ 	{ 0x40210, 0x00001f1f },
+ 	{ 0x40214, 0x07070707 },
+-	{ 0x40218, 0x0f070707 },
++	{ 0x40218, 0x07070707 },
+ 	{ 0x4021c, 0x0000000f },
+ 	{ 0x40220, 0x00000000 },
+ 	{ 0x40224, 0x00000000 },
+-- 
+2.17.1
+

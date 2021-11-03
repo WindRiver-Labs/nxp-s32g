@@ -1,0 +1,99 @@
+From 74f7f78eba641c2c05cada6d63bd2d0d21bc9d29 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Fri, 31 Jan 2020 10:49:59 +0200
+Subject: [PATCH 076/269] s32g274a: Move BL33 to EL1
+
+If we run BL33 (U-Boot) at EL2, then the PSCI specification requires
+that PSCI_CPU_ON from ns-EL1 either:
+  - go through EL2 which relays them to EL3, or
+  - go straight to EL3 by-passing EL2, but in implementation-defined
+  conditions, among which the secondary core's startup path must still
+  pass through EL2.
+Currently U-Boot can't do either of the above, and we don't support true
+hypervisor software yet.
+
+As the current implementation stands, secondary cores are released from
+the holding pen late in the boot process, when Linux uses PSCI calls to
+wake them up. At that point, their contexts had been set up by the TF-A
+based on the context of the primary core, because of the above
+requirements. Consequently, if U-Boot had been running at EL2, the
+secondary cores' contexts would have SPSR pointing to EL2. At the same
+time, the primary core has run through U-Boot (EL2) and then into Linux
+(EL1). The secondaries, however, will move directly from TF-A (EL3) into
+Linux, while being in EL2. This causes Linux to complain, since not all
+SMP cores were found to be at the same EL. Besides, it violates the
+requirement that the secondary core's boot path go through EL2.
+
+The only solution now is to force-disable EL2 on the platform until we
+are ready to properly integrate with a bare-metal hypervisor, e.g. Xen.
+We do this via the platform.mk variable S32G_HAS_HV, which for now we
+initialize to zero.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4497
+---
+ plat/s32g/platform.mk    |  4 ++++
+ plat/s32g/s32g275_bl31.c | 17 ++++-------------
+ 2 files changed, 8 insertions(+), 13 deletions(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index b26f98b8c..ba4fad927 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -73,6 +73,10 @@ HW_ASSISTED_COHERENCY		:= 1
+ # Which LinFlexD to use as a UART device
+ S32G_LINFLEX_MODULE	:= 0
+ $(eval $(call add_define_val,S32G_LINFLEX_MODULE,$(S32G_LINFLEX_MODULE)))
++# Whether we're going to run a hypervisor (EL2) or jump straight into the
++# bootloader (EL1)
++S32G_HAS_HV		:= 0
++$(eval $(call add_define_val,S32G_HAS_HV,$(S32G_HAS_HV)))
+ 
+ 
+ ### Devel & Debug options ###
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 3afbac9b9..ea7738c43 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -87,19 +87,15 @@ static uint32_t s32g_get_spsr_for_bl33_entry(void)
+ {
+ 	uint32_t spsr;
+ 	unsigned long el_status, mode;
+-	unsigned int dbg_current_el;
+-
+-	/* xDBGx print current EL */
+-	dbg_current_el = get_current_el();
+-	printf("Current EL is %u\n", dbg_current_el);
+ 
+ 	/* figure out what mode we enter the non-secure world */
+ 	el_status = read_id_aa64pfr0_el1() >> ID_AA64PFR0_EL2_SHIFT;
+ 	el_status &= ID_AA64PFR0_ELX_MASK;
+-
++#if (S32G_HAS_HV == 0)
++	mode = MODE_EL1;
++#else
+ 	mode = (el_status) ? MODE_EL2 : MODE_EL1;
+-	assert(mode == MODE_EL2);
+-
++#endif
+ 	spsr = SPSR_64(mode, MODE_SP_ELX, DISABLE_ALL_EXCEPTIONS);
+ 
+ 	return spsr;
+@@ -115,11 +111,6 @@ entry_point_info_t *bl31_plat_get_next_image_ep_info(uint32_t type)
+ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 		u_register_t arg2, u_register_t arg3)
+ {
+-#if RESET_TO_BL31
+-	assert((void *)arg0 == NULL); /* from bl2 */
+-	assert((void *)arg1 == NULL); /* plat params from bl2 */
+-#endif
+-
+ 	SET_PARAM_HEAD(&bl33_image_ep_info, PARAM_EP, VERSION_1, 0);
+ 	bl33_image_ep_info.pc = S32G_BL33_IMAGE_BASE;
+ 	bl33_image_ep_info.spsr = s32g_get_spsr_for_bl33_entry();
+-- 
+2.17.1
+

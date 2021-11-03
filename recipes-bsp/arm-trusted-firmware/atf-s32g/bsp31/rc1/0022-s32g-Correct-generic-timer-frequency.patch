@@ -1,0 +1,52 @@
+From e4cf4ec12d7d1b70d2dfca0ba1a51f3698762418 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Mon, 22 Jul 2019 16:30:54 +0300
+Subject: [PATCH 022/269] s32g: Correct generic timer frequency
+
+On the functional simulator:
+Adjust the COUNTER_FREQUENCY constant to better reflect the simulation
+time on the VDK r8 functional simulator. Prior to this change, U-Boot's
+countdown timer would take ~9 seconds of simulation time before
+decrementing.
+
+On real Si:
+Correct the generic timer frequency to be 5MHz (the hw reset value
+including the clock dividers and FXOSC frequency).
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3893
+---
+ plat/s32g/include/platform_def.h | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index aec34ceda..1b58fea30 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -50,7 +50,19 @@
+ 
+ #define PLAT_PRIMARY_CPU		0x0
+ /* Generic timer frequency; this goes directly into CNTFRQ_EL0 */
+-#define COUNTER_FREQUENCY		0x00989680	/* 10MHz */
++#if defined S32G_VIRTUAL_PLATFORM
++/* Dummy value, to make time passing more palatable on the functional sim.
++ * We suspect the sim incorrectly further divides the clock signal, so we
++ * manually (and approximately) adjust for that.
++ */
++#define COUNTER_FREQUENCY		0xC0000
++#else
++/* 5MHz; this is based on the assumption that GPR00[CA53_COUNTER_CLK_DIV_VAL]
++ * contains the reset value of 0x7, hence producing a divider value of 8,
++ * applied to the FXOSC frequency of 40MHz
++ */
++#define COUNTER_FREQUENCY		0x004C4B40
++#endif
+ 
+ /* GIC (re)definitions */
+ #define S32G275_GIC_BASE	0x50800000
+-- 
+2.17.1
+

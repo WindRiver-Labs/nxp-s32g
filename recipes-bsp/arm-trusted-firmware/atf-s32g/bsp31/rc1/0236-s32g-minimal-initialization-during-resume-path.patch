@@ -1,0 +1,110 @@
+From 27f74f1a5ce3ec971ba7b25865cd9bef9f3e7d50 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 27 May 2021 11:26:55 +0300
+Subject: [PATCH 236/269] s32g: minimal initialization during resume path
+
+Avoid duplication during long warm boot resume path.
+This reduces the amount of initializations performed
+during BL2. It will only keep A53 and DDR clock from
+the first s32g_early_plat_init call.
+
+Issue: ALB-7139
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/clk/early_clocks.c | 8 ++++----
+ plat/nxp/s32g/include/s32g_clocks.h | 2 ++
+ plat/nxp/s32g/s32g_bl2_el3.c        | 8 ++++----
+ 3 files changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/nxp/s32g/clk/early_clocks.c b/drivers/nxp/s32g/clk/early_clocks.c
+index 65daed1f0..34bac1b78 100644
+--- a/drivers/nxp/s32g/clk/early_clocks.c
++++ b/drivers/nxp/s32g/clk/early_clocks.c
+@@ -77,7 +77,7 @@ static struct clk ddr_pll_phi0 = CLK_INIT(S32GEN1_CLK_DDR_PLL_PHI0);
+ static struct clk mc_cgm5_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM5_MUX0);
+ static struct clk ddr = CLK_INIT(S32GEN1_CLK_DDR);
+ 
+-static int enable_a53_clock(void)
++int s32g_enable_a53_clock(void)
+ {
+ 	int ret;
+ 	unsigned long rate;
+@@ -197,7 +197,7 @@ int s32g_correct_qspi_clock(void)
+ 
+ }
+ 
+-static int enable_ddr_clock(void)
++int s32g_enable_ddr_clock(void)
+ {
+ 	int ret;
+ 	unsigned long rate;
+@@ -234,7 +234,7 @@ int s32g_plat_clock_init(bool skip_ddr_clk)
+ {
+ 	int ret;
+ 
+-	ret = enable_a53_clock();
++	ret = s32g_enable_a53_clock();
+ 	if (ret)
+ 		return ret;
+ 
+@@ -251,7 +251,7 @@ int s32g_plat_clock_init(bool skip_ddr_clk)
+ 		return ret;
+ 
+ 	if (!skip_ddr_clk)
+-		return  enable_ddr_clock();
++		return s32g_enable_ddr_clock();
+ 
+ 	return 0;
+ }
+diff --git a/plat/nxp/s32g/include/s32g_clocks.h b/plat/nxp/s32g/include/s32g_clocks.h
+index 125c11415..cf7dc85df 100644
+--- a/plat/nxp/s32g/include/s32g_clocks.h
++++ b/plat/nxp/s32g/include/s32g_clocks.h
+@@ -333,6 +333,8 @@ enum s32g_mc_cgm {
+ 
+ int s32g_plat_clock_init(bool skip_ddr_clk);
+ void s32g_plat_ddr_clock_init(void);
++int s32g_enable_ddr_clock(void);
++int s32g_enable_a53_clock(void);
+ 
+ #define S32G274A_A53_CORE_CLK_MIN		(48000000ul)
+ #define S32G274A_A53_CORE_CLK_MAX		(1000000000ul)
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index 75733c7af..f674da419 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -465,6 +465,8 @@ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ 	resume_entrypoint = ssram_mb->bl31_warm_entrypoint;
+ 	csr_addr = (uintptr_t)&ssram_mb->csr_settings[0];
+ 
++	s32g_enable_a53_clock();
++	s32g_enable_ddr_clock();
+ 	ddrss_to_normal_mode(csr_addr);
+ 
+ 	resume_entrypoint();
+@@ -564,10 +566,6 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	bl_mem_params_node_t *params = s32g_bl2_mem_params_descs;
+ 	struct s32g_ssram_mailbox *ssram_mb = (void *)BL31SSRAM_MAILBOX;
+ 
+-	s32g_early_plat_init(false);
+-
+-	console_s32g_register();
+-
+ 	if ((get_reset_cause() == CAUSE_WAKEUP_DURING_STANDBY) &&
+ 	    !ssram_mb->short_boot) {
+ 		/* Trampoline to bl31_warm_entrypoint */
+@@ -575,6 +573,8 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 		panic();
+ 	}
+ 
++	s32g_early_plat_init(false);
++	console_s32g_register();
+ 	s32g_io_setup();
+ 
+ 	add_fip_img_to_mem_params_descs(params, &index);
+-- 
+2.17.1
+

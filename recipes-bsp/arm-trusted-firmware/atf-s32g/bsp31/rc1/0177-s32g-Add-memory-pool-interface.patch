@@ -1,0 +1,99 @@
+From fcff4feafc8d0fea412e16beeb75631c0dd82935 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 29 Sep 2020 10:26:44 +0300
+Subject: [PATCH 177/269] s32g: Add memory pool interface
+
+This interface is meant to abstract the management of a statically
+allocated array.
+
+Issue: ALB-4294, ALB-5510
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/memory_pool.c         | 22 +++++++++++++++++++
+ include/drivers/nxp/s32g/memory_pool.h | 29 ++++++++++++++++++++++++++
+ plat/nxp/s32g/platform.mk              |  1 +
+ 3 files changed, 52 insertions(+)
+ create mode 100644 drivers/nxp/s32g/memory_pool.c
+ create mode 100644 include/drivers/nxp/s32g/memory_pool.h
+
+diff --git a/drivers/nxp/s32g/memory_pool.c b/drivers/nxp/s32g/memory_pool.c
+new file mode 100644
+index 000000000..19ea09eb1
+--- /dev/null
++++ b/drivers/nxp/s32g/memory_pool.c
+@@ -0,0 +1,22 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <memory_pool.h>
++
++void *alloc_mem_pool_elem(struct memory_pool *pool)
++{
++	void *ptr;
++
++	if (!pool)
++		return NULL;
++
++	if (pool->fill_level >= pool->n_elem)
++		return NULL;
++
++	ptr = pool->fill_level * pool->el_size + pool->data;
++	pool->fill_level++;
++
++	return ptr;
++}
+diff --git a/include/drivers/nxp/s32g/memory_pool.h b/include/drivers/nxp/s32g/memory_pool.h
+new file mode 100644
+index 000000000..0a7aad38b
+--- /dev/null
++++ b/include/drivers/nxp/s32g/memory_pool.h
+@@ -0,0 +1,29 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef MEMORY_POOL_H
++#define MEMORY_POOL_H
++
++#include <lib/utils_def.h>
++#include <stddef.h>
++
++#define INIT_MEM_POOL(ARRAY)			\
++	{					\
++		.data = &(ARRAY),		\
++		.n_elem = ARRAY_SIZE(ARRAY),	\
++		.el_size = sizeof((ARRAY)[0]),	\
++		.fill_level = 0x0,		\
++	}
++
++struct memory_pool {
++	void *data;
++	size_t n_elem;
++	size_t el_size;
++	size_t fill_level;
++};
++
++void *alloc_mem_pool_elem(struct memory_pool *pool);
++
++#endif
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index a12c5af65..8cc37945a 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -40,6 +40,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/i2c/s32g_i2c.c \
+ 			   drivers/delay_timer/delay_timer.c \
+ 			   drivers/delay_timer/generic_delay_timer.c \
++			   drivers/nxp/s32g/memory_pool.c \
+ 			   lib/cpus/aarch64/cortex_a53.S\
+ 			   ${GICV3_SOURCES} \
+ 			   ${BL31SRAM_SRC_DUMP} \
+-- 
+2.17.1
+

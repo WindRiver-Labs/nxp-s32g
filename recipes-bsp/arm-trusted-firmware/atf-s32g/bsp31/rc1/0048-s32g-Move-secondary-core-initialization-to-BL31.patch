@@ -1,0 +1,131 @@
+From 96420bb766bf6cefa1d4cbc3449fa65ebfebbf6c Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Thu, 19 Dec 2019 16:11:22 +0200
+Subject: [PATCH 048/269] s32g: Move secondary core initialization to BL31
+
+Function plat_secondary_cold_boot_setup() called from BL31 now contains
+the old A53 secondary kick logic.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4497
+---
+ plat/s32g/bl31_lowlevel.S        | 26 +++++++++++++++++++-------
+ plat/s32g/s32g_lowlevel_bl2.S    |  6 ++++++
+ plat/s32g/s32g_lowlevel_common.S | 23 -----------------------
+ 3 files changed, 25 insertions(+), 30 deletions(-)
+
+diff --git a/plat/s32g/bl31_lowlevel.S b/plat/s32g/bl31_lowlevel.S
+index cd8335eab..9b0969834 100644
+--- a/plat/s32g/bl31_lowlevel.S
++++ b/plat/s32g/bl31_lowlevel.S
+@@ -8,7 +8,23 @@
+ #include <drivers/arm/gicv3.h>
+ #include "platform_def.h"
+ 
+-.globl _rename_this_plat_secondary_cold_boot_setup
++.globl s32g_smp_fixup
++.globl plat_secondary_cold_boot_setup
++
++.globl s32g_core_release_var
++
++
++/* Set SMPEN bit on u-boot's behalf */
++/* TODO check whether this function is still necessary in BL31; in cortex_a53.S
++ * there's a cortex_a53_rest_func doing the same. */
++func s32g_smp_fixup
++	mrs x14, S3_1_c15_c2_1
++	orr x14, x14, #(1 << 6)
++	msr S3_1_c15_c2_1, x14
++	isb
++
++	ret
++endfunc s32g_smp_fixup
+ 
+ 
+ /* Clear GICR_WAKER[ProcessorSleep] bit.
+@@ -110,11 +126,7 @@ func s32g_gic_fixups_for_secondary
+ endfunc s32g_gic_fixups_for_secondary
+ 
+ 
+-/*
+- * Clobber list: x0,x7,x8,x9,x10,x11,x13
+- * FIXME rename this, it is no longer the entrypoint
+- */
+-func _rename_this_plat_secondary_cold_boot_setup
++func plat_secondary_cold_boot_setup
+ 	bl	s32g_gic_fixups_for_secondary
+ 	bl	plat_my_core_pos
+ 	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
+@@ -132,4 +144,4 @@ wfi_done:
+ 	str	w8, [x7, x0]
+ 	/* point of no return */
+ 	b	bl31_warm_entrypoint
+-endfunc _rename_this_plat_secondary_cold_boot_setup
++endfunc plat_secondary_cold_boot_setup
+diff --git a/plat/s32g/s32g_lowlevel_bl2.S b/plat/s32g/s32g_lowlevel_bl2.S
+index d14a33b6c..ba8726ed1 100644
+--- a/plat/s32g/s32g_lowlevel_bl2.S
++++ b/plat/s32g/s32g_lowlevel_bl2.S
+@@ -11,6 +11,7 @@
+ .globl platform_mem_init
+ .globl plat_reset_handler
+ .globl s32g_sram_init
++.globl plat_secondary_cold_boot_setup
+ 
+ 
+ /* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+@@ -60,3 +61,8 @@ endfunc plat_reset_handler
+ func platform_mem_init
+ 	ret
+ endfunc platform_mem_init
++
++
++func plat_secondary_cold_boot_setup
++	ret
++endfunc plat_secondary_cold_boot_setup
+diff --git a/plat/s32g/s32g_lowlevel_common.S b/plat/s32g/s32g_lowlevel_common.S
+index 16296d780..58d018d5d 100644
+--- a/plat/s32g/s32g_lowlevel_common.S
++++ b/plat/s32g/s32g_lowlevel_common.S
+@@ -11,12 +11,8 @@
+ .globl plat_is_my_cpu_primary
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
+-.globl plat_secondary_cold_boot_setup
+-.globl s32g_smp_fixup
+ .globl s32g_sram_init
+ 
+-.globl s32g_core_release_var
+-
+ 
+ /* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+  * This is so cache invalidate operations from the early TF-A boot code
+@@ -112,22 +108,3 @@ func plat_core_pos_by_mpidr
+ 	mov	x30, x7
+ 	ret
+ endfunc plat_core_pos_by_mpidr
+-
+-
+-/* Set SMPEN bit on u-boot's behalf */
+-/* TODO check whether this function is still necessary in BL2; in cortex_a53.S
+- * there's a cortex_a53_rest_func doing the same. */
+-func s32g_smp_fixup
+-	mrs x14, S3_1_c15_c2_1
+-	orr x14, x14, #(1 << 6)
+-	msr S3_1_c15_c2_1, x14
+-	isb
+-
+-	ret
+-endfunc s32g_smp_fixup
+-
+-
+-func plat_secondary_cold_boot_setup
+-	/* FIXME I WAS HERE */
+-	ret
+-endfunc plat_secondary_cold_boot_setup
+-- 
+2.17.1
+

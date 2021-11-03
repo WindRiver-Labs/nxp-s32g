@@ -1,0 +1,76 @@
+From 7197ddfcfa3aec93aa96dc5de080732e5d36a7c2 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 20 Sep 2021 15:57:01 +0300
+Subject: [PATCH 18/24] s32g: Turn-off all M7 cores during platform suspend
+
+Issue: ALB-7720
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_mc_me.h | 1 +
+ plat/nxp/s32g/s32g2/s32g2_mc_me.c  | 6 ++++++
+ plat/nxp/s32g/s32g3/s32g3_mc_me.c  | 7 +++++++
+ plat/nxp/s32g/s32g_psci.c          | 4 +---
+ 4 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/s32g_mc_me.h b/plat/nxp/s32g/include/s32g_mc_me.h
+index c692020f4..4df6f24ba 100644
+--- a/plat/nxp/s32g/include/s32g_mc_me.h
++++ b/plat/nxp/s32g/include/s32g_mc_me.h
+@@ -113,6 +113,7 @@ struct a53_haddr_mapping {
+ bool s32g_core_in_reset(uint32_t core);
+ void s32g_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint);
+ void s32g_turn_off_core(uint8_t part, uint8_t core);
++void s32g_turn_off_mcores(void);
+ void s32g_reset_core(uint8_t part, uint8_t core);
+ void s32g_disable_cofb_clk(uint8_t part, uint32_t keep_blocks);
+ void s32g_set_stby_master_core(uint8_t part, uint8_t core);
+diff --git a/plat/nxp/s32g/s32g2/s32g2_mc_me.c b/plat/nxp/s32g/s32g2/s32g2_mc_me.c
+index 5ca8e43f8..3c4ecbe42 100644
+--- a/plat/nxp/s32g/s32g2/s32g2_mc_me.c
++++ b/plat/nxp/s32g/s32g2/s32g2_mc_me.c
+@@ -25,3 +25,9 @@ uint8_t mc_me_core2prtn_core_id(uint8_t part, uint8_t id)
+ 	return id;
+ }
+ 
++void s32g_turn_off_mcores(void)
++{
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 2);
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 1);
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 0);
++}
+diff --git a/plat/nxp/s32g/s32g3/s32g3_mc_me.c b/plat/nxp/s32g/s32g3/s32g3_mc_me.c
+index 81d461d7b..c82af4f89 100644
+--- a/plat/nxp/s32g/s32g3/s32g3_mc_me.c
++++ b/plat/nxp/s32g/s32g3/s32g3_mc_me.c
+@@ -64,3 +64,10 @@ uint8_t mc_me_core2prtn_core_id(uint8_t part, uint8_t id)
+ 	return mc_me_m7_core_id[id];
+ }
+ 
++void s32g_turn_off_mcores(void)
++{
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 3);
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 2);
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 1);
++	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 0);
++}
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 542411fbd..d4eea0958 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -166,9 +166,7 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 
+ 	/* Shutting down cores */
+ 	/* M7 cores */
+-	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 2);
+-	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 1);
+-	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 0);
++	s32g_turn_off_mcores();
+ 
+ 	if (is_lockstep_enabled())
+ 		ncores /= 2;
+-- 
+2.17.1
+

@@ -1,0 +1,42 @@
+From a9668e5979fd4878f24851e69109b1dbe020e941 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 21 Jul 2020 10:54:02 +0300
+Subject: [PATCH 166/269] s32g: makefile: Allow variables to be overridden from
+ command line
+
+Set default values for configurable variables only if these are not
+already defined. This helps to configure A-TF for scenarios where a
+hypervisor is involved.
+
+Issue: ALB-4910
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/platform.mk | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index f824e5dad..cd84a5801 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -154,7 +154,7 @@ S32G_LINFLEX_MODULE	:= 0
+ $(eval $(call add_define_val,S32G_LINFLEX_MODULE,$(S32G_LINFLEX_MODULE)))
+ # Whether we're going to run a hypervisor (EL2) or jump straight into the
+ # bootloader (EL1)
+-S32G_HAS_HV		:= 0
++S32G_HAS_HV		?= 0
+ $(eval $(call add_define_val,S32G_HAS_HV,$(S32G_HAS_HV)))
+ 
+ BL2_EL3_STACK_ALIGNMENT :=	512
+@@ -165,5 +165,5 @@ CFLAGS			+= -O0
+ # Enable dump of processor register state upon exceptions while running BL31
+ CRASH_REPORTING		:= 1
+ # As verbose as it can be
+-LOG_LEVEL		:= 50
++LOG_LEVEL		?= 50
+ 
+-- 
+2.17.1
+

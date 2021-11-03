@@ -1,0 +1,63 @@
+From 8e27a66255b4a09b45b7d91818f84998c21cae93 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 22 Oct 2021 08:36:44 +0300
+Subject: [PATCH 13/16] s32g: emu: Skip PMIC, OCOTP & WKPU initialization
+
+Issue: ALB-7712
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/s32g_bl31.c      | 4 ++++
+ plat/nxp/s32/s32g/s32g_bl_common.c | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index b73973758..f44cddf37 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -265,6 +265,7 @@ void plat_gic_restore(void)
+ 		gicv3_rdistif_init_restore(i, &rdisif_ctxs[i]);
+ }
+ 
++#if S32G_EMU == 0
+ static void dt_init_wkpu(void)
+ {
+ 	void *fdt;
+@@ -293,6 +294,7 @@ static void dt_init_wkpu(void)
+ 		return;
+ 	}
+ }
++#endif
+ 
+ void bl31_plat_arch_setup(void)
+ {
+@@ -366,9 +368,11 @@ void bl31_platform_setup(void)
+ {
+ 	generic_delay_timer_init();
+ 
++#if S32G_EMU == 0
+ 	dt_init_pmic();
+ 	dt_init_wkpu();
+ 	dt_init_ocotp();
++#endif
+ 
+ 	update_core_state(plat_my_core_pos(), 1);
+ 	s32g_gic_setup();
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index 1be1bc64f..b2083cf9b 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -185,7 +185,7 @@ void dt_init_ocotp(void)
+ 
+ 	ret = s32gen1_ocotp_init(fdt, ocotp_node);
+ 	if (ret) {
+-		INFO("Failed to initialize WKPU\n");
++		INFO("Failed to initialize OCOTP\n");
+ 		return;
+ 	}
+ }
+-- 
+2.17.1
+

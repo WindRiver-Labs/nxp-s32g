@@ -1,0 +1,30 @@
+From 84e39983a81c625499a9199c472cd942a55bb9eb Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 24 Apr 2020 10:35:01 +0300
+Subject: [PATCH 101/269] s32g: Add support for MMC_CMD(17)
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/mmc/s32g274a_mmc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/nxp/s32g/mmc/s32g274a_mmc.c b/drivers/nxp/s32g/mmc/s32g274a_mmc.c
+index 5174d11b7..cb52fa793 100644
+--- a/drivers/nxp/s32g/mmc/s32g274a_mmc.c
++++ b/drivers/nxp/s32g/mmc/s32g274a_mmc.c
+@@ -105,7 +105,7 @@
+  * is an application command, otherwise, it is a standard command.
+  */
+ 
+-#define MMC_CMD_ADTC_MASK		(BIT(6) | BIT(18))
++#define MMC_CMD_ADTC_MASK		(BIT(6) | BIT(18) | BIT(17))
+ #define MMC_ACMD_ADTC_MASK		(BIT(51))
+ #define ADTC_MASK_FROM_CMD_XFR_TYP(r)	\
+ 			((CMDINX_FROM_CMD_XFR_TYP(r) == MMC_CMD(55)) ? \
+-- 
+2.17.1
+

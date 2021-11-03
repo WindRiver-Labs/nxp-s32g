@@ -1,0 +1,35 @@
+From 25ed8081d494fe039985ffc3d77229c8934b8ab1 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Thu, 6 Dec 2018 12:35:00 +0200
+Subject: [PATCH 004/269] s32g: Update DDR0 size
+
+S32G U-Boot is compiled with 256MB of DRAM. Fix TF-A to be in sync,
+because features such as protected memory depend on them being in sync.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3452
+---
+ plat/s32g/include/platform_def.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 8e736b06d..285d64f0d 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -49,8 +49,8 @@
+ /* FIXME this should be a compile-time option; in addition, on S32G we actually
+  * have 2 DDR controllers
+  */
+-#define S32G_DDR0_END		0xFFFFFFFF
+-#define S32G_DDR_SIZE		(S32G_DDR0_END - S32G_DDR0_BASE) /* 2GB */
++#define S32G_DDR0_END		0x90000000	/* Keep in sync with u-boot! */
++#define S32G_DDR_SIZE		(S32G_DDR0_END - S32G_DDR0_BASE)
+ 
+ /* Protected zone at the very top of DDR for our future use */
+ #define S32G_PMEM_END		(S32G_DDR0_BASE + S32G_DDR_SIZE)
+-- 
+2.17.1
+

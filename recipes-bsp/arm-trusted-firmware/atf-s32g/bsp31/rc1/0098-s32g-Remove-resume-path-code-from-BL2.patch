@@ -1,0 +1,33 @@
+From 80cf51c8ec411725fab65ccc066aa60953066ed9 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Tue, 14 Apr 2020 11:35:33 +0300
+Subject: [PATCH 098/269] s32g: Remove resume path code from BL2
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/s32g274a_bl2_el3.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index fb8062486..0adf653b3 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -195,11 +195,6 @@ void bl2_el3_plat_arch_setup(void)
+ 	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+ 			      S32G_UART_BAUDRATE, &console);
+ 
+-	if (get_reset_cause() == CAUSE_WAKEUP_DURING_STANDBY) {
+-		ddrss_to_normal_mode(&ddrss_conf, &ddrss_firmware);
+-		return;
+-	}
+-
+ 	sram_clr(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT);
+ 	ddrss_init(&ddrss_conf, &ddrss_firmware);
+ }
+-- 
+2.17.1
+

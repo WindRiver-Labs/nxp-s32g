@@ -1,0 +1,33 @@
+From 0d10cbc5223f41874cdcf802304080303981c874 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 5 Jun 2020 13:04:14 +0300
+Subject: [PATCH 146/269] s32g: platform.mk: Fix check_dtc_version
+
+Fix check_dtc_version to also work for 'x.y.z-dirty' versions.
+
+Issue: ALB-4935
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/platform.mk | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 65f3a8ed3..1c59aa936 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -83,7 +83,8 @@ DTC_FLAGS		+= -Wno-unit_address_vs_reg
+ 
+ all: check_dtc_version
+ check_dtc_version:
+-	$(eval DTC_VERSION_RAW = $(shell $(DTC) --version | cut -f3 -d" "))
++	$(eval DTC_VERSION_RAW = $(shell $(DTC) --version | cut -f3 -d" " \
++							  | cut -f1 -d"-"))
+ 	$(eval DTC_VERSION = $(shell echo $(DTC_VERSION_RAW) | sed "s/\./0/g"))
+ 	@if [ ${DTC_VERSION} -lt 10406 ]; then \
+ 		echo "$(DTC) version must be 1.4.6 or above"; \
+-- 
+2.17.1
+

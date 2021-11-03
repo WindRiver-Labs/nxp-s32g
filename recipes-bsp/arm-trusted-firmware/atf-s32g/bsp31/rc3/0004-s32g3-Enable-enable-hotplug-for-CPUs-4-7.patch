@@ -1,0 +1,476 @@
+From 148eb3a2ffcfbbe2f594026c543f0c73282847dc Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Date: Fri, 17 Sep 2021 13:54:30 +0300
+Subject: [PATCH 04/24] s32g3: Enable enable hotplug for CPUs 4-7
+
+Issue: ALB-7714
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_mc_me.h         | 11 +++-
+ plat/nxp/s32g/include/s32g_mc_rgm.h        |  7 ++-
+ plat/nxp/s32g/include/s32g_platform_def.h  | 17 ++++--
+ plat/nxp/s32g/s32g2/platform.mk            |  2 +
+ plat/nxp/s32g/s32g2/s32g2_mc_me.c          | 27 +++++++++
+ plat/nxp/s32g/s32g2/s32g2_mc_rgm.c         | 15 +++++
+ plat/nxp/s32g/s32g3/include/platform_def.h |  2 +-
+ plat/nxp/s32g/s32g3/platform.mk            |  2 +
+ plat/nxp/s32g/s32g3/s32g3_mc_me.c          | 66 ++++++++++++++++++++++
+ plat/nxp/s32g/s32g3/s32g3_mc_rgm.c         | 24 ++++++++
+ plat/nxp/s32g/s32g_bl31.c                  | 16 +++++-
+ plat/nxp/s32g/s32g_mc_me.c                 | 62 ++++++++------------
+ plat/nxp/s32g/s32g_psci.c                  |  2 +-
+ 13 files changed, 203 insertions(+), 50 deletions(-)
+ create mode 100644 plat/nxp/s32g/s32g2/s32g2_mc_me.c
+ create mode 100644 plat/nxp/s32g/s32g2/s32g2_mc_rgm.c
+ create mode 100644 plat/nxp/s32g/s32g3/s32g3_mc_me.c
+ create mode 100644 plat/nxp/s32g/s32g3/s32g3_mc_rgm.c
+
+diff --git a/plat/nxp/s32g/include/s32g_mc_me.h b/plat/nxp/s32g/include/s32g_mc_me.h
+index d7291467f..551729d64 100644
+--- a/plat/nxp/s32g/include/s32g_mc_me.h
++++ b/plat/nxp/s32g/include/s32g_mc_me.h
+@@ -61,7 +61,8 @@
+ 
+ /* PRTNn_COREm registers */
+ #define S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m) \
+-	(S32G_MC_ME_BASE_ADDR + 0x140 + (n) * 0x200 + (m) * 0x20)
++	(S32G_MC_ME_BASE_ADDR + 0x140 + (n) * 0x200 + \
++	 mc_me_core2prtn_core_id(n, m) * 0x20)
+ #define S32G_MC_ME_PRTN_N_CORE_M_ADDR(n, m) \
+ 	(S32G_MC_ME_PRTN_N_CORE_M_BASE(n, m) + 0xc)
+ #define S32G_MC_ME_PRTN_N_CORE_M_PCONF(n, m) \
+@@ -98,14 +99,22 @@ enum s32g_mc_me_part_no {
+ #define S32G_STBY_MASTER_CORE	0
+ #define S32G_STBY_MASTER_PART	1
+ 
++struct a53_haddr_mapping {
++	uint32_t reg; /** GPR register offset */
++	uint32_t field_off; /** Field offset */
++};
++
+ bool s32g_core_in_reset(uint32_t core);
+ void s32g_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint);
+ void s32g_turn_off_core(uint8_t part, uint8_t core);
+ void s32g_reset_core(uint8_t part, uint8_t core);
+ void s32g_disable_cofb_clk(uint8_t part, uint32_t keep_blocks);
+ void s32g_set_stby_master_core(uint8_t part, uint8_t core);
++const struct a53_haddr_mapping *s32g_get_a53_haddr_mappings(size_t *size);
+ void mc_me_enable_partition_block(uint32_t part, uint32_t block);
+ void mc_me_enable_partition(uint32_t part);
++uint8_t mc_me_core2prtn_core_id(uint8_t part, uint8_t id);
++
+ void s32g_destructive_reset(void);
+ 
+ 
+diff --git a/plat/nxp/s32g/include/s32g_mc_rgm.h b/plat/nxp/s32g/include/s32g_mc_rgm.h
+index 3c1f76ea9..5c011c5e3 100644
+--- a/plat/nxp/s32g/include/s32g_mc_rgm.h
++++ b/plat/nxp/s32g/include/s32g_mc_rgm.h
+@@ -7,6 +7,9 @@
+ #ifndef __S32G_MC_RGM_H__
+ #define __S32G_MC_RGM_H__
+ 
++#include <lib/utils_def.h>
++#include <lib/libc/stdint.h>
++
+ #define S32G_MC_RGM_BASE_ADDR	0x40078000ul
+ #define S32G_MC_RGM_SIZE	0x1000ul
+ #define S32G_MC_RGM_PRST_BASE_ADDR	(S32G_MC_RGM_BASE_ADDR + 0x40)
+@@ -28,8 +31,6 @@
+ 
+ /* Software-resettable domain/partition 1: CA53 cores */
+ #define S32G_MC_RGM_RST_DOMAIN_CA53	1
+-/* Bit corresponding to CA53_n in the cores' RGM reset partition (n=0..3) */
+-#define S32G_MC_RGM_RST_CA53_BIT(n)	BIT((n) + 1)
+ /* The entire domain defined by S32G_MC_RGM_RST_DOMAIN_CA53 can be reset */
+ #define S32G_MC_RGM_RST_CA53_PART_BIT	BIT(0)
+ 
+@@ -60,4 +61,6 @@ enum reset_cause {
+ #define RDC_CTRL_UNLOCK		BIT(31)
+ #define RDC_CTRL_XBAR_DISABLE	BIT(3)
+ 
++uint8_t get_rgm_a53_bit(uint8_t core);
++
+ #endif /* __S32G_MC_RGM_H__ */
+diff --git a/plat/nxp/s32g/include/s32g_platform_def.h b/plat/nxp/s32g/include/s32g_platform_def.h
+index a0584dfc9..acb6e0dd0 100644
+--- a/plat/nxp/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32g/include/s32g_platform_def.h
+@@ -60,16 +60,21 @@
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
+ 
+ #define GPR_BASE_ADDR		0x4007C400UL
+-#define GPR06_OFF		0x18
+-#define GPR09_OFF		0x24
++#define GPR06_OFF		0x18U
++#define GPR09_OFF		0x24U
++#define GPR36_OFF		0x90U
++#define CA53_RVBARADDR_MASK	(0xFFUL)
++/* GPR09 */
+ #define CA53_0_0_RVBARADDR_39_32_OFF	(0)
+-#define CA53_0_0_RVBARADDR_39_32_MASK	(0xFFUL)
+ #define CA53_0_1_RVBARADDR_39_32_OFF	(8)
+-#define CA53_0_1_RVBARADDR_39_32_MASK	(0xFFUL)
+ #define CA53_1_0_RVBARADDR_39_32_OFF	(16)
+-#define CA53_1_0_RVBARADDR_39_32_MASK	(0xFFUL)
+ #define CA53_1_1_RVBARADDR_39_32_OFF	(24)
+-#define CA53_1_1_RVBARADDR_39_32_MASK	(0xFFUL)
++/* GPR36 */
++#define CA53_0_2_RVBARADDR_39_32_OFF	(0)
++#define CA53_0_3_RVBARADDR_39_32_OFF	(8)
++#define CA53_1_2_RVBARADDR_39_32_OFF	(16)
++#define CA53_1_3_RVBARADDR_39_32_OFF	(24)
++
+ 
+ #define BOOT_GPR_BASE		0x4007C900UL
+ #define BOOT_GPR_BMR1_OFF	0
+diff --git a/plat/nxp/s32g/s32g2/platform.mk b/plat/nxp/s32g/s32g2/platform.mk
+index 4f580cdbc..8173e027c 100644
+--- a/plat/nxp/s32g/s32g2/platform.mk
++++ b/plat/nxp/s32g/s32g2/platform.mk
+@@ -10,6 +10,8 @@ PLAT_INCLUDES		+= -Iplat/nxp/s32g/s32g2/include \
+ 
+ PLAT_BL_COMMON_SOURCES	+= drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   plat/nxp/s32g/s32g2/s32g2_sramc.S \
++			   plat/nxp/s32g/s32g2/s32g2_mc_me.c \
++			   plat/nxp/s32g/s32g2/s32g2_mc_rgm.c \
+ 			   lib/cpus/aarch64/s32g2.S \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+ 
+diff --git a/plat/nxp/s32g/s32g2/s32g2_mc_me.c b/plat/nxp/s32g/s32g2/s32g2_mc_me.c
+new file mode 100644
+index 000000000..5ca8e43f8
+--- /dev/null
++++ b/plat/nxp/s32g/s32g2/s32g2_mc_me.c
+@@ -0,0 +1,27 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <lib/mmio.h>
++#include <s32g_mc_me.h>
++
++static const struct a53_haddr_mapping haddr_map[] = {
++	[0] = { .reg = GPR09_OFF, .field_off = CA53_0_0_RVBARADDR_39_32_OFF, },
++	[1] = { .reg = GPR09_OFF, .field_off = CA53_0_1_RVBARADDR_39_32_OFF, },
++	[2] = { .reg = GPR09_OFF, .field_off = CA53_1_0_RVBARADDR_39_32_OFF, },
++	[3] = { .reg = GPR09_OFF, .field_off = CA53_1_1_RVBARADDR_39_32_OFF, },
++};
++
++const struct a53_haddr_mapping *s32g_get_a53_haddr_mappings(size_t *size)
++{
++	*size = ARRAY_SIZE(haddr_map);
++	return &haddr_map[0];
++}
++
++uint8_t mc_me_core2prtn_core_id(uint8_t part, uint8_t id)
++{
++	return id;
++}
++
+diff --git a/plat/nxp/s32g/s32g2/s32g2_mc_rgm.c b/plat/nxp/s32g/s32g2/s32g2_mc_rgm.c
+new file mode 100644
+index 000000000..87b326375
+--- /dev/null
++++ b/plat/nxp/s32g/s32g2/s32g2_mc_rgm.c
+@@ -0,0 +1,15 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <s32g_mc_rgm.h>
++
++uint8_t get_rgm_a53_bit(uint8_t core)
++{
++	/**
++	 * Bit corresponding to CA53_n in the cores'
++	 * RGM reset partition (n=0..3)
++	 */
++	return BIT(core + 1);
++}
+diff --git a/plat/nxp/s32g/s32g3/include/platform_def.h b/plat/nxp/s32g/s32g3/include/platform_def.h
+index 66eb76192..db92a7668 100644
+--- a/plat/nxp/s32g/s32g3/include/platform_def.h
++++ b/plat/nxp/s32g/s32g3/include/platform_def.h
+@@ -10,7 +10,7 @@
+ 
+ #define PLATFORM_CORE_COUNT		8
+ 
+-/* MPIDR_EL1 for the four A53 cores is as follows:
++/* MPIDR_EL1 for the eight A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+  *	A53_0_cpu1:	0x8000_0001
+  *	A53_0_cpu2:	0x8000_0002
+diff --git a/plat/nxp/s32g/s32g3/platform.mk b/plat/nxp/s32g/s32g3/platform.mk
+index a5f52351d..7d367bd99 100644
+--- a/plat/nxp/s32g/s32g3/platform.mk
++++ b/plat/nxp/s32g/s32g3/platform.mk
+@@ -10,6 +10,8 @@ include plat/nxp/s32g/s32g_common.mk
+ PLAT_INCLUDES		+= -Iplat/nxp/s32g/s32g3/include \
+ 
+ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g3/s32g3_sramc.S \
++			   plat/nxp/s32g/s32g3/s32g3_mc_me.c \
++			   plat/nxp/s32g/s32g3/s32g3_mc_rgm.c \
+ 			   drivers/nxp/s32g/clk/s32g398a_clk.c \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+ 
+diff --git a/plat/nxp/s32g/s32g3/s32g3_mc_me.c b/plat/nxp/s32g/s32g3/s32g3_mc_me.c
+new file mode 100644
+index 000000000..81d461d7b
+--- /dev/null
++++ b/plat/nxp/s32g/s32g3/s32g3_mc_me.c
+@@ -0,0 +1,66 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <lib/mmio.h>
++#include <s32g_mc_me.h>
++
++static const struct a53_haddr_mapping haddr_map[] = {
++	[0] = { .reg = GPR09_OFF, .field_off = CA53_0_0_RVBARADDR_39_32_OFF, },
++	[1] = { .reg = GPR09_OFF, .field_off = CA53_0_1_RVBARADDR_39_32_OFF, },
++	[2] = { .reg = GPR36_OFF, .field_off = CA53_0_2_RVBARADDR_39_32_OFF, },
++	[3] = { .reg = GPR36_OFF, .field_off = CA53_0_3_RVBARADDR_39_32_OFF, },
++	[4] = { .reg = GPR09_OFF, .field_off = CA53_1_0_RVBARADDR_39_32_OFF, },
++	[5] = { .reg = GPR09_OFF, .field_off = CA53_1_1_RVBARADDR_39_32_OFF, },
++	[6] = { .reg = GPR36_OFF, .field_off = CA53_1_2_RVBARADDR_39_32_OFF, },
++	[7] = { .reg = GPR36_OFF, .field_off = CA53_1_3_RVBARADDR_39_32_OFF, },
++};
++
++const struct a53_haddr_mapping *s32g_get_a53_haddr_mappings(size_t *size)
++{
++	*size = ARRAY_SIZE(haddr_map);
++	return &haddr_map[0];
++}
++
++uint8_t mc_me_core2prtn_core_id(uint8_t part, uint8_t id)
++{
++	/**
++	 * A map where the key is core id obrained from MPIDR and the
++	 * value represents the ID of the core in MC_ME.PRTN1_CORE*
++	 */
++	static const uint8_t mc_me_a53_core_id[] = {
++		/* Cluster 0, core 0 */
++		[0] = 0,
++		/* Cluster 0, core 1 */
++		[1] = 1,
++		/* Cluster 0, core 2 */
++		[2] = 4,
++		/* Cluster 0, core 3 */
++		[3] = 5,
++		/* Cluster 1, core 0 */
++		[4] = 2,
++		/* Cluster 1, core 1 */
++		[5] = 3,
++		/* Cluster 1, core 2 */
++		[6] = 6,
++		/* Cluster 1, core 3 */
++		[7] = 7,
++	};
++
++	static const uint8_t mc_me_m7_core_id[] = {
++		/* Core 0 */
++		[0] = 0,
++		[1] = 1,
++		[2] = 2,
++		/* Core 3 */
++		[3] = 4,
++	};
++
++	if (part == S32G_MC_ME_CA53_PART)
++		return mc_me_a53_core_id[id];
++
++	return mc_me_m7_core_id[id];
++}
++
+diff --git a/plat/nxp/s32g/s32g3/s32g3_mc_rgm.c b/plat/nxp/s32g/s32g3/s32g3_mc_rgm.c
+new file mode 100644
+index 000000000..1f2c69778
+--- /dev/null
++++ b/plat/nxp/s32g/s32g3/s32g3_mc_rgm.c
+@@ -0,0 +1,24 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <s32g_mc_rgm.h>
++
++uint8_t get_rgm_a53_bit(uint8_t core)
++{
++	static uint8_t periph_rgm_coresp[] = {
++		/** Cluster 0, core 0*/
++		[0] = 65,
++		[1] = 66,
++		[2] = 69,
++		[3] = 70,
++		/** Cluster 1, core 0*/
++		[4] = 67,
++		[5] = 68,
++		[6] = 71,
++		[7] = 72,
++	};
++
++	return BIT(periph_rgm_coresp[core] % 64);
++}
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 44820f501..bdbf50940 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -129,16 +129,28 @@ bool is_last_core(void)
+ 
+ bool is_cluster0_off(void)
+ {
++	size_t i;
++
+ 	inv_dcache_range((uintptr_t)s32g_core_release_var,
+ 			 sizeof(s32g_core_release_var));
+-	return !s32g_core_release_var[0] && !s32g_core_release_var[1];
++	for (i = 0U; i < PLATFORM_CORE_COUNT / 2; i++)
++		if (s32g_core_release_var[i])
++			return false;
++
++	return true;
+ }
+ 
+ bool is_cluster1_off(void)
+ {
++	size_t i;
++
+ 	inv_dcache_range((uintptr_t)s32g_core_release_var,
+ 			 sizeof(s32g_core_release_var));
+-	return !s32g_core_release_var[2] && !s32g_core_release_var[3];
++	for (i = PLATFORM_CORE_COUNT / 2; i < PLATFORM_CORE_COUNT; i++)
++		if (s32g_core_release_var[i])
++			return false;
++
++	return true;
+ }
+ 
+ static uint32_t s32g_get_spsr_for_bl33_entry(void)
+diff --git a/plat/nxp/s32g/s32g_mc_me.c b/plat/nxp/s32g/s32g_mc_me.c
+index 88cb40ace..b518c913e 100644
+--- a/plat/nxp/s32g/s32g_mc_me.c
++++ b/plat/nxp/s32g/s32g_mc_me.c
+@@ -173,43 +173,11 @@ void mc_me_enable_partition_block(uint32_t part, uint32_t block)
+ 	mc_me_part_pupd_update_and_wait(S32G_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
+ }
+ 
+-static void core_high_addr_write(uintptr_t addr, uint32_t core)
+-{
+-	uint32_t addr_hi;
+-	uint32_t gpr09;
+-
+-	addr_hi = (uint32_t)(addr >> 32);
+-	gpr09 = mmio_read_32(GPR_BASE_ADDR + GPR09_OFF);
+-
+-	switch (core) {
+-	case 0:
+-		gpr09 |= ((addr_hi & CA53_0_0_RVBARADDR_39_32_MASK) <<
+-			   CA53_0_0_RVBARADDR_39_32_OFF);
+-		break;
+-	case 1:
+-		gpr09 |= ((addr_hi & CA53_0_1_RVBARADDR_39_32_MASK) <<
+-			   CA53_0_1_RVBARADDR_39_32_OFF);
+-		break;
+-	case 2:
+-		gpr09 |= ((addr_hi & CA53_1_0_RVBARADDR_39_32_MASK) <<
+-			   CA53_1_0_RVBARADDR_39_32_OFF);
+-		break;
+-	case 3:
+-		gpr09 |= ((addr_hi & CA53_1_1_RVBARADDR_39_32_MASK) <<
+-			   CA53_1_1_RVBARADDR_39_32_OFF);
+-		break;
+-	default:
+-		panic();
+-	}
+-
+-	mmio_write_32(GPR_BASE_ADDR + GPR09_OFF, gpr09);
+-}
+-
+ bool s32g_core_in_reset(uint32_t core)
+ {
+ 	uint32_t stat, rst;
+ 
+-	rst = S32G_MC_RGM_RST_CA53_BIT(core);
++	rst = get_rgm_a53_bit(core);
+ 	stat = mmio_read_32(S32G_MC_RGM_PSTAT(S32G_MC_RGM_RST_DOMAIN_CA53));
+ 	return ((stat & rst) != 0);
+ }
+@@ -272,19 +240,39 @@ static void enable_a53_core_clock(uint32_t core)
+ 		;
+ }
+ 
++static void set_core_high_addr(uintptr_t addr, uint32_t core)
++{
++	const struct a53_haddr_mapping *map;
++	uint32_t addr_hi, reg_val, field_off, reg_off;
++	size_t size;
++
++	map = s32g_get_a53_haddr_mappings(&size);
++
++	if (core >= size)
++		panic();
++
++	reg_off = map[core].reg;
++	field_off = map[core].field_off;
++
++	addr_hi = (uint32_t)(addr >> 32);
++	reg_val = mmio_read_32(GPR_BASE_ADDR + reg_off);
++
++	reg_val |= ((addr_hi & CA53_RVBARADDR_MASK) << field_off);
++	mmio_write_32(GPR_BASE_ADDR + reg_off, reg_val);
++}
++
+ /** Reset and initialize secondary A53 core identified by its number
+  *  in one of the MC_ME partitions
+  */
+ void s32g_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint)
+ {
+ 	uint32_t rst;
+-	uint32_t rst_mask = S32G_MC_RGM_RST_CA53_BIT(core);
++	uint32_t rst_mask = get_rgm_a53_bit(core);
+ 	const uint32_t part = S32G_MC_ME_CA53_PART;
+ 
+ 	enable_a53_partition();
+ 
+-	/* GPR09 provides the 8 high-order bits for the core's start addr */
+-	core_high_addr_write(entrypoint, core);
++	set_core_high_addr(entrypoint, core);
+ 	/* The MC_ME provides the 32 low-order bits for the core's
+ 	 * start address
+ 	 */
+@@ -320,7 +308,7 @@ void s32g_reset_core(uint8_t part, uint8_t core)
+ 	uintptr_t pstat;
+ 
+ 	if (part == S32G_MC_ME_CA53_PART) {
+-		resetc = S32G_MC_RGM_RST_CA53_BIT(core);
++		resetc = get_rgm_a53_bit(core);
+ 		prst = S32G_MC_RGM_PRST(S32G_MC_RGM_RST_DOMAIN_CA53);
+ 		pstat = S32G_MC_RGM_PSTAT(S32G_MC_RGM_RST_DOMAIN_CA53);
+ 	} else {
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index cbda2a96b..4ccf96b0e 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -38,7 +38,7 @@ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 
+ static bool is_core_in_secondary_cluster(int pos)
+ {
+-	return (pos == 2 || pos == 3);
++	return (pos >= PLATFORM_CORE_COUNT / 2);
+ }
+ 
+ /** Executed by the primary core as part of the PSCI_CPU_ON call,
+-- 
+2.17.1
+

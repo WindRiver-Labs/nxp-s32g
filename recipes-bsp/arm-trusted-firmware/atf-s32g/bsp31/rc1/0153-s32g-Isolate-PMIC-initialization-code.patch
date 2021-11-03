@@ -1,0 +1,286 @@
+From 26e81ddbc41b25a29c366f6d44f4fee91cb84435 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 14 Jul 2020 16:20:53 +0300
+Subject: [PATCH 153/269] s32g: Isolate PMIC initialization code
+
+Issue: ALB-4910
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_lowlevel.h |   1 +
+ plat/nxp/s32g/platform.mk             |   1 +
+ plat/nxp/s32g/s32g_psci.c             | 103 +-----------------------
+ plat/nxp/s32g/s32g_vr5510.c           | 108 ++++++++++++++++++++++++++
+ 4 files changed, 111 insertions(+), 102 deletions(-)
+ create mode 100644 plat/nxp/s32g/s32g_vr5510.c
+
+diff --git a/plat/nxp/s32g/include/s32g_lowlevel.h b/plat/nxp/s32g/include/s32g_lowlevel.h
+index 36c515ae6..e38b534f6 100644
+--- a/plat/nxp/s32g/include/s32g_lowlevel.h
++++ b/plat/nxp/s32g/include/s32g_lowlevel.h
+@@ -17,5 +17,6 @@ void s32g_gic_setup(void);
+ void plat_gic_save(void);
+ void plat_gic_restore(void);
+ void s32g_early_plat_init(bool skip_ddr_clk);
++int prepare_pmic(void);
+ 
+ #endif /* S32G_LOWLEVEL_H */
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index 414d17029..daaf61866 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -64,6 +64,7 @@ BL31_SOURCES		+= plat/nxp/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32g/s32g_psci.c \
+ 			   plat/nxp/s32g/s32g_resume.c \
+ 			   plat/nxp/s32g/s32g_pm.c \
++			   plat/nxp/s32g/s32g_vr5510.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   drivers/arm/gic/v3/gicv3_main.c \
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 42c3c9444..29bbc31fb 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -5,7 +5,6 @@
+  */
+ #include "bl31_sram.h"
+ #include "platform_def.h"
+-#include "pmic/vr5510.h"
+ #include "s32g_clocks.h"
+ #include "s32g_lowlevel.h"	/* plat_is_my_cpu_primary() */
+ #include "s32g_mc_me.h"
+@@ -156,106 +155,6 @@ static void set_warm_entry(void)
+ 	mmio_write_64(warm_entry, (uintptr_t)s32g_resume_entrypoint);
+ }
+ 
+-static int prepare_vr5510(void)
+-{
+-	int ret;
+-	vr5510_t mu, fsu;
+-
+-	uint16_t reg;
+-	uint8_t *regp = (uint8_t *)&reg;
+-
+-	ret = vr5510_get_inst(VR5510_MU_NAME, &mu);
+-	if (ret)
+-		return ret;
+-
+-	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
+-	if (ret)
+-		return ret;
+-
+-
+-	/* Clear I2C errors if any */
+-	reg = VR5510_FLAG3_I2C_M_REQ | VR5510_FLAG3_I2C_M_CRC;
+-	ret = vr5510_write(mu, VR5510_M_FLAG3, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	/* Wait forever */
+-	reg = 0x0;
+-	ret = vr5510_write(mu, VR5510_M_SM_CTRL1, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	reg = VR5510_CTRL3_VPREV_STBY | VR5510_CTRL3_HVLDO_STBY
+-		| VR5510_CTRL3_BUCK3_STBY |  VR5510_CTRL3_LDO2_STBY;
+-	ret = vr5510_write(mu, VR5510_M_REG_CTRL3, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	reg = VR5510_FLAG1_ALL_FLAGS;
+-	ret = vr5510_write(mu, VR5510_M_FLAG1, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	reg = VR5510_FLAG2_ALL_FLAGS;
+-	ret = vr5510_write(mu, VR5510_M_FLAG2, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	reg = VR5510_M_CLOCK2_600KHZ;
+-	ret = vr5510_write(mu, VR5510_M_CLOCK2, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	/* Check for I2C errors */
+-	ret = vr5510_read(mu, VR5510_M_FLAG3, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	if (reg & (VR5510_FLAG3_I2C_M_REQ | VR5510_FLAG3_I2C_M_CRC)) {
+-		ERROR("VR5510-MU: Detected I2C errors");
+-		return -EIO;
+-	}
+-
+-	/* Clear I2C errors if any */
+-	reg = VR5510_GRL_FLAGS_I2C_FS_REQ | VR5510_GRL_FLAGS_I2C_FS_CRC;
+-	ret = vr5510_write(fsu, VR5510_FS_GRL_FLAGS, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	/* Disable I2C timeout */
+-	reg = 0;
+-	ret = vr5510_write(fsu, VR5510_FS_I_SAFE_INPUTS, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	reg = VR5510_FS_I_NOT_VALUE(reg);
+-	ret = vr5510_write(fsu, VR5510_FS_I_NOT_SAFE_INPUTS, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	/* Check for I2C errors */
+-	ret = vr5510_read(fsu, VR5510_FS_GRL_FLAGS, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	if (reg & (VR5510_GRL_FLAGS_I2C_FS_REQ | VR5510_GRL_FLAGS_I2C_FS_CRC)) {
+-		ERROR("VR5510-FSU: Detected I2C errors\n");
+-		return -EIO;
+-	}
+-
+-	/* Standby request */
+-	ret = vr5510_read(fsu, VR5510_FS_SAFE_IOS, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	reg |= VR5510_SAFE_IOS_STBY_REQ;
+-	ret = vr5510_write(fsu, VR5510_FS_SAFE_IOS, regp, sizeof(reg));
+-	if (ret)
+-		return ret;
+-
+-	return 0;
+-}
+-
+ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 					const psci_power_state_t *target_state)
+ {
+@@ -280,7 +179,7 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 
+ 	plat_gic_save();
+ 	set_warm_entry();
+-	prepare_vr5510();
++	prepare_pmic();
+ 
+ 	/* Shutting down cores */
+ 	/* M7 cores */
+diff --git a/plat/nxp/s32g/s32g_vr5510.c b/plat/nxp/s32g/s32g_vr5510.c
+new file mode 100644
+index 000000000..ae9ffe4e8
+--- /dev/null
++++ b/plat/nxp/s32g/s32g_vr5510.c
+@@ -0,0 +1,108 @@
++/*
++ * Copyright 2019-2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include "pmic/vr5510.h"
++
++int prepare_pmic(void)
++{
++	int ret;
++	vr5510_t mu, fsu;
++
++	uint16_t reg;
++	uint8_t *regp = (uint8_t *)&reg;
++
++	ret = vr5510_get_inst(VR5510_MU_NAME, &mu);
++	if (ret)
++		return ret;
++
++	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
++	if (ret)
++		return ret;
++
++
++	/* Clear I2C errors if any */
++	reg = VR5510_FLAG3_I2C_M_REQ | VR5510_FLAG3_I2C_M_CRC;
++	ret = vr5510_write(mu, VR5510_M_FLAG3, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	/* Wait forever */
++	reg = 0x0;
++	ret = vr5510_write(mu, VR5510_M_SM_CTRL1, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	reg = VR5510_CTRL3_VPREV_STBY | VR5510_CTRL3_HVLDO_STBY
++		| VR5510_CTRL3_BUCK3_STBY |  VR5510_CTRL3_LDO2_STBY;
++	ret = vr5510_write(mu, VR5510_M_REG_CTRL3, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	reg = VR5510_FLAG1_ALL_FLAGS;
++	ret = vr5510_write(mu, VR5510_M_FLAG1, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	reg = VR5510_FLAG2_ALL_FLAGS;
++	ret = vr5510_write(mu, VR5510_M_FLAG2, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	reg = VR5510_M_CLOCK2_600KHZ;
++	ret = vr5510_write(mu, VR5510_M_CLOCK2, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	/* Check for I2C errors */
++	ret = vr5510_read(mu, VR5510_M_FLAG3, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	if (reg & (VR5510_FLAG3_I2C_M_REQ | VR5510_FLAG3_I2C_M_CRC)) {
++		ERROR("VR5510-MU: Detected I2C errors");
++		return -EIO;
++	}
++
++	/* Clear I2C errors if any */
++	reg = VR5510_GRL_FLAGS_I2C_FS_REQ | VR5510_GRL_FLAGS_I2C_FS_CRC;
++	ret = vr5510_write(fsu, VR5510_FS_GRL_FLAGS, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	/* Disable I2C timeout */
++	reg = 0;
++	ret = vr5510_write(fsu, VR5510_FS_I_SAFE_INPUTS, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	reg = VR5510_FS_I_NOT_VALUE(reg);
++	ret = vr5510_write(fsu, VR5510_FS_I_NOT_SAFE_INPUTS, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	/* Check for I2C errors */
++	ret = vr5510_read(fsu, VR5510_FS_GRL_FLAGS, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	if (reg & (VR5510_GRL_FLAGS_I2C_FS_REQ | VR5510_GRL_FLAGS_I2C_FS_CRC)) {
++		ERROR("VR5510-FSU: Detected I2C errors\n");
++		return -EIO;
++	}
++
++	/* Standby request */
++	ret = vr5510_read(fsu, VR5510_FS_SAFE_IOS, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	reg |= VR5510_SAFE_IOS_STBY_REQ;
++	ret = vr5510_write(fsu, VR5510_FS_SAFE_IOS, regp, sizeof(reg));
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++
+-- 
+2.17.1
+

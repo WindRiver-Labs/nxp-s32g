@@ -1,0 +1,149 @@
+From 9a0328d0720d82f8fb10b2b3ee9d02e4eab59928 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Date: Fri, 17 Sep 2021 08:59:07 +0300
+Subject: [PATCH 02/24] nxp/s32g: Separated platform_def.h for S32G2 and S32G3
+
+Issue: ALB-7714
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../{platform_def.h => s32g_platform_def.h}       | 11 +++++++----
+ plat/nxp/s32g/s32g2/include/platform_def.h        | 14 ++++++++++++++
+ plat/nxp/s32g/s32g2/{ => include}/s32g2_sramc.h   |  0
+ plat/nxp/s32g/s32g2/platform.mk                   |  2 ++
+ plat/nxp/s32g/s32g3/include/platform_def.h        | 15 +++++++++++++++
+ plat/nxp/s32g/s32g3/{ => include}/s32g3_sramc.h   |  0
+ plat/nxp/s32g/s32g3/platform.mk                   |  3 +++
+ 7 files changed, 41 insertions(+), 4 deletions(-)
+ rename plat/nxp/s32g/include/{platform_def.h => s32g_platform_def.h} (97%)
+ create mode 100644 plat/nxp/s32g/s32g2/include/platform_def.h
+ rename plat/nxp/s32g/s32g2/{ => include}/s32g2_sramc.h (100%)
+ create mode 100644 plat/nxp/s32g/s32g3/include/platform_def.h
+ rename plat/nxp/s32g/s32g3/{ => include}/s32g3_sramc.h (100%)
+
+diff --git a/plat/nxp/s32g/include/platform_def.h b/plat/nxp/s32g/include/s32g_platform_def.h
+similarity index 97%
+rename from plat/nxp/s32g/include/platform_def.h
+rename to plat/nxp/s32g/include/s32g_platform_def.h
+index 1236cc3fd..59a634acb 100644
+--- a/plat/nxp/s32g/include/platform_def.h
++++ b/plat/nxp/s32g/include/s32g_platform_def.h
+@@ -9,8 +9,8 @@
+  * correctly and thorougly understood at the time of this writing.
+  */
+ 
+-#ifndef PLATFORM_DEF_H
+-#define PLATFORM_DEF_H
++#ifndef S32G_PLATFORM_DEF_H
++#define S32G_PLATFORM_DEF_H
+ 
+ #include <common_def.h>
+ #include <tbbr_img_def.h>
+@@ -20,8 +20,12 @@
+ /* MPIDR_EL1 for the four A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+  *	A53_0_cpu1:	0x8000_0001
++ *	A53_0_cpu2:	0x8000_0002
++ *	A53_0_cpu3:	0x8000_0003
+  *	A53_1_cpu0:	0x8000_0100
+  *	A53_1_cpu1:	0x8000_0101
++ *	A53_1_cpu2:	0x8000_0102
++ *	A53_1_cpu3:	0x8000_0103
+  */
+ #define S32G_MPIDR_CPU_MASK		0xFF
+ #define S32G_MPIDR_CPU_CLUSTER_MASK	0xFFF
+@@ -41,7 +45,6 @@
+ /* We'll be doing a 1:1 mapping anyway */
+ #define PLAT_VIRT_ADDR_SPACE_SIZE	(1ull << 36)
+ 
+-#define PLATFORM_CORE_COUNT		4
+ #define PLATFORM_CLUSTER_COUNT		2
+ #define PLATFORM_SYSTEM_COUNT		1
+ /* FIXME I'm not sure this is technically correct. We do NOT have
+@@ -237,4 +240,4 @@
+ 
+ #define S32G_FLASH_BASE		(0x0)
+ 
+-#endif /* PLATFORM_DEF_H */
++#endif /* S32G_PLATFORM_DEF_H */
+diff --git a/plat/nxp/s32g/s32g2/include/platform_def.h b/plat/nxp/s32g/s32g2/include/platform_def.h
+new file mode 100644
+index 000000000..98fade658
+--- /dev/null
++++ b/plat/nxp/s32g/s32g2/include/platform_def.h
+@@ -0,0 +1,14 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef PLATFORM_DEF_H
++#define PLATFORM_DEF_H
++
++#include <s32g_platform_def.h>
++
++#define PLATFORM_CORE_COUNT		4
++
++#endif /* PLATFORM_DEF_H */
++
+diff --git a/plat/nxp/s32g/s32g2/s32g2_sramc.h b/plat/nxp/s32g/s32g2/include/s32g2_sramc.h
+similarity index 100%
+rename from plat/nxp/s32g/s32g2/s32g2_sramc.h
+rename to plat/nxp/s32g/s32g2/include/s32g2_sramc.h
+diff --git a/plat/nxp/s32g/s32g2/platform.mk b/plat/nxp/s32g/s32g2/platform.mk
+index 814631aa7..4f580cdbc 100644
+--- a/plat/nxp/s32g/s32g2/platform.mk
++++ b/plat/nxp/s32g/s32g2/platform.mk
+@@ -6,6 +6,8 @@
+ 
+ include plat/nxp/s32g/s32g_common.mk
+ 
++PLAT_INCLUDES		+= -Iplat/nxp/s32g/s32g2/include \
++
+ PLAT_BL_COMMON_SOURCES	+= drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   plat/nxp/s32g/s32g2/s32g2_sramc.S \
+ 			   lib/cpus/aarch64/s32g2.S \
+diff --git a/plat/nxp/s32g/s32g3/include/platform_def.h b/plat/nxp/s32g/s32g3/include/platform_def.h
+new file mode 100644
+index 000000000..87c8c472f
+--- /dev/null
++++ b/plat/nxp/s32g/s32g3/include/platform_def.h
+@@ -0,0 +1,15 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef PLATFORM_DEF_H
++#define PLATFORM_DEF_H
++
++#include <s32g_platform_def.h>
++
++#define PLATFORM_CORE_COUNT		8
++
++
++#endif /* PLATFORM_DEF_H */
++
+diff --git a/plat/nxp/s32g/s32g3/s32g3_sramc.h b/plat/nxp/s32g/s32g3/include/s32g3_sramc.h
+similarity index 100%
+rename from plat/nxp/s32g/s32g3/s32g3_sramc.h
+rename to plat/nxp/s32g/s32g3/include/s32g3_sramc.h
+diff --git a/plat/nxp/s32g/s32g3/platform.mk b/plat/nxp/s32g/s32g3/platform.mk
+index 1caba6a31..a5f52351d 100644
+--- a/plat/nxp/s32g/s32g3/platform.mk
++++ b/plat/nxp/s32g/s32g3/platform.mk
+@@ -6,6 +6,9 @@
+ 
+ include plat/nxp/s32g/s32g_common.mk
+ 
++
++PLAT_INCLUDES		+= -Iplat/nxp/s32g/s32g3/include \
++
+ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g3/s32g3_sramc.S \
+ 			   drivers/nxp/s32g/clk/s32g398a_clk.c \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+-- 
+2.17.1
+

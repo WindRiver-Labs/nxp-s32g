@@ -1,0 +1,3891 @@
+From 85755f8fce4f9f6091a67ba5e4de11d1e7943c33 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Fri, 25 Sep 2020 13:41:50 +0300
+Subject: [PATCH 179/269] s32g: Port clock driver from U-Boot
+
+Issue: ALB-4294, ALB-5510
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/clk/early_clocks.c           | 223 ++++
+ drivers/nxp/s32g/clk/enable_clk.c             | 986 ++++++++++++++++++
+ drivers/nxp/s32g/clk/fixed_clk.c              | 108 ++
+ drivers/nxp/s32g/clk/get_rate.c               | 346 ++++++
+ drivers/nxp/s32g/clk/s32g274a_clk.c           | 322 ++++++
+ drivers/nxp/s32g/clk/s32gen1_clk.c            | 654 ++++++++++++
+ drivers/nxp/s32g/clk/set_par_rate.c           | 317 ++++++
+ include/drivers/nxp/s32g/clk/mc_cgm_regs.h    | 167 +++
+ include/drivers/nxp/s32g/clk/mc_me_regs.h     |  40 +
+ include/drivers/nxp/s32g/clk/mc_rgm_regs.h    |  21 +
+ .../drivers/nxp/s32g/clk/s32gen1_clk_funcs.h  |  33 +
+ .../nxp/s32g/clk/s32gen1_clk_modules.h        | 444 ++++++++
+ .../nxp/s32g/clk/s32gen1_shared_clks.h        |  19 +
+ include/drivers/nxp/s32g/s32g_fp.h            |  83 ++
+ 14 files changed, 3763 insertions(+)
+ create mode 100644 drivers/nxp/s32g/clk/early_clocks.c
+ create mode 100644 drivers/nxp/s32g/clk/enable_clk.c
+ create mode 100644 drivers/nxp/s32g/clk/fixed_clk.c
+ create mode 100644 drivers/nxp/s32g/clk/get_rate.c
+ create mode 100644 drivers/nxp/s32g/clk/s32g274a_clk.c
+ create mode 100644 drivers/nxp/s32g/clk/s32gen1_clk.c
+ create mode 100644 drivers/nxp/s32g/clk/set_par_rate.c
+ create mode 100644 include/drivers/nxp/s32g/clk/mc_cgm_regs.h
+ create mode 100644 include/drivers/nxp/s32g/clk/mc_me_regs.h
+ create mode 100644 include/drivers/nxp/s32g/clk/mc_rgm_regs.h
+ create mode 100644 include/drivers/nxp/s32g/clk/s32gen1_clk_funcs.h
+ create mode 100644 include/drivers/nxp/s32g/clk/s32gen1_clk_modules.h
+ create mode 100644 include/drivers/nxp/s32g/clk/s32gen1_shared_clks.h
+ create mode 100644 include/drivers/nxp/s32g/s32g_fp.h
+
+diff --git a/drivers/nxp/s32g/clk/early_clocks.c b/drivers/nxp/s32g/clk/early_clocks.c
+new file mode 100644
+index 000000000..2b25f5c3d
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/early_clocks.c
+@@ -0,0 +1,223 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#include <clk/clk.h>
++#include <clk/s32gen1_clk_funcs.h>
++#include <dt-bindings/clock/s32gen1-clock-freq.h>
++#include <dt-bindings/clock/s32gen1-clock.h>
++#include <s32g_clocks.h>
++
++#define CLK_INIT(ID)          \
++{                             \
++	.id = (ID),           \
++	.drv = &fake_clk_dev, \
++}
++
++#define ARM_PLL_BASE_ADDR	PLL_ADDR(S32G_CORE_PLL)
++#define PERIPH_PLL_BASE_ADDR	PLL_ADDR(S32G_PERIPH_PLL)
++#define ACCEL_PLL_BASE_ADDR	PLL_ADDR(S32G_ACCEL_PLL)
++#define DRAM_PLL_BASE_ADDR	PLL_ADDR(S32G_DDR_PLL)
++
++#define ARM_DFS_BASE_ADDR	S32G_DFS_ADDR(S32G_CORE_DFS)
++#define PERIPH_DFS_BASE_ADDR	S32G_DFS_ADDR(S32G_PERIPH_DFS)
++
++static struct s32gen1_clk_priv s32_priv = {
++	.accelpll = (void *)ACCEL_PLL_BASE_ADDR,
++	.armdfs = (void *)ARM_DFS_BASE_ADDR,
++	.armpll = (void *)ARM_PLL_BASE_ADDR,
++	.cgm0 = (void *)MC_CGM0_BASE_ADDR,
++	.cgm1 = (void *)MC_CGM1_BASE_ADDR,
++	.cgm2 = (void *)MC_CGM2_BASE_ADDR,
++	.cgm5 = (void *)MC_CGM5_BASE_ADDR,
++	.ddrpll = (void *)DRAM_PLL_BASE_ADDR,
++	.fxosc = (void *)S32G_FXOSC_BASE_ADDR,
++	.mc_me = (void *)MC_ME_BASE_ADDR,
++	.periphdfs = (void *)PERIPH_DFS_BASE_ADDR,
++	.periphpll = (void *)PERIPH_PLL_BASE_ADDR,
++	.rdc = (void *)RDC_BASE_ADDR,
++	.rgm = (void *)MC_RGM_BASE_ADDR,
++};
++
++static struct clk_driver fake_clk_dev = {
++	.data = &s32_priv,
++};
++
++/* A53 clocks */
++static struct clk fxosc = CLK_INIT(S32GEN1_CLK_FXOSC);
++static struct clk arm_pll_mux = CLK_INIT(S32GEN1_CLK_ARM_PLL_MUX);
++static struct clk arm_pll_vco = CLK_INIT(S32GEN1_CLK_ARM_PLL_VCO);
++static struct clk arm_pll_phi0 = CLK_INIT(S32GEN1_CLK_ARM_PLL_PHI0);
++static struct clk mc_cgm1_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM1_MUX0);
++static struct clk a53_clk = CLK_INIT(S32GEN1_CLK_A53_CORE);
++
++/* XBAR clock */
++static struct clk arm_dfs1 = CLK_INIT(S32GEN1_CLK_ARM_PLL_DFS1);
++static struct clk mc_cgm0_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX0);
++static struct clk xbar_2x = CLK_INIT(S32GEN1_CLK_XBAR_2X);
++
++/* LINFLEX clock */
++static struct clk periph_pll_mux = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_MUX);
++static struct clk periph_pll_vco = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_VCO);
++static struct clk periph_pll_phi3 = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_PHI3);
++static struct clk periph_dfs3 = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_DFS3);
++static struct clk mc_cgm0_mux8 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX8);
++static struct clk mc_cgm0_mux14 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX14);
++static struct clk lin_baud = CLK_INIT(S32GEN1_CLK_LIN_BAUD);
++static struct clk sdhc = CLK_INIT(S32GEN1_CLK_SDHC);
++
++/* DDR clock */
++static struct clk ddr_pll_mux = CLK_INIT(S32GEN1_CLK_DDR_PLL_MUX);
++static struct clk ddr_pll_vco = CLK_INIT(S32GEN1_CLK_DDR_PLL_VCO);
++static struct clk ddr_pll_phi0 = CLK_INIT(S32GEN1_CLK_DDR_PLL_PHI0);
++static struct clk mc_cgm5_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM5_MUX0);
++static struct clk ddr = CLK_INIT(S32GEN1_CLK_DDR);
++
++static int enable_a53_clock(void)
++{
++	int ret;
++	unsigned long rate;
++
++	ret = s32gen1_set_parent(&arm_pll_mux, &fxosc);
++	if (ret)
++		return ret;
++
++	ret = s32gen1_set_parent(&mc_cgm1_mux0, &arm_pll_phi0);
++	if (ret)
++		return ret;
++
++	rate = s32gen1_set_rate(&fxosc, S32GEN1_FXOSC_FREQ);
++	if (rate != S32GEN1_FXOSC_FREQ)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&arm_pll_vco, S32GEN1_ARM_PLL_VCO_MAX_FREQ);
++	if (rate != S32GEN1_ARM_PLL_VCO_MAX_FREQ)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&a53_clk, S32GEN1_A53_MAX_FREQ);
++	if (rate != S32GEN1_A53_MAX_FREQ)
++		return -EINVAL;
++
++	return s32gen1_enable(&a53_clk, 1);
++}
++
++static int enable_xbar_clock(void)
++{
++	int ret;
++	unsigned long rate;
++
++	ret = s32gen1_set_parent(&mc_cgm0_mux0, &arm_dfs1);
++	if (ret)
++		return ret;
++
++	rate = s32gen1_set_rate(&xbar_2x, S32GEN1_XBAR_2X_FREQ);
++	if (rate != S32GEN1_XBAR_2X_FREQ)
++		return -EINVAL;
++
++	return s32gen1_enable(&xbar_2x, 1);
++}
++
++static int enable_lin_clock(void)
++{
++	int ret;
++	unsigned long rate;
++
++	ret = s32gen1_set_parent(&periph_pll_mux, &fxosc);
++	if (ret)
++		return ret;
++
++	ret = s32gen1_set_parent(&mc_cgm0_mux8, &periph_pll_phi3);
++	if (ret)
++		return ret;
++
++	rate = s32gen1_set_rate(&periph_pll_vco,
++				S32GEN1_PERIPH_PLL_VCO_FREQ);
++	if (rate != S32GEN1_PERIPH_PLL_VCO_FREQ)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&lin_baud, S32GEN1_LIN_BAUD_CLK_FREQ);
++	if (rate != S32GEN1_LIN_BAUD_CLK_FREQ)
++		return -EINVAL;
++
++	return s32gen1_enable(&lin_baud, 1);
++}
++
++static int enable_sdhc_clock(void)
++{
++	int ret;
++	unsigned long rate;
++
++	ret = s32gen1_set_parent(&periph_pll_mux, &fxosc);
++	if (ret)
++		return ret;
++
++	ret = s32gen1_set_parent(&mc_cgm0_mux14, &periph_dfs3);
++	if (ret)
++		return ret;
++
++	rate = s32gen1_set_rate(&periph_pll_vco,
++				S32GEN1_PERIPH_PLL_VCO_FREQ);
++	if (rate != S32GEN1_PERIPH_PLL_VCO_FREQ)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&periph_dfs3, S32GEN1_PERIPH_DFS3_FREQ);
++	if (rate != S32GEN1_PERIPH_DFS3_FREQ)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&sdhc, S32GEN1_SDHC_CLK_FREQ);
++	if (rate != S32GEN1_SDHC_CLK_FREQ)
++		return -EINVAL;
++
++	return s32gen1_enable(&sdhc, 1);
++}
++
++static int enable_ddr_clock(void)
++{
++	int ret;
++	unsigned long rate;
++
++	ret = s32gen1_set_parent(&ddr_pll_mux, &fxosc);
++	if (ret)
++		return ret;
++
++	ret = s32gen1_set_parent(&mc_cgm5_mux0, &ddr_pll_phi0);
++	if (ret)
++		return ret;
++
++	rate = s32gen1_set_rate(&ddr_pll_vco,
++				S32GEN1_DDR_PLL_VCO_FREQ);
++	if (rate != S32GEN1_DDR_PLL_VCO_FREQ)
++		return -EINVAL;
++
++	rate = s32gen1_set_rate(&ddr, S32GEN1_DDR_FREQ);
++	if (rate != S32GEN1_DDR_FREQ)
++		return -EINVAL;
++
++	return s32gen1_enable(&ddr, 1);
++}
++
++int s32g_plat_clock_init(bool skip_ddr_clk)
++{
++	int ret;
++
++	ret = enable_a53_clock();
++	if (ret)
++		return ret;
++
++	ret = enable_xbar_clock();
++	if (ret)
++		return ret;
++
++	ret = enable_lin_clock();
++	if (ret)
++		return ret;
++
++	ret = enable_sdhc_clock();
++	if (ret)
++		return ret;
++
++	if (!skip_ddr_clk)
++		return  enable_ddr_clock();
++
++	return 0;
++}
+diff --git a/drivers/nxp/s32g/clk/enable_clk.c b/drivers/nxp/s32g/clk/enable_clk.c
+new file mode 100644
+index 000000000..c171fcf77
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/enable_clk.c
+@@ -0,0 +1,986 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#include <clk/mc_cgm_regs.h>
++#include <clk/mc_me_regs.h>
++#include <clk/mc_rgm_regs.h>
++#include <clk/s32gen1_clk_funcs.h>
++#include <clk/s32gen1_clk_modules.h>
++#include <common/debug.h>
++#include <dt-bindings/clock/s32gen1-clock.h>
++#include <lib/mmio.h>
++#include <s32g_fp.h>
++
++static int enable_module(struct s32gen1_clk_obj *module,
++			 struct s32gen1_clk_priv *priv);
++
++static void setup_fxosc(struct s32gen1_clk_priv *priv)
++{
++	void *fxosc = priv->fxosc;
++
++	/* According to "Initialization information" chapter from
++	 * S32G274A Reference Manual, "Once FXOSC is turned ON, DO NOT change
++	 * any signal (on the fly) which is going to analog module input.
++	 * The inputs can be changed when the analog module is OFF...When
++	 * disabling the IP through Software do not change any other values in
++	 * the registers for at least 4 crystal clock cycles."
++	 *
++	 * Just make sure that FXOSC wasn't already started by BootROM.
++	 */
++	uint32_t ctrl;
++
++	if (mmio_read_32(FXOSC_CTRL(fxosc)) & FXOSC_CTRL_OSCON)
++		return;
++
++	ctrl = FXOSC_CTRL_COMP_EN;
++	ctrl &= ~FXOSC_CTRL_OSC_BYP;
++	ctrl |= FXOSC_CTRL_EOCV(0x1);
++	ctrl |= FXOSC_CTRL_GM_SEL(0x7);
++	mmio_write_32(FXOSC_CTRL(fxosc), ctrl);
++
++	/* Switch ON the crystal oscillator. */
++	mmio_write_32(FXOSC_CTRL(fxosc),
++		      FXOSC_CTRL_OSCON | mmio_read_32(FXOSC_CTRL(fxosc)));
++
++	/* Wait until the clock is stable. */
++	while (!(mmio_read_32(FXOSC_STAT(fxosc)) & FXOSC_STAT_OSC_STAT))
++		;
++}
++
++static void mc_me_wait_update(uint32_t partition_n, uint32_t mask,
++			      struct s32gen1_clk_priv *priv)
++{
++	void *mc_me = priv->mc_me;
++	uint32_t pupd = mmio_read_32(MC_ME_PRTN_N_PUPD(mc_me, partition_n));
++
++	mmio_write_32(MC_ME_PRTN_N_PUPD(mc_me, partition_n), pupd | mask);
++	mmio_write_32(MC_ME_CTL_KEY(mc_me), MC_ME_CTL_KEY_KEY);
++	mmio_write_32(MC_ME_CTL_KEY(mc_me), MC_ME_CTL_KEY_INVERTEDKEY);
++
++	while (mmio_read_32(MC_ME_PRTN_N_PUPD(mc_me, partition_n)) & mask)
++		;
++}
++
++static void enable_partition(uint32_t partition_n,
++			     struct s32gen1_clk_priv *priv)
++{
++	void *mc_me = priv->mc_me;
++	void *rdc = priv->rdc;
++	void *rgm = priv->rgm;
++	uint32_t rdc_ctrl, prst, ctrl;
++	uint32_t pconf = mmio_read_32(MC_ME_PRTN_N_PCONF(mc_me, partition_n));
++
++	mmio_write_32(MC_ME_PRTN_N_PCONF(mc_me, partition_n),
++		      pconf | MC_ME_PRTN_N_PCE);
++
++	mc_me_wait_update(partition_n, MC_ME_PRTN_N_PCUD, priv);
++
++	while (!(mmio_read_32(MC_ME_PRTN_N_STAT(mc_me, partition_n)) &
++	       MC_ME_PRTN_N_PCS))
++		;
++
++	/* Unlock RDC register write */
++	rdc_ctrl = mmio_read_32(RDC_RD_N_CTRL(rdc, partition_n));
++	mmio_write_32(RDC_RD_N_CTRL(rdc, partition_n),
++		      rdc_ctrl | RD_CTRL_UNLOCK_MASK);
++
++	/* Enable the XBAR interface */
++	rdc_ctrl = mmio_read_32(RDC_RD_N_CTRL(rdc, partition_n));
++	rdc_ctrl &= ~RDC_RD_INTERCONNECT_DISABLE;
++	mmio_write_32(RDC_RD_N_CTRL(rdc, partition_n), rdc_ctrl);
++
++	/* Wait until XBAR interface enabled */
++	while ((mmio_read_32(RDC_RD_N_STATUS(rdc, partition_n)) &
++		RDC_RD_INTERCONNECT_DISABLE_STAT))
++		;
++
++	/* Lift reset for partition */
++	prst = mmio_read_32(RGM_PRST(rgm, partition_n));
++	mmio_write_32(RGM_PRST(rgm, partition_n),
++		      prst & (~PRST_PERIPH_n_RST(0)));
++
++	/* Follow steps to clear OSSE bit */
++	mmio_write_32(MC_ME_PRTN_N_PCONF(mc_me, partition_n),
++		      mmio_read_32(MC_ME_PRTN_N_PCONF(mc_me, partition_n)) &
++		      ~MC_ME_PRTN_N_OSSE);
++
++	mc_me_wait_update(partition_n, MC_ME_PRTN_N_OSSUD, priv);
++
++	while (mmio_read_32(MC_ME_PRTN_N_STAT(mc_me, partition_n)) &
++			MC_ME_PRTN_N_OSSS)
++		;
++
++	while (mmio_read_32(RGM_PSTAT(rgm, partition_n)) &
++			PSTAT_PERIPH_n_STAT(0))
++		;
++
++	/* Lock RDC register write */
++	ctrl = mmio_read_32(RDC_RD_N_CTRL(rdc, partition_n));
++	mmio_write_32(RDC_RD_N_CTRL(rdc, partition_n),
++		      ctrl & ~RD_CTRL_UNLOCK_MASK);
++}
++
++static void enable_part_cofb(uint32_t partition_n, uint32_t block,
++			     struct s32gen1_clk_priv *priv,
++			     bool check_status)
++{
++	void *mc_me = priv->mc_me;
++	uint32_t block_mask = MC_ME_PRTN_N_REQ(block);
++	uint32_t part_status;
++	uint32_t clken, pconf, cofb_stat_addr;
++
++	part_status = mmio_read_32(MC_ME_PRTN_N_STAT(mc_me, partition_n));
++
++	/* Enable a partition only if it's disabled */
++	if (!(MC_ME_PRTN_N_PCS & part_status))
++		enable_partition(partition_n, priv);
++
++	clken = mmio_read_32(MC_ME_PRTN_N_COFB0_CLKEN(mc_me, partition_n));
++	mmio_write_32(MC_ME_PRTN_N_COFB0_CLKEN(mc_me, partition_n),
++		      clken | block_mask);
++
++	pconf = mmio_read_32(MC_ME_PRTN_N_PCONF(mc_me, partition_n));
++	mmio_write_32(MC_ME_PRTN_N_PCONF(mc_me, partition_n),
++		      pconf | MC_ME_PRTN_N_PCE);
++
++	mc_me_wait_update(partition_n, MC_ME_PRTN_N_PCUD, priv);
++
++	cofb_stat_addr = MC_ME_PRTN_N_COFB0_STAT(mc_me, partition_n);
++	if (check_status)
++		while (!(mmio_read_32(cofb_stat_addr) &  block_mask))
++			;
++}
++
++static int enable_clock(struct s32gen1_clk_obj *module,
++			struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_clk *clk = obj2clk(module);
++
++	if (clk->module)
++		return enable_module(clk->module, priv);
++
++	if (clk->pclock)
++		return enable_clock(&clk->pclock->desc, priv);
++
++	return -EINVAL;
++}
++
++static int enable_part_block(struct s32gen1_clk_obj *module,
++			     struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_part_block *block = obj2partblock(module);
++	uint32_t cofb;
++
++	switch (block->block) {
++	case s32gen1_part_core0 ... s32gen1_part_core3:
++		/* Nothing to do here */
++		break;
++	case s32gen1_part_block0 ... s32gen1_part_block15:
++		cofb = block->block - s32gen1_part_block0;
++		enable_part_cofb(block->partition, cofb,
++				 priv, block->status);
++		break;
++	default:
++		ERROR("Unknown partition block type: %d\n",
++		       block->block);
++		return -EINVAL;
++	};
++
++	return enable_module(block->parent, priv);
++}
++
++static uint32_t s32gen1_platclk2mux(uint32_t clk_id)
++{
++	return clk_id - S32GEN1_CLK_ID_BASE;
++}
++
++static int cgm_mux_clk_config(void *cgm_addr, uint32_t mux, uint32_t source)
++{
++	uint32_t css, csc;
++
++	css = mmio_read_32(CGM_MUXn_CSS(cgm_addr, mux));
++
++	/* Platform ID translation */
++	source = s32gen1_platclk2mux(source);
++
++	/* Already configured */
++	if (MC_CGM_MUXn_CSS_SELSTAT(css) == source &&
++	    MC_CGM_MUXn_CSS_SWTRG(css) == MC_CGM_MUXn_CSS_SWTRG_SUCCESS &&
++	    !(css & MC_CGM_MUXn_CSS_SWIP))
++		return 0;
++
++	/* Ongoing clock switch? */
++	while (mmio_read_32(CGM_MUXn_CSS(cgm_addr, mux)) & MC_CGM_MUXn_CSS_SWIP)
++		;
++
++	csc = mmio_read_32(CGM_MUXn_CSC(cgm_addr, mux));
++	/* Clear previous source. */
++
++	csc &= ~(MC_CGM_MUXn_CSC_SELCTL_MASK);
++
++	/* Select the clock source and trigger the clock switch. */
++	mmio_write_32(CGM_MUXn_CSC(cgm_addr, mux),
++		      csc | MC_CGM_MUXn_CSC_SELCTL(source) |
++		      MC_CGM_MUXn_CSC_CLK_SW);
++
++	/* Wait for configuration bit to auto-clear. */
++	while (mmio_read_32(CGM_MUXn_CSC(cgm_addr, mux)) &
++		MC_CGM_MUXn_CSC_CLK_SW)
++		;
++
++	/* Is the clock switch completed? */
++	while (mmio_read_32(CGM_MUXn_CSS(cgm_addr, mux)) & MC_CGM_MUXn_CSS_SWIP)
++		;
++
++	/*
++	 * Check if the switch succeeded.
++	 * Check switch trigger cause and the source.
++	 */
++	css = mmio_read_32(CGM_MUXn_CSS(cgm_addr, mux));
++	if ((MC_CGM_MUXn_CSS_SWTRG(css) == MC_CGM_MUXn_CSS_SWTRG_SUCCESS) &&
++	    (MC_CGM_MUXn_CSS_SELSTAT(css) == source))
++		return 0;
++
++	ERROR("Failed to change the clock source of mux %d to %d (CGM = %p)\n",
++	       mux, source, cgm_addr);
++
++	return -EINVAL;
++}
++
++static int enable_cgm_mux(struct s32gen1_mux *mux,
++			  struct s32gen1_clk_priv *priv)
++{
++	void *module_addr;
++
++	module_addr = get_base_addr(mux->module, priv);
++
++	if (!module_addr) {
++		ERROR("Failed to get the base address of the module %d\n",
++		       mux->module);
++		return -EINVAL;
++	}
++
++	return cgm_mux_clk_config(module_addr, mux->index, mux->source_id);
++}
++
++static int enable_mux(struct s32gen1_clk_obj *module,
++		      struct s32gen1_clk_priv *priv)
++{
++	int ret;
++	struct s32gen1_mux *mux = obj2mux(module);
++	struct s32gen1_clk *clk = get_clock(mux->source_id);
++
++	if (!clk) {
++		ERROR("Invalid parent (%u) for mux %u\n",
++		      mux->source_id, mux->index);
++		return -EINVAL;
++	}
++
++	ret = enable_module(&clk->desc, priv);
++	if (ret)
++		return ret;
++
++	switch (mux->module) {
++	/* PLL mux will be enabled by PLL setup */
++	case S32GEN1_ACCEL_PLL:
++	case S32GEN1_ARM_PLL:
++	case S32GEN1_DDR_PLL:
++	case S32GEN1_PERIPH_PLL:
++		return 0;
++	case S32GEN1_CGM0:
++	case S32GEN1_CGM1:
++	case S32GEN1_CGM2:
++	case S32GEN1_CGM5:
++		return enable_cgm_mux(mux, priv);
++	default:
++		ERROR("Unknown mux parent type: %d\n", mux->module);
++		return -EINVAL;
++	};
++
++	return -EINVAL;
++}
++
++static void cgm_mux_div_config(void *cgm_addr, uint32_t mux,
++			       uint32_t dc, uint32_t div_index)
++{
++	uint32_t updstat;
++	uint32_t dc_val = mmio_read_32(CGM_MUXn_DCm(cgm_addr, mux, div_index));
++
++	dc_val &= (MC_CGM_MUXn_DCm_DIV_MASK | MC_CGM_MUXn_DCm_DE);
++
++	if (dc_val == (MC_CGM_MUXn_DCm_DE | MC_CGM_MUXn_DCm_DIV(dc)))
++		return;
++
++	/* Set the divider */
++	mmio_write_32(CGM_MUXn_DCm(cgm_addr, mux, div_index),
++		      MC_CGM_MUXn_DCm_DE | MC_CGM_MUXn_DCm_DIV(dc));
++
++	/* Wait for divider gets updated */
++	do {
++		updstat = mmio_read_32(CGM_MUXn_DIV_UPD_STAT(cgm_addr, mux));
++	} while (MC_CGM_MUXn_DIV_UPD_STAT_DIVSTAT(updstat));
++}
++
++static int enable_cgm_div(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_cgm_div *div = obj2cgmdiv(module);
++	struct s32gen1_mux *mux;
++	void *cgm_addr;
++	int ret;
++	uint64_t pfreq;
++	uint32_t dc;
++
++	if (!div->parent) {
++		ERROR("Failed to identify CGM divider's parent\n");
++		return -EINVAL;
++	}
++
++	if (!div->freq) {
++		ERROR("The frequency of the divider %d is not set\n",
++		       div->index);
++		return -EINVAL;
++	}
++
++	ret = enable_module(div->parent, priv);
++	if (ret)
++		return ret;
++
++	pfreq = get_module_rate(div->parent, priv);
++	if (!pfreq) {
++		ERROR("Failed to get the frequency of CGM MUX\n");
++		return -EINVAL;
++	}
++
++	mux = get_cgm_div_mux(div);
++	if (!mux)
++		return -EINVAL;
++
++	dc = (uint32_t)fp2u(fp_div(u2fp(pfreq), u2fp(div->freq)));
++	if (fp2u(fp_div(u2fp(pfreq), u2fp(dc))) != div->freq) {
++		ERROR("Cannot set CGM divider (mux:%d, div:%d) for input = %lu & output = %lu\n",
++		      mux->index, div->index, (unsigned long)pfreq, div->freq);
++		return -EINVAL;
++	}
++
++	cgm_addr = get_base_addr(mux->module, priv);
++	if (!cgm_addr) {
++		ERROR("Failed to get CGM base address of the module %d\n",
++		       mux->module);
++	}
++
++	cgm_mux_div_config(cgm_addr, mux->index,
++			   dc - 1, div->index);
++	return ret;
++}
++
++static int get_dfs_mfi_mfn(unsigned long dfs_freq, struct s32gen1_dfs_div *div,
++			   uint32_t *mfi, uint32_t *mfn)
++{
++	struct fp_data div_freq, factor;
++
++	unsigned long in = dfs_freq;
++	unsigned long out = div->freq;
++
++	/**
++	 * factor = IN / OUT / 2
++	 * MFI = integer(factor)
++	 * MFN = (factor - MFI) * 36
++	 */
++	factor = fp_div(u2fp(in), u2fp(out));
++	factor = fp_div(factor, u2fp(2));
++	*mfi = fp2u(factor);
++	*mfn = fp2u(fp_mul(fp_sub(factor, u2fp(*mfi)), u2fp(36)));
++
++	/* div_freq = in / (2 * (*mfi + *mfn / 36.0)) */
++	div_freq = fp_add(u2fp(*mfi), fp_div(u2fp(*mfn), u2fp(36)));
++	div_freq = fp_mul(u2fp(2), div_freq);
++	div_freq = fp_div(u2fp(in), div_freq);
++
++	if (fp2u(div_freq) != div->freq) {
++		ERROR("Failed to find MFI and MFN settings for DFS DIV freq %lu\n",
++		       div->freq);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int init_dfs_port(void *dfs_addr, uint32_t port,
++			 uint32_t mfi, uint32_t mfn)
++{
++	uint32_t portsr, portreset, portolsr;
++	bool init_dfs;
++	uint32_t mask, old_mfi, old_mfn;
++	uint32_t dvport = mmio_read_32(DFS_DVPORTn(dfs_addr, port));
++
++	old_mfi = DFS_DVPORTn_MFI(dvport);
++	old_mfn = DFS_DVPORTn_MFN(dvport);
++
++	portsr = mmio_read_32(DFS_PORTSR(dfs_addr));
++	portolsr = mmio_read_32(DFS_PORTOLSR(dfs_addr));
++
++	/* Skip configuration if it's not needed */
++	if (portsr & BIT(port) && !(portolsr & BIT(port)) &&
++	    mfi == old_mfi && mfn == old_mfn)
++		return 0;
++
++	init_dfs = (!portsr);
++
++	if (init_dfs)
++		mask = DFS_PORTRESET_PORTRESET_MAXVAL;
++	else
++		mask = DFS_PORTRESET_PORTRESET_SET(BIT(port));
++
++	mmio_write_32(DFS_PORTOLSR(dfs_addr), mask);
++	mmio_write_32(DFS_PORTRESET(dfs_addr), mask);
++
++	while (mmio_read_32(DFS_PORTSR(dfs_addr)) & mask)
++		;
++
++	if (init_dfs)
++		mmio_write_32(DFS_CTL(dfs_addr), DFS_CTL_RESET);
++
++	mmio_write_32(DFS_DVPORTn(dfs_addr, port),
++		      DFS_DVPORTn_MFI_SET(mfi) | DFS_DVPORTn_MFN_SET(mfn));
++
++	if (init_dfs)
++		/* DFS clk enable programming */
++		mmio_write_32(DFS_CTL(dfs_addr), ~(uint32_t)DFS_CTL_RESET);
++
++	portreset = mmio_read_32(DFS_PORTRESET(dfs_addr));
++	portreset &= ~BIT(port);
++	mmio_write_32(DFS_PORTRESET(dfs_addr), portreset);
++
++	while ((mmio_read_32(DFS_PORTSR(dfs_addr)) & BIT(port)) != BIT(port))
++		;
++
++	portolsr = mmio_read_32(DFS_PORTOLSR(dfs_addr));
++	if (portolsr & DFS_PORTOLSR_LOL(port)) {
++		ERROR("Failed to lock DFS divider\n");
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int enable_dfs_div(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	int ret;
++	struct s32gen1_dfs_div *div = obj2dfsdiv(module);
++	void *dfs_addr;
++	struct s32gen1_dfs *dfs;
++	uint32_t mfi, mfn;
++	uint32_t ctl;
++	unsigned long dfs_freq;
++
++	ret = enable_module(div->parent, priv);
++	if (ret)
++		return ret;
++
++	dfs = get_div_dfs(div);
++	if (!dfs)
++		return -EINVAL;
++
++	if (!dfs->source) {
++		ERROR("Failed to identify DFS divider's parent\n");
++		return -EINVAL;
++	}
++
++	dfs_addr = get_base_addr(dfs->instance, priv);
++	if (!dfs_addr)
++		return -EINVAL;
++
++	ctl = mmio_read_32(DFS_CTL(dfs_addr));
++
++	/* Enabled DFS */
++	if (!(ctl & DFS_CTL_RESET))
++		dfs_freq = get_module_rate(&dfs->desc, priv);
++	else
++		dfs_freq = get_module_rate(dfs->source, priv);
++
++	if (!dfs_freq) {
++		ERROR("Failed to get DFS's freqeuncy\n");
++		return -EINVAL;
++	}
++
++	ret = get_dfs_mfi_mfn(dfs_freq, div, &mfi, &mfn);
++	if (ret)
++		return -EINVAL;
++
++	return init_dfs_port(dfs_addr, div->index, mfi, mfn);
++}
++
++static int enable_dfs(struct s32gen1_clk_obj *module,
++		      struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_dfs *dfs = obj2dfs(module);
++
++	if (!dfs->source) {
++		ERROR("Failed to identify DFS's parent\n");
++		return -EINVAL;
++	}
++
++	return enable_module(dfs->source, priv);
++}
++
++static bool is_pll_enabled(void *pll_base)
++{
++	uint32_t pllcr, pllsr;
++
++	pllcr = mmio_read_32(PLLDIG_PLLCR(pll_base));
++	pllsr = mmio_read_32(PLLDIG_PLLSR(pll_base));
++
++	/* Enabled and locked PLL */
++	return !(pllcr & PLLDIG_PLLCR_PLLPD) && (pllsr & PLLDIG_PLLSR_LOCK);
++}
++
++int get_pll_mfi_mfn(unsigned long pll_vco, unsigned long ref_freq,
++		    uint32_t *mfi, uint32_t *mfn)
++
++{
++	struct fp_data dmfn, vco;
++
++	/* FRAC-N mode */
++	*mfi = (pll_vco / ref_freq);
++
++	/* dmfn = (double)(pll_vco % ref_freq) / ref_freq * 18432.0 */
++	dmfn = fp_div(u2fp(pll_vco % ref_freq), u2fp(ref_freq));
++	dmfn = fp_mul(dmfn, u2fp(18432));
++
++	*mfn = (uint32_t)fp2u(dmfn);
++
++	/* Round MFN value */
++	if (fp_sub(dmfn, u2fp(*mfn)).val >= FP_PRECISION / 2)
++		*mfn += 1;
++
++	/* vco = ref_freq * (*mfi + (double)*mfn / 18432.0) */
++	vco = fp_div(u2fp(*mfn), u2fp(18432));
++	vco = fp_add(u2fp(*mfi), vco);
++	vco = fp_mul(u2fp(ref_freq), vco);
++
++	if (fp2u(vco) != pll_vco) {
++		ERROR("Failed to find MFI and MFN settings for PLL freq %lu\n",
++		       pll_vco);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static void disable_pll_hw(void *pll_addr)
++{
++	mmio_write_32(PLLDIG_PLLCR(pll_addr), PLLDIG_PLLCR_PLLPD);
++}
++
++static void enable_pll_hw(void *pll_addr)
++{
++	/* Enable the PLL. */
++	mmio_write_32(PLLDIG_PLLCR(pll_addr), 0x0);
++
++	/* Poll until PLL acquires lock. */
++	while (!(mmio_read_32(PLLDIG_PLLSR(pll_addr)) & PLLDIG_PLLSR_LOCK))
++		;
++}
++
++static uint32_t get_enabled_odivs(void *pll_addr, uint32_t ndivs)
++{
++	uint32_t i;
++	uint32_t mask = 0;
++	uint32_t pllodiv;
++
++	for (i = 0; i < ndivs; i++) {
++		pllodiv = mmio_read_32(PLLDIG_PLLODIV(pll_addr, i));
++		if (pllodiv & PLLDIG_PLLODIV_DE)
++			mask |= BIT(i);
++	}
++
++	return mask;
++}
++
++static void disable_odiv(void *pll_addr, uint32_t div_index)
++{
++	uint32_t pllodiv = mmio_read_32(PLLDIG_PLLODIV(pll_addr, div_index));
++
++	mmio_write_32(PLLDIG_PLLODIV(pll_addr, div_index),
++		      pllodiv & ~PLLDIG_PLLODIV_DE);
++}
++
++static void enable_odiv(void *pll_addr, uint32_t div_index)
++{
++	uint32_t pllodiv = mmio_read_32(PLLDIG_PLLODIV(pll_addr, div_index));
++
++	mmio_write_32(PLLDIG_PLLODIV(pll_addr, div_index),
++		      pllodiv | PLLDIG_PLLODIV_DE);
++}
++
++static void disable_odivs(void *pll_addr, uint32_t ndivs)
++{
++	uint32_t i;
++
++	for (i = 0; i < ndivs; i++)
++		disable_odiv(pll_addr, i);
++}
++
++static void enable_odivs(void *pll_addr, uint32_t ndivs, uint32_t mask)
++{
++	uint32_t i;
++
++	for (i = 0; i < ndivs; i++) {
++		if (mask & BIT(i))
++			enable_odiv(pll_addr, i);
++	}
++}
++
++static int adjust_odiv_settings(struct s32gen1_pll *pll, void *pll_addr,
++				struct s32gen1_clk_priv *priv,
++				uint32_t odivs_mask, unsigned long old_vco)
++{
++	uint32_t i, pllodiv, div;
++	struct fp_data old_odiv_freq, odiv_freq;
++	int ret = 0;
++
++	if (!old_vco)
++		return 0;
++
++	for (i = 0; i < pll->ndividers; i++) {
++		if (!(odivs_mask & BIT(i)))
++			continue;
++
++		pllodiv = mmio_read_32(PLLDIG_PLLODIV(pll_addr, i));
++
++		div = PLLDIG_PLLODIV_DIV(pllodiv);
++		old_odiv_freq = fp_div(u2fp(old_vco), u2fp(div + 1));
++
++		div = (uint32_t)fp2u(fp_div(u2fp(pll->vco_freq),
++					    old_odiv_freq));
++		odiv_freq = fp_div(u2fp(pll->vco_freq), u2fp(div));
++
++		if (old_odiv_freq.val != odiv_freq.val) {
++			ERROR("Failed to adjust ODIV %d to match previous frequency\n",
++			      i);
++			ERROR("Previous freq: %llu Nearest freq: %llu\n",
++			      old_odiv_freq.val, odiv_freq.val);
++		}
++
++		pllodiv = PLLDIG_PLLODIV_DIV_SET(div - 1);
++		mmio_write_32(PLLDIG_PLLODIV(pll_addr, i), pllodiv);
++	}
++
++	return ret;
++}
++
++static int clk2pllclk(uint32_t clk_id, uint32_t *pll_clk_id)
++{
++	switch (clk_id) {
++	case S32GEN1_CLK_FIRC:
++		*pll_clk_id = 0;
++		return 0;
++	case S32GEN1_CLK_FXOSC:
++		*pll_clk_id = 1;
++		return 0;
++	};
++
++	return -EINVAL;
++}
++
++int pllclk2clk(uint32_t pll_clk_id, uint32_t *clk_id)
++{
++	switch (pll_clk_id) {
++	case 0:
++		*clk_id = S32GEN1_CLK_FIRC;
++		return 0;
++	case 1:
++		*clk_id = S32GEN1_CLK_FXOSC;
++		return 0;
++	};
++
++	return -EINVAL;
++}
++
++static int program_pll(struct s32gen1_pll *pll, void *pll_addr,
++		       struct s32gen1_clk_priv *priv, uint32_t clk_src)
++{
++	unsigned long sfreq;
++	struct s32gen1_clk *sclk = get_clock(clk_src);
++	uint32_t rdiv = 1, mfi, mfn;
++	int ret;
++	uint32_t odivs_mask;
++	unsigned long old_vco;
++
++	if (!sclk)
++		return -EINVAL;
++
++	sfreq = get_module_rate(&sclk->desc, priv);
++	if (!sfreq)
++		return -EINVAL;
++
++	ret = get_pll_mfi_mfn(pll->vco_freq, sfreq, &mfi, &mfn);
++	if (ret)
++		return -EINVAL;
++
++	if (clk2pllclk(clk_src, &clk_src)) {
++		ERROR("Failed to translate PLL clock\n");
++		return -EINVAL;
++	}
++
++	odivs_mask = get_enabled_odivs(pll_addr, pll->ndividers);
++
++	old_vco = get_module_rate(&pll->desc, priv);
++
++	/* Disable ODIVs*/
++	disable_odivs(pll_addr, pll->ndividers);
++
++	/* Disable PLL */
++	disable_pll_hw(pll_addr);
++
++	/* Program PLLCLKMUX */
++	mmio_write_32(PLLDIG_PLLCLKMUX(pll_addr), clk_src);
++
++	/* Program VCO */
++	mmio_write_32(PLLDIG_PLLDV(pll_addr),
++		      PLLDIG_PLLDV_RDIV_SET(rdiv) | PLLDIG_PLLDV_MFI(mfi));
++	mmio_write_32(PLLDIG_PLLFD(pll_addr),
++		      PLLDIG_PLLFD_MFN_SET(mfn) | PLLDIG_PLLFD_SMDEN);
++
++	ret = adjust_odiv_settings(pll, pll_addr, priv, odivs_mask, old_vco);
++
++	enable_pll_hw(pll_addr);
++
++	/* Enable out dividers */
++	enable_odivs(pll_addr, pll->ndividers, odivs_mask);
++
++	return ret;
++}
++
++static struct s32gen1_mux *get_pll_mux(struct s32gen1_pll *pll)
++{
++	struct s32gen1_clk_obj *source = pll->source;
++	struct s32gen1_clk *clk;
++
++	if (!source) {
++		ERROR("Failed to identify PLL's parent\n");
++		return NULL;
++	}
++
++	if (source->type != s32gen1_clk_t) {
++		ERROR("The parent of the PLL isn't a clock\n");
++		return NULL;
++	}
++
++	clk = obj2clk(source);
++
++	if (!clk->module) {
++		ERROR("The clock isn't connected to a module\n");
++		return NULL;
++	}
++
++	source = clk->module;
++
++	if (source->type != s32gen1_mux_t &&
++	    source->type != s32gen1_shared_mux_t) {
++		ERROR("The parent of the PLL isn't a MUX\n");
++		return NULL;
++	}
++
++	return obj2mux(source);
++}
++
++static int enable_pll(struct s32gen1_clk_obj *module,
++		      struct s32gen1_clk_priv *priv)
++{
++	int ret;
++	struct s32gen1_pll *pll = obj2pll(module);
++	struct s32gen1_mux *mux;
++	void *pll_addr;
++	uint32_t clk_src;
++
++	mux = get_pll_mux(pll);
++	if (!mux)
++		return -EINVAL;
++
++	if (pll->instance != mux->module) {
++		ERROR("MUX type is not in sync with PLL ID\n");
++		return -EINVAL;
++	}
++
++	/* Enable MUX & OSC */
++	ret = enable_module(pll->source, priv);
++	if (ret)
++		return ret;
++
++	pll_addr = get_base_addr(pll->instance, priv);
++	if (!pll_addr) {
++		ERROR("Failed to detect PLL instance\n");
++		return -EINVAL;
++	}
++
++	clk_src = mmio_read_32(PLLDIG_PLLCLKMUX(pll_addr));
++	if (pllclk2clk(clk_src, &clk_src)) {
++		ERROR("Failed to get PLL clock id\n");
++		return -EINVAL;
++	}
++
++	if (clk_src == mux->source_id &&
++	    is_pll_enabled(pll_addr) &&
++	    get_module_rate(module, priv) == pll->vco_freq) {
++		return 0;
++	}
++
++	return program_pll(pll, pll_addr, priv, mux->source_id);
++}
++
++static void config_pll_out_div(void *pll_addr, uint32_t div_index, uint32_t dc)
++{
++	uint32_t pllodiv;
++	uint32_t div;
++
++	pllodiv = mmio_read_32(PLLDIG_PLLODIV(pll_addr, div_index));
++	div = PLLDIG_PLLODIV_DIV(pllodiv);
++
++	if (div + 1 == dc && pllodiv & PLLDIG_PLLODIV_DE)
++		return;
++
++	if (pllodiv & PLLDIG_PLLODIV_DE)
++		disable_odiv(pll_addr, div_index);
++
++	pllodiv = PLLDIG_PLLODIV_DIV_SET(dc - 1);
++	mmio_write_32(PLLDIG_PLLODIV(pll_addr, div_index), pllodiv);
++
++	enable_odiv(pll_addr, div_index);
++}
++
++static int enable_pll_div(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	int ret;
++	struct s32gen1_pll_out_div *div = obj2plldiv(module);
++	struct s32gen1_clk_obj *parent = div->parent;
++	struct s32gen1_pll *pll;
++	uint64_t pfreq;
++	uint32_t dc;
++	void *pll_addr;
++
++	ret = enable_module(parent, priv);
++	if (ret)
++		return ret;
++
++	pll = get_div_pll(div);
++	if (!pll) {
++		ERROR("The parent of the PLL DIV is invalid\n");
++		return 0;
++	}
++
++	pll_addr = get_base_addr(pll->instance, priv);
++	if (!pll_addr) {
++		ERROR("Failed to detect PLL instance\n");
++		return -EINVAL;
++	}
++
++	pfreq = get_module_rate(parent, priv);
++	if (!pfreq) {
++		ERROR("Failed to get the frequency of PLL\n");
++		return -EINVAL;
++	}
++
++	dc = fp2u(fp_div(u2fp(pfreq), u2fp(div->freq)));
++	if (fp2u(fp_div(u2fp(pfreq), u2fp(dc))) != div->freq) {
++		ERROR("Cannot set PLL divider for input = %lu & output = %lu\n",
++		       (unsigned long)pfreq, div->freq);
++		return -EINVAL;
++	}
++
++	config_pll_out_div(pll_addr, div->index, dc);
++
++	return 0;
++}
++
++static int enable_osc(struct s32gen1_clk_obj *module,
++		      struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_osc *osc = obj2osc(module);
++
++	switch (osc->source) {
++	/* FIRC and SIRC oscillators are enabled by default */
++	case S32GEN1_FIRC:
++	case S32GEN1_SIRC:
++		return 0;
++	case S32GEN1_FXOSC:
++		setup_fxosc(priv);
++		return 0;
++	default:
++		ERROR("Invalid oscillator %d\n", osc->source);
++		return -EINVAL;
++	};
++
++	return -EINVAL;
++}
++
++static int enable_fixed_div(struct s32gen1_clk_obj *module,
++			    struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_fixed_div *pll = obj2fixeddiv(module);
++
++	return enable_module(pll->parent, priv);
++}
++
++static int enable_module(struct s32gen1_clk_obj *module,
++			 struct s32gen1_clk_priv *priv)
++{
++	switch (module->type) {
++	case s32gen1_clk_t:
++		return enable_clock(module, priv);
++	case s32gen1_part_block_t:
++		return enable_part_block(module, priv);
++	case s32gen1_shared_mux_t:
++	case s32gen1_mux_t:
++		return enable_mux(module, priv);
++	case s32gen1_cgm_div_t:
++		return enable_cgm_div(module, priv);
++	case s32gen1_dfs_div_t:
++		return enable_dfs_div(module, priv);
++	case s32gen1_dfs_t:
++		return enable_dfs(module, priv);
++	case s32gen1_pll_t:
++		return enable_pll(module, priv);
++	case s32gen1_osc_t:
++		return enable_osc(module, priv);
++	case s32gen1_fixed_clk_t:
++		return 0;
++	case s32gen1_fixed_div_t:
++		return enable_fixed_div(module, priv);
++	case s32gen1_pll_out_div_t:
++		return enable_pll_div(module, priv);
++	default:
++		ERROR("Undefined module type: %d\n", module->type);
++		return -EINVAL;
++	};
++
++	return -EINVAL;
++}
++
++int s32gen1_enable(struct clk *c, int enable)
++{
++	int ret;
++	struct s32gen1_clk *clk;
++	struct s32gen1_clk_priv *priv;
++
++	if (!c)
++		return -EINVAL;
++
++	priv = s32gen1_get_clk_priv(c);
++
++	clk = get_clock(c->id);
++	if (!clk) {
++		ERROR("Clock %u is not part of the clcok tree\n", c->id);
++		return 0;
++	}
++
++	ret = enable_module(&clk->desc, priv);
++	if (ret)
++		ERROR("Failed to enable clock: %u\n", c->id);
++
++	return ret;
++}
+diff --git a/drivers/nxp/s32g/clk/fixed_clk.c b/drivers/nxp/s32g/clk/fixed_clk.c
+new file mode 100644
+index 000000000..19c1ab365
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/fixed_clk.c
+@@ -0,0 +1,108 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <clk/clk.h>
++#include <common/debug.h>
++#include <errno.h>
++#include <libfdt.h>
++#include <libfdt_env.h>
++#include <memory_pool.h>
++
++#define NUM_FIXED_DRVS	20
++
++struct fixed_clk_drv {
++	unsigned long freq;
++	const char *name;
++};
++
++static unsigned long fixed_clk_get_rate(struct clk *c);
++static int fixed_clk_request(uint32_t id, struct clk *c);
++
++static struct fixed_clk_drv fixed_drvs[NUM_FIXED_DRVS];
++static struct memory_pool pool = INIT_MEM_POOL(fixed_drvs);
++
++static const struct clk_ops fixed_clk_ops = {
++	.get_rate = fixed_clk_get_rate,
++	.request = fixed_clk_request,
++};
++
++static int fixed_clk_request(uint32_t id, struct clk *c)
++{
++	return 0;
++}
++
++static unsigned long fixed_clk_get_rate(struct clk *c)
++{
++	struct clk_driver *drv = c->drv;
++	struct fixed_clk_drv *fix = drv->data;
++
++	return fix->freq;
++}
++
++static int register_fixed_clk(uint32_t phandle, const char *name, uint32_t freq)
++{
++	struct fixed_clk_drv *fix;
++	struct clk_driver *drv;
++
++	drv = allocate_clk_driver();
++	if (!drv) {
++		ERROR("Failed to allocate a clock driver\n");
++		return -ENOMEM;
++	}
++
++	fix = alloc_mem_pool_elem(&pool);
++	if (!fix) {
++		ERROR("Failed to allocate a fixed clock driver\n");
++		return -ENOMEM;
++	}
++
++	fix->name = name;
++	fix->freq = freq;
++
++	drv->ops = &fixed_clk_ops;
++	drv->phandle = phandle;
++	drv->data = fix;
++
++	set_clk_driver_name(drv, name);
++
++	return 0;
++}
++
++int dt_init_fixed_clk(void *fdt)
++{
++	int node, len, ret;
++	const fdt32_t *clk_freq_prop;
++	const char *name;
++	uint32_t freq, phandle;
++
++	node = -1;
++	while (true) {
++		node = fdt_node_offset_by_compatible(fdt, node,
++						     "fixed-clock");
++		if (node == -1)
++			break;
++
++		clk_freq_prop = fdt_getprop(fdt, node, "clock-frequency", &len);
++		if (!clk_freq_prop) {
++			ERROR("'clock-frequency' property is mandatory\n");
++			return len;
++		}
++
++		phandle = fdt_get_phandle(fdt, node);
++		freq = fdt32_to_cpu(*clk_freq_prop);
++
++		name = fdt_get_name(fdt, node, NULL);
++		ret = register_fixed_clk(phandle, name, freq);
++
++		if (ret) {
++			ERROR("Failed to register a fixed clock\n");
++			return ret;
++		}
++	}
++
++	return 0;
++}
++
++
+diff --git a/drivers/nxp/s32g/clk/get_rate.c b/drivers/nxp/s32g/clk/get_rate.c
+new file mode 100644
+index 000000000..cf9e2f05c
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/get_rate.c
+@@ -0,0 +1,346 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#include <clk/mc_cgm_regs.h>
++#include <clk/s32gen1_clk_funcs.h>
++#include <lib/mmio.h>
++#include <lib/utils_def.h>
++#include <s32g_fp.h>
++#include <stdint.h>
++
++static unsigned long get_osc_freq(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_osc *osc = obj2osc(module);
++
++	if (!osc->freq) {
++		ERROR("Uninitialized oscillator\n");
++		return 0;
++	}
++	return osc->freq;
++}
++
++static unsigned long get_clk_freq(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_clk *clk = obj2clk(module);
++
++	if (!clk) {
++		ERROR("Invalid clock\n");
++		return 0;
++	}
++
++	if (clk->module)
++		return get_module_rate(clk->module, priv);
++
++	if (!clk->pclock) {
++		ERROR("Invalid clock parent\n");
++		return 0;
++	}
++
++	return get_clk_freq(&clk->pclock->desc, priv);
++}
++
++static unsigned long get_mux_freq(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_mux *mux = obj2mux(module);
++	struct s32gen1_clk *clk = get_clock(mux->source_id);
++
++	if (!clk) {
++		ERROR("%s: Mux (id:%d) without a valid source (%d)\n",
++		      __func__, mux->index, mux->source_id);
++		return 0;
++	}
++	return get_clk_freq(&clk->desc, priv);
++}
++
++static unsigned long get_dfs_freq(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_dfs *dfs = obj2dfs(module);
++	void *dfs_addr;
++	uint32_t ctl;
++
++	dfs_addr = get_base_addr(dfs->instance, priv);
++	if (!dfs_addr) {
++		ERROR("Failed to detect DFS instance\n");
++		return 0;
++	}
++
++	ctl = mmio_read_32(DFS_CTL(dfs_addr));
++	/* Disabled DFS */
++	if (ctl & DFS_CTL_RESET)
++		return 0;
++
++	return get_module_rate(dfs->source, priv);
++}
++
++static unsigned long get_dfs_div_freq(struct s32gen1_clk_obj *module,
++			      struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_dfs_div *div = obj2dfsdiv(module);
++	struct s32gen1_dfs *dfs;
++	void *dfs_addr;
++	uint32_t dvport, mfi, mfn;
++	unsigned long pfreq;
++	struct fp_data freq;
++
++	dfs = get_div_dfs(div);
++	if (!dfs)
++		return 0;
++
++	pfreq = get_module_rate(div->parent, priv);
++	if (!pfreq)
++		return 0;
++
++	dfs_addr = get_base_addr(dfs->instance, priv);
++	if (!dfs_addr) {
++		ERROR("Failed to detect DFS instance\n");
++		return 0;
++	}
++
++	dvport = mmio_read_32(DFS_DVPORTn(dfs_addr, div->index));
++
++	mfi = DFS_DVPORTn_MFI(dvport);
++	mfn = DFS_DVPORTn_MFN(dvport);
++
++	/* Disabled port */
++	if (!mfi && !mfn)
++		return 0;
++
++	/**
++	 * Formula for input and output clocks of each port divider.
++	 * See 'Digital Frequency Synthesizer' chapter from Reference Manual.
++	 *
++	 * freq = pfreq / (2 * (mfi + mfn / 36.0));
++	 */
++	freq = fp_add(u2fp(mfi), fp_div(u2fp(mfn), u2fp(36)));
++	freq = fp_mul(u2fp(2), freq);
++	freq = fp_div(u2fp(pfreq), freq);
++
++	return fp2u(freq);
++}
++
++static unsigned long get_pll_freq(struct s32gen1_clk_obj *module,
++			  struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_pll *pll = obj2pll(module);
++	struct s32gen1_clk *source;
++	unsigned long prate;
++	void *pll_addr;
++	uint32_t pllpd;
++	uint32_t mfi, mfn, rdiv, plldv;
++	uint32_t clk_src;
++	struct fp_data t1, t2;
++
++	pll_addr = get_base_addr(pll->instance, priv);
++	if (!pll_addr) {
++		ERROR("Failed to detect PLL instance\n");
++		return 0;
++	}
++
++	/* Disabled PLL */
++	pllpd = mmio_read_32(PLLDIG_PLLCR(pll_addr)) & PLLDIG_PLLCR_PLLPD;
++	if (pllpd)
++		return 0;
++
++	clk_src = mmio_read_32(PLLDIG_PLLCLKMUX(pll_addr));
++	if (pllclk2clk(clk_src, &clk_src)) {
++		ERROR("Failed to get PLL clock id\n");
++		return -EINVAL;
++	}
++
++	source = get_clock(clk_src);
++	if (!source) {
++		ERROR("Failed to get PLL source clock\n");
++		return 0;
++	}
++
++	prate = get_module_rate(&source->desc, priv);
++	plldv = mmio_read_32(PLLDIG_PLLDV(pll_addr));
++	mfi = PLLDIG_PLLDV_MFI(plldv);
++	rdiv = PLLDIG_PLLDV_RDIV(plldv);
++	if (rdiv == 0)
++		rdiv = 1;
++
++	/* Frac-N mode */
++	mfn = PLLDIG_PLLFD_MFN_SET(mmio_read_32(PLLDIG_PLLFD(pll_addr)));
++
++	/* PLL VCO frequency in Fractional mode when PLLDV[RDIV] is not 0 */
++	t1 = fp_div(u2fp(prate), u2fp(rdiv));
++	t2 = fp_add(u2fp(mfi), fp_div(u2fp(mfn), u2fp(18432)));
++
++	return fp2u(fp_mul(t1, t2));
++}
++
++static unsigned long get_fixed_clk_freq(struct s32gen1_clk_obj *module,
++				struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_fixed_clock *clk = obj2fixedclk(module);
++
++	return clk->freq;
++}
++
++static unsigned long get_fixed_div_freq(struct s32gen1_clk_obj *module,
++				struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_fixed_div *div = obj2fixeddiv(module);
++	unsigned long pfreq = get_module_rate(div->parent, priv);
++
++	return fp2u(fp_div(u2fp(pfreq), u2fp(div->div)));
++}
++
++static unsigned long get_pll_div_freq(struct s32gen1_clk_obj *module,
++			      struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_pll_out_div *div = obj2plldiv(module);
++	struct s32gen1_pll *pll;
++	void *pll_addr;
++	uint32_t pllodiv;
++	unsigned long pfreq;
++	uint32_t dc;
++
++	pll = get_div_pll(div);
++	if (!pll) {
++		ERROR("The parent of the PLL DIV is invalid\n");
++		return 0;
++	}
++
++	pll_addr = get_base_addr(pll->instance, priv);
++	if (!pll_addr) {
++		ERROR("Failed to detect PLL instance\n");
++		return 0;
++	}
++
++	pfreq = get_module_rate(div->parent, priv);
++	if (!pfreq) {
++		ERROR("Failed to get the frequency of PLL\n");
++		return 0;
++	}
++
++	pllodiv = mmio_read_32(PLLDIG_PLLODIV(pll_addr, div->index));
++	/* Disabled module */
++	if (!(pllodiv & PLLDIG_PLLODIV_DE))
++		return 0;
++
++	dc = PLLDIG_PLLODIV_DIV(pllodiv);
++	return fp2u(fp_div(u2fp(pfreq), u2fp(dc + 1)));
++}
++
++static unsigned long get_part_block_freq(struct s32gen1_clk_obj *module,
++				 struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_part_block *block = obj2partblock(module);
++
++	return get_module_rate(block->parent, priv);
++}
++
++static unsigned long calc_cgm_div_freq(unsigned long pfreq, void *cgm_addr,
++			       uint32_t mux, uint32_t div_index)
++{
++	uint32_t dc_val = mmio_read_32(CGM_MUXn_DCm(cgm_addr, mux, div_index));
++	uint32_t div;
++
++	dc_val &= (MC_CGM_MUXn_DCm_DIV_MASK | MC_CGM_MUXn_DCm_DE);
++
++	if (!(dc_val & MC_CGM_MUXn_DCm_DE))
++		return 0;
++
++	div = MC_CGM_MUXn_DCm_DIV_VAL(dc_val) + 1;
++	return fp2u(fp_div(u2fp(pfreq), u2fp(div)));
++}
++
++static unsigned long get_cgm_div_freq(struct s32gen1_clk_obj *module,
++			      struct s32gen1_clk_priv *priv)
++{
++	struct s32gen1_cgm_div *div = obj2cgmdiv(module);
++	struct s32gen1_mux *mux;
++	void *cgm_addr;
++	unsigned long pfreq;
++
++	if (!div->parent) {
++		ERROR("Failed to identify CGM divider's parent\n");
++		return 0;
++	}
++
++	pfreq = get_module_rate(div->parent, priv);
++	if (!pfreq) {
++		ERROR("Failed to get the frequency of CGM MUX\n");
++		return 0;
++	}
++
++	mux = get_cgm_div_mux(div);
++	if (!mux)
++		return -EINVAL;
++
++	cgm_addr = get_base_addr(mux->module, priv);
++	if (!cgm_addr) {
++		ERROR("Failed to get CGM base address of the module %d\n",
++		       mux->module);
++	}
++
++	return calc_cgm_div_freq(pfreq, cgm_addr, mux->index, div->index);
++}
++
++unsigned long get_module_rate(struct s32gen1_clk_obj *module,
++		      struct s32gen1_clk_priv *priv)
++{
++	if (!module) {
++		ERROR("Invalid module\n");
++		return 0;
++	}
++
++	switch (module->type) {
++	case s32gen1_shared_mux_t:
++	case s32gen1_mux_t:
++		return get_mux_freq(module, priv);
++	case s32gen1_clk_t:
++		return get_clk_freq(module, priv);
++	case s32gen1_osc_t:
++		return get_osc_freq(module, priv);
++	case s32gen1_pll_t:
++		return get_pll_freq(module, priv);
++	case s32gen1_dfs_t:
++		return get_dfs_freq(module, priv);
++	case s32gen1_dfs_div_t:
++		return get_dfs_div_freq(module, priv);
++	case s32gen1_fixed_clk_t:
++		return get_fixed_clk_freq(module, priv);
++	case s32gen1_fixed_div_t:
++		return get_fixed_div_freq(module, priv);
++	case s32gen1_pll_out_div_t:
++		return get_pll_div_freq(module, priv);
++	case s32gen1_cgm_div_t:
++		return get_cgm_div_freq(module, priv);
++	case s32gen1_part_block_t:
++		return get_part_block_freq(module, priv);
++	};
++
++	return 0;
++}
++
++unsigned long s32gen1_get_rate(struct clk *c)
++{
++	struct s32gen1_clk *clk;
++	struct s32gen1_clk_priv *priv;
++
++	if (!c)
++		return 0;
++
++	priv = s32gen1_get_clk_priv(c);
++
++	clk = get_clock(c->id);
++	if (!clk) {
++		ERROR("Invalid clock\n");
++		return 0;
++	}
++
++	if (clk->desc.type != s32gen1_clk_t) {
++		ERROR("Invalid clock type: %d\n", clk->desc.type);
++		return 0;
++	}
++
++	return get_module_rate(&clk->desc, priv);
++}
+diff --git a/drivers/nxp/s32g/clk/s32g274a_clk.c b/drivers/nxp/s32g/clk/s32g274a_clk.c
+new file mode 100644
+index 000000000..63cd904f7
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/s32g274a_clk.c
+@@ -0,0 +1,322 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#include <dt-bindings/clock/s32g274a-clock.h>
++#include <clk/s32gen1_clk_funcs.h>
++#include <clk/s32gen1_clk_modules.h>
++#include <clk/s32gen1_shared_clks.h>
++
++#define ARR_CLK(N)	S32G274A_CLK_INDEX(N)
++
++/* XBAR_2X */
++struct s32gen1_clk xbar_2x_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux0_clk, 48 * MHZ, 800 * MHZ);
++
++/* PER_CLK */
++static struct s32gen1_clk per_clk =
++		S32GEN1_FREQ_MODULE_CLK(per_div, 0, 80 * MHZ);
++
++/* CAN_PE_CLK */
++static struct s32gen1_clk can_pe_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux7_clk, 40 * MHZ, 80 * MHZ);
++
++/* PFE_MAC0_TX_DIV */
++static struct s32gen1_fixed_clock pfe_mac0_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac0_ext_tx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac0_ext_tx);
++
++static struct s32gen1_fixed_clock pfe_mac0_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac0_ext_ref_clk =
++		S32GEN1_MODULE_CLK(pfe_mac0_ext_ref);
++
++static struct s32gen1_fixed_clock serdes1_lane0_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes1_lane0_ext_tx_clk =
++		S32GEN1_MODULE_CLK(serdes1_lane0_ext_tx);
++
++static struct s32gen1_mux cgm2_mux1 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 1, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32G274A_CLK_PFE_MAC0_EXT_TX,
++				 S32G274A_CLK_PFE_MAC0_EXT_REF,
++				 S32G274A_CLK_SERDES1_LANE0_TX);
++static struct s32gen1_clk cgm2_mux1_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux1);
++static struct s32gen1_cgm_div cgm2_mux1_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux1_clk, 0);
++static struct s32gen1_part_block pfe0_tx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux1_div, 2,
++					     s32gen1_part_block0);
++static struct s32gen1_clk pfe_mac0_tx_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe0_tx_block, 2500000, 312500000);
++
++/* PFE_MAC0_REF_DIV */
++static struct s32gen1_mux cgm2_mux7 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 7, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC0_EXT_REF);
++static struct s32gen1_clk cgm2_mux7_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux7);
++static struct s32gen1_cgm_div cgm2_mux7_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux7_clk, 0);
++static struct s32gen1_part_block pfe0_ref_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux7_div, 2,
++					     s32gen1_part_block0);
++static struct s32gen1_clk pfe_mac0_ref_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe0_ref_block, 0, 50 * MHZ);
++
++/* PFE_MAC0_RX */
++static struct s32gen1_fixed_clock serdes1_lane0_cdr =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes1_lane0_cdr_clk =
++		S32GEN1_MODULE_CLK(serdes1_lane0_cdr);
++
++static struct s32gen1_fixed_clock pfe_mac0_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac0_ext_rx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac0_ext_rx);
++
++static struct s32gen1_mux cgm2_mux4 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 4, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC0_EXT_RX,
++				 S32G274A_CLK_SERDES1_LANE0_CDR,
++				 S32G274A_CLK_PFE_MAC0_REF_DIV);
++static struct s32gen1_clk cgm2_mux4_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux4);
++static struct s32gen1_part_block pfe0_rx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux4_clk, 2,
++					     s32gen1_part_block0);
++static struct s32gen1_clk pfe_mac0_rx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe0_rx_block, 2500000, 312500000);
++
++/* PFE_MAC1_TX */
++static struct s32gen1_fixed_clock pfe_mac1_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac1_ext_tx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac1_ext_tx);
++
++static struct s32gen1_fixed_clock pfe_mac1_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac1_ext_ref_clk =
++		S32GEN1_MODULE_CLK(pfe_mac1_ext_ref);
++
++static struct s32gen1_mux cgm2_mux2 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 2, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32G274A_CLK_PFE_MAC1_EXT_TX,
++				 S32G274A_CLK_PFE_MAC1_EXT_REF,
++				 S32G274A_CLK_SERDES1_LANE1_TX);
++static struct s32gen1_clk cgm2_mux2_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux2);
++static struct s32gen1_cgm_div cgm2_mux2_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux2_clk, 0);
++static struct s32gen1_part_block pfe1_tx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux2_div, 2,
++					     s32gen1_part_block1);
++static struct s32gen1_clk pfe_mac1_tx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe1_tx_block, 2500000, 125 * MHZ);
++
++/* PFE_MAC1_REF_DIV */
++static struct s32gen1_mux cgm2_mux8 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 8, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC1_EXT_REF);
++static struct s32gen1_clk cgm2_mux8_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux8);
++static struct s32gen1_cgm_div cgm2_mux8_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux8_clk, 0);
++static struct s32gen1_part_block pfe1_ref_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux8_div, 2,
++					     s32gen1_part_block1);
++static struct s32gen1_clk pfe_mac1_ref_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe1_ref_block, 0, 50 * MHZ);
++
++/* PFE_MAC1_RX */
++static struct s32gen1_fixed_clock pfe_mac1_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac1_ext_rx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac1_ext_rx);
++
++static struct s32gen1_mux cgm2_mux5 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 5, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC1_EXT_RX,
++				 S32G274A_CLK_PFE_MAC1_REF_DIV,
++				 S32G274A_CLK_SERDES1_LANE1_CDR);
++static struct s32gen1_clk cgm2_mux5_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux5);
++static struct s32gen1_part_block pfe1_rx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux5_clk, 2,
++					     s32gen1_part_block1);
++static struct s32gen1_clk pfe_mac1_rx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe1_rx_block, 2500000, 125 * MHZ);
++
++/* PFE_MAC2_TX */
++static struct s32gen1_fixed_clock serdes0_lane1_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes0_lane1_tx_clk =
++		S32GEN1_MODULE_CLK(serdes0_lane1_tx);
++
++static struct s32gen1_fixed_clock pfe_mac2_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac2_ext_tx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac2_ext_tx);
++
++static struct s32gen1_fixed_clock pfe_mac2_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac2_ext_ref_clk =
++		S32GEN1_MODULE_CLK(pfe_mac2_ext_ref);
++
++static struct s32gen1_mux cgm2_mux3 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 3, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32G274A_CLK_PFE_MAC2_EXT_TX,
++				 S32G274A_CLK_PFE_MAC2_EXT_REF,
++				 S32G274A_CLK_SERDES0_LANE1_TX);
++static struct s32gen1_clk cgm2_mux3_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux3);
++static struct s32gen1_cgm_div cgm2_mux3_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux3_clk, 0);
++static struct s32gen1_part_block pfe2_tx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux3_div, 2,
++					     s32gen1_part_block2);
++static struct s32gen1_clk pfe_mac2_tx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe2_tx_block, 2500000, 125 * MHZ);
++
++/* PFE_MAC2_REF_DIV */
++static struct s32gen1_mux cgm2_mux9 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 9, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC2_EXT_REF);
++static struct s32gen1_clk cgm2_mux9_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux9);
++static struct s32gen1_cgm_div cgm2_mux9_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux9_clk, 0);
++static struct s32gen1_part_block pfe2_ref_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux9_div, 2,
++					     s32gen1_part_block2);
++static struct s32gen1_clk pfe_mac2_ref_div_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe2_ref_block, 0, 50 * MHZ);
++
++/* PFE_MAC2_RX */
++static struct s32gen1_fixed_clock pfe_mac2_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk pfe_mac2_ext_rx_clk =
++		S32GEN1_MODULE_CLK(pfe_mac2_ext_rx);
++
++static struct s32gen1_fixed_clock serdes0_lane1_cdr =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes0_lane1_cdr_clk =
++		S32GEN1_MODULE_CLK(serdes0_lane1_cdr);
++
++static struct s32gen1_mux cgm2_mux6 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 6, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_PFE_MAC2_EXT_RX,
++				 S32G274A_CLK_PFE_MAC2_REF_DIV,
++				 S32G274A_CLK_SERDES0_LANE1_CDR);
++static struct s32gen1_clk cgm2_mux6_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux6);
++static struct s32gen1_part_block pfe2_rx_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux6_clk, 2,
++					     s32gen1_part_block2);
++static struct s32gen1_clk pfe_mac2_rx_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe2_rx_block, 2500000, 125 * MHZ);
++
++/* PFE_SYS_CLK */
++static struct s32gen1_mux cgm2_mux0 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM2, 0, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32G274A_CLK_ACCEL_PLL_PHI1);
++static struct s32gen1_clk cgm2_mux0_clk =
++		S32GEN1_MODULE_CLK(cgm2_mux0);
++static struct s32gen1_cgm_div cgm2_mux0_div =
++		S32GEN1_CGM_DIV_INIT(cgm2_mux0_clk, 0);
++static struct s32gen1_part_block pfe_sys_block =
++		S32GEN1_PART_BLOCK_NO_STATUS(cgm2_mux0_div, 2,
++					     s32gen1_part_block3);
++static struct s32gen1_clk pfe_pe_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe_sys_block, 0, 600 * MHZ);
++static struct s32gen1_fixed_div pfe_sys_div =
++		S32GEN1_FIXED_DIV_INIT(pfe_sys_block, 2);
++static struct s32gen1_clk pfe_sys_clk =
++		S32GEN1_FREQ_MODULE_CLK(pfe_sys_div, 0, 300 * MHZ);
++
++static struct s32gen1_clk *s32g274a_clocks[] = {
++	/* PFE_MAC0 */
++	[ARR_CLK(S32G274A_CLK_PFE_MAC0_RX)] = &pfe_mac0_rx_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_MAC0_TX_DIV)] = &pfe_mac0_tx_div_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX1)] = &cgm2_mux1_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX4)] = &cgm2_mux4_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX7)] = &cgm2_mux7_clk,
++	/* PFE_MAC1 */
++	[ARR_CLK(S32G274A_CLK_PFE_MAC1_RX)] = &pfe_mac1_rx_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_MAC1_TX)] = &pfe_mac1_tx_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX2)] = &cgm2_mux2_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX5)] = &cgm2_mux5_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX8)] = &cgm2_mux8_clk,
++	/* PFE_MAC2 */
++	[ARR_CLK(S32G274A_CLK_PFE_MAC2_RX)] = &pfe_mac2_rx_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_MAC2_TX)] = &pfe_mac2_tx_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX3)] = &cgm2_mux3_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX6)] = &cgm2_mux6_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX9)] = &cgm2_mux9_clk,
++	[ARR_CLK(S32G274A_CLK_MC_CGM2_MUX0)] = &cgm2_mux0_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_SYS)] = &pfe_sys_clk,
++	[ARR_CLK(S32G274A_CLK_PFE_PE)] = &pfe_pe_clk,
++};
++
++static struct s32gen1_clk *s32g274a_cc_clocks[] = {
++	[CC_ARR_CLK(S32GEN1_CLK_PER)] = &per_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_CAN_PE)] = &can_pe_clk,
++	[CC_ARR_CLK(S32G274A_CLK_ACCEL_PLL_PHI0)] = &accel_pll_phi0_clk,
++	[CC_ARR_CLK(S32G274A_CLK_ACCEL_PLL_PHI1)] = &accel_pll_phi1_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES0_LANE1_CDR)] = &serdes0_lane1_cdr_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES0_LANE1_TX)] = &serdes0_lane1_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_TX)] = &pfe_mac0_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_RX)] = &pfe_mac0_ext_rx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_EXT_REF)] = &pfe_mac0_ext_ref_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_TX)] = &pfe_mac1_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_RX)] = &pfe_mac1_ext_rx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_EXT_REF)] = &pfe_mac1_ext_ref_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_TX)] = &pfe_mac2_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_RX)] = &pfe_mac2_ext_rx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_EXT_REF)] = &pfe_mac2_ext_ref_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE0_TX)] = &serdes1_lane0_ext_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE0_CDR)] = &serdes1_lane0_cdr_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC0_REF_DIV)] = &pfe_mac0_ref_div_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC1_REF_DIV)] = &pfe_mac1_ref_div_clk,
++	[CC_ARR_CLK(S32G274A_CLK_PFE_MAC2_REF_DIV)] = &pfe_mac2_ref_div_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE1_TX)] = &serdes1_lane1_tx_clk,
++	[CC_ARR_CLK(S32G274A_CLK_SERDES1_LANE1_CDR)] = &serdes1_lane1_cdr_clk,
++};
++
++struct s32gen1_clk *get_plat_cc_clock(uint32_t id)
++{
++	id -= S32GEN1_CLK_ID_BASE;
++
++	if (id >= ARRAY_SIZE(s32g274a_cc_clocks))
++		return NULL;
++
++	return s32g274a_cc_clocks[id];
++}
++
++struct s32gen1_clk *get_plat_clock(uint32_t id)
++{
++	if (id < S32GEN1_PLAT_CLK_ID_BASE)
++		return NULL;
++
++	id -= S32GEN1_PLAT_CLK_ID_BASE;
++
++	if (id >= ARRAY_SIZE(s32g274a_clocks))
++		return NULL;
++
++	return s32g274a_clocks[id];
++}
+diff --git a/drivers/nxp/s32g/clk/s32gen1_clk.c b/drivers/nxp/s32g/clk/s32gen1_clk.c
+new file mode 100644
+index 000000000..7fad35263
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/s32gen1_clk.c
+@@ -0,0 +1,654 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#include <dt-bindings/clock/s32gen1-clock.h>
++#include <clk/s32gen1_clk_funcs.h>
++#include <clk/s32gen1_clk_modules.h>
++#include <clk/s32gen1_shared_clks.h>
++
++/* Clock generation modules */
++static struct s32gen1_osc fxosc =
++		S32GEN1_OSC_INIT(S32GEN1_FXOSC);
++static struct s32gen1_osc firc =
++		S32GEN1_OSC_INIT(S32GEN1_FIRC);
++static struct s32gen1_osc sirc =
++		S32GEN1_OSC_INIT(S32GEN1_SIRC);
++
++static struct s32gen1_fixed_clock serdes1_lane1_tx =
++		S32GEN1_FIXED_CLK_INIT();
++struct s32gen1_clk serdes1_lane1_tx_clk =
++		S32GEN1_MODULE_CLK(serdes1_lane1_tx);
++static struct s32gen1_fixed_clock serdes1_lane1_cdr =
++		S32GEN1_FIXED_CLK_INIT();
++struct s32gen1_clk serdes1_lane1_cdr_clk =
++		S32GEN1_MODULE_CLK(serdes1_lane1_cdr);
++
++/* Muxes */
++static struct s32gen1_mux arm_pll_mux =
++	S32GEN1_MUX_INIT(S32GEN1_ARM_PLL, 0, 2,
++			 S32GEN1_CLK_FIRC,
++			 S32GEN1_CLK_FXOSC);
++
++static struct s32gen1_mux cgm1_mux0 =
++	S32GEN1_SHARED_MUX_INIT(S32GEN1_CGM1, 0, 3,
++				S32GEN1_CLK_FIRC,
++				S32GEN1_CLK_ARM_PLL_PHI0,
++				S32GEN1_CLK_ARM_PLL_DFS2);
++
++static struct s32gen1_mux cgm0_mux0 =
++	S32GEN1_SHARED_MUX_INIT(S32GEN1_CGM0, 0, 2,
++				S32GEN1_CLK_FIRC,
++				S32GEN1_CLK_ARM_PLL_DFS1);
++
++/* Static part of the clock tree */
++
++static struct s32gen1_clk firc_clk =
++		S32GEN1_MODULE_CLK(firc);
++static struct s32gen1_clk fxosc_clk =
++		S32GEN1_MODULE_CLK(fxosc);
++static struct s32gen1_clk sirc_clk =
++		S32GEN1_MODULE_CLK(sirc);
++
++/* ARM PLL */
++static struct s32gen1_clk arm_pll_mux_clk =
++		S32GEN1_MODULE_CLK(arm_pll_mux);
++
++static struct s32gen1_pll armpll = {
++	.desc = {
++		.type = s32gen1_pll_t,
++	},
++	.ndividers = 2,
++	.source = &arm_pll_mux_clk.desc,
++	.instance = S32GEN1_ARM_PLL,
++};
++
++static struct s32gen1_clk arm_pll_vco_clk =
++		S32GEN1_FREQ_MODULE_CLK(armpll, 1300 * MHZ,
++					S32GEN1_ARM_PLL_VCO_MAX_FREQ);
++static struct s32gen1_pll_out_div arm_pll_phi0_div =
++		S32GEN1_PLL_OUT_DIV_INIT(armpll, 0);
++static struct s32gen1_clk arm_pll_phi0_clk =
++		S32GEN1_FREQ_MODULE_CLK(arm_pll_phi0_div, 0,
++					S32GEN1_ARM_PLL_PHI0_MAX_FREQ);
++
++/* ARM DFS */
++struct s32gen1_dfs armdfs = {
++	.desc = {
++		.type = s32gen1_dfs_t,
++	},
++	.source = &armpll.desc,
++	.instance = S32GEN1_ARM_DFS,
++};
++
++static struct s32gen1_dfs_div arm_dfs1_div =
++		S32GEN1_DFS_DIV_INIT(armdfs, 0);
++static struct s32gen1_clk arm_dfs1_clk =
++		S32GEN1_FREQ_MODULE_CLK(arm_dfs1_div, 0, 800 * MHZ);
++
++static struct s32gen1_dfs_div arm_dfs2_div =
++		S32GEN1_DFS_DIV_INIT(armdfs, 1);
++static struct s32gen1_clk arm_dfs2_clk =
++		S32GEN1_FREQ_MODULE_CLK(arm_dfs2_div, 0, 800 * MHZ);
++
++/* Peripherals' clocks */
++
++/* ARM - MC_CGM_1 */
++static struct s32gen1_clk cgm1_mux0_clk =
++		S32GEN1_MODULE_CLK(cgm1_mux0);
++
++/* A53_CORE */
++static struct s32gen1_part_block arm_core0_block =
++		S32GEN1_PART_BLOCK(cgm1_mux0_clk, 1, s32gen1_part_core0);
++static struct s32gen1_part_block arm_core1_block =
++		S32GEN1_PART_BLOCK(arm_core0_block, 1, s32gen1_part_core1);
++static struct s32gen1_part_block arm_core2_block =
++		S32GEN1_PART_BLOCK(arm_core1_block, 1, s32gen1_part_core2);
++static struct s32gen1_part_block arm_core3_block =
++		S32GEN1_PART_BLOCK(arm_core2_block, 1, s32gen1_part_core3);
++static struct s32gen1_clk a53_core_clk =
++		S32GEN1_FREQ_MODULE_CLK(arm_core3_block, 0,
++					S32GEN1_A53_MAX_FREQ);
++
++/* A53_CORE_DIV2 */
++static struct s32gen1_fixed_div a53_core_div2 =
++		S32GEN1_FIXED_DIV_INIT(cgm1_mux0_clk, 2);
++static struct s32gen1_clk a53_core_div2_clk =
++		S32GEN1_FREQ_MODULE_CLK(a53_core_div2, 0,
++					S32GEN1_A53_MAX_FREQ / 2);
++/* A53_CORE_DIV10 */
++static struct s32gen1_fixed_div a53_core_div10 =
++		S32GEN1_FIXED_DIV_INIT(cgm1_mux0_clk, 10);
++static struct s32gen1_clk a53_core_div10_clk =
++		S32GEN1_FREQ_MODULE_CLK(a53_core_div10, 0,
++					S32GEN1_A53_MAX_FREQ / 10);
++
++/* ARM - MC_CGM_0 */
++struct s32gen1_clk cgm0_mux0_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux0);
++/* XBAR */
++static struct s32gen1_fixed_div xbar_div2 =
++		S32GEN1_FIXED_DIV_INIT(cgm0_mux0_clk, 2);
++static struct s32gen1_clk xbar_clk =
++		S32GEN1_FREQ_MODULE_CLK(xbar_div2, 24 * MHZ, 400 * MHZ);
++/* XBAR_DIV2 */
++static struct s32gen1_fixed_div xbar_div4 =
++		S32GEN1_FIXED_DIV_INIT(cgm0_mux0_clk, 4);
++static struct s32gen1_clk xbar_div2_clk =
++		S32GEN1_FREQ_MODULE_CLK(xbar_div4, 12 * MHZ, 200 * MHZ);
++/* XBAR_DIV3 */
++static struct s32gen1_fixed_div xbar_div6 =
++		S32GEN1_FIXED_DIV_INIT(cgm0_mux0_clk, 6);
++static struct s32gen1_clk xbar_div3_clk =
++		S32GEN1_FREQ_MODULE_CLK(xbar_div6, 8 * MHZ, 133333333);
++/* XBAR_DIV4 */
++static struct s32gen1_fixed_div xbar_div8 =
++		S32GEN1_FIXED_DIV_INIT(cgm0_mux0_clk, 8);
++static struct s32gen1_clk xbar_div4_clk =
++		S32GEN1_FREQ_MODULE_CLK(xbar_div8, 6 * MHZ, 100 * MHZ);
++/* XBAR_DIV6 */
++static struct s32gen1_fixed_div xbar_div12 =
++		S32GEN1_FIXED_DIV_INIT(cgm0_mux0_clk, 12);
++static struct s32gen1_clk xbar_div6_clk =
++		S32GEN1_FREQ_MODULE_CLK(xbar_div12, 4 * MHZ, 66666666);
++
++/* PERIPH PLL */
++static struct s32gen1_mux periph_pll_mux =
++	S32GEN1_MUX_INIT(S32GEN1_PERIPH_PLL, 0, 2,
++			 S32GEN1_CLK_FIRC,
++			 S32GEN1_CLK_FXOSC);
++static struct s32gen1_clk periph_pll_mux_clk =
++		S32GEN1_MODULE_CLK(periph_pll_mux);
++
++static struct s32gen1_pll periphpll = {
++	.desc = {
++		.type = s32gen1_pll_t,
++	},
++	.ndividers = 8,
++	.source = &periph_pll_mux_clk.desc,
++	.instance = S32GEN1_PERIPH_PLL,
++};
++
++static struct s32gen1_clk periph_pll_vco_clk =
++		S32GEN1_FREQ_MODULE_CLK(periphpll, 1300 * MHZ, 2000 * MHZ);
++
++static struct s32gen1_pll_out_div periph_pll_phi0_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 0);
++static struct s32gen1_clk periph_pll_phi0_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi0_div,
++					S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ,
++					125 * MHZ);
++
++static struct s32gen1_pll_out_div periph_pll_phi1_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 1);
++static struct s32gen1_clk periph_pll_phi1_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi1_div, 0, 80 * MHZ);
++
++static struct s32gen1_pll_out_div periph_pll_phi2_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 2);
++static struct s32gen1_clk periph_pll_phi2_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi2_div,
++					S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ,
++					80 * MHZ);
++
++static struct s32gen1_pll_out_div periph_pll_phi3_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 3);
++static struct s32gen1_clk periph_pll_phi3_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi3_div, 0, 133333333);
++
++static struct s32gen1_pll_out_div periph_pll_phi4_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 4);
++static struct s32gen1_clk periph_pll_phi4_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi4_div, 0, 200 * MHZ);
++
++static struct s32gen1_pll_out_div periph_pll_phi5_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 5);
++static struct s32gen1_clk periph_pll_phi5_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi5_div, 0, 500 * MHZ);
++
++static struct s32gen1_pll_out_div periph_pll_phi7_div =
++		S32GEN1_PLL_OUT_DIV_INIT(periphpll, 7);
++static struct s32gen1_clk periph_pll_phi7_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_pll_phi7_div, 0, 100 * MHZ);
++
++/* PERIPH DFS */
++static struct s32gen1_dfs periphdfs = {
++	.desc = {
++		.type = s32gen1_dfs_t,
++	},
++	.source = &periphpll.desc,
++	.instance = S32GEN1_PERIPH_DFS,
++};
++
++static struct s32gen1_dfs_div periph_dfs1_div =
++		S32GEN1_DFS_DIV_INIT(periphdfs, 0);
++static struct s32gen1_clk periph_dfs1_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_dfs1_div, 532 * MHZ, 800 * MHZ);
++
++static struct s32gen1_dfs_div periph_dfs2_div =
++		S32GEN1_DFS_DIV_INIT(periphdfs, 1);
++static struct s32gen1_clk periph_dfs2_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_dfs2_div, 0, 800 * MHZ);
++
++static struct s32gen1_dfs_div periph_dfs3_div =
++		S32GEN1_DFS_DIV_INIT(periphdfs, 2);
++static struct s32gen1_clk periph_dfs3_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_dfs3_div, 416 * MHZ, 800 * MHZ);
++
++static struct s32gen1_dfs_div periph_dfs5_div =
++		S32GEN1_DFS_DIV_INIT(periphdfs, 4);
++static struct s32gen1_clk periph_dfs5_clk =
++		S32GEN1_FREQ_MODULE_CLK(periph_dfs5_div, 0, 800 * MHZ);
++
++/* PERIPH - CGM0 */
++/* SERDES_REF_CLK */
++static struct s32gen1_clk serdes_ref_clk =
++		S32GEN1_CHILD_CLK(periph_pll_phi0_clk, 100 * MHZ, 125 * MHZ);
++
++/* PER_CLK */
++static struct s32gen1_mux cgm0_mux3 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 3, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI1);
++static struct s32gen1_clk cgm0_mux3_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux3);
++struct s32gen1_cgm_div per_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux3_clk, 0);
++
++/* FTM_0_REF_CLK */
++static struct s32gen1_fixed_clock ftm0_ext =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk ftm0_ext_clk =
++		S32GEN1_MODULE_CLK(ftm0_ext);
++static struct s32gen1_mux cgm0_mux4 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 4, 3,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI1,
++				 S32GEN1_CLK_FTM0_EXT_REF);
++static struct s32gen1_clk cgm0_mux4_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux4);
++static struct s32gen1_cgm_div ftm0_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux4_clk, 0);
++static struct s32gen1_clk ftm0_ref_clk =
++		S32GEN1_FREQ_MODULE_CLK(ftm0_div, 0, 40 * MHZ);
++
++/* FTM_1_REF_CLK */
++static struct s32gen1_fixed_clock ftm1_ext =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk ftm1_ext_clk =
++		S32GEN1_MODULE_CLK(ftm1_ext);
++static struct s32gen1_mux cgm0_mux5 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 5, 3,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI1,
++				 S32GEN1_CLK_FTM1_EXT_REF);
++static struct s32gen1_clk cgm0_mux5_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux5);
++static struct s32gen1_cgm_div ftm1_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux5_clk, 0);
++static struct s32gen1_clk ftm1_ref_clk =
++		S32GEN1_FREQ_MODULE_CLK(ftm1_div, 0, 40 * MHZ);
++
++/* FLEXRAY_PE_CLK */
++static struct s32gen1_mux cgm0_mux6 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 6, 3,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI1,
++				 S32GEN1_CLK_FXOSC);
++static struct s32gen1_clk cgm0_mux6_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux6);
++static struct s32gen1_cgm_div flexray_pe_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux6_clk, 0);
++static struct s32gen1_clk flexray_pe_clk =
++		S32GEN1_FREQ_MODULE_CLK(flexray_pe_div, 0, 40 * MHZ);
++
++/* CAN_PE_CLK */
++static struct s32gen1_mux cgm0_mux7 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 7, 3,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI2,
++				 S32GEN1_CLK_FXOSC);
++struct s32gen1_clk cgm0_mux7_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux7);
++
++/* LIN_BAUD_CLK */
++static struct s32gen1_mux cgm0_mux8 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 8, 3,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI3,
++				 S32GEN1_CLK_FXOSC);
++static struct s32gen1_clk cgm0_mux8_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux8);
++static struct s32gen1_clk lin_baud_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux8_clk, 0, 133333333);
++
++static struct s32gen1_fixed_div linflexd_div =
++		S32GEN1_FIXED_DIV_INIT(lin_baud_clk, 2);
++static struct s32gen1_clk linflexd_clk =
++		S32GEN1_FREQ_MODULE_CLK(linflexd_div, 0, 66666666);
++
++/* GMAC_TS_CLK */
++static struct s32gen1_fixed_clock gmac_ext_ts =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk gmac_ext_ts_clk =
++		S32GEN1_MODULE_CLK(gmac_ext_ts);
++static struct s32gen1_mux cgm0_mux9 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 9, 3,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI4,
++				 S32GEN1_CLK_GMAC0_EXT_TS);
++static struct s32gen1_clk cgm0_mux9_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux9);
++static struct s32gen1_cgm_div gmac_ts_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux9_clk, 0);
++static struct s32gen1_clk gmac_ts_clk =
++		S32GEN1_FREQ_MODULE_CLK(gmac_ts_div, 5 * MHZ, 200 * MHZ);
++
++/* GMAC0_TX_CLK */
++static struct s32gen1_fixed_clock gmac0_ext_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk gmac0_ext_tx_clk =
++		S32GEN1_MODULE_CLK(gmac0_ext_tx);
++
++static struct s32gen1_fixed_clock gmac0_ext_ref =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk gmac0_ext_ref_clk =
++		S32GEN1_MODULE_CLK(gmac0_ext_ref);
++
++static struct s32gen1_fixed_clock serdes0_lane0_tx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes0_lane0_tx_clk =
++		S32GEN1_MODULE_CLK(serdes0_lane0_tx);
++
++static struct s32gen1_mux cgm0_mux10 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 10, 5,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI5,
++				 S32GEN1_CLK_SERDES0_LANE0_TX,
++				 S32GEN1_CLK_GMAC0_EXT_TX,
++				 S32GEN1_CLK_GMAC0_EXT_REF);
++static struct s32gen1_clk cgm0_mux10_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux10);
++static struct s32gen1_cgm_div gmac_tx_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux10_clk, 0);
++static struct s32gen1_clk gmac_tx_clk =
++		S32GEN1_FREQ_MODULE_CLK(gmac_tx_div, 2500000, 125 * MHZ);
++
++/* GMAC0_RX_CLK */
++static struct s32gen1_fixed_clock serdes0_lane0_cdr =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk serdes0_lane0_cdr_clk =
++		S32GEN1_MODULE_CLK(serdes0_lane0_cdr);
++
++static struct s32gen1_fixed_clock gmac0_ext_rx =
++		S32GEN1_FIXED_CLK_INIT();
++static struct s32gen1_clk gmac0_ext_rx_clk =
++		S32GEN1_MODULE_CLK(gmac0_ext_rx);
++
++static struct s32gen1_mux cgm0_mux11 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 11, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_GMAC0_REF_DIV,
++				 S32GEN1_CLK_GMAC0_EXT_RX,
++				 S32GEN1_CLK_SERDES0_LANE0_CDR);
++static struct s32gen1_clk cgm0_mux11_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux11);
++static struct s32gen1_clk gmac_rx_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux11_clk, 2500000, 125 * MHZ);
++
++/* GMAC0_REF_DIV_CLK */
++static struct s32gen1_mux cgm0_mux15 =
++		S32GEN1_SHARED_MUX_INIT(S32GEN1_CGM0, 15, 2,
++					S32GEN1_CLK_FIRC,
++					S32GEN1_CLK_GMAC0_EXT_REF);
++static struct s32gen1_clk cgm0_mux15_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux15);
++static struct s32gen1_clk gmac0_ref_div_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux15_clk, 0, 50 * MHZ);
++static struct s32gen1_clk gmac0_ref_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux15_clk, 0, 50 * MHZ);
++
++/* SPI_CLK */
++static struct s32gen1_mux cgm0_mux16 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 16, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI7);
++static struct s32gen1_clk cgm0_mux16_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux16);
++static struct s32gen1_clk spi_clk =
++		S32GEN1_CHILD_CLK(cgm0_mux16_clk, 10 * MHZ, 100 * MHZ);
++
++/* QSPI_CLK */
++static struct s32gen1_mux cgm0_mux12 =
++		S32GEN1_SHARED_MUX_INIT(S32GEN1_CGM0, 12, 2,
++					S32GEN1_CLK_FIRC,
++					S32GEN1_CLK_PERIPH_PLL_DFS1);
++static struct s32gen1_clk cgm0_mux12_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux12);
++static struct s32gen1_cgm_div qspi_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux12_clk, 0);
++static struct s32gen1_clk qspi_2x_clk =
++		S32GEN1_FREQ_MODULE_CLK(qspi_div, 0, S32GEN1_QSPI_MAX_FREQ * 2);
++static struct s32gen1_fixed_div qspi_div2 =
++		S32GEN1_FIXED_DIV_INIT(qspi_2x_clk, 2);
++static struct s32gen1_clk qspi_clk =
++		S32GEN1_FREQ_MODULE_CLK(qspi_div2, 0, S32GEN1_QSPI_MAX_FREQ);
++
++/* SDHC_CLK */
++static struct s32gen1_mux cgm0_mux14 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 14, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_DFS3);
++static struct s32gen1_clk cgm0_mux14_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux14);
++static struct s32gen1_cgm_div sdhc_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux14_clk, 0);
++static struct s32gen1_part_block sdhc_block =
++		S32GEN1_PART_BLOCK(sdhc_div, 0, s32gen1_part_block0);
++static struct s32gen1_clk sdhc_clk =
++		S32GEN1_FREQ_MODULE_CLK(sdhc_block, 0, 400 * MHZ);
++
++/* DDR PLL */
++static struct s32gen1_mux ddr_pll_mux =
++	S32GEN1_MUX_INIT(S32GEN1_DDR_PLL, 0, 2,
++			 S32GEN1_CLK_FIRC,
++			 S32GEN1_CLK_FXOSC);
++static struct s32gen1_clk ddr_pll_mux_clk =
++		S32GEN1_MODULE_CLK(ddr_pll_mux);
++
++static struct s32gen1_pll ddrpll = {
++	.desc = {
++		.type = s32gen1_pll_t,
++	},
++	.ndividers = 1,
++	.source = &ddr_pll_mux_clk.desc,
++	.instance = S32GEN1_DDR_PLL,
++};
++
++static struct s32gen1_clk ddr_pll_vco_clk =
++		S32GEN1_FREQ_MODULE_CLK(ddrpll, 1300 * MHZ, 1600 * MHZ);
++
++static struct s32gen1_pll_out_div ddr_pll_phi0_div =
++		S32GEN1_PLL_OUT_DIV_INIT(ddrpll, 0);
++static struct s32gen1_clk ddr_pll_phi0_clk =
++		S32GEN1_FREQ_MODULE_CLK(ddr_pll_phi0_div, 0, 800 * MHZ);
++
++/* DDR_CLK */
++static struct s32gen1_mux cgm5_mux0 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM5, 0, 2,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_DDR_PLL_PHI0);
++static struct s32gen1_clk cgm5_mux0_clk =
++		S32GEN1_MODULE_CLK(cgm5_mux0);
++static struct s32gen1_part_block ddr_block =
++		S32GEN1_PART_BLOCK(cgm5_mux0_clk, 0, s32gen1_part_block1);
++static struct s32gen1_clk ddr_clk =
++		S32GEN1_FREQ_MODULE_CLK(ddr_block, 0, 800 * MHZ);
++
++/* ACCEL PLL */
++static struct s32gen1_mux accel_pll_mux =
++	S32GEN1_MUX_INIT(S32GEN1_ACCEL_PLL, 0, 2,
++			 S32GEN1_CLK_FIRC,
++			 S32GEN1_CLK_FXOSC);
++static struct s32gen1_clk accel_pll_mux_clk =
++		S32GEN1_MODULE_CLK(accel_pll_mux);
++
++static struct s32gen1_pll accelpll = {
++	.desc = {
++		.type = s32gen1_pll_t,
++	},
++	.ndividers = 2,
++	.source = &accel_pll_mux_clk.desc,
++	.instance = S32GEN1_ACCEL_PLL,
++};
++
++static struct s32gen1_clk accel_pll_vco_clk =
++		S32GEN1_FREQ_MODULE_CLK(accelpll, 1300 * MHZ, 2400 * MHZ);
++
++static struct s32gen1_pll_out_div accel_pll_phi0_div =
++		S32GEN1_PLL_OUT_DIV_INIT(accelpll, 0);
++struct s32gen1_clk accel_pll_phi0_clk =
++		S32GEN1_FREQ_MODULE_CLK(accel_pll_phi0_div, 0, 600 * MHZ);
++static struct s32gen1_pll_out_div accel_pll_phi1_div =
++		S32GEN1_PLL_OUT_DIV_INIT(accelpll, 1);
++struct s32gen1_clk accel_pll_phi1_clk =
++		S32GEN1_FREQ_MODULE_CLK(accel_pll_phi1_div, 0, 600 * MHZ);
++
++/* CLKOUT */
++static struct s32gen1_mux cgm0_mux1 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 1, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI0,
++				 S32GEN1_CLK_PERIPH_PLL_DFS2,
++				 S32GEN1_CLK_PERIPH_PLL_DFS5);
++static struct s32gen1_clk cgm0_mux1_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux1);
++static struct s32gen1_cgm_div clkout0_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux1_clk, 0);
++static struct s32gen1_clk clkout0_clk =
++		S32GEN1_MODULE_CLK(clkout0_div);
++
++static struct s32gen1_mux cgm0_mux2 =
++		S32GEN1_MUX_INIT(S32GEN1_CGM0, 2, 4,
++				 S32GEN1_CLK_FIRC,
++				 S32GEN1_CLK_PERIPH_PLL_PHI0,
++				 S32GEN1_CLK_PERIPH_PLL_DFS2,
++				 S32GEN1_CLK_PERIPH_PLL_DFS5);
++static struct s32gen1_clk cgm0_mux2_clk =
++		S32GEN1_MODULE_CLK(cgm0_mux2);
++static struct s32gen1_cgm_div clkout1_div =
++		S32GEN1_CGM_DIV_INIT(cgm0_mux2_clk, 0);
++static struct s32gen1_clk clkout1_clk =
++		S32GEN1_MODULE_CLK(clkout1_div);
++
++static struct s32gen1_clk *plat_clocks[] = {
++	/* Oscillators */
++	[CC_ARR_CLK(S32GEN1_CLK_FIRC)] = &firc_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_SIRC)] = &sirc_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_FXOSC)] = &fxosc_clk,
++	/* ARM PLL */
++	[CC_ARR_CLK(S32GEN1_CLK_ARM_PLL_MUX)] = &arm_pll_mux_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_ARM_PLL_VCO)] = &arm_pll_vco_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_ARM_PLL_PHI0)] = &arm_pll_phi0_clk,
++	/* ARM DFS */
++	[CC_ARR_CLK(S32GEN1_CLK_ARM_PLL_DFS1)] = &arm_dfs1_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_ARM_PLL_DFS2)] = &arm_dfs2_clk,
++	/* ARM - MC_CGM1 */
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM1_MUX0)] = &cgm1_mux0_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_A53_CORE)] = &a53_core_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_A53_CORE_DIV2)] = &a53_core_div2_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_A53_CORE_DIV10)] = &a53_core_div10_clk,
++	/* ARM - MC_CGM0 */
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX0)] = &cgm0_mux0_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_XBAR_2X)] = &xbar_2x_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_XBAR)] = &xbar_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_XBAR_DIV2)] = &xbar_div2_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_XBAR_DIV3)] = &xbar_div3_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_XBAR_DIV4)] = &xbar_div4_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_XBAR_DIV6)] = &xbar_div6_clk,
++	/* PERIPH PLL */
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_MUX)] = &periph_pll_mux_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_VCO)] = &periph_pll_vco_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI0)] = &periph_pll_phi0_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI1)] = &periph_pll_phi1_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI2)] = &periph_pll_phi2_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI3)] = &periph_pll_phi3_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI4)] = &periph_pll_phi4_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI5)] = &periph_pll_phi5_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_PHI7)] = &periph_pll_phi7_clk,
++	/* PERIPH DFS */
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_DFS1)] = &periph_dfs1_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_DFS2)] = &periph_dfs2_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_DFS3)] = &periph_dfs3_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_PERIPH_PLL_DFS5)] = &periph_dfs5_clk,
++	/* PERIPH - MC_CGM0 */
++	[CC_ARR_CLK(S32GEN1_CLK_SERDES_REF)] = &serdes_ref_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX3)] = &cgm0_mux3_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX4)] = &cgm0_mux4_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_FTM0_EXT_REF)] = &ftm0_ext_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_FTM0_REF)] = &ftm0_ref_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX5)] = &cgm0_mux5_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_FTM1_EXT_REF)] = &ftm1_ext_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_FTM1_REF)] = &ftm1_ref_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX6)] = &cgm0_mux6_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_FLEXRAY_PE)] = &flexray_pe_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX7)] = &cgm0_mux7_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX8)] = &cgm0_mux8_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_LIN_BAUD)] = &lin_baud_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_LINFLEXD)] = &linflexd_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX10)] = &cgm0_mux10_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_TX)] = &gmac_tx_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_EXT_TS)] = &gmac_ext_ts_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX9)] = &cgm0_mux9_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_TS)] = &gmac_ts_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_EXT_TX)] = &gmac0_ext_tx_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_EXT_REF)] = &gmac0_ext_ref_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_SERDES0_LANE0_CDR)] = &serdes0_lane0_cdr_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_SERDES0_LANE0_TX)] = &serdes0_lane0_tx_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_EXT_RX)] = &gmac0_ext_rx_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX11)] = &cgm0_mux11_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_RX)] = &gmac_rx_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX15)] = &cgm0_mux15_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_REF_DIV)] = &gmac0_ref_div_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_REF)] = &gmac0_ref_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX16)] = &cgm0_mux16_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_SPI)] = &spi_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX12)] = &cgm0_mux12_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_QSPI_2X)] = &qspi_2x_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_QSPI)] = &qspi_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX14)] = &cgm0_mux14_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_SDHC)] = &sdhc_clk,
++	/* DDR PLL */
++	[CC_ARR_CLK(S32GEN1_CLK_DDR_PLL_MUX)] = &ddr_pll_mux_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_DDR_PLL_VCO)] = &ddr_pll_vco_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_DDR_PLL_PHI0)] = &ddr_pll_phi0_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM5_MUX0)] = &cgm5_mux0_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_DDR)] = &ddr_clk,
++	/* ACCEL PLL */
++	[CC_ARR_CLK(S32GEN1_CLK_ACCEL_PLL_MUX)] = &accel_pll_mux_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_ACCEL_PLL_VCO)] = &accel_pll_vco_clk,
++	/* CLKOUT */
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX1)] = &cgm0_mux1_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_CLKOUT0)] = &clkout0_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_MC_CGM0_MUX2)] = &cgm0_mux2_clk,
++	[CC_ARR_CLK(S32GEN1_CLK_CLKOUT1)] = &clkout1_clk,
++};
++
++struct s32gen1_clk *get_clock(uint32_t id)
++{
++	uint32_t index;
++
++	if (id < S32GEN1_CLK_ID_BASE)
++		return NULL;
++
++	if (id >= S32GEN1_PLAT_CLK_ID_BASE)
++		return get_plat_clock(id);
++
++	index = id - S32GEN1_CLK_ID_BASE;
++
++	if (index >= ARRAY_SIZE(plat_clocks) || !plat_clocks[index])
++		return get_plat_cc_clock(id);
++
++	return plat_clocks[index];
++}
++
+diff --git a/drivers/nxp/s32g/clk/set_par_rate.c b/drivers/nxp/s32g/clk/set_par_rate.c
+new file mode 100644
+index 000000000..447e99c42
+--- /dev/null
++++ b/drivers/nxp/s32g/clk/set_par_rate.c
+@@ -0,0 +1,317 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#include <clk/s32gen1_clk_funcs.h>
++#include <clk/s32gen1_clk_modules.h>
++#include <common/debug.h>
++
++static unsigned long set_module_rate(struct s32gen1_clk_obj *module,
++				     unsigned long rate);
++
++static unsigned long set_pll_freq(struct s32gen1_clk_obj *module,
++				  unsigned long rate)
++{
++	struct s32gen1_pll *pll = obj2pll(module);
++
++	if (pll->vco_freq && pll->vco_freq != rate) {
++		ERROR("PLL frequency was already set\n");
++		return 0;
++	}
++
++	pll->vco_freq = rate;
++	return rate;
++}
++
++static unsigned long set_pll_div_freq(struct s32gen1_clk_obj *module,
++				      unsigned long rate)
++{
++	struct s32gen1_pll_out_div *div = obj2plldiv(module);
++	struct s32gen1_pll *pll;
++
++	if (!div->parent) {
++		ERROR("Failed to identify PLL divider's parent\n");
++		return 0;
++	}
++
++	pll = obj2pll(div->parent);
++	if (!pll) {
++		ERROR("The parent of the PLL DIV is invalid\n");
++		return 0;
++	}
++
++	if (div->freq && div->freq != rate) {
++		ERROR("PLL DIV frequency was already set to %lu\n", div->freq);
++		return 0;
++	}
++
++	div->freq = rate;
++	return rate;
++}
++
++static unsigned long set_dfs_div_freq(struct s32gen1_clk_obj *module,
++				      unsigned long rate)
++{
++	struct s32gen1_dfs_div *div = obj2dfsdiv(module);
++	struct s32gen1_dfs *dfs;
++
++	if (!div->parent) {
++		ERROR("Failed to identify DFS divider's parent\n");
++		return 0;
++	}
++
++	/* Sanity check */
++	dfs = obj2dfs(div->parent);
++	if (!dfs->source) {
++		ERROR("Failed to identify DFS's parent\n");
++		return 0;
++	}
++
++	if (div->freq && div->freq != rate) {
++		ERROR("DFS DIV frequency was already set to %lu\n", div->freq);
++		return 0;
++	}
++
++	div->freq = rate;
++	return rate;
++}
++
++static unsigned long set_cgm_div_freq(struct s32gen1_clk_obj *module,
++				      unsigned long rate)
++{
++	struct s32gen1_cgm_div *div = obj2cgmdiv(module);
++
++	if (!div->parent) {
++		ERROR("Failed to identify DCGM divider's parent\n");
++		return 0;
++	}
++
++	div->freq = rate;
++	return rate;
++}
++
++static unsigned long set_clk_freq(struct s32gen1_clk_obj *module,
++				  unsigned long rate)
++{
++	struct s32gen1_clk *clk = obj2clk(module);
++
++	if ((clk->min_freq && clk->max_freq) &&
++	    (rate < clk->min_freq || rate > clk->max_freq)) {
++		ERROR("%lu frequency is out of the allowed range: [%lu:%lu]\n",
++		       rate, clk->min_freq, clk->max_freq);
++		return 0;
++	}
++
++	if (clk->module)
++		return set_module_rate(clk->module, rate);
++
++	if (clk->pclock)
++		return set_clk_freq(&clk->pclock->desc, rate);
++
++	return 0;
++}
++
++static unsigned long set_fixed_div_freq(struct s32gen1_clk_obj *module,
++					unsigned long rate)
++{
++	struct s32gen1_fixed_div *div = obj2fixeddiv(module);
++
++	if (!div->parent) {
++		ERROR("The divider doesn't have a valid parent\b");
++		return 0;
++	}
++
++	return set_module_rate(div->parent, rate * div->div);
++}
++
++static unsigned long set_mux_freq(struct s32gen1_clk_obj *module,
++				  unsigned long rate)
++{
++	struct s32gen1_mux *mux = obj2mux(module);
++	struct s32gen1_clk *clk = get_clock(mux->source_id);
++
++	if (!clk) {
++		ERROR("%s: Mux (id:%d) without a valid source (%d)\n",
++		      __func__, mux->index, mux->source_id);
++		return 0;
++	}
++
++	return set_module_rate(&clk->desc, rate);
++}
++
++static unsigned long set_osc_freq(struct s32gen1_clk_obj *module,
++				  unsigned long rate)
++{
++	struct s32gen1_osc *osc = obj2osc(module);
++
++	if (osc->freq && rate != osc->freq) {
++		ERROR("Already initialized oscillator. freq = %lu\n",
++		       osc->freq);
++		return 0;
++	}
++
++	osc->freq = rate;
++
++	return osc->freq;
++}
++
++static unsigned long set_fixed_clk_freq(struct s32gen1_clk_obj *module,
++					unsigned long rate)
++{
++	struct s32gen1_fixed_clock *fixed_clk = obj2fixedclk(module);
++
++	if (fixed_clk->freq && rate != fixed_clk->freq) {
++		ERROR("Already initialized clock. Current freq = %lu Req freq = %lu\n",
++		       fixed_clk->freq, rate);
++		return 0;
++	}
++
++	fixed_clk->freq = rate;
++
++	return fixed_clk->freq;
++}
++
++static unsigned long set_part_block_freq(struct s32gen1_clk_obj *module,
++					 unsigned long rate)
++{
++	struct s32gen1_part_block *block = obj2partblock(module);
++
++	if (!block->parent)
++		ERROR("Partition block with no parent\n");
++
++	return set_module_rate(block->parent, rate);
++}
++
++static unsigned long set_module_rate(struct s32gen1_clk_obj *module,
++				     unsigned long rate)
++{
++	switch (module->type) {
++	case s32gen1_fixed_clk_t:
++		return set_fixed_clk_freq(module, rate);
++	case s32gen1_osc_t:
++		return set_osc_freq(module, rate);
++	case s32gen1_pll_t:
++		return set_pll_freq(module, rate);
++	case s32gen1_pll_out_div_t:
++		return set_pll_div_freq(module, rate);
++	case s32gen1_dfs_div_t:
++		return set_dfs_div_freq(module, rate);
++	case s32gen1_clk_t:
++		return set_clk_freq(module, rate);
++	case s32gen1_mux_t:
++	case s32gen1_shared_mux_t:
++		return set_mux_freq(module, rate);
++	case s32gen1_fixed_div_t:
++		return set_fixed_div_freq(module, rate);
++	case s32gen1_part_block_t:
++		return set_part_block_freq(module, rate);
++	case s32gen1_cgm_div_t:
++		return set_cgm_div_freq(module, rate);
++	case s32gen1_dfs_t:
++		ERROR("It's not allowed to set the frequency of a DFS !");
++		return 0;
++	};
++
++	return 0;
++}
++
++unsigned long s32gen1_set_rate(struct clk *c, unsigned long rate)
++{
++	struct s32gen1_clk *clk;
++
++	clk = get_clock(c->id);
++	if (!clk)
++		return 0;
++
++	rate = set_module_rate(&clk->desc, rate);
++	if (rate == 0)
++		ERROR("Failed to set frequency (%lu MHz) for clock %u\n",
++		      rate, c->id);
++
++	return rate;
++}
++
++static bool check_mux_source(struct s32gen1_mux *mux, uint32_t source_id)
++{
++	uint8_t i;
++
++	for (i = 0; i < mux->nclks; i++) {
++		if (mux->clkids[i] == source_id)
++			return true;
++	}
++
++	return false;
++}
++
++static int update_frequency(struct clk *c, struct clk *p,
++			    struct s32gen1_clk *clk, struct s32gen1_clk *parent)
++{
++	unsigned long rate;
++
++	if (!(is_osc(parent) || is_fixed_clk(parent))) {
++		ERROR("Unknown module type: %d\n", parent->desc.type);
++		return -EINVAL;
++	}
++
++	rate = clk_get_rate(p);
++	if (rate == 0) {
++		ERROR("Failed to get the frequency of clock %u\n", p->id);
++		return -EINVAL;
++	}
++
++	if (set_module_rate(parent->module, rate) != rate)
++		return -EINVAL;
++
++	return 0;
++}
++
++int s32gen1_set_parent(struct clk *c, struct clk *p)
++{
++	struct s32gen1_clk *clk, *parent;
++	struct s32gen1_mux *mux;
++	int ret;
++
++	if (!c || !p)
++		return -EINVAL;
++
++	clk = get_clock(c->id);
++
++	if (!clk) {
++		ERROR("Invalid clock\n");
++		return -EINVAL;
++	}
++
++	/* The parent is a fixed /external clock */
++	if (p->drv != c->drv && (is_fixed_clk(clk) || is_osc(clk))) {
++		ret = update_frequency(c, p, clk, clk);
++		if (ret)
++			return ret;
++		return 0;
++	}
++
++	parent = get_clock(p->id);
++	if (!parent) {
++		ERROR("Invalid parent\n");
++		return -EINVAL;
++	}
++
++	if (!is_mux(clk)) {
++		ERROR("Clock %u is not a mux\n", c->id);
++		return -EINVAL;
++	}
++
++	mux = clk2mux(clk);
++	if (!mux) {
++		ERROR("Failed to cast clock %u to clock mux\n", c->id);
++		return -EINVAL;
++	}
++
++	if (!check_mux_source(mux, p->id)) {
++		ERROR("Clock %u is not a valid clock for mux %u\n",
++		       p->id, c->id);
++		return -EINVAL;
++	}
++
++	mux->source_id = p->id;
++	return 0;
++}
+diff --git a/include/drivers/nxp/s32g/clk/mc_cgm_regs.h b/include/drivers/nxp/s32g/clk/mc_cgm_regs.h
+new file mode 100644
+index 000000000..c5cdfe45a
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/mc_cgm_regs.h
+@@ -0,0 +1,167 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++
++#ifndef MC_CGM_REGS_H
++#define MC_CGM_REGS_H
++
++#include <s32g_bl_common.h>
++
++/* FXOSC registers. */
++#define FXOSC_CTRL(FXOSC)		(UPTR(FXOSC) + 0x0)
++#define FXOSC_CTRL_OSC_BYP		BIT(31)
++#define FXOSC_CTRL_COMP_EN		BIT(24)
++
++#define FXOSC_CTRL_EOCV(val)		(FXOSC_CTRL_EOCV_MASK & ((val) << \
++					 FXOSC_CTRL_EOCV_OFFSET))
++#define FXOSC_CTRL_EOCV_MASK		(0x00FF0000)
++#define FXOSC_CTRL_EOCV_OFFSET		(16)
++
++#define FXOSC_CTRL_GM_SEL(val)		(FXOSC_CTRL_GM_SEL_MASK & ((val) << \
++					 FXOSC_CTRL_GM_SEL_OFFSET))
++#define FXOSC_CTRL_GM_SEL_MASK		(0x000000F0)
++#define FXOSC_CTRL_GM_SEL_OFFSET	(4)
++
++#define FXOSC_CTRL_OSCON		BIT(0)
++
++#define FXOSC_STAT(FXOSC)		(UPTR(FXOSC) + 0x4)
++#define FXOSC_STAT_OSC_STAT		BIT(31)
++
++/* MC_CGM registers definitions */
++/* MC_CGM_MUX_n_CSC */
++#define CGM_MUXn_CSC(cgm_addr, mux)	((UPTR(cgm_addr) + 0x300 + \
++					 (mux) * 0x40))
++#define MC_CGM_MUXn_CSC_SELCTL(val)	(MC_CGM_MUXn_CSC_SELCTL_MASK & ((val) \
++					 << MC_CGM_MUXn_CSC_SELCTL_OFFSET))
++#define MC_CGM_MUXn_CSC_SELCTL_MASK	(0x3F000000)
++#define MC_CGM_MUXn_CSC_SELCTL_OFFSET	(24)
++
++#define MC_CGM_MUXn_CSC_CLK_SW		BIT(2)
++
++/* MC_CGM_MUX_n_CSS */
++#define CGM_MUXn_CSS(cgm_addr, mux)	((UPTR(cgm_addr) + 0x304 + \
++					 (mux) * 0x40))
++#define MC_CGM_MUXn_CSS_SELSTAT(css)	((MC_CGM_MUXn_CSS_SELSTAT_MASK & (css))\
++					 >> MC_CGM_MUXn_CSS_SELSTAT_OFFSET)
++#define MC_CGM_MUXn_CSS_SELSTAT_MASK	(0x3F000000)
++#define MC_CGM_MUXn_CSS_SELSTAT_OFFSET	(24)
++
++#define MC_CGM_MUXn_CSS_SWIP		BIT(16)
++#define MC_CGM_MUXn_CSS_SWTRG(css)	((MC_CGM_MUXn_CSS_SWTRG_MASK & (css)) \
++					 >> MC_CGM_MUXn_CSS_SWTRG_OFFSET)
++#define MC_CGM_MUXn_CSS_SWTRG_MASK	(0x000E0000)
++#define MC_CGM_MUXn_CSS_SWTRG_OFFSET	(17)
++#define MC_CGM_MUXn_CSS_SWTRG_SUCCESS	(0x1)
++
++/* MC_CGM_SC_DCn */
++#define CGM_MUXn_DCm(cgm_addr, mux, dc)	((UPTR(cgm_addr) + 0x308) + \
++					 ((mux) * 0x40))
++#define MC_CGM_MUXn_DCm_DIV(val)	(MC_CGM_MUXn_DCm_DIV_MASK & ((val) \
++					 << MC_CGM_MUXn_DCm_DIV_OFFSET))
++#define MC_CGM_MUXn_DCm_DIV_VAL(val)	((MC_CGM_MUXn_DCm_DIV_MASK & val) \
++					 >> MC_CGM_MUXn_DCm_DIV_OFFSET)
++#define MC_CGM_MUXn_DCm_DIV_MASK	(0x00FF0000)
++#define MC_CGM_MUXn_DCm_DIV_OFFSET	(16)
++#define MC_CGM_MUXn_DCm_DE		BIT(31)
++
++/* DIV_UPD_STAT */
++#define CGM_MUXn_DIV_UPD_STAT(cgm_addr, mux)	((UPTR(cgm_addr) + 0x33C + \
++						 (mux) * 0x40))
++#define MC_CGM_MUXn_DIV_UPD_STAT_DIVSTAT(css)	((MC_CGM_MUXn_DIV_UPD_STAT_DIVSTAT_MASK \
++						  & (css)) \
++						  >> MC_CGM_MUXn_DIV_UPD_STAT_DIVSTAT_OFFSET)
++#define MC_CGM_MUXn_DIV_UPD_STAT_DIVSTAT_MASK	(0x00000001)
++#define MC_CGM_MUXn_DIV_UPD_STAT_DIVSTAT_OFFSET	(0)
++
++#define pll_addr(pll)			UPTR(pll)
++#define dfs_addr(pll)			UPTR(pll)
++
++/* PLLDIG PLL Control Register (PLLDIG_PLLCR) */
++#define PLLDIG_PLLCR(pll)		(pll_addr(pll))
++#define PLLDIG_PLLCR_PLLPD		BIT(31)
++
++/* PLLDIG PLL Status Register (PLLDIG_PLLSR) */
++#define PLLDIG_PLLSR(pll)		((pll_addr(pll)) + 0x00000004)
++#define PLLDIG_PLLSR_LOCK		BIT(2)
++
++/* PLLDIG PLL Divider Register (PLLDIG_PLLDV) */
++#define PLLDIG_PLLDV(pll)		((pll_addr(pll)) + 0x00000008)
++#define PLLDIG_PLLDV_MFI(div)		(PLLDIG_PLLDV_MFI_MASK & (div))
++#define PLLDIG_PLLDV_MFI_MASK		(0x000000FF)
++
++#define PLLDIG_PLLDV_RDIV_SET(val)	(PLLDIG_PLLDV_RDIV_MASK & \
++					 (((val) & PLLDIG_PLLDV_RDIV_MAXVALUE) \
++					  << PLLDIG_PLLDV_RDIV_OFFSET))
++#define PLLDIG_PLLDV_RDIV_MAXVALUE	(0x7)
++#define PLLDIG_PLLDV_RDIV_MASK		(0x00007000)
++#define PLLDIG_PLLDV_RDIV_OFFSET	(12)
++#define PLLDIG_PLLDV_RDIV(val)		(((val) & PLLDIG_PLLDV_RDIV_MASK) >> \
++					 PLLDIG_PLLDV_RDIV_OFFSET)
++
++/* PLLDIG PLL Fractional  Divide Register (PLLDIG_PLLFD) */
++#define PLLDIG_PLLFD(pll)		((pll_addr(pll)) + 0x00000010)
++#define PLLDIG_PLLFD_MFN_SET(val)	(PLLDIG_PLLFD_MFN_MASK & (val))
++#define PLLDIG_PLLFD_MFN_MASK		(0x00007FFF)
++#define PLLDIG_PLLFD_SMDEN		BIT(30)
++
++/* PLL Clock Mux (PLLCLKMUX) */
++#define PLLDIG_PLLCLKMUX(pll)			(UPTR(pll) + 0x00000020)
++
++/* PLL Output Divider (PLLODIV0 - PLLODIV7) */
++#define PLLDIG_PLLODIV(pll, n)		((pll_addr(pll)) + 0x00000080 + n * 0x4)
++#define PLLDIG_PLLODIV_DIV_SET(val)	(PLLDIG_PLLODIV_DIV_MASK & \
++					 ((val) << PLLDIG_PLLODIV_DIV_OFFSET))
++#define PLLDIG_PLLODIV_DIV_MASK		(0x00FF0000)
++#define PLLDIG_PLLODIV_DIV_OFFSET	(16)
++#define PLLDIG_PLLODIV_DIV(val)		(((val) & PLLDIG_PLLODIV_DIV_MASK) >> \
++					 PLLDIG_PLLODIV_DIV_OFFSET)
++
++#define PLLDIG_PLLODIV_DE		BIT(31)
++
++/* Digital Frequency Synthesizer (DFS) */
++/* According to the manual there are DFS modules for ARM_PLL, PERIPH_PLL */
++
++/* DFS Control Register (DFS_CTL) */
++#define DFS_CTL(dfs)			((dfs_addr(dfs)) + 0x00000018)
++#define DFS_CTL_RESET			BIT(1)
++
++/* DFS Port Status Register (DFS_PORTSR) */
++#define DFS_PORTSR(dfs)			((dfs_addr(dfs)) + 0x0000000C)
++/* DFS Port Reset Register (DFS_PORTRESET) */
++#define DFS_PORTRESET(dfs)			((dfs_addr(dfs)) + 0x00000014)
++#define DFS_PORTRESET_PORTRESET_SET(val)	\
++			(((val) & DFS_PORTRESET_PORTRESET_MASK) \
++			<< DFS_PORTRESET_PORTRESET_OFFSET)
++#define DFS_PORTRESET_PORTRESET_MAXVAL		(0x0000003F)
++#define DFS_PORTRESET_PORTRESET_MASK		(0x0000003F)
++#define DFS_PORTRESET_PORTRESET_OFFSET		(0)
++
++/* DFS Divide Register Portn (DFS_DVPORTn) */
++#define DFS_DVPORTn(dfs, n)			((dfs_addr(dfs)) + \
++						 (0x1C + ((n) * 0x4)))
++
++/* Port Loss of Lock Status (PORTLOLSR) */
++#define DFS_PORTOLSR(dfs)			((dfs_addr(dfs)) + 0x00000010)
++#define DFS_PORTOLSR_LOL(n)			(BIT(n) & 0x3FU)
++
++/*
++ * The mathematical formula for fdfs_clockout is the following:
++ * fdfs_clckout = fdfs_clkin / (2 * (DFS_DVPORTn[MFI] + (DFS_DVPORTn[MFN]/36)))
++ */
++#define DFS_DVPORTn_MFI_SET(val)	(DFS_DVPORTn_MFI_MASK & \
++		(((val) & DFS_DVPORTn_MFI_MAXVAL) << DFS_DVPORTn_MFI_OFFSET))
++#define DFS_DVPORTn_MFN_SET(val)	(DFS_DVPORTn_MFN_MASK & \
++		(((val) & DFS_DVPORTn_MFN_MAXVAL) << DFS_DVPORTn_MFN_OFFSET))
++#define DFS_DVPORTn_MFI(val)		(((val) & DFS_DVPORTn_MFI_MASK) >> \
++					 DFS_DVPORTn_MFI_OFFSET)
++#define DFS_DVPORTn_MFN(val)		(((val) & DFS_DVPORTn_MFN_MASK) >> \
++					 DFS_DVPORTn_MFN_OFFSET)
++#define DFS_DVPORTn_MFI_MASK		(0x0000FF00)
++#define DFS_DVPORTn_MFN_MASK		(0x000000FF)
++#define DFS_DVPORTn_MFI_MAXVAL		(0xFF)
++#define DFS_DVPORTn_MFN_MAXVAL		(0xFF)
++#define DFS_DVPORTn_MFI_OFFSET		(8)
++#define DFS_DVPORTn_MFN_OFFSET		(0)
++
++#endif /*MC_CGM_REGS_H */
+diff --git a/include/drivers/nxp/s32g/clk/mc_me_regs.h b/include/drivers/nxp/s32g/clk/mc_me_regs.h
+new file mode 100644
+index 000000000..b57a14ab5
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/mc_me_regs.h
+@@ -0,0 +1,40 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++
++#ifndef MC_ME_REGS_H
++#define MC_ME_REGS_H
++
++#include <s32g_bl_common.h>
++
++/* MC_ME registers. */
++#define MC_ME_CTL_KEY(MC_ME)		(UPTR(MC_ME) + 0x0)
++#define MC_ME_CTL_KEY_KEY		(0x00005AF0)
++#define MC_ME_CTL_KEY_INVERTEDKEY	(0x0000A50F)
++
++/* MC_ME partition definitions */
++#define MC_ME_PRTN_N(MC_ME, n)			(UPTR(MC_ME) + 0x100 + \
++						 (n) * 0x200)
++#define MC_ME_PRTN_N_PCONF(MC_ME, n)		(MC_ME_PRTN_N(MC_ME, n))
++#define MC_ME_PRTN_N_PUPD(MC_ME, n)		(MC_ME_PRTN_N(MC_ME, n) + 0x4)
++#define MC_ME_PRTN_N_STAT(MC_ME, n)		(MC_ME_PRTN_N(MC_ME, n) + 0x8)
++#define MC_ME_PRTN_N_COFB0_STAT(MC_ME, n)	(MC_ME_PRTN_N(MC_ME, n) + 0x10)
++#define MC_ME_PRTN_N_COFB0_CLKEN(MC_ME, n)	(MC_ME_PRTN_N(MC_ME, n) + 0x30)
++
++/* MC_ME_PRTN_N_* register fields */
++#define MC_ME_PRTN_N_PCE		BIT(0)
++#define MC_ME_PRTN_N_PCUD		BIT(0)
++#define MC_ME_PRTN_N_PCS		BIT(0)
++#define MC_ME_PRTN_N_OSSE		BIT(2)
++#define MC_ME_PRTN_N_OSSUD		BIT(2)
++#define MC_ME_PRTN_N_OSSS		BIT(2)
++#define MC_ME_PRTN_N_REQ(n)		BIT(n)
++
++#define RDC_RD_N_CTRL(RDC, N)	(UPTR(RDC) + (0x4 * (N)))
++#define RDC_RD_N_STATUS(RDC, N)	(UPTR(RDC) + 0x80 + (0x4 * (N)))
++#define RD_CTRL_UNLOCK_MASK	(0x80000000)
++#define RDC_RD_INTERCONNECT_DISABLE BIT(3)
++#define RDC_RD_INTERCONNECT_DISABLE_STAT BIT(4)
++
++#endif /* MC_ME_REGS_H */
+diff --git a/include/drivers/nxp/s32g/clk/mc_rgm_regs.h b/include/drivers/nxp/s32g/clk/mc_rgm_regs.h
+new file mode 100644
+index 000000000..2cc055062
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/mc_rgm_regs.h
+@@ -0,0 +1,21 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++
++#ifndef MC_RGM_REGS_H
++#define MC_RGM_REGS_H
++
++#include <s32g_bl_common.h>
++
++#define RGM_PRST(MC_RGM, per)		(UPTR(MC_RGM) + 0x40 + \
++					 ((per) * 0x8))
++
++#define PRST_PERIPH_n_RST(n)		BIT(n)
++
++#define RGM_PSTAT(rgm, per)		(UPTR(rgm) + 0x140 + \
++					 ((per) * 0x8))
++#define PSTAT_PERIPH_n_STAT(n)		BIT(n)
++
++#endif /* MC_RGM_REGS_H */
++
+diff --git a/include/drivers/nxp/s32g/clk/s32gen1_clk_funcs.h b/include/drivers/nxp/s32g/clk/s32gen1_clk_funcs.h
+new file mode 100644
+index 000000000..0fe6866b5
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/s32gen1_clk_funcs.h
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2020 NXP
++ */
++#ifndef S32GEN1_CLK_FUNCS_H
++#define S32GEN1_CLK_FUNCS_H
++#include <stdint.h>
++#include <clk/clk.h>
++#include <clk/s32gen1_clk_modules.h>
++
++struct s32gen1_clk *get_clock(uint32_t id);
++struct s32gen1_clk *get_plat_clock(uint32_t id);
++struct s32gen1_clk *get_plat_cc_clock(uint32_t id);
++unsigned long s32gen1_set_rate(struct clk *c, unsigned long rate);
++int s32gen1_set_parent(struct clk *c, struct clk *p);
++int s32gen1_enable(struct clk *c, int enable);
++
++unsigned long s32gen1_get_rate(struct clk *clk);
++unsigned long get_module_rate(struct s32gen1_clk_obj *module,
++			      struct s32gen1_clk_priv *priv);
++
++void *get_base_addr(enum s32gen1_clk_source id, struct s32gen1_clk_priv *priv);
++
++int pllclk2clk(uint32_t pll_clk_id, uint32_t *clk_id);
++int get_pll_mfi_mfn(unsigned long pll_vco, unsigned long ref_freq,
++		    uint32_t *mfi, uint32_t *mfn);
++
++static inline struct s32gen1_clk_priv *s32gen1_get_clk_priv(struct clk *c)
++{
++	return get_clk_drv_data(clk2clk_drv(c));
++}
++
++#endif /* S32GEN1_CLK_FUNCS_H */
+diff --git a/include/drivers/nxp/s32g/clk/s32gen1_clk_modules.h b/include/drivers/nxp/s32g/clk/s32gen1_clk_modules.h
+new file mode 100644
+index 000000000..4a21d1561
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/s32gen1_clk_modules.h
+@@ -0,0 +1,444 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2020 NXP
++ */
++#ifndef S32GEN1_CLK_MODULES_H
++#define S32GEN1_CLK_MODULES_H
++
++#include <common/debug.h>
++#include <stdint.h>
++#include <s32g_bl_common.h>
++
++#define MHZ	(1000000UL)
++
++#define S32GEN1_OSC_INIT(SOURCE)       \
++{                                      \
++	.desc = {                      \
++		.type = s32gen1_osc_t, \
++	},                             \
++	.source = (SOURCE),            \
++}
++
++#define S32GEN1_FIXED_CLK_INIT()             \
++{                                            \
++	.desc = {                            \
++		.type = s32gen1_fixed_clk_t, \
++	},                                   \
++}
++
++#define S32GEN1_MUX_TYPE_INIT(TYPE, MODULE, INDEX, NCLKS, ...) \
++{                                                              \
++	.desc = {                                              \
++		.type = (TYPE),                                \
++	},                                                     \
++	.module = (MODULE),                                    \
++	.index = (INDEX),                                      \
++	.nclks = (NCLKS),                                      \
++	.clkids = {__VA_ARGS__},                               \
++}
++
++#define S32GEN1_MUX_INIT(MODULE, INDEX, NCLKS, ...)  \
++	S32GEN1_MUX_TYPE_INIT(s32gen1_mux_t, MODULE, \
++			      INDEX, NCLKS, __VA_ARGS__)
++
++#define S32GEN1_SHARED_MUX_INIT(MODULE, INDEX, NCLKS, ...)  \
++	S32GEN1_MUX_TYPE_INIT(s32gen1_shared_mux_t, MODULE, \
++			      INDEX, NCLKS, __VA_ARGS__)
++
++#define S32GEN1_FIXED_DIV_INIT(PARENT, DIV_RATE) \
++{                                                \
++	.desc = {                                \
++		.type = s32gen1_fixed_div_t,     \
++	},                                       \
++	.parent = &(PARENT).desc,                \
++	.div = (DIV_RATE),                       \
++}
++
++#define S32GEN1_PLL_OUT_DIV_INIT(PARENT, INDEX)  \
++{                                                \
++	.desc = {                                \
++		.type = s32gen1_pll_out_div_t,   \
++	},                                       \
++	.parent = &(PARENT).desc,                \
++	.index = (INDEX),                        \
++}
++
++#define S32GEN1_DFS_DIV_INIT(PARENT, INDEX)      \
++{                                                \
++	.desc = {                                \
++		.type = s32gen1_dfs_div_t,       \
++	},                                       \
++	.parent = &(PARENT).desc,                \
++	.index = (INDEX),                        \
++}
++
++#define S32GEN1_CGM_DIV_INIT(PARENT, INDEX)      \
++{                                                \
++	.desc = {                                \
++		.type = s32gen1_cgm_div_t,       \
++	},                                       \
++	.parent = &(PARENT).desc,                \
++	.index = (INDEX),                        \
++}
++
++#define S32GEN1_FREQ_MODULE_CLK(PARENT_MODULE, MIN, MAX) \
++{                                                        \
++	.desc = {                                        \
++		.type = s32gen1_clk_t,                   \
++	},                                               \
++	.module = &(PARENT_MODULE).desc,                 \
++	.min_freq = (MIN),                               \
++	.max_freq = (MAX),                               \
++}
++
++#define S32GEN1_MODULE_CLK(PARENT_MODULE) \
++	S32GEN1_FREQ_MODULE_CLK(PARENT_MODULE, 0, 0)
++
++#define S32GEN1_CHILD_CLK(PARENT, MIN, MAX) \
++{                                           \
++	.desc = {                           \
++		.type = s32gen1_clk_t,      \
++	},                                  \
++	.pclock = &(PARENT),                \
++	.min_freq = (MIN),                  \
++	.max_freq = (MAX),                  \
++}
++
++#define S32GEN1_PART_BLOCK_STATUS(PARENT, PART, BLOCK, STATUS) \
++{                                                              \
++	.desc = {                                              \
++		.type = s32gen1_part_block_t,                  \
++	},                                                     \
++	.parent = &(PARENT).desc,                              \
++	.partition = (PART),                                   \
++	.block = (BLOCK),                                      \
++	.status = (STATUS),                                    \
++}
++
++#define S32GEN1_PART_BLOCK(PARENT, PART, BLOCK) \
++	S32GEN1_PART_BLOCK_STATUS(PARENT, PART, BLOCK, true)
++
++#define S32GEN1_PART_BLOCK_NO_STATUS(PARENT, PART, BLOCK) \
++	S32GEN1_PART_BLOCK_STATUS(PARENT, PART, BLOCK, false)
++
++struct s32gen1_clk_priv {
++	void *accelpll;
++	void *armdfs;
++	void *armpll;
++	void *cgm0;
++	void *cgm1;
++	void *cgm2;
++	void *cgm5;
++	void *ddrpll;
++	void *fxosc;
++	void *mc_me;
++	void *periphdfs;
++	void *periphpll;
++	void *rdc;
++	void *rgm;
++};
++
++enum s32gen1_clk_source {
++	S32GEN1_ACCEL_PLL,
++	S32GEN1_ARM_DFS,
++	S32GEN1_ARM_PLL,
++	S32GEN1_CGM0,
++	S32GEN1_CGM1,
++	S32GEN1_CGM2,
++	S32GEN1_CGM5,
++	S32GEN1_DDR_PLL,
++	S32GEN1_FIRC,
++	S32GEN1_FXOSC,
++	S32GEN1_PERIPH_DFS,
++	S32GEN1_PERIPH_PLL,
++	S32GEN1_SIRC,
++};
++
++enum s32gen1_clkm_type {
++	s32gen1_osc_t,
++	s32gen1_fixed_clk_t,
++	s32gen1_pll_t,
++	s32gen1_dfs_t,
++	s32gen1_mux_t,
++	s32gen1_shared_mux_t,
++	s32gen1_fixed_div_t,
++	s32gen1_pll_out_div_t,
++	s32gen1_dfs_div_t,
++	s32gen1_cgm_div_t,
++	s32gen1_part_block_t,
++	s32gen1_clk_t,
++};
++
++enum s32gen1_part_block_type {
++	s32gen1_part_core0,
++	s32gen1_part_core1,
++	s32gen1_part_core2,
++	s32gen1_part_core3,
++	s32gen1_part_block0,
++	s32gen1_part_block1,
++	s32gen1_part_block2,
++	s32gen1_part_block3,
++	s32gen1_part_block4,
++	s32gen1_part_block5,
++	s32gen1_part_block6,
++	s32gen1_part_block7,
++	s32gen1_part_block8,
++	s32gen1_part_block9,
++	s32gen1_part_block10,
++	s32gen1_part_block11,
++	s32gen1_part_block12,
++	s32gen1_part_block13,
++	s32gen1_part_block14,
++	s32gen1_part_block15,
++};
++
++struct s32gen1_clk_obj {
++	enum s32gen1_clkm_type type;
++};
++
++struct s32gen1_clk {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *module;
++	struct s32gen1_clk *pclock;
++	unsigned long min_freq;
++	unsigned long max_freq;
++};
++
++struct s32gen1_osc {
++	struct s32gen1_clk_obj desc;
++	enum s32gen1_clk_source source;
++	unsigned long freq;
++	void *base;
++};
++
++struct s32gen1_fixed_clock {
++	struct s32gen1_clk_obj desc;
++	unsigned long freq;
++};
++
++struct s32gen1_part_block {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *parent;
++	uint32_t partition;
++	enum s32gen1_part_block_type block;
++	bool status;
++};
++
++struct s32gen1_pll {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *source;
++	enum s32gen1_clk_source instance;
++	unsigned long vco_freq;
++	uint32_t ndividers;
++	void *base;
++};
++
++struct s32gen1_dfs {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *source;
++	enum s32gen1_clk_source instance;
++	void *base;
++};
++
++struct s32gen1_mux {
++	struct s32gen1_clk_obj desc;
++	enum s32gen1_clk_source module;
++	uint8_t index;	/* Mux index in parent module */
++	uint32_t source_id;	/* Selected source */
++	uint8_t nclks;	/* Number of output clocks */
++	uint32_t clkids[];	/* IDs of the output clocks */
++};
++
++struct s32gen1_pll_out_div {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *parent;
++	uint32_t index;
++	unsigned long freq;
++};
++
++struct s32gen1_dfs_div {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *parent;
++	uint32_t index;
++	unsigned long freq;
++};
++
++struct s32gen1_cgm_div {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *parent;
++	uint32_t index;
++	unsigned long freq;
++};
++
++struct s32gen1_fixed_div {
++	struct s32gen1_clk_obj desc;
++	struct s32gen1_clk_obj *parent;
++	uint32_t div;
++};
++
++static inline struct s32gen1_pll *obj2pll(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_pll, desc);
++}
++
++static inline struct s32gen1_pll_out_div *obj2plldiv(struct s32gen1_clk_obj
++						     *mod)
++{
++	return container_of(mod, struct s32gen1_pll_out_div, desc);
++}
++
++static inline struct s32gen1_dfs_div *obj2dfsdiv(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_dfs_div, desc);
++}
++
++static inline struct s32gen1_dfs *obj2dfs(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_dfs, desc);
++}
++
++static inline struct s32gen1_cgm_div *obj2cgmdiv(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_cgm_div, desc);
++}
++
++static inline struct s32gen1_osc *obj2osc(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_osc, desc);
++}
++
++static inline struct s32gen1_fixed_clock *obj2fixedclk(struct s32gen1_clk_obj
++						       *mod)
++{
++	return container_of(mod, struct s32gen1_fixed_clock, desc);
++}
++
++static inline struct s32gen1_fixed_div *obj2fixeddiv(struct s32gen1_clk_obj
++						     *mod)
++{
++	return container_of(mod, struct s32gen1_fixed_div, desc);
++}
++
++static inline struct s32gen1_part_block *obj2partblock(struct s32gen1_clk_obj
++						       *mod)
++{
++	return container_of(mod, struct s32gen1_part_block, desc);
++}
++
++static inline struct s32gen1_mux *obj2mux(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_mux, desc);
++}
++
++static inline struct s32gen1_clk *obj2clk(struct s32gen1_clk_obj *mod)
++{
++	return container_of(mod, struct s32gen1_clk, desc);
++}
++
++static inline bool is_mux(struct s32gen1_clk *clk)
++{
++	struct s32gen1_clk_obj *module;
++
++	module = clk->module;
++	if (!module)
++		return NULL;
++
++	return module->type == s32gen1_mux_t ||
++	       module->type == s32gen1_shared_mux_t;
++}
++
++static inline struct s32gen1_mux *clk2mux(struct s32gen1_clk *clk)
++{
++	if (!is_mux(clk))
++		return NULL;
++
++	return container_of(clk->module, struct s32gen1_mux, desc);
++}
++
++static inline bool is_osc(struct s32gen1_clk *clk)
++{
++	struct s32gen1_clk_obj *module;
++
++	module = clk->module;
++	if (!module)
++		return NULL;
++
++	return (module->type == s32gen1_osc_t);
++}
++
++static inline bool is_fixed_clk(struct s32gen1_clk *clk)
++{
++	struct s32gen1_clk_obj *module;
++
++	module = clk->module;
++	if (!module)
++		return NULL;
++
++	return (module->type == s32gen1_fixed_clk_t);
++}
++
++static inline struct s32gen1_dfs *get_div_dfs(struct s32gen1_dfs_div *div)
++{
++	struct s32gen1_clk_obj *parent = div->parent;
++
++	if (parent->type != s32gen1_dfs_t) {
++		ERROR("DFS DIV doesn't have a DFS as parent\n");
++		return NULL;
++	}
++
++	return obj2dfs(parent);
++}
++
++static inline struct s32gen1_pll *get_div_pll(struct s32gen1_pll_out_div *div)
++{
++	struct s32gen1_clk_obj *parent;
++
++	parent = div->parent;
++	if (!parent) {
++		ERROR("Failed to identify PLL divider's parent\n");
++		return NULL;
++	}
++
++	if (parent->type != s32gen1_pll_t) {
++		ERROR("The parent of the divider is not a PLL instance\n");
++		return NULL;
++	}
++
++	return obj2pll(parent);
++}
++
++static inline struct s32gen1_mux *get_cgm_div_mux(struct s32gen1_cgm_div *div)
++{
++	struct s32gen1_clk_obj *parent = div->parent;
++	struct s32gen1_clk_obj *mux_obj;
++	struct s32gen1_clk *clk;
++
++	if (!parent) {
++		ERROR("Failed to identify CGm DIV's parent\n");
++		return NULL;
++	}
++
++	if (parent->type != s32gen1_clk_t) {
++		ERROR("The parent of the CGM DIV isn't a clock\n");
++		return NULL;
++	}
++
++	clk = obj2clk(parent);
++
++	if (!clk->module) {
++		ERROR("The clock isn't connected to a module\n");
++		return NULL;
++	}
++
++	mux_obj = clk->module;
++
++	if (mux_obj->type != s32gen1_mux_t &&
++	    mux_obj->type != s32gen1_shared_mux_t) {
++		ERROR("The parent of the CGM DIV isn't a MUX\n");
++		return NULL;
++	}
++
++	return obj2mux(mux_obj);
++}
++
++#endif /* S32GEN1_CLK_MODULES_H */
+diff --git a/include/drivers/nxp/s32g/clk/s32gen1_shared_clks.h b/include/drivers/nxp/s32g/clk/s32gen1_shared_clks.h
+new file mode 100644
+index 000000000..dd0db55d9
+--- /dev/null
++++ b/include/drivers/nxp/s32g/clk/s32gen1_shared_clks.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2020 NXP
++ */
++#ifndef S32GEN1_SHARED_CLKS_H
++#define S32GEN1_SHARED_CLKS_H
++
++extern struct s32gen1_clk cgm0_mux7_clk;
++extern struct s32gen1_clk xbar_2x_clk;
++extern struct s32gen1_cgm_div per_div;
++extern struct s32gen1_clk cgm0_mux0_clk;
++extern struct s32gen1_dfs armdfs;
++extern struct s32gen1_clk serdes1_lane1_tx_clk;
++extern struct s32gen1_clk serdes1_lane1_cdr_clk;
++extern struct s32gen1_clk accel_pll_phi0_clk;
++extern struct s32gen1_clk accel_pll_phi1_clk;
++
++#endif
++
+diff --git a/include/drivers/nxp/s32g/s32g_fp.h b/include/drivers/nxp/s32g/s32g_fp.h
+new file mode 100644
+index 000000000..a4316cd80
+--- /dev/null
++++ b/include/drivers/nxp/s32g/s32g_fp.h
+@@ -0,0 +1,83 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2020 NXP
++ */
++#ifndef S32G_FP_H
++#define S32G_FP_H
++
++#define FP_PRECISION 100000000U
++
++struct fp_data {
++	uint64_t val;
++};
++
++static inline struct fp_data u2fp(uint64_t val)
++{
++	struct fp_data res = {
++		.val = val * FP_PRECISION,
++	};
++
++	return res;
++}
++
++static inline uint64_t fp2u(struct fp_data val)
++{
++	return val.val / FP_PRECISION;
++}
++
++static inline void __reduce_factors(uint64_t *a, uint64_t *b)
++{
++	while (*a % 10 == 0 && *b % 10 == 0) {
++		*a /= 10;
++		*b /= 10;
++	}
++}
++
++static inline struct fp_data fp_div(struct fp_data a, struct fp_data b)
++{
++	struct fp_data res;
++	uint64_t div_factor = FP_PRECISION;
++
++	/* Avoid overflow if possible */
++	__reduce_factors(&a.val, &b.val);
++	__reduce_factors(&div_factor, &b.val);
++
++	res.val = a.val * div_factor / b.val;
++
++	return res;
++}
++
++static inline struct fp_data fp_mul(struct fp_data a, struct fp_data b)
++{
++	uint64_t factor = FP_PRECISION;
++	struct fp_data res;
++
++	/* Avoid overflow if possible */
++	__reduce_factors(&a.val, &factor);
++	__reduce_factors(&b.val, &factor);
++
++	res.val = a.val * b.val / factor;
++
++	return res;
++}
++
++static inline struct fp_data fp_add(struct fp_data a, struct fp_data b)
++{
++	struct fp_data res = {
++		.val = a.val + b.val,
++	};
++
++	return res;
++}
++
++static inline struct fp_data fp_sub(struct fp_data a, struct fp_data b)
++{
++	struct fp_data res = {
++		.val = a.val - b.val,
++	};
++
++	return res;
++}
++
++#endif
++
+-- 
+2.17.1
+

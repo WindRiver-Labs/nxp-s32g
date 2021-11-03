@@ -1,0 +1,214 @@
+From 3397d66824859acad1161ac11b12144834eb6bf4 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 22 Jul 2020 16:25:46 +0300
+Subject: [PATCH 167/269] s32g: Compilation fixes
+
+Issue: ALB-5301
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c          | 7 +++----
+ drivers/nxp/s32g/io/io_memmap.c       | 3 ++-
+ drivers/nxp/s32g/io/io_mmc.c          | 3 ++-
+ drivers/nxp/s32g/s32g_wkpu.c          | 8 ++++----
+ plat/nxp/s32g/include/s32g_lowlevel.h | 1 -
+ plat/nxp/s32g/platform.mk             | 7 ++-----
+ plat/nxp/s32g/s32g_bl31.c             | 6 ++----
+ plat/nxp/s32g/s32g_psci.c             | 3 ---
+ 8 files changed, 15 insertions(+), 23 deletions(-)
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index a5ca9d689..bf7b6f74f 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -10,6 +10,9 @@
+ #include "s32g_mc_rgm.h"
+ #include "platform.h"
+ 
++extern uint32_t csr_to_store[];
++extern size_t csr_to_store_length;
++
+ static inline void write_regconf_16(struct regconf *rc, size_t length)
+ {
+ 	size_t i;
+@@ -68,8 +71,6 @@ static void store_csr(uintptr_t store_at)
+ 	int i, j;
+ 	uint16_t csr;
+ 	uint64_t ssram_data;
+-	extern uint32_t csr_to_store[];
+-	extern size_t csr_to_store_length;
+ 
+ 	mmio_write_16(MICROCONTMUXSEL, 0);
+ 	mmio_write_16(UCCLKHCLKENABLES, HCLKEN_MASK | UCCLKEN_MASK);
+@@ -231,8 +232,6 @@ static void load_csr(uintptr_t load_from)
+ 	int i, j;
+ 	uint16_t csr;
+ 	uint64_t ssram_data;
+-	extern uint32_t csr_to_store[];
+-	extern size_t csr_to_store_length;
+ 
+ 	mmio_write_16(MICROCONTMUXSEL, 0);
+ 	mmio_write_16(UCCLKHCLKENABLES, HCLKEN_MASK | UCCLKEN_MASK);
+diff --git a/drivers/nxp/s32g/io/io_memmap.c b/drivers/nxp/s32g/io/io_memmap.c
+index 0e016b407..b4f0cbdc3 100644
+--- a/drivers/nxp/s32g/io/io_memmap.c
++++ b/drivers/nxp/s32g/io/io_memmap.c
+@@ -82,7 +82,8 @@ static int memmap_block_open(io_dev_info_t *dev_info, const uintptr_t spec,
+ 	return result;
+ }
+ 
+-static int memmap_block_seek(io_entity_t *entity, int mode, ssize_t offset)
++static int memmap_block_seek(io_entity_t *entity, int mode,
++			     signed long long offset)
+ {
+ 	int result = -ENOENT;
+ 	struct file_state *fp;
+diff --git a/drivers/nxp/s32g/io/io_mmc.c b/drivers/nxp/s32g/io/io_mmc.c
+index eba7d4693..f2a3d8ecf 100644
+--- a/drivers/nxp/s32g/io/io_mmc.c
++++ b/drivers/nxp/s32g/io/io_mmc.c
+@@ -52,7 +52,8 @@ static int mmc_block_open(io_dev_info_t *dev_info, const  uintptr_t spec,
+ 	return 0;
+ }
+ 
+-static int mmc_block_seek(io_entity_t *entity, int mode, ssize_t offset)
++static int mmc_block_seek(io_entity_t *entity, int mode,
++			  signed long long offset)
+ {
+ 	return -ENOTSUP;
+ }
+diff --git a/drivers/nxp/s32g/s32g_wkpu.c b/drivers/nxp/s32g/s32g_wkpu.c
+index 32ae50773..3173ff0b7 100644
+--- a/drivers/nxp/s32g/s32g_wkpu.c
++++ b/drivers/nxp/s32g/s32g_wkpu.c
+@@ -38,12 +38,12 @@ struct s32gen1_wkpu {
+ 	uint32_t pullups; /* Pull-ups / Pull-downs */
+ };
+ 
+-static struct s32gen1_wkpu wkpu;
++static struct s32gen1_wkpu gwkpu;
+ 
+ void s32gen1_wkpu_reset(void)
+ {
+ 	/* Clear all interrupts */
+-	mmio_write_32(wkpu.dt_info.base + WKPU_WISR, WKPU_WISR_MASK);
++	mmio_write_32(gwkpu.dt_info.base + WKPU_WISR, WKPU_WISR_MASK);
+ }
+ 
+ static void init_wkpu(struct s32gen1_wkpu *wkpu)
+@@ -145,11 +145,11 @@ int s32gen1_wkpu_init(void *fdt, int fdt_offset)
+ {
+ 	int ret;
+ 
+-	ret = init_from_dt(fdt, fdt_offset, &wkpu);
++	ret = init_from_dt(fdt, fdt_offset, &gwkpu);
+ 	if (ret)
+ 		return ret;
+ 
+-	init_wkpu(&wkpu);
++	init_wkpu(&gwkpu);
+ 
+ 	return 0;
+ }
+diff --git a/plat/nxp/s32g/include/s32g_lowlevel.h b/plat/nxp/s32g/include/s32g_lowlevel.h
+index 21e9a18cd..f89c02427 100644
+--- a/plat/nxp/s32g/include/s32g_lowlevel.h
++++ b/plat/nxp/s32g/include/s32g_lowlevel.h
+@@ -10,7 +10,6 @@
+ #include <stdbool.h>
+ #include <stdint.h>
+ 
+-int plat_core_pos_by_mpidr(u_register_t mpidr);
+ int plat_is_my_cpu_primary(void);
+ void s32g_smp_fixup(void);
+ 
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index cd84a5801..b49d04643 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -10,6 +10,7 @@ include lib/xlat_tables_v2/xlat_tables.mk
+ include plat/nxp/s32g/s32g_common.mk
+ include plat/nxp/s32g/bl31_sram/bl31_sram.mk
+ include plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
++include drivers/arm/gic/v3/gicv3.mk
+ 
+ PLAT_INCLUDES		+= -Iplat/nxp/s32g/include \
+ 			   -Iplat/nxp/s32g/bl31_sram/include \
+@@ -39,9 +40,8 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/i2c/s32g_i2c.c \
+ 			   drivers/delay_timer/delay_timer.c \
+ 			   drivers/delay_timer/generic_delay_timer.c \
+-			   drivers/arm/gic/v3/gic500.c\
+-			   drivers/arm/gic/v3/arm_gicv3_common.c \
+ 			   lib/cpus/aarch64/cortex_a53.S\
++			   ${GICV3_SOURCES} \
+ 			   ${BL31SRAM_SRC_DUMP} \
+ 
+ 
+@@ -68,9 +68,6 @@ BL31_SOURCES		+= plat/nxp/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32g/s32g_vr5510.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+-			   drivers/arm/gic/v3/gicv3_main.c \
+-			   drivers/arm/gic/v3/gicv3_helpers.c \
+-			   drivers/arm/gic/common/gic_common.c \
+ 			   lib/utils/crc8.c \
+ 			   drivers/nxp/s32g/pmic/vr5510.c \
+ 			   drivers/nxp/s32g/s32g_wkpu.c \
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 179824297..fc0b5a0c0 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -12,6 +12,7 @@
+ #include <lib/xlat_tables/xlat_tables_v2.h>
+ #include <libfdt.h>
+ #include <psci.h>
++#include <plat/common/platform.h>
+ 
+ #include "drivers/generic_delay_timer.h"
+ #include "platform_def.h"
+@@ -34,7 +35,6 @@
+ 			(((x) & ~0xfff) == (x) ? (x) : ((x) & ~0xfff) + 0x1000)
+ 
+ IMPORT_SYM(uintptr_t, __RW_START__, BL31_RW_START);
+-IMPORT_SYM(uintptr_t, __RW_END__, BL31_RW_END);
+ 
+ static gicv3_redist_ctx_t rdisif_ctxs[PLATFORM_CORE_COUNT];
+ static gicv3_dist_ctx_t dist_ctx;
+@@ -88,8 +88,6 @@ static const interrupt_prop_t interrupt_props[] = {
+ };
+ 
+ static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr);
+-/* Declare it here to avoid including plat/common/platform.h */
+-unsigned int plat_my_core_pos(void);
+ 
+ const gicv3_driver_data_t s32g274a_gic_data = {
+ 	.gicd_base = PLAT_GICD_BASE,
+@@ -176,7 +174,7 @@ static void s32g_el3_mmu_fixup(void)
+ 	const unsigned long code_start = BL_CODE_BASE;
+ 	const unsigned long code_size = BL_CODE_END - BL_CODE_BASE;
+ 	const unsigned long rw_start = BL31_RW_START;
+-	const unsigned long rw_size = BL31_RW_END - BL31_RW_START;
++	const unsigned long rw_size = BL_END - BL31_RW_START;
+ 	mmap_region_t regions[] = {
+ 		{
+ 			.base_pa = code_start,
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 31cab6317..2d9f7f4a9 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -24,9 +24,6 @@
+ #include <plat/common/platform.h>
+ #include <string.h>
+ 
+-IMPORT_SYM(unsigned long, __BL31_START__, bl31_start);
+-IMPORT_SYM(unsigned long, __BL31_END__, bl31_end);
+-
+ /* See firmware-design, psci-lib-integration-guide for details */
+ /* Used by plat_secondary_cold_boot_setup */
+ uintptr_t s32g_warmboot_entry;
+-- 
+2.17.1
+

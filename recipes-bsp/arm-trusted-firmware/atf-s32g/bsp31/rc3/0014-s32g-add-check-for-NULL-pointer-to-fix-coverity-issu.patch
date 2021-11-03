@@ -1,0 +1,44 @@
+From 2ebf053b71e12d0ff55d72631159e1edaa485fc0 Mon Sep 17 00:00:00 2001
+From: Catalin Udma <catalin-dan.udma@nxp.com>
+Date: Tue, 12 Oct 2021 14:39:29 +0300
+Subject: [PATCH 14/24] s32g: add check for NULL pointer to fix coverity issue
+
+Issue: ALB-7495
+
+Upstream-Status: Pending 
+
+Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/s32g_storage.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/plat/nxp/s32g/s32g_storage.c b/plat/nxp/s32g/s32g_storage.c
+index 67921b64f..1d5a75235 100644
+--- a/plat/nxp/s32g/s32g_storage.c
++++ b/plat/nxp/s32g/s32g_storage.c
+@@ -232,7 +232,7 @@ static void set_fip_img_source(struct plat_io_policy *policy)
+ {
+ 	bl_mem_params_node_t *fip_params =
+ 			get_bl_mem_params_node(FIP_IMAGE_ID);
+-	image_info_t *image_info = &fip_params->image_info;
++	image_info_t *image_info;
+ 	io_block_spec_t *io_mem_spec = &qspi_fip_memmap_spec;
+ 	bool use_mem_offset = false;
+ 
+@@ -242,6 +242,12 @@ static void set_fip_img_source(struct plat_io_policy *policy)
+ 	 */
+ 	uint8_t boot_source = get_boot_source();
+ 
++	if (fip_params == NULL) {
++		ERROR("Invalid (NULL) fip parameters\n");
++		return;
++	}
++	image_info = &fip_params->image_info;
++
+ 	/* We know the real FIP image length only after FIP header
+ 	 * is read and parsed in bl2_plat_handle_post_image_load.
+ 	 * This code will be executed twice: the first time when the
+-- 
+2.17.1
+

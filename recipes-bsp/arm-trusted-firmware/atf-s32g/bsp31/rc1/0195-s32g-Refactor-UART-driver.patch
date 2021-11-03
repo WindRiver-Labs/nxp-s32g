@@ -1,0 +1,627 @@
+From edf7b9131d6e5b4992c77751e6f97e0439f31c43 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 18 Jan 2021 09:30:22 +0200
+Subject: [PATCH 195/269] s32g: Refactor UART driver
+
+This commit isolates Linflex driver and creates a singleton for S32G uart.
+As a consequence the output is not duplicated anymore since there is one
+single instance of the driver.
+
+Issue: ALB-5358
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/uart/linflexuart.c           | 135 ++++++++++++++++++++
+ include/drivers/nxp/linflexuart.h        |  24 ++++
+ plat/nxp/s32g/bl31_sram/bl31_sram.mk     |   5 +-
+ plat/nxp/s32g/bl31_ssram/bl31_ssram.mk   |   5 +-
+ plat/nxp/s32g/include/s32g_linflexuart.h |  35 +-----
+ plat/nxp/s32g/platform.mk                |   5 +-
+ plat/nxp/s32g/s32g_bl2_el3.c             |   6 +-
+ plat/nxp/s32g/s32g_bl31.c                |   6 +-
+ plat/nxp/s32g/s32g_linflexuart.S         | 153 -----------------------
+ plat/nxp/s32g/s32g_linflexuart.c         |  43 +++++++
+ plat/nxp/s32g/s32g_resume.c              |   6 +-
+ 11 files changed, 218 insertions(+), 205 deletions(-)
+ create mode 100644 drivers/nxp/uart/linflexuart.c
+ create mode 100644 include/drivers/nxp/linflexuart.h
+ delete mode 100644 plat/nxp/s32g/s32g_linflexuart.S
+ create mode 100644 plat/nxp/s32g/s32g_linflexuart.c
+
+diff --git a/drivers/nxp/uart/linflexuart.c b/drivers/nxp/uart/linflexuart.c
+new file mode 100644
+index 000000000..d8f5ea642
+--- /dev/null
++++ b/drivers/nxp/uart/linflexuart.c
+@@ -0,0 +1,135 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <drivers/nxp/linflexuart.h>
++#include <lib/mmio.h>
++
++#define LDIV_MULTIPLIER		(16)
++
++#define LINFLEX_LINCR1		(0x0)
++#define LINCR1_INIT		BIT(0)
++#define LINCR1_MME		BIT(4)
++
++#define LINFLEX_LINSR		(0x8)
++#define LINSR_LINS_INITMODE	(0x00001000)
++#define LINSR_LINS_MASK		(0x0000F000)
++
++#define LINFLEX_UARTCR		(0x10)
++#define UARTCR_ROSE		BIT(23)
++
++#define LINFLEX_UARTSR		(0x14)
++#define LINFLEX_LINIBRR		(0x28)
++#define LINFLEX_LINFBRR		(0x24)
++#define LINFLEX_BDRL		(0x38)
++#define LINFLEX_UARTPTO		(0x50)
++
++#define UARTCR_UART		BIT(0)
++#define UARTCR_WL0		BIT(1)
++#define UARTCR_PC0		BIT(3)
++#define UARTCR_TXEN		BIT(4)
++#define UARTCR_RXEN		BIT(5)
++#define UARTCR_PC1		BIT(6)
++#define UARTCR_TFBM		BIT(8)
++#define UARTCR_RFBM		BIT(9)
++#define UARTCR_OSR_MASK		(0xF << 24)
++#define UARTCR_OSR(uartcr)	(((uartcr) \
++				 & UARTCR_OSR_MASK) >> 24)
++
++#define UARTSR_DTF		BIT(1)
++
++static void linflex_write(uintptr_t base, uintptr_t reg,
++			  uint32_t value)
++{
++	mmio_write_32(base + reg, value);
++}
++
++static uint32_t linflex_read(uintptr_t base, uintptr_t reg)
++{
++	return mmio_read_32(base + reg);
++}
++
++static uint32_t get_ldiv_mult(struct console_linflex *cons)
++{
++	uint32_t mult, cr;
++	uintptr_t base = cons->base;
++
++	cr = linflex_read(base, LINFLEX_UARTCR);
++	if (cr & UARTCR_ROSE)
++		mult = UARTCR_OSR(cr);
++	else
++		mult = LDIV_MULTIPLIER;
++
++	return mult;
++}
++
++static void linflex_set_brg(struct console_linflex *cons)
++{
++	uint32_t ibr, fbr;
++	uintptr_t base = cons->base;
++	uint32_t divisr = cons->clock;
++	uint32_t dividr = (uint32_t)(cons->baud * get_ldiv_mult(cons));
++
++	ibr = (uint32_t)(divisr / dividr);
++	fbr = (uint32_t)((divisr % dividr) * 16 / dividr) & 0xF;
++
++	linflex_write(base, LINFLEX_LINIBRR, ibr);
++	linflex_write(base, LINFLEX_LINFBRR, fbr);
++}
++
++int console_linflex_register(struct console_linflex *cons)
++{
++	uint32_t ctrl;
++	uintptr_t base = cons->base;
++
++	/* Set master mode and init mode */
++	ctrl = LINCR1_MME | LINCR1_INIT;
++	linflex_write(base, LINFLEX_LINCR1, ctrl);
++
++	/* wait for init mode entry */
++	while ((linflex_read(base, LINFLEX_LINSR) & LINSR_LINS_MASK) !=
++		LINSR_LINS_INITMODE)
++		;
++
++	/* Set UART bit */
++	linflex_write(base, LINFLEX_UARTCR, UARTCR_UART);
++
++	linflex_set_brg(cons);
++
++	/* Set preset timeout register value. */
++	linflex_write(base, LINFLEX_UARTPTO, 0xf);
++
++	/* 8-bit data, no parity, Tx/Rx enabled, UART mode */
++	ctrl = UARTCR_PC1 | UARTCR_RXEN | UARTCR_TXEN | UARTCR_PC0 |
++		UARTCR_WL0 | UARTCR_UART | UARTCR_RFBM | UARTCR_TFBM;
++	linflex_write(base, LINFLEX_UARTCR, ctrl);
++
++	ctrl = linflex_read(base, LINFLEX_LINCR1);
++	ctrl &= ~LINCR1_INIT;
++	/* end init mode */
++	linflex_write(base, LINFLEX_LINCR1, ctrl);
++
++	console_register(&cons->console);
++
++	return 0;
++}
++
++int console_linflex_flush(struct console *console)
++{
++	return 0;
++}
++
++int console_linflex_putc(int character, struct console *console)
++{
++	uintptr_t base = console->base;
++
++	if (character == '\n')
++		console_linflex_putc('\r', console);
++
++	while (linflex_read(base, LINFLEX_UARTSR) & UARTSR_DTF)
++		;
++
++	mmio_write_8(base + LINFLEX_BDRL, character);
++	return 0;
++}
+diff --git a/include/drivers/nxp/linflexuart.h b/include/drivers/nxp/linflexuart.h
+new file mode 100644
+index 000000000..9e0f3dfef
+--- /dev/null
++++ b/include/drivers/nxp/linflexuart.h
+@@ -0,0 +1,24 @@
++/*
++ * Copyright 2019-2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef LINFLEXUART_H
++#define LINFLEXUART_H
++
++#ifndef __ASSEMBLY__
++#include <drivers/console.h>
++
++struct console_linflex {
++	console_t console;
++	const uintptr_t base;
++	const uint32_t  clock;
++	const uint32_t  baud;
++};
++
++int console_linflex_register(struct console_linflex *console);
++int console_linflex_putc(int character, struct console *console);
++int console_linflex_flush(struct console *console);
++#endif
++
++#endif /* LINFLEXUART_H */
+diff --git a/plat/nxp/s32g/bl31_sram/bl31_sram.mk b/plat/nxp/s32g/bl31_sram/bl31_sram.mk
+index 2db6f9b62..c7d01ab64 100644
+--- a/plat/nxp/s32g/bl31_sram/bl31_sram.mk
++++ b/plat/nxp/s32g/bl31_sram/bl31_sram.mk
+@@ -1,5 +1,5 @@
+ #
+-# Copyright 2020 NXP
++# Copyright 2020-2021 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+@@ -8,9 +8,10 @@ BL31SRAM_SOURCES = plat/common/aarch64/platform_up_stack.S \
+ 		   plat/nxp/s32g/bl31_sram/bl31sram_entrypoint.S \
+ 		   plat/nxp/s32g/bl31_sram/bl31sram_main.c \
+ 		   plat/nxp/s32g/s32g_clocks.c \
+-		   plat/nxp/s32g/s32g_linflexuart.S \
+ 		   plat/nxp/s32g/s32g_lowlevel_common.S \
+ 		   plat/nxp/s32g/s32g_mc_me.c \
++		   plat/nxp/s32g/s32g_linflexuart.c \
++		   drivers/nxp/uart/linflexuart.c \
+ 		   ${DDR_DRV}/ddrss.c \
+ 
+ BL31SRAM_ARRAY_NAME ?= bl31sram
+diff --git a/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk b/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
+index 5c314c510..4252a5ace 100644
+--- a/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
++++ b/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
+@@ -1,5 +1,5 @@
+ #
+-# Copyright 2020 NXP
++# Copyright 2020-2021 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+@@ -7,10 +7,11 @@
+ BL31SSRAM_SOURCES =  plat/nxp/s32g/bl31_ssram/bl31ssram_stacks.S \
+ 		     plat/nxp/s32g/bl31_ssram/bl31ssram_entrypoint.S \
+ 		     plat/nxp/s32g/bl31_ssram/bl31ssram_main.c \
+-		     plat/nxp/s32g/s32g_linflexuart.S \
+ 		     plat/nxp/s32g/bl31_ssram/ddr_clk.c \
+ 		     plat/nxp/s32g/s32g_clocks.c \
+ 		     plat/nxp/s32g/s32g_mc_me.c \
++		     plat/nxp/s32g/s32g_linflexuart.c \
++		     drivers/nxp/uart/linflexuart.c \
+ 		     ${DDR_DRV}/ddrss.c \
+ 		     ${DDR_DRV}/ddrss_regconf.c \
+ 		     ${LIBC_SRCS}
+diff --git a/plat/nxp/s32g/include/s32g_linflexuart.h b/plat/nxp/s32g/include/s32g_linflexuart.h
+index 581c8a407..809455daf 100644
+--- a/plat/nxp/s32g/include/s32g_linflexuart.h
++++ b/plat/nxp/s32g/include/s32g_linflexuart.h
+@@ -1,43 +1,12 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-
+ #ifndef S32G_LINFLEXUART_H
+ #define S32G_LINFLEXUART_H
+ 
+-#define S32G_LINFLEX0_BASE	(0x401C8000ul)
+-#define S32G_LINFLEX0_SIZE	(0x4000)
+-#define S32G_UART_BASE		S32G_LINFLEX0_BASE
+-#define S32G_UART_SIZE		S32G_LINFLEX0_SIZE
+-#define S32G_UART_BAUDRATE	(115200)
+-#define S32G_UART_CLOCK_HZ	(133333333)
+-
+-#define S32G_LINFLEX_LINCR1	(0x0)
+-#define S32G_LINFLEX_LINSR	(0x8)
+-#define S32G_LINFLEX_UARTCR	(0x10)
+-#define S32G_LINFLEX_UARTSR	(0x14)
+-#define S32G_LINFLEX_LINIBRR	(0x28)
+-#define S32G_LINFLEX_LINFBRR	(0x24)
+-#define S32G_LINFLEX_BDRL	(0x38)
+-#define S32G_LINFLEX_UARTPTO	(0x50)
+-
+-#ifndef __ASSEMBLY__
+-#include <drivers/console.h>
+-
+-struct console_s32g {
+-	console_t console;
+-	uint32_t  size;
+-	uintptr_t base;
+-	uint32_t  clock;
+-	uint32_t  baud;
+-};
++int console_s32g_register(void);
+ 
+-int console_s32g_register(uintptr_t baseaddr, uint32_t clock, uint32_t baud,
+-			  struct console_s32g *console);
+-int console_s32g_putc(int c, struct console_s32g *console);
+-int console_s32g_flush(struct console_s32g *console);
+ #endif
+ 
+-#endif /* S32G_LINFLEXUART_H */
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index 1c20f29fe..3d092ceb2 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -1,5 +1,5 @@
+ #
+-# Copyright 2019-2020 NXP
++# Copyright 2019-2021 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+@@ -30,7 +30,6 @@ BL2_AT_EL3		:= 1
+ 
+ 
+ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+-			   plat/nxp/s32g/s32g_linflexuart.S \
+ 			   plat/nxp/s32g/s32g_mc_me.c \
+ 			   plat/nxp/s32g/s32g_ncore.c \
+ 			   plat/nxp/s32g/s32g_bl_common.c \
+@@ -38,6 +37,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   plat/nxp/s32g/s32g_pinctrl.c \
+ 			   plat/nxp/s32g/s32g_clocks.c \
+ 			   plat/nxp/s32g/s32g_sramc.c \
++			   plat/nxp/s32g/s32g_linflexuart.c \
+ 			   drivers/nxp/s32g/i2c/s32g_i2c.c \
+ 			   drivers/delay_timer/delay_timer.c \
+ 			   drivers/delay_timer/generic_delay_timer.c \
+@@ -49,6 +49,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   drivers/nxp/s32g/clk/s32gen1_clk.c \
+ 			   drivers/nxp/s32g/clk/set_par_rate.c \
++			   drivers/nxp/uart/linflexuart.c \
+ 			   lib/cpus/aarch64/cortex_a53.S\
+ 			   common/fdt_wrappers.c \
+ 			   ${GICV3_SOURCES} \
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index f13b876ae..cf3d4d677 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -423,12 +423,10 @@ static void copy_bl31ssram_image(void)
+ 
+ void bl2_el3_plat_arch_setup(void)
+ {
+-	static struct console_s32g console;
+ 	extern struct ddrss_conf ddrss_conf;
+ 	extern struct ddrss_firmware ddrss_firmware;
+ 
+-	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+-			      S32G_UART_BAUDRATE, &console);
++	console_s32g_register();
+ 
+ 	s32g_sram_clear(S32G_BL33_IMAGE_BASE, DTB_BASE);
+ 	s32g_ssram_clear();
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 9561f1c5a..5cc17d3cf 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -3,7 +3,6 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-
+ #include <arch_helpers.h>
+ #include <assert.h>
+ #include <common/bl_common.h>
+@@ -335,13 +334,10 @@ static void dt_init_wkpu(void)
+ 
+ void bl31_plat_arch_setup(void)
+ {
+-	static struct console_s32g console;
+-
+ 	s32g_smp_fixup();
+ 	s32g_el3_mmu_fixup();
+ 
+-	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+-			S32G_UART_BAUDRATE, &console);
++	console_s32g_register();
+ }
+ 
+ static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr)
+diff --git a/plat/nxp/s32g/s32g_linflexuart.S b/plat/nxp/s32g/s32g_linflexuart.S
+deleted file mode 100644
+index 6efa09316..000000000
+--- a/plat/nxp/s32g/s32g_linflexuart.S
++++ /dev/null
+@@ -1,153 +0,0 @@
+-/*
+- * Copyright 2019-2020 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <asm_macros.S>
+-#include <console_macros.S>
+-#include "s32g_linflexuart.h"
+-
+-.globl console_s32g_register
+-.globl console_s32g_putc
+-.globl console_s32g_flush
+-
+-.globl plat_crash_console_init
+-.globl plat_crash_console_flush
+-.globl plat_crash_console_putc
+-
+-func plat_crash_console_init
+-	ret
+-endfunc plat_crash_console_init
+-
+-func plat_crash_console_flush
+-	mov	x17, x30
+-	bl	console_s32g_flush
+-	mov	x30, x17
+-	ret
+-endfunc plat_crash_console_flush
+-
+-func plat_crash_console_putc
+-	mov	x17, x30
+-	bl	console_s32g_putc
+-	mov	x30, x17
+-	ret
+-endfunc plat_crash_console_putc
+-
+-/* int console_s32g_register(uintptr_t base,
+- *			     uint32_t clk,
+- *			     uint32_t baud,
+- *			     struct console_s32g *console)
+- * Hard-coded configuration: 8 data bits, no parity, 1 stop bit, no start bits
+- *
+- * In: x0 - UART register base address
+- *     w1 - UART clock in Hz
+- *     w2 - baud rate
+- *     x3 - pointer to empty struct console_s32g
+- * Out: x0 = 1 on success, 0 on error
+- * Clobber list: x0,x1,x2,x3,x6,x7,x16,x17
+- */
+-func console_s32g_register
+-	mov	x7, x30		/* back up return address */
+-
+-	/* Set master mode and init mode */
+-	movz	w16, #0x10	/* LINCR1_MME */
+-	movz	w17, #0x1	/* LINCR1_INIT */
+-	orr	w16, w16, w17
+-	str	w16, [x0, #S32G_LINFLEX_LINCR1]
+-
+-	/* wait for init mode entry */
+-	movz	w16, #0x1000	/* LINSR_LINS_INITMODE */
+-	movz	w17, #0xF000	/* LINSR_LINS_MASK */
+-wait_init_mode:
+-	ldr	w6, [x0, #S32G_LINFLEX_LINSR]
+-	and	w6, w6, w17
+-	eor	w6, w6, w16
+-	cbnz	w6, wait_init_mode
+-
+-	/* Set UART bit */
+-	movz	w16, #0x1	/* UARTCR_UART */
+-	str	w16, [x0, #S32G_LINFLEX_UARTCR]
+-
+-	/* hard-coded linflexd_serial_setbrg() result,
+-	 * working with UARTCR[ROSE]=0
+-	 */
+-	movz	w16, #67		/* ibr */
+-	str	w16, [x0, #S32G_LINFLEX_LINIBRR]
+-	movz	w16, #13		/* fbr */
+-	str	w16, [x0, #S32G_LINFLEX_LINFBRR]
+-
+-	/* Set preset timeout register value. */
+-	movz	w16, #0xf
+-	str	w16, [x0, #S32G_LINFLEX_UARTPTO]
+-
+-	/* 8-bit data, no parity, Tx/Rx enabled, UART mode */
+-	movz	w16, #0x40	/* UARTCR_PC1 */
+-	movz	w17, #0x20	/* UARTCR_RXEN */
+-	orr	w16, w16, w17
+-	movz	w17, #0x10	/* UARTCR_TXEN */
+-	orr	w16, w16, w17
+-	movz	w17, #0x8	/* UARTCR_PC0 */
+-	orr	w16, w16, w17
+-	movz	w17, #0x2	/* UARTCR_WL0 */
+-	orr	w16, w16, w17
+-	movz    w17, #0x1       /* UARTCR_UART */
+-	orr     w16, w16, w17
+-	movz	w17, #0x200	/* UARTCR_RFBM */
+-	orr	w16, w16, w17
+-	movz	w17, #0x100	/* UARTCR_TFBM */
+-	orr	w16, w16, w17
+-	str	w16, [x0, #S32G_LINFLEX_UARTCR]
+-
+-	ldr	w16, [x0, #S32G_LINFLEX_LINCR1]
+-	movz	w17, #0x1	/* LINCR1_INIT */
+-	orn	w16, w17, w16
+-	movz	w17, 0xFFFF
+-	eor	w16, w16, w17
+-	str	w16, [x0, #S32G_LINFLEX_LINCR1]
+-
+-	/* prepare to finish console registration */
+-	mov	x0, x3
+-	mov	x30, x7
+-	finish_console_register s32g putc=1, getc=0, flush=1
+-
+-	movz	w0, 1
+-	ret
+-endfunc console_s32g_register
+-
+-/* In:  w0 - character to be printed
+- *      x1 - pointer to the console_s32g structure (FIXME: currently ignored)
+- * Out: w0 - printed character on success, < 0 on error
+- * Clobber list: x0,x1,x2,x16,x21
+- */
+-func console_s32g_putc
+-	/* FIXME: Do not hardcode the UART base addr; instead, pass it via the
+-	          console struct */
+-	/* S32G_UART_BASE */
+-	movz	x16, #0x401C, lsl #16
+-	movk	x16, #0x8000
+-
+-	/* if c == '\n', also put a '\r' beforehand */
+-	movz	w2, #0
+-	cmp	w0, #0xA
+-	b.ne	putc_this
+-
+-	mov	w2, w0
+-	movz	w0, #0xD
+-putc_this:
+-tx_fifo_full:
+-	ldr	w21, [x16, #S32G_LINFLEX_UARTSR]
+-	tbnz	w21, #1, tx_fifo_full	/* UARTSR_DTFTFF */
+-	strb	w0, [x16, #S32G_LINFLEX_BDRL]
+-
+-	cbz	w2, done
+-	mov	w0, w2
+-	movz	w2, #0
+-	b	putc_this
+-done:
+-	ret
+-endfunc console_s32g_putc
+-
+-func console_s32g_flush
+-	ret
+-endfunc console_s32g_flush
+diff --git a/plat/nxp/s32g/s32g_linflexuart.c b/plat/nxp/s32g/s32g_linflexuart.c
+new file mode 100644
+index 000000000..7feb587cc
+--- /dev/null
++++ b/plat/nxp/s32g/s32g_linflexuart.c
+@@ -0,0 +1,43 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <drivers/nxp/linflexuart.h>
++#include <platform.h>
++#include <platform_def.h>
++
++#define S32G_UART_BAUDRATE	(115200)
++#define S32G_UART_CLOCK_HZ	(125000000)
++
++static struct console_linflex console = {
++	.base = S32G_UART_BASE,
++	.clock = S32G_UART_CLOCK_HZ,
++	.baud = S32G_UART_BAUDRATE,
++	.console = {
++		.putc = console_linflex_putc,
++		.flush = console_linflex_flush,
++		.flags = CONSOLE_FLAG_BOOT | CONSOLE_FLAG_CRASH,
++		.base = S32G_UART_BASE,
++	},
++};
++
++int console_s32g_register(void)
++{
++	return console_linflex_register(&console);
++}
++
++int plat_crash_console_init(void)
++{
++	return 0;
++}
++
++int plat_crash_console_flush(void)
++{
++	return console_linflex_flush(&console.console);
++}
++
++int plat_crash_console_putc(int c)
++{
++	return console_linflex_putc(c, &console.console);
++}
+diff --git a/plat/nxp/s32g/s32g_resume.c b/plat/nxp/s32g/s32g_resume.c
+index 49c1ebaeb..db94597e0 100644
+--- a/plat/nxp/s32g/s32g_resume.c
++++ b/plat/nxp/s32g/s32g_resume.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -30,7 +30,6 @@ static void reset_rtc(void)
+ 
+ void s32g_resume_entrypoint(void)
+ {
+-	static struct console_s32g console;
+ 	int ret;
+ 
+ 	ret = pmic_disable_wdg();
+@@ -44,8 +43,7 @@ void s32g_resume_entrypoint(void)
+ 	reset_rtc();
+ 	s32gen1_wkpu_reset();
+ 
+-	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+-			      S32G_UART_BAUDRATE, &console);
++	console_s32g_register();
+ 	plat_gic_restore();
+ 	bl31_warm_entrypoint();
+ }
+-- 
+2.17.1
+

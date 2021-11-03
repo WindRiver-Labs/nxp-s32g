@@ -1,0 +1,252 @@
+From 0a63bdad6c66982964eafbd53099ec2f6acd4294 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Thu, 14 Oct 2021 17:21:06 +0300
+Subject: [PATCH 20/24] s32g2: Add ERRATA_S32G2_050543 (DDR Derating) macro
+
+Added a macro to guard common code between s32g2 and s32g3
+to include/exclude the DDR Derating Errata code, which is
+not applicable anymore for the s32g3 platforms. The macro
+will be set to 1 by default when building for s32g2 platforms.
+
+Issue: ALB-7757
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ docs/design/cpu-specific-build-macros.rst |  2 ++
+ drivers/nxp/s32g/ddr/ddr_utils_mmio.c     |  7 ++++++-
+ include/drivers/nxp/s32g/ddr/ddr_utils.h  | 12 ++++++++++++
+ lib/cpus/aarch64/s32g2.S                  |  7 +++++++
+ lib/cpus/cpu-ops.mk                       |  8 ++++++++
+ plat/nxp/s32g/s32g2/platform.mk           |  1 +
+ plat/nxp/s32g/s32g_bl2_el3.c              |  4 ++++
+ 7 files changed, 40 insertions(+), 1 deletion(-)
+
+diff --git a/docs/design/cpu-specific-build-macros.rst b/docs/design/cpu-specific-build-macros.rst
+index 4ac010d55..396bbabf8 100644
+--- a/docs/design/cpu-specific-build-macros.rst
++++ b/docs/design/cpu-specific-build-macros.rst
+@@ -320,6 +320,8 @@ For Neoverse N1, the following errata build flags are defined :
+ For S32G2, the following errata build flags are defined :
+ -  ``ERRATA_S32G2_050481``: This applies errata ERR050481 workaround to S32G2
+    CPU family.
++-  ``ERRATA_S32G2_050543``: This applies errata ERR050543 workaround to S32G2
++   CPU family.
+ 
+ DSU Errata Workarounds
+ ----------------------
+diff --git a/drivers/nxp/s32g/ddr/ddr_utils_mmio.c b/drivers/nxp/s32g/ddr/ddr_utils_mmio.c
+index 6f67cd949..56f9f4c35 100644
+--- a/drivers/nxp/s32g/ddr/ddr_utils_mmio.c
++++ b/drivers/nxp/s32g/ddr/ddr_utils_mmio.c
+@@ -42,6 +42,7 @@ static uint32_t ack_mail(void);
+ static uint32_t init_memory_ecc_scrubber(void);
+ static bool sel_clk_src(uint32_t clk_src);
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ uint8_t polling_needed = 2;
+ 
+ /* Modify bitfield value with delta, given bitfield position and mask */
+@@ -58,6 +59,7 @@ bool update_bf(uint32_t *v, uint8_t pos, uint32_t mask, int32_t delta)
+ 
+ 	return ret;
+ }
++#endif
+ 
+ /*
+  * Set the ddr clock source, FIRC or DDR_PLL_PHI0.
+@@ -337,8 +339,9 @@ uint32_t post_train_setup(uint8_t options)
+ 		mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_PWRCTL,
+ 		      PWRCTL_EN_DFI_DRAM_CLOCK_DIS_MASK | tmp32);
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ 		ret |= enable_derating_temp_errata();
+-
++#endif
+ 		/*
+ 		 * Each platform has a different number of AXI ports so this
+ 		 * method should be implemented in hardware specific source
+@@ -627,6 +630,7 @@ uint32_t write_lpddr4_mr(uint8_t mr_index, uint8_t mr_data)
+ 	return NO_ERR;
+ }
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ /* Read Temperature Update Flag from lpddr4 MR4 register. */
+ uint8_t read_tuf(void)
+ {
+@@ -757,3 +761,4 @@ uint32_t enable_derating_temp_errata(void)
+ 
+ 	return NO_ERR;
+ }
++#endif
+\ No newline at end of file
+diff --git a/include/drivers/nxp/s32g/ddr/ddr_utils.h b/include/drivers/nxp/s32g/ddr/ddr_utils.h
+index abb9a36f5..c6e78ba76 100644
+--- a/include/drivers/nxp/s32g/ddr/ddr_utils.h
++++ b/include/drivers/nxp/s32g/ddr/ddr_utils.h
+@@ -60,11 +60,14 @@
+ #define OFFSET_DDRC_MRSTAT               0x18U
+ #define OFFSET_DDRC_MRCTRL0              0x10U
+ #define OFFSET_DDRC_MRCTRL1              0x14U
++
++#if (ERRATA_S32G2_050543 == 1)
+ #define OFFSET_DDRC_DERATEEN             0x20U
+ #define OFFSET_DDRC_RFSHTMG              0x64U
+ #define OFFSET_DDRC_DRAMTMG0             0x100U
+ #define OFFSET_DDRC_DRAMTMG1             0x104U
+ #define OFFSET_DDRC_DRAMTMG4             0x110U
++#endif
+ 
+ /* DDRC masks and values */
+ #define MSTR_LPDDR4_MASK	0x20U
+@@ -74,6 +77,8 @@
+ #define SWCTL_SWDONE_DONE	0x1
+ #define SWCTL_SWDONE_ENABLE	0x0
+ #define SWSTAT_SWDONE_ACK_MASK	0x1U
++
++#if (ERRATA_S32G2_050543 == 1)
+ #define RFSHTMG_VAL_SHIFT           16
+ #define RFSHTMG_VAL                 0xfffUL
+ #define RFSHTMG_MASK                (RFSHTMG_VAL << \
+@@ -105,6 +110,7 @@
+ #define DRAMTMG1_TRC_DELTA_TIME		3
+ #define ERRATA_CHANGES_REVERTED		1
+ #define ERRATA_CHANGES_UNMODIFIED	0
++#endif
+ 
+ #define CSS_SELSTAT_MASK		0x3f000000U
+ #define	CSS_SELSTAT_POS			24
+@@ -243,17 +249,21 @@
+ #define IMEM_START_ADDR 0x403A0000
+ #define DMEM_START_ADDR 0x403B0000
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ /* ERR050543 related defines */
+ #define MR4_IDX 4
+ #define MR4_MASK	0x7U
+ #define MR4_SHIFT	16
+ #define TUF_THRESHOLD 0x3U
+ #define REQUIRED_OK_CHECKS 0x3U
++#endif
+ 
+ /* ERR050760 related defines */
+ #define REQUIRED_MRSTAT_READS 0x2U
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ extern uint8_t polling_needed;
++#endif
+ 
+ /* Set default AXI parity. */
+ uint32_t set_axi_parity(void);
+@@ -280,6 +290,7 @@ uint32_t read_lpddr4_mr(uint8_t mr_index);
+  */
+ uint32_t write_lpddr4_mr(uint8_t mr_index, uint8_t mr_data);
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ /* Read Temperature Update Flag from lpddr4 MR4 register. */
+ uint8_t read_tuf(void);
+ 
+@@ -305,5 +316,6 @@ uint32_t poll_derating_temp_errata(bool traffic_halted);
+ 
+ /* Modify bitfield value with delta, given bitfield position and mask */
+ bool update_bf(uint32_t *v, uint8_t pos, uint32_t mask, int32_t delta);
++#endif
+ 
+ #endif /* DDR_UTILS_H_ */
+diff --git a/lib/cpus/aarch64/s32g2.S b/lib/cpus/aarch64/s32g2.S
+index aa664a020..42ba69070 100644
+--- a/lib/cpus/aarch64/s32g2.S
++++ b/lib/cpus/aarch64/s32g2.S
+@@ -21,6 +21,7 @@ func s32g2_errata_report
+ 	 * checking functions of each errata.
+ 	 */
+ 	report_errata ERRATA_S32G2_050481, s32g2, 050481
++	report_errata ERRATA_S32G2_050543, s32g2, 050543
+ 
+ 	bl cortex_a53_errata_report
+ 
+@@ -39,6 +40,12 @@ func check_errata_050481
+ 	ret
+ endfunc check_errata_050481
+ 
++func check_errata_050543
++	/* Applies to all revisions */
++	mov x0, #ERRATA_APPLIES
++	ret
++endfunc check_errata_050543
++
+ declare_cpu_ops s32g2, CORTEX_A53_MIDR, \
+ 	cortex_a53_reset_func, \
+ 	cortex_a53_core_pwr_dwn, \
+diff --git a/lib/cpus/cpu-ops.mk b/lib/cpus/cpu-ops.mk
+index 015f90ad5..a75bff6a7 100644
+--- a/lib/cpus/cpu-ops.mk
++++ b/lib/cpus/cpu-ops.mk
+@@ -381,6 +381,10 @@ ERRATA_DSU_936184	?=0
+ # VAE3IS, VALE3IS                    -> ALLE3IS
+ ERRATA_S32G2_050481	?=0
+ 
++# Flag to apply S32G2 erratum ERR050543. This erratum applies to all S32G2
++# revisions.
++ERRATA_S32G2_050543     ?=0
++
+ # Process ERRATA_A9_794073 flag
+ $(eval $(call assert_boolean,ERRATA_A9_794073))
+ $(eval $(call add_define,ERRATA_A9_794073))
+@@ -681,6 +685,10 @@ $(eval $(call add_define,ERRATA_DSU_936184))
+ $(eval $(call assert_boolean,ERRATA_S32G2_050481))
+ $(eval $(call add_define,ERRATA_S32G2_050481))
+ 
++# Process ERRATA_S32G2_050543 flag
++$(eval $(call assert_boolean,ERRATA_S32G2_050543))
++$(eval $(call add_define,ERRATA_S32G2_050543))
++
+ # Errata build flags
+ ifneq (${ERRATA_A53_843419},0)
+ TF_LDFLAGS_aarch64	+= --fix-cortex-a53-843419
+diff --git a/plat/nxp/s32g/s32g2/platform.mk b/plat/nxp/s32g/s32g2/platform.mk
+index 8173e027c..6e95d0392 100644
+--- a/plat/nxp/s32g/s32g2/platform.mk
++++ b/plat/nxp/s32g/s32g2/platform.mk
+@@ -16,6 +16,7 @@ PLAT_BL_COMMON_SOURCES	+= drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+ 
+ ERRATA_S32G2_050481	:= 1
++ERRATA_S32G2_050543     := 1
+ 
+ # Device tree
+ DTB_FILE_NAME		?= fsl-s32g274a-rdb.dtb
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index d391c6e12..f48afa4d3 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -297,6 +297,7 @@ static int ft_fixup_scmi_clks(void *blob)
+ 	return 0;
+ }
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ static int ft_fixup_ddr_errata(void *blob)
+ {
+ 	int nodeoff, ret;
+@@ -319,6 +320,7 @@ static int ft_fixup_ddr_errata(void *blob)
+ 
+ 	return 0;
+ }
++#endif
+ 
+ static int ft_fixups(void *blob)
+ {
+@@ -332,7 +334,9 @@ static int ft_fixups(void *blob)
+ 	if (ret)
+ 		goto out;
+ 
++#if (ERRATA_S32G2_050543 == 1)
+ 	ret = ft_fixup_ddr_errata(blob);
++#endif
+ 
+ out:
+ 	flush_dcache_range((uintptr_t)blob, size);
+-- 
+2.17.1
+

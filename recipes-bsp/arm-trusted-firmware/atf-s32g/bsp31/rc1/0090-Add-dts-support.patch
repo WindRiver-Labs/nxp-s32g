@@ -1,0 +1,205 @@
+From 0b156a82e98b04d366126b0ec572632e349ef399 Mon Sep 17 00:00:00 2001
+From: Larisa <larisa.grigore@nxp.com>
+Date: Wed, 22 Apr 2020 15:26:38 +0300
+Subject: [PATCH 090/269] Add dts support
+
+Issue: ALB-4872
+Upstream-Status: Pending 
+
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/s32g274aevb.dts             | 12 ++++++
+ plat/s32g/include/platform_def.h |  7 ++-
+ plat/s32g/include/s32g_dt.h      | 25 +++++++++++
+ plat/s32g/platform.mk            |  6 +++
+ plat/s32g/s32g_dt.c              | 74 ++++++++++++++++++++++++++++++++
+ 5 files changed, 123 insertions(+), 1 deletion(-)
+ create mode 100644 fdts/s32g274aevb.dts
+ create mode 100644 plat/s32g/include/s32g_dt.h
+ create mode 100644 plat/s32g/s32g_dt.c
+
+diff --git a/fdts/s32g274aevb.dts b/fdts/s32g274aevb.dts
+new file mode 100644
+index 000000000..453440e8e
+--- /dev/null
++++ b/fdts/s32g274aevb.dts
+@@ -0,0 +1,12 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++/dts-v1/;
++
++/ {
++	compatible = "fsl,s32g274aevb";
++	#address-cells = <1>;
++	#size-cells = <1>;
++};
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 6abb75173..eebdd2d34 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -128,10 +128,15 @@
+  */
+ /* BL2 image in SRAM */
+ #define S32G_BL2_OFF_IN_SRAM	0x00300000
+-#define BL2_BASE		(S32G_SRAM_BASE + S32G_BL2_OFF_IN_SRAM)
++#define BL2_BASE		(S32G_SRAM_BASE + \
++					S32G_BL2_OFF_IN_SRAM + DTB_SIZE)
+ /* this may be a bit too relaxed */
+ #define BL2_LIMIT		(S32G_SRAM_END - 1)
+ 
++/* BL2 DTB in SRAM */
++#define DTB_SIZE		U(0x00002000)   /* 8Ko for DTB */
++#define DTB_BASE		(BL2_BASE - DTB_SIZE)
++
+ /* U-boot address in SRAM */
+ #define S32G_BL33_OFF_IN_SRAM	0x00020000
+ #define BL33_ENTRYPOINT		(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
+diff --git a/plat/s32g/include/s32g_dt.h b/plat/s32g/include/s32g_dt.h
+new file mode 100644
+index 000000000..909f10c9d
+--- /dev/null
++++ b/plat/s32g/include/s32g_dt.h
+@@ -0,0 +1,25 @@
++/*
++ * Copyright (c) 2017-2019, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef S32G_DT_H
++#define S32G_DT_H
++
++#define DT_DISABLED	0
++#define DT_ENABLED	1
++
++struct dt_node_info {
++	uint32_t base;
++	int32_t clock;
++	int32_t reset;
++	uint32_t status;
++};
++
++int dt_open_and_check(void);
++int fdt_get_address(void **fdt_addr);
++uint8_t fdt_get_status(int node);
++void dt_fill_device_info(struct dt_node_info *info, int node);
++
++#endif
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index e2b8b5249..2bbc8828c 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -5,6 +5,7 @@
+ #
+ 
+ include lib/xlat_tables_v2/xlat_tables.mk
++include lib/libfdt/libfdt.mk
+ 
+ DDR_DRV = drivers/nxp/s32g/ddr
+ 
+@@ -26,6 +27,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   plat/s32g/s32g_mc_me.c \
+ 			   plat/s32g/s32g_ncore.c \
+ 			   plat/s32g/s32g274a_bl_common.c \
++			   plat/s32g/s32g_dt.c \
+ 			   drivers/nxp/s32g/i2c/s32g274a_i2c.c \
+ 			   lib/cpus/aarch64/cortex_a53.S
+ 
+@@ -58,6 +60,10 @@ BL31_SOURCES		+= plat/s32g/bl31_lowlevel.S \
+ 			   plat/s32g/include/plat_macros.S
+ BL31_SOURCES		+= ${XLAT_TABLES_LIB_SRCS}
+ 
++# Device tree
++DTB_FILE_NAME		?= s32g274aevb.dtb
++FDT_SOURCES             := $(addprefix fdts/, $(patsubst %.dtb,%.dts,$(DTB_FILE_NAME)))
++DTC_FLAGS		+= -Wno-unit_address_vs_reg
+ 
+ # Disable the PSCI platform compatibility layer
+ ENABLE_PLAT_COMPAT	:= 0
+diff --git a/plat/s32g/s32g_dt.c b/plat/s32g/s32g_dt.c
+new file mode 100644
+index 000000000..b4c4ab2cb
+--- /dev/null
++++ b/plat/s32g/s32g_dt.c
+@@ -0,0 +1,74 @@
++/*
++ * Copyright (c) 2017-2019, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <libfdt.h>
++#include <platform_def.h>
++#include <s32g_dt.h>
++
++static int fdt_checked;
++
++static void *fdt = (void *)(uintptr_t)DTB_BASE;
++
++int dt_open_and_check(void)
++{
++	int ret = fdt_check_header(fdt);
++
++	if (ret == 0)
++		fdt_checked = 1;
++
++	return ret;
++}
++
++int fdt_get_address(void **fdt_addr)
++{
++	if (fdt_checked == 1)
++		*fdt_addr = fdt;
++
++	return fdt_checked;
++}
++
++uint8_t fdt_get_status(int node)
++{
++	uint8_t status = DT_DISABLED;
++	int len;
++	const char *cchar;
++
++	cchar = fdt_getprop(fdt, node, "status", &len);
++	if ((cchar == NULL) ||
++			(strncmp(cchar, "okay", (size_t)len) == 0)) {
++		status = DT_ENABLED;
++	}
++
++	return status;
++}
++
++void dt_fill_device_info(struct dt_node_info *info, int node)
++{
++	const fdt32_t *cuint;
++
++	cuint = fdt_getprop(fdt, node, "reg", NULL);
++	if (cuint != NULL)
++		info->base = fdt32_to_cpu(*cuint);
++	else
++		info->base = 0;
++
++	cuint = fdt_getprop(fdt, node, "clocks", NULL);
++	if (cuint != NULL) {
++		cuint++;
++		info->clock = (int)fdt32_to_cpu(*cuint);
++	} else
++		info->clock = -1;
++
++	cuint = fdt_getprop(fdt, node, "resets", NULL);
++	if (cuint != NULL) {
++		cuint++;
++		info->reset = (int)fdt32_to_cpu(*cuint);
++	} else
++		info->reset = -1;
++
++	info->status = fdt_get_status(node);
++}
+-- 
+2.17.1
+

@@ -1,0 +1,110 @@
+From 79d319296aeefd6235da090ebe012de3b364f2c5 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 6 May 2020 14:14:48 +0300
+Subject: [PATCH 117/269] lib: add crc8 algorithm
+
+This commit is a port of U-Boot implementation of crc8 algorithm
+
+Issue: ALB-4907
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/lib/crc8.h | 35 +++++++++++++++++++++++++++++++++++
+ lib/utils/crc8.c   | 41 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 76 insertions(+)
+ create mode 100644 include/lib/crc8.h
+ create mode 100644 lib/utils/crc8.c
+
+diff --git a/include/lib/crc8.h b/include/lib/crc8.h
+new file mode 100644
+index 000000000..68c9c9318
+--- /dev/null
++++ b/include/lib/crc8.h
+@@ -0,0 +1,35 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (c) 2013 Google, Inc
++ * Copyright 2020 NXP
++ */
++
++
++#ifndef __linux_crc8_h
++#define __linux_crc8_h
++
++/**
++ * crc8() - Calculate and return CRC-8 of the data
++ *
++ * This uses an x^8 + x^2 + x + 1 polynomial.  A table-based algorithm would
++ * be faster, but for only a few bytes it isn't worth the code size
++ *
++ * @crc_start: CRC8 start value
++ * @vptr: Buffer to checksum
++ * @len: Length of buffer in bytes
++ * @return CRC8 checksum
++ */
++unsigned int crc8(unsigned int crc_start, const unsigned char *vptr, int len);
++
++/**
++ * crc8poly() - Calculate and return CRC-8 of the data
++ *
++ * @crc: CRC8 start value
++ * @poly: The polynomial to be used
++ * @vptr: Buffer to checksum
++ * @len: Length of buffer in bytes
++ * @return CRC8 checksum
++ */
++unsigned int crc8poly(unsigned int crc, unsigned short poly,
++		      const unsigned char *vptr, int len);
++#endif
+diff --git a/lib/utils/crc8.c b/lib/utils/crc8.c
+new file mode 100644
+index 000000000..b2842f89f
+--- /dev/null
++++ b/lib/utils/crc8.c
+@@ -0,0 +1,41 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright (c) 2013 Google, Inc
++ * Copyright 2020 NXP
++ */
++
++#include "lib/crc8.h"
++
++/* Default polynomial: x^8 + x^2 + x^1 + 1 */
++#define DEFAULT_POLY 0x7
++#define CRC8_POLY(P) ((0x1000U | ((P) << 4)) << 3)
++
++static unsigned char _crc8(unsigned short data, unsigned short poly)
++{
++	int i;
++
++	for (i = 0; i < 8; i++) {
++		if (data & 0x8000)
++			data = data ^ poly;
++		data = data << 1;
++	}
++
++	return (unsigned char)(data >> 8);
++}
++
++unsigned int crc8poly(unsigned int crc, unsigned short poly,
++		      const unsigned char *vptr, int len)
++{
++	int i;
++
++	poly = CRC8_POLY(poly);
++	for (i = 0; i < len; i++)
++		crc = _crc8((crc ^ vptr[i]) << 8, poly);
++
++	return crc;
++}
++
++unsigned int crc8(unsigned int crc, const unsigned char *vptr, int len)
++{
++	return crc8poly(crc, DEFAULT_POLY, vptr, len);
++}
+-- 
+2.17.1
+

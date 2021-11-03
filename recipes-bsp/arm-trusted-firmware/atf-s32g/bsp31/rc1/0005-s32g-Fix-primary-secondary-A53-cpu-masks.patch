@@ -1,0 +1,115 @@
+From 3d015a010df93eb5d456391c8494915457dfdd2c Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Fri, 7 Dec 2018 18:55:23 +0200
+Subject: [PATCH 005/269] s32g: Fix primary/secondary A53 cpu masks
+
+S32G275A has four A53 cpus grouped in two clusters.  Replace the
+generic masks with S32-specific ones and fix the PSCI functions
+that identify the core position in the power domain tree.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3452
+---
+ plat/s32g/include/platform_def.h | 12 +++++++++
+ plat/s32g/s32g_helpers.S         | 46 +++++++++++++++++++++++++-------
+ 2 files changed, 49 insertions(+), 9 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 285d64f0d..7a2041d4d 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -16,6 +16,18 @@
+ #include <tbbr_img_def.h>
+ #include <console.h>
+ 
++/* MPIDR_EL1 for the four A53 cores is as follows:
++ *	A53_0_cpu0:	0x8000_0000
++ *	A53_0_cpu1:	0x8000_0001
++ *	A53_1_cpu0:	0x8000_0100
++ *	A53_1_cpu1:	0x8000_0101
++ */
++#define S32G_MPIDR_CPU_MASK		0xFF
++#define S32G_MPIDR_CPU_CLUSTER_MASK	0xFFF
++/* Cluster mask is the most significant 0xF from the CPU_CLUSTER_MASK */
++#define S32G_MPIDR_CLUSTER_SHIFT	U(8)
++#define S32G_PLAT_PRIMARY_CPU		0x0	/* Cluster 0, cpu 0*/
++
+ #define S32G_CACHE_WRITEBACK_SHIFT	6
+ #define CACHE_WRITEBACK_GRANULE		(1 << S32G_CACHE_WRITEBACK_SHIFT)
+ #define PLAT_PHY_ADDR_SPACE_SIZE        (1ull << 36)
+diff --git a/plat/s32g/s32g_helpers.S b/plat/s32g/s32g_helpers.S
+index e62dbf24c..b4c5683da 100644
+--- a/plat/s32g/s32g_helpers.S
++++ b/plat/s32g/s32g_helpers.S
+@@ -21,14 +21,29 @@
+  * Almost all these helper functions have been copied copied from
+  * imx8_helpers.S (plat/imx), ls_helpers.S (plat/layerscape), or u-boot.
+  */
++
++/* Clobber list: x0,x1,x7,x8
++ */
+ func plat_is_my_cpu_primary
+-	mrs	x0, mpidr_el1
+-	and	x0, x0, #(MPIDR_CPU_MASK)
+-	cmp	x0, #PLAT_PRIMARY_CPU
++	mov	x7, x30
++	bl	plat_my_core_pos
++	cmp	x0, #S32G_PLAT_PRIMARY_CPU
+ 	cset	x0, eq
++	mov	x30, x7
+ 	ret
+ endfunc plat_is_my_cpu_primary
+ 
++/* Out: x0
++ * Clobber list: x0,x1,x8
++ */
++func plat_my_core_pos
++	mov	x8, x30
++	mrs 	x0, mpidr_el1
++	bl	s32g_core_pos_by_mpidr
++	mov	x30, x8
++	ret
++endfunc plat_my_core_pos
++
+ func plat_secondary_cold_boot_setup
+ 	b	.
+ endfunc plat_secondary_cold_boot_setup
+@@ -37,13 +52,26 @@ func platform_mem_init
+ 	ret
+ endfunc platform_mem_init
+ 
+-func plat_my_core_pos
+-	mrs	x0, mpidr_el1
+-	and	x1, x0, #MPIDR_CPU_MASK
+-	and 	x0, x0, #MPIDR_CLUSTER_MASK
+-	add	x0, x1, x0, LSR #6
++/* In:	x0 -  MPIDR_EL1
++ * Out:	x0
++ * Clobber list: x0,x1
++ */
++func s32g_core_pos_by_mpidr
++	and	x0, x0, #S32G_MPIDR_CPU_CLUSTER_MASK
++	and	x1, x0, #S32G_MPIDR_CPU_MASK
++	lsr	x0, x0, #S32G_MPIDR_CLUSTER_SHIFT
++	add	x0, x1, x0, lsl #1
+ 	ret
+-endfunc plat_my_core_pos
++endfunc s32g_core_pos_by_mpidr
++
++/* Clobber list: x7 */
++func plat_core_pos_by_mpidr
++	mov	x7, x30
++	/* TODO validate MPIDR */
++	bl	s32g_core_pos_by_mpidr
++	mov	x30, x7
++	ret
++endfunc plat_core_pos_by_mpidr
+ 
+ /* int console_s32g_register(uintptr_t base,
+  *			     uint32_t clk,
+-- 
+2.17.1
+

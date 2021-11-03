@@ -1,0 +1,121 @@
+From fa7d72247c06ea054ff2e98d996494d6b8ffd38f Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Tue, 7 Jan 2020 17:14:03 +0200
+Subject: [PATCH 055/269] s32g: Remove "relocate to PRAM" code
+
+We are not relocating, but deploying BL31 in DDR from the get-go.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4474
+---
+ plat/s32g/include/s32g_psci.h | 11 -----------
+ plat/s32g/s32g275_bl31.c      | 14 +-------------
+ plat/s32g/s32g_psci.c         | 33 ---------------------------------
+ 3 files changed, 1 insertion(+), 57 deletions(-)
+ delete mode 100644 plat/s32g/include/s32g_psci.h
+
+diff --git a/plat/s32g/include/s32g_psci.h b/plat/s32g/include/s32g_psci.h
+deleted file mode 100644
+index 90b9f4cc5..000000000
+--- a/plat/s32g/include/s32g_psci.h
++++ /dev/null
+@@ -1,11 +0,0 @@
+-/*
+- * Copyright 2019 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-#ifndef S32G_PSCI_H
+-#define S32G_PSCI_H
+-
+-void s32g_psci_move_to_pram(void);
+-
+-#endif /* S32G_PSCI_H */
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 2aa1cd51a..8f1ebd659 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -13,7 +13,6 @@
+ #include <lib/mmio.h>
+ 
+ #include "platform_def.h"
+-#include "s32g_psci.h"
+ #include "s32g_mc_me.h"
+ #include "s32g_mc_rgm.h"
+ #include "s32g_linflexuart.h"
+@@ -185,24 +184,13 @@ void bl31_platform_setup(void)
+ 	s32g_gic_setup();
+ }
+ 
+-/* Last-minute modifications before exiting BL31:
+- *  - install the PSCI handlers at S32G_PMEM_START;
++/* TODO: Last-minute modifications before exiting BL31:
+  *  - restrict the S32G_PMEM_START..S32G_PMEM_END DRAM area only to
+  *    secure privileged contexts;
+  *  - lock XRDC until the next reset
+  */
+ void bl31_plat_runtime_setup(void)
+ {
+-	WARN("Skipping %s(); PRAM and XRDC are not working anymore.", __func__);
+-#if 0
+-	s32g_psci_move_to_pram();
+-	/* If we enable XRDC, the functional simulator will screech to a halt;
+-	 * until a fix is provided, we'll just skip it
+-	 */
+-	INFO("Setting up XRDC...\n");
+-	if (xrdc_enable((void *)S32G_XRDC_BASE))
+-		ERROR("%s(): Error initializing XRDC!\n", __func__);
+-#endif
+ }
+ 
+ unsigned int plat_get_syscnt_freq2(void)
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index 1a58952f9..3a41672d1 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -155,39 +155,6 @@ const plat_psci_ops_t s32g_psci_pm_ops = {
+ 	.pwr_domain_pwr_down_wfi = s32g_pwr_domain_pwr_down_wfi,
+ };
+ 
+-
+-/*
+- * Copy the PSCI callbacks (in fact, the entire bl31 binary) to the protected
+- * DRAM area only accessible to privileged contexts.
+- * This must be called before XRDC is set up, since after that it becomes
+- * read-only (even to privileged code) until the next reboot.
+- */
+-void s32g_psci_move_to_pram(void)
+-{
+-	/* DDR is not initialized, and besides we won't do relocation this way
+-	 * anymore, but instead will seek to deploy BL31 entirely in DDR
+-	 */
+-	WARN("Skipping %s(); will need to revisit it.", __func__);
+-#if 0
+-	INFO("Copying self (0x%lx .. 0x%lx) to DRAM (0x%lx)...",
+-	     bl31_start, bl31_end, (unsigned long)S32G_PMEM_START);
+-	/* FIXME this may be too time-consuming; we should do it via DMA and/or
+-	 * copy only the relevant section(s) of the entire blob.
+-	 */
+-	_Static_assert(S32G_PMEM_END >= S32G_PMEM_START,
+-		       "S32G: PMEM_END < PMEM_START");
+-	/* Ideally, this would have been a static assert; however,
+-	 * __BL31_START__ and __BL31_END__ are linker symbols, so static assert
+-	 * isn't possible.
+-	 */
+-	assert(bl31_end - bl31_start <= S32G_PMEM_END - S32G_PMEM_START);
+-	memcpy((unsigned char *)S32G_PMEM_START,
+-	       (unsigned char *)bl31_start,
+-	       bl31_end - bl31_start);
+-	puts(" Done.");
+-#endif
+-}
+-
+ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
+ 			const plat_psci_ops_t **psci_ops)
+ {
+-- 
+2.17.1
+

@@ -1,0 +1,197 @@
+From 84ada9be53aa8bd8a4d977a9c3cd77ccf205b8ee Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Mon, 6 Apr 2020 14:39:46 +0300
+Subject: [PATCH 092/269] s32g: Build minimal SSRAM Bootstrap code as BL1
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c         |  4 +-
+ include/drivers/nxp/s32g/ddr/ddrss.h |  2 -
+ plat/s32g/include/platform_def.h     | 16 ++++++-
+ plat/s32g/platform.mk                |  2 +
+ plat/s32g/s32g274a_bl2_el3.c         |  4 +-
+ plat/s32g/s32g_ssram_bl1.c           | 64 ++++++++++++++++++++++++++++
+ 6 files changed, 84 insertions(+), 8 deletions(-)
+ create mode 100644 plat/s32g/s32g_ssram_bl1.c
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index 204cb6c91..0edc4b3c7 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -146,7 +146,7 @@ void ddrss_init(struct ddrss_conf *ddrss_conf,
+ 	/* Store a predefined list of CSRs in Standby SRAM, to be used
+ 	 * when resuming the DDRSS from I/O LP3 Retention Mode
+ 	 */
+-	store_csr((uintptr_t)STANDBY_SRAM_BASE);
++	store_csr((uintptr_t)SSRAM_CSR_BACKUP);
+ 
+ 	mmio_write_32(SWCTL, 0);
+ 	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_INIT_START_MASK);
+@@ -305,7 +305,7 @@ void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf,
+ 	mmio_write_32(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
+ 
+ 	/* Reload saved CSRs */
+-	load_csr((uintptr_t)STANDBY_SRAM_BASE);
++	load_csr((uintptr_t)SSRAM_CSR_BACKUP);
+ 
+ 	write_regconf_16(ddrss_conf->pie, ddrss_conf->pie_length);
+ 	while (mmio_read_16(CALBUSY) & CALBUSY_MASK)
+diff --git a/include/drivers/nxp/s32g/ddr/ddrss.h b/include/drivers/nxp/s32g/ddr/ddrss.h
+index cd8043442..0bcaabdac 100644
+--- a/include/drivers/nxp/s32g/ddr/ddrss.h
++++ b/include/drivers/nxp/s32g/ddr/ddrss.h
+@@ -10,8 +10,6 @@
+ #include <stddef.h>
+ #include <lib/mmio.h>
+ 
+-#define STANDBY_SRAM_USED_FOR_CSR	(0x400)
+-
+ #define DDRSS_BASE_ADDR			0x40380000
+ 
+ #define DDRSS_DMEM_ADDR			(DDRSS_BASE_ADDR + 0x30000)
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index eebdd2d34..3cda6a490 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -100,7 +100,17 @@
+ #define S32G_SRAM_SIZE		0x00800000
+ #define S32G_SRAM_END		(S32G_SRAM_BASE + S32G_SRAM_SIZE)
+ 
+-#define STANDBY_SRAM_BASE	(0x24000000ul)
++#define S32G_SSRAM_BASE		(0x24000000)
++#define S32G_SSRAM_LIMIT	(0x24008000)
++
++#define SSRAM_CSR_BACKUP_SIZE	(1024)
++#define SSRAM_CSR_BACKUP	(S32G_SSRAM_LIMIT - SSRAM_CSR_BACKUP_SIZE)
++
++#define BL1_RO_BASE		(S32G_SSRAM_BASE + PAGE_SIZE)
++#define BL1_RO_LIMIT		(BL1_RO_BASE + 0x6000)
++
++#define BL1_RW_BASE		S32G_SRAM_BASE
++#define BL1_RW_LIMIT		(BL1_RW_BASE + 0x10000)
+ 
+ /* Top of the 4GB of physical memory, accessible through the
+  * extended memory map.
+@@ -173,7 +183,9 @@
+ #if defined IMAGE_BL1
+ /* To use in blX_platform_setup() */
+ #define FIRMWARE_WELCOME_STR_S32G	"This is S32G BL1\n"
+-#pragma warning "BL1 image is being built; you should configure it out."
++/* We're using TF-A infrastructure to build suspend/resume bootstrap code as
++ * a BL1 stage; nevertheless, we are still cold-booting at BL2.
++ */
+ #endif
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 2bbc8828c..d02605194 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -31,6 +31,8 @@ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/i2c/s32g274a_i2c.c \
+ 			   lib/cpus/aarch64/cortex_a53.S
+ 
++BL1_SOURCES		+= plat/s32g/s32g_ssram_bl1.c
++
+ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/s32g/s32g274a_bl2_el3.c \
+ 			   plat/s32g/s32g_clocks.c \
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index 12a612b30..7680ad3f5 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -134,7 +134,7 @@ void bl2_el3_plat_arch_setup(void)
+ 	static struct console_s32g console;
+ 	extern struct ddrss_conf ddrss_conf;
+ 	extern struct ddrss_firmware ddrss_firmware;
+-	extern void sram_clr(uintptr_t start, size_t end);
++	extern void sram_clr(uintptr_t start, size_t size);
+ 
+ 	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
+ 			      S32G_UART_BAUDRATE, &console);
+@@ -144,7 +144,7 @@ void bl2_el3_plat_arch_setup(void)
+ 		return;
+ 	}
+ 
+-	sram_clr(STANDBY_SRAM_BASE, STANDBY_SRAM_USED_FOR_CSR);
++	sram_clr(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT);
+ 	ddrss_init(&ddrss_conf, &ddrss_firmware);
+ }
+ 
+diff --git a/plat/s32g/s32g_ssram_bl1.c b/plat/s32g/s32g_ssram_bl1.c
+new file mode 100644
+index 000000000..bf04ff754
+--- /dev/null
++++ b/plat/s32g/s32g_ssram_bl1.c
+@@ -0,0 +1,64 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <plat/common/platform.h>
++
++int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
++			  uintptr_t *image_spec)
++{
++	return 0;
++}
++
++int io_open(uintptr_t dev_handle, const uintptr_t spec, uintptr_t *handle)
++{
++	return 0;
++}
++
++int io_size(uintptr_t handle, size_t *length)
++{
++	return 0;
++}
++
++int io_read(uintptr_t handle, uintptr_t buffer, size_t length,
++	    size_t *length_read)
++{
++	return 0;
++}
++
++int io_close(uintptr_t handle)
++{
++	return 0;
++}
++
++int io_dev_close(uintptr_t dev_handle)
++{
++	return 0;
++}
++
++void plat_secondary_cold_boot_setup(void)
++{
++}
++
++void platform_mem_init(void)
++{
++}
++
++void bl1_early_platform_setup(void)
++{
++}
++
++void bl1_plat_arch_setup(void)
++{
++}
++
++void bl1_platform_setup(void)
++{
++}
++
++struct meminfo *bl1_plat_sec_mem_layout(void)
++{
++	return NULL;
++}
+-- 
+2.17.1
+

@@ -1,0 +1,237 @@
+From 83b10d0e72bd9d23ce9f377d301c4d512c3f1db6 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Thu, 18 Oct 2018 09:54:40 +0300
+Subject: [PATCH 002/269] s32g: Add basic UART console support
+
+Program LINFlexD in UART mode for a basic console support. Only Tx is
+supported.
+
+Also, as a performance-enhancing hack, console parameters are heavily
+(and illegally!) skewed on the S32G simulator (and only on simulator),
+in order to achieve a better console throughput. This is a VDK-only hack
+and will be wiped when the real Si is out.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3452
+---
+ plat/s32g/include/platform_def.h |   4 +
+ plat/s32g/s32g275_bl31.c         |  11 +++
+ plat/s32g/s32g_helpers.S         | 139 ++++++++++++++++++++++++++++++-
+ 3 files changed, 152 insertions(+), 2 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 80685118f..3eb44a378 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -14,6 +14,7 @@
+ 
+ #include <common_def.h>
+ #include <tbbr_img_def.h>
++#include <console.h>
+ 
+ #define S32G_CACHE_WRITEBACK_SHIFT	6
+ #define CACHE_WRITEBACK_GRANULE		(1 << S32G_CACHE_WRITEBACK_SHIFT)
+@@ -69,6 +70,9 @@
+ #define MAX_IO_HANDLES			4
+ #define MAX_IO_DEVICES			3
+ 
++/* Debugging options */
++#define PLAT_LOG_LEVEL_ASSERT		LOG_LEVEL_VERBOSE
++
+ #if defined IMAGE_BL1
+ /* To use in blX_platform_setup() */
+ #define FIRMWARE_WELCOME_STR_S32G	"This is S32G BL1\n"
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 7b3744dff..e37cd1a6d 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -60,10 +60,21 @@ entry_point_info_t *bl31_plat_get_next_image_ep_info(uint32_t type)
+ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+ 		u_register_t arg2, u_register_t arg3)
+ {
++	static struct console_s32g console;
++
++#if RESET_TO_BL31
++	assert((void *)arg0 == NULL); /* from bl2 */
++	assert((void *)arg1 == NULL); /* plat params from bl2 */
++#endif
++
+ 	SET_PARAM_HEAD(&bl33_image_ep_info, PARAM_EP, VERSION_1, 0);
+ 	bl33_image_ep_info.pc = S32G_BL33_IMAGE_BASE;
+ 	bl33_image_ep_info.spsr = s32g_get_spsr_for_bl33_entry();
+ 	SET_SECURITY_STATE(bl33_image_ep_info.h.attr, NON_SECURE);
++
++	/* TODO check return */
++	console_s32g_register(S32G_UART_BASE, S32G_UART_CLOCK_HZ,
++			S32G_UART_BAUDRATE, &console);
+ }
+ 
+ void bl31_plat_arch_setup(void)
+diff --git a/plat/s32g/s32g_helpers.S b/plat/s32g/s32g_helpers.S
+index 1ed5ed0cc..e62dbf24c 100644
+--- a/plat/s32g/s32g_helpers.S
++++ b/plat/s32g/s32g_helpers.S
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include <asm_macros.S>
++#include <console_macros.S>
+ #include "platform_def.h"
+ 
+ .globl plat_is_my_cpu_primary
+@@ -13,9 +14,12 @@
+ .globl plat_my_core_pos
+ .globl plat_my_core_pos
+ 
++.globl console_s32g_register
++.globl console_s32g_putc
++
+ /*
+- * All these helper functions have been copied copied from
+- * imx8_helpers.S (plat/imx) or ls_helpers.S (plat/layerscape).
++ * Almost all these helper functions have been copied copied from
++ * imx8_helpers.S (plat/imx), ls_helpers.S (plat/layerscape), or u-boot.
+  */
+ func plat_is_my_cpu_primary
+ 	mrs	x0, mpidr_el1
+@@ -40,3 +44,134 @@ func plat_my_core_pos
+ 	add	x0, x1, x0, LSR #6
+ 	ret
+ endfunc plat_my_core_pos
++
++/* int console_s32g_register(uintptr_t base,
++ *			     uint32_t clk,
++ *			     uint32_t baud,
++ *			     struct console_s32g *console)
++ * Hard-coded configuration: 8 data bits, no parity, 1 stop bit, no start bits
++ * (logic borrowed from the s32g-uboot linflex driver)
++ *
++ * In: x0 - UART register base address
++ *     w1 - UART clock in Hz
++ *     w2 - baud rate
++ *     x3 - pointer to empty struct console_s32g
++ * Out: x0 = 1 on success, 0 on error
++ * Clobber list: x0,x1,x2,x3,x6,x7,x16,x17
++ */
++func console_s32g_register
++	mov	x7, x30		/* back up return address */
++
++	/* Set master mode and init mode */
++	movz	w16, #0x10	/* LINCR1_MME */
++	movz	w17, #0x1	/* LINCR1_INIT */
++	orr	w16, w16, w17
++	str	w16, [x0, #S32G_LINFLEX_LINCR1]
++
++	/* wait for init mode entry */
++	movz	w16, #0x1000	/* LINSR_LINS_INITMODE */
++	movz	w17, #0xF000	/* LINSR_LINS_MASK */
++wait_init_mode:
++	ldr	w6, [x0, #S32G_LINFLEX_LINSR]
++	and	w6, w6, w17
++	eor	w6, w6, w16
++	cbnz	w6, wait_init_mode
++
++	/* Set UART bit */
++	movz	w16, #0x1	/* UARTCR_UART */
++	str	w16, [x0, #S32G_LINFLEX_UARTCR]
++
++	/* hard-coded linflexd_serial_setbrg() result from u-boot,
++	 * when UARTCR[ROSE]=0
++	 * FIXME: real implementation needed */
++	movz	w16, #72		/* ibr */
++	str	w16, [x0, #S32G_LINFLEX_LINIBRR]
++	movz	w16, #5		/* fbr */
++	str	w16, [x0, #S32G_LINFLEX_LINFBRR]
++
++#ifdef S32G_VIRTUAL_PLATFORM
++	/* Set preset timeout register value. Otherwise, print is very slow. */
++	movz	w16, #0xf
++	str	w16, [x0, #S32G_LINFLEX_UARTPTO]
++#endif /* S32G_VIRTUAL_PLATFORM */
++
++	/* 8-bit data, no parity, Tx/Rx enabled, UART mode */
++	/* TODO reduce number of orr's */
++	movz	w16, #0x40	/* UARTCR_PC1 */
++	movz	w17, #0x20	/* UARTCR_RXEN */
++	orr	w16, w16, w17
++	movz	w17, #0x10	/* UARTCR_TXEN */
++	orr	w16, w16, w17
++	movz	w17, #0x8	/* UARTCR_PC0 */
++	orr	w16, w16, w17
++	movz	w17, #0x2	/* UARTCR_WL0 */
++	orr	w16, w16, w17
++	/* FIXME UARTCR_UART has been set before */
++	movz	w17, #0x1	/* UARTCR_UART */
++	orr	w16, w16, w17
++	movz	w17, #0x200	/* UARTCR_RFBM */
++	orr	w16, w16, w17
++	movz	w17, #0x100	/* UARTCR_TFBM */
++	orr	w16, w16, w17
++#ifdef S32G_VIRTUAL_PLATFORM
++	/* FIXME: setting the ROSE bit without also setting OSR is illegal; this
++	 * only works because of a functional simulator quirk. We're keeping it,
++	 * though, for easier debugging and sped-up output (on VDK only!).
++	 * Also, these settings only speed up the output; the input would be
++	 * totally crippled, unless UARTCR[OSR] is also set (see s32g-uboot for
++	 * the complete hack).
++	 *
++	 * To be revised on actual Si. */
++	movz	w17, #0x80, lsl #16	/* UARTCRT_ROSE */
++	orr	w16, w16, w17
++#endif /* S32G_VIRTUAL_PLATFORM */
++	str	w16, [x0, #S32G_LINFLEX_UARTCR]
++
++	ldr	w16, [x0, #S32G_LINFLEX_LINCR1]
++	movz	w17, #0x1	/* LINCR1_INIT */
++	orn	w16, w17, w16
++	movz	w17, 0xFFFF
++	eor	w16, w16, w17
++	str	w16, [x0, #S32G_LINFLEX_LINCR1]
++
++	/* prepare to finish console registration */
++	mov	x0, x3
++	mov	x30, x7
++	finish_console_register s32g
++
++	movz	w0, 1
++	ret
++endfunc console_s32g_register
++
++/* In:  w0 - character to be printed
++ *      x1 - pointer to the console_s32g structure (FIXME: currently ignored)
++ * Out: w0 - printed character on success, < 0 on error
++ * Clobber list: x0,x1,x2,x5,x6
++ */
++func console_s32g_putc
++	/* FIXME: Do not hardcode the UART base addr; instead, pass it via the
++	          console struct */
++	/* S32G_UART_BASE */
++	movz	x6, #0x401C, lsl #16
++	movk	x6, #0x8000
++
++	/* if c == '\n', also put a '\r' beforehand */
++	movz	w2, #0
++	cmp	w0, #0xA
++	b.ne	putc_this
++
++	mov	w2, w0
++	movz	w0, #0xD
++putc_this:
++tx_fifo_full:
++	ldr	w5, [x6, #S32G_LINFLEX_UARTSR]
++	tbnz	w5, #1, tx_fifo_full	/* UARTSR_DTFTFF */
++	strb	w0, [x6, #S32G_LINFLEX_BDRL]
++
++	cbz	w2, done
++	mov	w0, w2
++	movz	w2, #0
++	b	putc_this
++done:
++	ret
++endfunc console_s32g_putc
+-- 
+2.17.1
+

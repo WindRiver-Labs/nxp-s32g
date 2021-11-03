@@ -1,0 +1,172 @@
+From 1d8041cd8046e8f5f8e2afd86129515c3037d5f5 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 27 Jan 2021 11:38:08 +0200
+Subject: [PATCH 209/269] s32g: ddr: ECC management for STR use case
+
+ECC relevant registers should be saved before suspend and restored as part
+of retention to normal mode transition.
+
+Issue: ALB-5845
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c                  | 69 ++++++++++++++++++-
+ .../s32g/bl31_ssram/include/ssram_mailbox.h   |  4 +-
+ plat/nxp/s32g/include/platform_def.h          |  2 +-
+ 3 files changed, 69 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index 8c9f707e6..798dca289 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -45,6 +45,23 @@
+ #define SELFREF_TYPE_NOT_UNDER_AUTO_SR_CTRL	(0x2 << 4)
+ #define OPERATING_MODE_SELF_REFRESH	(0x3)
+ 
++/* ECC registers */
++#define    OFFSET_DDRC_ECCCTL               0x7c
++#define    OFFSET_DDRC_ECCPOISONADDR0       0xB8
++#define    OFFSET_DDRC_ECCPOISONADDR1       0xBc
++#define    OFFSET_DDRC_ADDRMAP0             0x200
++#define    OFFSET_DDRC_ADDRMAP1             0x204
++#define    OFFSET_DDRC_ADDRMAP2             0x208
++#define    OFFSET_DDRC_ADDRMAP3             0x20C
++#define    OFFSET_DDRC_ADDRMAP4             0x210
++#define    OFFSET_DDRC_ADDRMAP5             0x214
++#define    OFFSET_DDRC_ADDRMAP6             0x218
++#define    OFFSET_DDRC_ADDRMAP7             0x21C
++
++#define CSR_MEM_SIZE	(ARRAY_SIZE(csr_to_store) * sizeof(uint16_t))
++#define ECC_OFFSET	CSR_MEM_SIZE
++#define ECC_MEM_SIZE	(ARRAY_SIZE(ecc_to_store) * sizeof(uint32_t))
++
+ static const uint32_t csr_to_store[] = {
+ 	0x00001690,	/* DWC_DDRPHYA_MASTER0_VREFINGLOBAL_P0 */
+ 	0x00001718,	/* DWC_DDRPHYA_MASTER0_PLLCTRL3 */
+@@ -381,8 +398,23 @@ static const uint32_t csr_to_store[] = {
+ 	0x0001a4d8,	/* DWC_DDRPHYA_DBYTE3_VREFDAC0_R0 */
+ };
+ 
+-_Static_assert(ARRAY_SIZE(csr_to_store) * sizeof(uint16_t) ==
+-	       BL31SSRAM_CSR_SIZE,
++static const uint32_t ecc_to_store[] = {
++	DDRC_BASE_ADDR + OFFSET_DDRC_ECCCFG0,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ECCCFG1,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ECCCTL,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ECCPOISONADDR0,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ECCPOISONADDR1,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP0,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP1,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP2,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP3,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP4,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP5,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP6,
++	DDRC_BASE_ADDR + OFFSET_DDRC_ADDRMAP7,
++};
++
++_Static_assert(CSR_MEM_SIZE + ECC_MEM_SIZE == BL31SSRAM_CSR_SIZE,
+ 	       "Please sync BL31SSRAM_CSR_SIZE with csr_to_store length");
+ 
+ static void load_csr(uintptr_t load_from)
+@@ -397,15 +429,28 @@ static void load_csr(uintptr_t load_from)
+ 	}
+ }
+ 
++static void store_ecc(uintptr_t base)
++{
++	uintptr_t store_at = base + ECC_OFFSET;
++	uint32_t val;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(ecc_to_store); i++) {
++		val = mmio_read_32(ecc_to_store[i]);
++		mmio_write_32(store_at, val);
++		store_at += sizeof(uint32_t);
++	}
++}
++
+ void store_csr(uintptr_t store_at)
+ {
+ 	int i;
+ 	uint16_t csr;
++	uintptr_t base = store_at;
+ 
+ 	mmio_write_16(MICROCONTMUXSEL, 0);
+ 	mmio_write_16(UCCLKHCLKENABLES, HCLKEN_MASK | UCCLKEN_MASK);
+ 
+-
+ 	for (i = 0; i < ARRAY_SIZE(csr_to_store); i++) {
+ 		csr = mmio_read_16(DDRSS_BASE_ADDR + csr_to_store[i]);
+ 		mmio_write_16(store_at, csr);
+@@ -414,6 +459,21 @@ void store_csr(uintptr_t store_at)
+ 
+ 	mmio_write_16(UCCLKHCLKENABLES, HCLKEN_MASK);
+ 	mmio_write_16(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
++
++	store_ecc(base);
++}
++
++static void load_ecc(uintptr_t base)
++{
++	uintptr_t load_from = base + ECC_OFFSET;
++	uint32_t val;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(ecc_to_store); i++) {
++		val = mmio_read_32(load_from);
++		mmio_write_32(ecc_to_store[i], val);
++		load_from += sizeof(uint32_t);
++	}
+ }
+ 
+ void ddrss_to_io_lp3_retention_mode(void)
+@@ -508,6 +568,9 @@ int ddrss_to_normal_mode(uintptr_t csr_array)
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_PWRCTL,
+ 		      pwrctl | SELFREF_SW_MASK);
+ 
++	/* Load ECC settings */
++	load_ecc(BL31SSRAM_CSR_BASE);
++
+ 	/* Setup AXI ports parity */
+ 	ret = set_axi_parity();
+ 	if (ret != NO_ERR)
+diff --git a/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h b/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h
+index 8d36706aa..7c9fceae3 100644
+--- a/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h
++++ b/plat/nxp/s32g/bl31_ssram/include/ssram_mailbox.h
+@@ -10,14 +10,14 @@
+ 
+ #define CSR_SETTING_OFFSET offsetof(struct s32g_ssram_mailbox, csr_settings)
+ #define BL31SSRAM_CSR_BASE (BL31SSRAM_MAILBOX + CSR_SETTING_OFFSET)
+-#define BL31SSRAM_CSR_SIZE (0x298)
++#define BL31SSRAM_CSR_SIZE (0x2CC)
+ 
+ typedef void (*s32g_warm_entrypoint_t)(void);
+ 
+ struct s32g_ssram_mailbox {
+ 	s32g_warm_entrypoint_t bl31_warm_entrypoint __aligned(2);
+ 	uint8_t short_boot __aligned(2);
+-	uint8_t csr_settings[BL31SSRAM_CSR_SIZE] __aligned(2);
++	uint8_t csr_settings[BL31SSRAM_CSR_SIZE] __aligned(4);
+ };
+ 
+ #endif
+diff --git a/plat/nxp/s32g/include/platform_def.h b/plat/nxp/s32g/include/platform_def.h
+index 42e137cd4..a2230fd8f 100644
+--- a/plat/nxp/s32g/include/platform_def.h
++++ b/plat/nxp/s32g/include/platform_def.h
+@@ -149,7 +149,7 @@
+ #define BL31SSRAM_IVT		(S32G_SSRAM_BASE)
+ #define BL31SSRAM_IVT_SIZE	(0x140)
+ #define BL31SSRAM_MAILBOX	(BL31SSRAM_IVT + BL31SSRAM_IVT_SIZE)
+-#define BL31SSRAM_OFFSET	(0x400)
++#define BL31SSRAM_OFFSET	(0x600)
+ #define BL31SSRAM_BASE		(S32G_SSRAM_BASE + BL31SSRAM_OFFSET)
+ #define BL31SSRAM_LIMIT		S32G_SSRAM_LIMIT
+ #define BL31SSRAM_MAX_CODE_SIZE	(S32G_SSRAM_LIMIT - BL31SSRAM_BASE)
+-- 
+2.17.1
+

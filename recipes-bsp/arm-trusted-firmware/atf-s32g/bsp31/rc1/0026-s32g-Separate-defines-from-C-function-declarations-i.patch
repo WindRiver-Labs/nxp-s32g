@@ -1,0 +1,530 @@
+From 86f2478f099154541956e9289292f225814928b4 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 22 Nov 2019 17:50:30 +0200
+Subject: [PATCH 026/269] s32g: Separate #defines from C function declarations
+ in platform_def.h
+
+Also do some file renaming and reorganizing.
+
+Issue: ALB-3895
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h              |  41 -----
+ plat/s32g/include/s32g_linflexuart.h          |  44 ++++++
+ plat/s32g/include/s32g_lowlevel.h             |  15 ++
+ plat/s32g/include/{mc.h => s32g_mc_me.h}      |   0
+ plat/s32g/include/s32g_xrdc.h                 |  11 ++
+ plat/s32g/platform.mk                         |   5 +-
+ plat/s32g/s32g275_bl31.c                      |   5 +-
+ plat/s32g/s32g_linflexuart.S                  | 144 ++++++++++++++++++
+ plat/s32g/{s32g_helpers.S => s32g_lowlevel.S} | 122 ---------------
+ plat/s32g/{mc.c => s32g_mc_me.c}              |   3 +-
+ 10 files changed, 222 insertions(+), 168 deletions(-)
+ create mode 100644 plat/s32g/include/s32g_linflexuart.h
+ create mode 100644 plat/s32g/include/s32g_lowlevel.h
+ rename plat/s32g/include/{mc.h => s32g_mc_me.h} (100%)
+ create mode 100644 plat/s32g/include/s32g_xrdc.h
+ create mode 100644 plat/s32g/s32g_linflexuart.S
+ rename plat/s32g/{s32g_helpers.S => s32g_lowlevel.S} (56%)
+ rename plat/s32g/{mc.c => s32g_mc_me.c} (99%)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 1b58fea30..6b4513ca5 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -14,7 +14,6 @@
+ 
+ #include <common_def.h>
+ #include <tbbr_img_def.h>
+-#include <console.h>
+ 
+ /* MPIDR_EL1 for the four A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+@@ -152,44 +151,4 @@
+ #pragma warning "BL33 image is being built; you should configure it out."
+ #endif
+ 
+-/* Serial console configurations */
+-#define S32G_LINFLEX0_BASE	0x401C8000
+-#define S32G_LINFLEX0_SIZE	0x4000
+-#define S32G_UART_BASE		S32G_LINFLEX0_BASE
+-#define S32G_UART_SIZE		S32G_LINFLEX0_SIZE
+-#define S32G_UART_BAUDRATE	115200
+-/* TODO revisit this; for now we'll hard-code the clock/divider settings instead
+- * of deriving them
+- */
+-#define S32G_UART_CLOCK_HZ		133333333
+-
+-/* LINFLEX registers */
+-#define S32G_LINFLEX_LINCR1		0x0
+-#define S32G_LINFLEX_LINSR		0x8
+-#define S32G_LINFLEX_UARTCR		0x10
+-#define S32G_LINFLEX_UARTSR		0x14
+-#define S32G_LINFLEX_LINIBRR		0x28
+-#define S32G_LINFLEX_LINFBRR		0x24
+-#define S32G_LINFLEX_BDRL		0x38
+-#define S32G_LINFLEX_UARTPTO		0x50
+-
+-#ifndef __ASSEMBLY__
+-struct console_s32g {
+-	console_t console;
+-	uint32_t  size;
+-	uintptr_t base;
+-	uint32_t  clock;
+-	uint32_t  baud;
+-};
+-
+-int console_s32g_register(uintptr_t baseaddr, uint32_t clock, uint32_t baud,
+-			  struct console_s32g *console);
+-int console_s32g_putc(int c, struct console_s32g *console);
+-int console_s32g_flush(struct console_s32g *console);
+-int xrdc_enable(void *xrdc_addr);
+-int plat_core_pos_by_mpidr(u_register_t mpidr);
+-int plat_is_my_cpu_primary(void);
+-void s32g_smp_fixup(void);
+-void s32g_gic_setup(void);
+-#endif /* __ASSEMBLY__ */
+ #endif /* PLATFORM_DEF_H */
+diff --git a/plat/s32g/include/s32g_linflexuart.h b/plat/s32g/include/s32g_linflexuart.h
+new file mode 100644
+index 000000000..673b6dd90
+--- /dev/null
++++ b/plat/s32g/include/s32g_linflexuart.h
+@@ -0,0 +1,44 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#ifndef S32G_LINFLEXUART_H
++#define S32G_LINFLEXUART_H
++
++#define S32G_LINFLEX0_BASE	(0x401C8000ul)
++#define S32G_LINFLEX0_SIZE	(0x4000)
++#define S32G_UART_BASE		S32G_LINFLEX0_BASE
++#define S32G_UART_SIZE		S32G_LINFLEX0_SIZE
++#define S32G_UART_BAUDRATE	(115200)
++/* TODO revisit this; for now we'll hard-code the clock/divider settings instead
++ * of deriving them
++ */
++#define S32G_UART_CLOCK_HZ		(133333333)
++
++#define S32G_LINFLEX_LINCR1		(0x0)
++#define S32G_LINFLEX_LINSR		(0x8)
++#define S32G_LINFLEX_UARTCR		(0x10)
++#define S32G_LINFLEX_UARTSR		(0x14)
++#define S32G_LINFLEX_LINIBRR		(0x28)
++#define S32G_LINFLEX_LINFBRR		(0x24)
++#define S32G_LINFLEX_BDRL		(0x38)
++#define S32G_LINFLEX_UARTPTO		(0x50)
++
++#ifndef __ASSEMBLY__
++struct console_s32g {
++	console_t console;
++	uint32_t  size;
++	uintptr_t base;
++	uint32_t  clock;
++	uint32_t  baud;
++};
++
++int console_s32g_register(uintptr_t baseaddr, uint32_t clock, uint32_t baud,
++			  struct console_s32g *console);
++int console_s32g_putc(int c, struct console_s32g *console);
++int console_s32g_flush(struct console_s32g *console);
++#endif
++
++#endif /* S32G_LINFLEXUART_H */
+diff --git a/plat/s32g/include/s32g_lowlevel.h b/plat/s32g/include/s32g_lowlevel.h
+new file mode 100644
+index 000000000..ce648b797
+--- /dev/null
++++ b/plat/s32g/include/s32g_lowlevel.h
+@@ -0,0 +1,15 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#ifndef S32G_LOWLEVEL_H
++#define S32G_LOWLEVEL_H
++
++int plat_core_pos_by_mpidr(u_register_t mpidr);
++int plat_is_my_cpu_primary(void);
++void s32g_smp_fixup(void);
++void s32g_gic_setup(void);
++
++#endif /* S32G_LOWLEVEL_H */
+diff --git a/plat/s32g/include/mc.h b/plat/s32g/include/s32g_mc_me.h
+similarity index 100%
+rename from plat/s32g/include/mc.h
+rename to plat/s32g/include/s32g_mc_me.h
+diff --git a/plat/s32g/include/s32g_xrdc.h b/plat/s32g/include/s32g_xrdc.h
+new file mode 100644
+index 000000000..e45e2bc33
+--- /dev/null
++++ b/plat/s32g/include/s32g_xrdc.h
+@@ -0,0 +1,11 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef S32G_XRDC_H
++#define S32G_XRDC_H
++
++int xrdc_enable(void *xrdc_addr);
++
++#endif /* S32G_XRDC_H */
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index aa3cce5d6..215977b74 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -14,14 +14,15 @@ PLAT_INCLUDES		+= -Iplat/s32g/include \
+ 			   -Iinclude/lib \
+ 			   -Iinclude/drivers \
+ 			   -Iinclude/lib/psci
+-PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_helpers.S \
++PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel.S \
++			   plat/s32g/s32g_linflexuart.S \
+ 			   plat/s32g/include/plat_macros.S \
+ 			   plat/s32g/s32g_xrdc.c
+ PLAT_BL_COMMON_SOURCES	+= ${XLAT_TABLES_LIB_SRCS}
+ 
+ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   plat/s32g/s32g_psci.c \
+-			   plat/s32g/mc.c \
++			   plat/s32g/s32g_mc_me.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   drivers/arm/gic/v3/gicv3_main.c \
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 94beca9fe..e33770c2d 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -14,7 +14,10 @@
+ 
+ #include "platform_def.h"
+ #include "s32g_psci.h"
+-#include "mc.h"
++#include "s32g_mc_me.h"
++#include "s32g_linflexuart.h"
++#include "s32g_lowlevel.h"
++#include "s32g_xrdc.h"
+ 
+ IMPORT_SYM(uintptr_t, __RW_START__, BL31_RW_START);
+ IMPORT_SYM(uintptr_t, __RW_END__, BL31_RW_END);
+diff --git a/plat/s32g/s32g_linflexuart.S b/plat/s32g/s32g_linflexuart.S
+new file mode 100644
+index 000000000..f38ebec86
+--- /dev/null
++++ b/plat/s32g/s32g_linflexuart.S
+@@ -0,0 +1,144 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <asm_macros.S>
++#include <console_macros.S>
++#include "s32g_linflexuart.h"
++
++.globl console_s32g_register
++.globl console_s32g_putc
++.globl console_s32g_flush
++
++.globl plat_crash_console_init
++.globl plat_crash_console_flush
++.globl plat_crash_console_putc
++
++func plat_crash_console_init
++endfunc plat_crash_console_init
++
++func plat_crash_console_flush
++endfunc plat_crash_console_flush
++
++func plat_crash_console_putc
++endfunc plat_crash_console_putc
++
++/* int console_s32g_register(uintptr_t base,
++ *			     uint32_t clk,
++ *			     uint32_t baud,
++ *			     struct console_s32g *console)
++ * Hard-coded configuration: 8 data bits, no parity, 1 stop bit, no start bits
++ *
++ * In: x0 - UART register base address
++ *     w1 - UART clock in Hz
++ *     w2 - baud rate
++ *     x3 - pointer to empty struct console_s32g
++ * Out: x0 = 1 on success, 0 on error
++ * Clobber list: x0,x1,x2,x3,x6,x7,x16,x17
++ */
++func console_s32g_register
++	mov	x7, x30		/* back up return address */
++
++	/* Set master mode and init mode */
++	movz	w16, #0x10	/* LINCR1_MME */
++	movz	w17, #0x1	/* LINCR1_INIT */
++	orr	w16, w16, w17
++	str	w16, [x0, #S32G_LINFLEX_LINCR1]
++
++	/* wait for init mode entry */
++	movz	w16, #0x1000	/* LINSR_LINS_INITMODE */
++	movz	w17, #0xF000	/* LINSR_LINS_MASK */
++wait_init_mode:
++	ldr	w6, [x0, #S32G_LINFLEX_LINSR]
++	and	w6, w6, w17
++	eor	w6, w6, w16
++	cbnz	w6, wait_init_mode
++
++	/* Set UART bit */
++	movz	w16, #0x1	/* UARTCR_UART */
++	str	w16, [x0, #S32G_LINFLEX_UARTCR]
++
++	/* hard-coded linflexd_serial_setbrg() result,
++	 * working with UARTCR[ROSE]=0
++	 * FIXME: real implementation needed */
++	movz	w16, #72		/* ibr */
++	str	w16, [x0, #S32G_LINFLEX_LINIBRR]
++	movz	w16, #5		/* fbr */
++	str	w16, [x0, #S32G_LINFLEX_LINFBRR]
++
++	/* Set preset timeout register value. */
++	movz	w16, #0xf
++	str	w16, [x0, #S32G_LINFLEX_UARTPTO]
++
++	/* 8-bit data, no parity, Tx/Rx enabled, UART mode */
++	movz	w16, #0x40	/* UARTCR_PC1 */
++	movz	w17, #0x20	/* UARTCR_RXEN */
++	orr	w16, w16, w17
++	movz	w17, #0x10	/* UARTCR_TXEN */
++	orr	w16, w16, w17
++	movz	w17, #0x8	/* UARTCR_PC0 */
++	orr	w16, w16, w17
++	movz	w17, #0x2	/* UARTCR_WL0 */
++	orr	w16, w16, w17
++	movz    w17, #0x1       /* UARTCR_UART */
++	orr     w16, w16, w17
++	movz	w17, #0x200	/* UARTCR_RFBM */
++	orr	w16, w16, w17
++	movz	w17, #0x100	/* UARTCR_TFBM */
++	orr	w16, w16, w17
++	str	w16, [x0, #S32G_LINFLEX_UARTCR]
++
++	ldr	w16, [x0, #S32G_LINFLEX_LINCR1]
++	movz	w17, #0x1	/* LINCR1_INIT */
++	orn	w16, w17, w16
++	movz	w17, 0xFFFF
++	eor	w16, w16, w17
++	str	w16, [x0, #S32G_LINFLEX_LINCR1]
++
++	/* prepare to finish console registration */
++	mov	x0, x3
++	mov	x30, x7
++	finish_console_register s32g
++
++	movz	w0, 1
++	ret
++endfunc console_s32g_register
++
++/* In:  w0 - character to be printed
++ *      x1 - pointer to the console_s32g structure (FIXME: currently ignored)
++ * Out: w0 - printed character on success, < 0 on error
++ * Clobber list: x0,x1,x2,x5,x6
++ */
++func console_s32g_putc
++	/* FIXME: Do not hardcode the UART base addr; instead, pass it via the
++	          console struct */
++	/* S32G_UART_BASE */
++	movz	x6, #0x401C, lsl #16
++	movk	x6, #0x8000
++
++	/* if c == '\n', also put a '\r' beforehand */
++	movz	w2, #0
++	cmp	w0, #0xA
++	b.ne	putc_this
++
++	mov	w2, w0
++	movz	w0, #0xD
++putc_this:
++tx_fifo_full:
++	ldr	w5, [x6, #S32G_LINFLEX_UARTSR]
++	tbnz	w5, #1, tx_fifo_full	/* UARTSR_DTFTFF */
++	strb	w0, [x6, #S32G_LINFLEX_BDRL]
++
++	cbz	w2, done
++	mov	w0, w2
++	movz	w2, #0
++	b	putc_this
++done:
++	ret
++endfunc console_s32g_putc
++
++func console_s32g_flush
++	ret
++endfunc console_s32g_flush
+diff --git a/plat/s32g/s32g_helpers.S b/plat/s32g/s32g_lowlevel.S
+similarity index 56%
+rename from plat/s32g/s32g_helpers.S
+rename to plat/s32g/s32g_lowlevel.S
+index e98d5a68f..e9bd2b8fd 100644
+--- a/plat/s32g/s32g_helpers.S
++++ b/plat/s32g/s32g_lowlevel.S
+@@ -15,10 +15,6 @@
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
+ 
+-.globl console_s32g_register
+-.globl console_s32g_putc
+-.globl console_s32g_flush
+-
+ .globl s32g_smp_fixup
+ 
+ .globl s32g_core_release_var
+@@ -199,121 +195,3 @@ func plat_core_pos_by_mpidr
+ 	mov	x30, x7
+ 	ret
+ endfunc plat_core_pos_by_mpidr
+-
+-/* int console_s32g_register(uintptr_t base,
+- *			     uint32_t clk,
+- *			     uint32_t baud,
+- *			     struct console_s32g *console)
+- * Hard-coded configuration: 8 data bits, no parity, 1 stop bit, no start bits
+- *
+- * In: x0 - UART register base address
+- *     w1 - UART clock in Hz
+- *     w2 - baud rate
+- *     x3 - pointer to empty struct console_s32g
+- * Out: x0 = 1 on success, 0 on error
+- * Clobber list: x0,x1,x2,x3,x6,x7,x16,x17
+- */
+-func console_s32g_register
+-	mov	x7, x30		/* back up return address */
+-
+-	/* Set master mode and init mode */
+-	movz	w16, #0x10	/* LINCR1_MME */
+-	movz	w17, #0x1	/* LINCR1_INIT */
+-	orr	w16, w16, w17
+-	str	w16, [x0, #S32G_LINFLEX_LINCR1]
+-
+-	/* wait for init mode entry */
+-	movz	w16, #0x1000	/* LINSR_LINS_INITMODE */
+-	movz	w17, #0xF000	/* LINSR_LINS_MASK */
+-wait_init_mode:
+-	ldr	w6, [x0, #S32G_LINFLEX_LINSR]
+-	and	w6, w6, w17
+-	eor	w6, w6, w16
+-	cbnz	w6, wait_init_mode
+-
+-	/* Set UART bit */
+-	movz	w16, #0x1	/* UARTCR_UART */
+-	str	w16, [x0, #S32G_LINFLEX_UARTCR]
+-
+-	/* hard-coded linflexd_serial_setbrg() result,
+-	 * working with UARTCR[ROSE]=0
+-	 * FIXME: real implementation needed */
+-	movz	w16, #72		/* ibr */
+-	str	w16, [x0, #S32G_LINFLEX_LINIBRR]
+-	movz	w16, #5		/* fbr */
+-	str	w16, [x0, #S32G_LINFLEX_LINFBRR]
+-
+-	/* Set preset timeout register value. */
+-	movz	w16, #0xf
+-	str	w16, [x0, #S32G_LINFLEX_UARTPTO]
+-
+-	/* 8-bit data, no parity, Tx/Rx enabled, UART mode */
+-	movz	w16, #0x40	/* UARTCR_PC1 */
+-	movz	w17, #0x20	/* UARTCR_RXEN */
+-	orr	w16, w16, w17
+-	movz	w17, #0x10	/* UARTCR_TXEN */
+-	orr	w16, w16, w17
+-	movz	w17, #0x8	/* UARTCR_PC0 */
+-	orr	w16, w16, w17
+-	movz	w17, #0x2	/* UARTCR_WL0 */
+-	orr	w16, w16, w17
+-	movz    w17, #0x1       /* UARTCR_UART */
+-	orr     w16, w16, w17
+-	movz	w17, #0x200	/* UARTCR_RFBM */
+-	orr	w16, w16, w17
+-	movz	w17, #0x100	/* UARTCR_TFBM */
+-	orr	w16, w16, w17
+-	str	w16, [x0, #S32G_LINFLEX_UARTCR]
+-
+-	ldr	w16, [x0, #S32G_LINFLEX_LINCR1]
+-	movz	w17, #0x1	/* LINCR1_INIT */
+-	orn	w16, w17, w16
+-	movz	w17, 0xFFFF
+-	eor	w16, w16, w17
+-	str	w16, [x0, #S32G_LINFLEX_LINCR1]
+-
+-	/* prepare to finish console registration */
+-	mov	x0, x3
+-	mov	x30, x7
+-	finish_console_register s32g
+-
+-	movz	w0, 1
+-	ret
+-endfunc console_s32g_register
+-
+-/* In:  w0 - character to be printed
+- *      x1 - pointer to the console_s32g structure (FIXME: currently ignored)
+- * Out: w0 - printed character on success, < 0 on error
+- * Clobber list: x0,x1,x2,x5,x6
+- */
+-func console_s32g_putc
+-	/* FIXME: Do not hardcode the UART base addr; instead, pass it via the
+-	          console struct */
+-	/* S32G_UART_BASE */
+-	movz	x6, #0x401C, lsl #16
+-	movk	x6, #0x8000
+-
+-	/* if c == '\n', also put a '\r' beforehand */
+-	movz	w2, #0
+-	cmp	w0, #0xA
+-	b.ne	putc_this
+-
+-	mov	w2, w0
+-	movz	w0, #0xD
+-putc_this:
+-tx_fifo_full:
+-	ldr	w5, [x6, #S32G_LINFLEX_UARTSR]
+-	tbnz	w5, #1, tx_fifo_full	/* UARTSR_DTFTFF */
+-	strb	w0, [x6, #S32G_LINFLEX_BDRL]
+-
+-	cbz	w2, done
+-	mov	w0, w2
+-	movz	w2, #0
+-	b	putc_this
+-done:
+-	ret
+-endfunc console_s32g_putc
+-
+-func console_s32g_flush
+-	ret
+-endfunc console_s32g_flush
+diff --git a/plat/s32g/mc.c b/plat/s32g/s32g_mc_me.c
+similarity index 99%
+rename from plat/s32g/mc.c
+rename to plat/s32g/s32g_mc_me.c
+index 28036893d..7555272a2 100644
+--- a/plat/s32g/mc.c
++++ b/plat/s32g/s32g_mc_me.c
+@@ -6,8 +6,7 @@
+ #include <utils_def.h>
+ #include <lib/mmio.h>
+ #include <common/debug.h>
+-#include "mc.h"
+-
++#include "s32g_mc_me.h"
+ 
+ void plat_secondary_cold_boot_setup(void);
+ 
+-- 
+2.17.1
+

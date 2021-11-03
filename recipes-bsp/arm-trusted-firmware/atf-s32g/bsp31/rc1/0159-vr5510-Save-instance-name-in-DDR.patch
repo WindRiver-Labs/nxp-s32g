@@ -1,0 +1,51 @@
+From 57c7b85139428a4ce044b8ef469d82191b158a8e Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 15 Jul 2020 06:42:54 +0300
+Subject: [PATCH 159/269] vr5510: Save instance name in DDR
+
+Previous implementation used a FDT pointer as instance name.
+The name became a broken pointer after first resume because the
+FDT was stored in SRAM.
+
+Issue: ALB-4910
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/pmic/vr5510.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/nxp/s32g/pmic/vr5510.c b/drivers/nxp/s32g/pmic/vr5510.c
+index 181d49fc6..7d231ac84 100644
+--- a/drivers/nxp/s32g/pmic/vr5510.c
++++ b/drivers/nxp/s32g/pmic/vr5510.c
+@@ -38,12 +38,13 @@
+ 
+ #define VR5510_ADDRESS_LENGTH		1
+ 
+-#define MAX_VR5510_INSTANCES 2
++#define MAX_VR5510_INSTANCES	2
++#define MAX_NAME_LEN		30
+ 
+ struct vr5510_inst {
+ 	struct dt_node_info dt_info;
+ 	struct s32g_i2c_bus *bus;
+-	const char *name;
++	char name[MAX_NAME_LEN];
+ 	int fdt_offset;
+ 	uint8_t chip;
+ };
+@@ -225,7 +226,8 @@ int vr5510_register_instance(void *fdt, int fdt_offset,
+ 	}
+ 
+ 	inst->chip = fdt32_to_cpu(*reg_ptr);
+-	inst->name = fdt_get_name(fdt, fdt_offset, NULL);
++	strlcpy(inst->name, fdt_get_name(fdt, fdt_offset, NULL),
++		sizeof(inst->name));
+ 	inst->bus = bus;
+ 	inst->fdt_offset = fdt_offset;
+ 
+-- 
+2.17.1
+

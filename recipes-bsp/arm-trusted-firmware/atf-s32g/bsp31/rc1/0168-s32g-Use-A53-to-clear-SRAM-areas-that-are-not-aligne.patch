@@ -1,0 +1,183 @@
+From 3de85ddabcc5ac2bbfe96640ff0e2901914fae15 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 22 Jul 2020 16:27:18 +0300
+Subject: [PATCH 168/269] s32g: Use A53 to clear SRAM areas that are not
+ aligned to 512 bytes
+
+Issue: ALB-5301
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_sramc.h   |  1 +
+ plat/nxp/s32g/s32g_lowlevel_bl2.S    | 10 ++--
+ plat/nxp/s32g/s32g_lowlevel_common.S | 80 +++++++++++++++++++++++++---
+ 3 files changed, 77 insertions(+), 14 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/s32g_sramc.h b/plat/nxp/s32g/include/s32g_sramc.h
+index ebb784def..03d57aff2 100644
+--- a/plat/nxp/s32g/include/s32g_sramc.h
++++ b/plat/nxp/s32g/include/s32g_sramc.h
+@@ -11,6 +11,7 @@
+ /* SRAM controller is able to erase 64 bits at once */
+ #define SRAM_BLOCK		512
+ #define SRAM_BLOCK_MASK		(SRAM_BLOCK - 1)
++#define SRAM_INV_BLOCK_MASK	(~(SRAM_BLOCK_MASK))
+ 
+ #define SRAMC0_BASE_ADDR	0x4019C000
+ #define SRAMC0_BASE_ADDD_H	(SRAMC0_BASE_ADDR >> 16)
+diff --git a/plat/nxp/s32g/s32g_lowlevel_bl2.S b/plat/nxp/s32g/s32g_lowlevel_bl2.S
+index 1dd6c35e2..4f8a2666d 100644
+--- a/plat/nxp/s32g/s32g_lowlevel_bl2.S
++++ b/plat/nxp/s32g/s32g_lowlevel_bl2.S
+@@ -15,9 +15,9 @@
+ .globl plat_secondary_cold_boot_setup
+ .globl s32g_ncore_isol_cluster0
+ 
+-/* Clobber list: x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12 */
++/* Clobber list: x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16 */
+ func plat_reset_handler
+-	mov	x12, x30
++	mov	x16, x30
+ 
+ 	/* Ncore quirks */
+ 	bl	s32g_ncore_isol_cluster0
+@@ -29,10 +29,6 @@ func plat_reset_handler
+ 	ldr	x0,=__STACKS_START__
+ 	ldr	x1,=__BL2_END__
+ 
+-	/* Roundup to first multiple of 512 */
+-	orr	x1, x1, #SRAM_BLOCK_MASK
+-	add	x1, x1, #1
+-
+ 	/* To bus addresses */
+ 	mov	x2, #S32G_SRAM_BASE
+ 	sub	x0, x0, x2
+@@ -40,7 +36,7 @@ func plat_reset_handler
+ 
+ 	bl	_s32g_sram_clr
+ 
+-	mov	x30, x12
++	mov	x30, x16
+ 	ret
+ endfunc plat_reset_handler
+ 
+diff --git a/plat/nxp/s32g/s32g_lowlevel_common.S b/plat/nxp/s32g/s32g_lowlevel_common.S
+index 61e5cd465..9856018dd 100644
+--- a/plat/nxp/s32g/s32g_lowlevel_common.S
++++ b/plat/nxp/s32g/s32g_lowlevel_common.S
+@@ -139,14 +139,80 @@ wait_init:
+ endfunc clear_sramc_range
+ 
+ /* x0: start address of memory area to clear
+- * x1: size of memory area to clear
++ * x1: end address of memory area to clear
++ *
++ * Clobber list: x0,x1,x9,x10
++ */
++func a53_sram_clr
++	mov	x10, #0x0
++	cmp	x1, x0
++	bgt	pos_step
++	mov	x9, #-8
++	b	clr_loop
++pos_step:
++	mov	x9, #8
++clr_loop:
++	cmp	x1, x0
++	beq	finish
++	str	x10, [x0]
++	add	x0, x0, x9
++	b	clr_loop
++finish:
++	ret
++endfunc a53_sram_clr
++
++func clear_unaligned_ends
++	/* Save x30 */
++	mov	x12, x30
++	/*
++	 * Obtain SRAM addresses
++	 */
++	mov	x9, #S32G_SRAM_BASE
++	add	x11, x1, x9
++	add	x9, x0, x9
++
++	and	x1, x9, #SRAM_INV_BLOCK_MASK
++	cmp	x1, x9
++	beq	clear_end
++	add	x1, x1, SRAM_BLOCK
++	mov	x0, x9
++	bl	a53_sram_clr
++
++clear_end:
++	and	x0, x11, #SRAM_INV_BLOCK_MASK
++	cmp	x0, x11
++	beq	clr_exit
++	mov	x1, x11
++	bl	a53_sram_clr
++clr_exit:
++	mov	x30, x12
++	ret
++endfunc clear_unaligned_ends
++
++/* x0: start address of memory area to clear
++ * x1: end address of memory area to clear
+  * x0: return 0 on error or size of memory cleared on success
+  *
+- * Clobber list: x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x11
++ * Clobber list: x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x11,x12,x13,x14,x15
+  */
+ func _s32g_sram_clr
+ 	/* Save x30 */
+-	mov	x11, x30
++	mov	x15, x30
++
++	mov	x13, x0
++	mov	x14, x1
++	bl	clear_unaligned_ends
++	mov	x0, x13
++	mov	x1, x14
++
++	/* Align to SRAM blocks */
++	and	x9, x0, #SRAM_INV_BLOCK_MASK
++	cmp	x0, x9
++	beq	align_high_addr
++	add	x0, x9, SRAM_BLOCK
++
++align_high_addr:
++	and	x1, x1, #SRAM_INV_BLOCK_MASK
+ 
+ 	sub	x1, x1, #1
+ 	/* Low address */
+@@ -180,7 +246,7 @@ check_sramc1:
+ 	mov	x3, x8
+ 	bl	in_overlap
+ 	cbnz	x0, init_sramc1
+-	b	exit
++	b	sram_exit
+ 
+ init_sramc0:
+ 	mov	x0, #SRAMC0_BASE_ADDD_L
+@@ -212,14 +278,14 @@ init_sramc1:
+ 
+ 	mov	x0, #0
+ 
+-exit:
++sram_exit:
+ 	/* Restore x30 */
+-	mov	x30, x11
++	mov	x30, x15
+ 	ret
+ 
+ error:
+ 	/* Restore x30 */
+-	mov	x30, x11
++	mov	x30, x15
+ 	mov	x0, #-1
+ 	ret
+ endfunc _s32g_sram_clr
+-- 
+2.17.1
+

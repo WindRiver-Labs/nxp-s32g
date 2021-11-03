@@ -1,0 +1,63 @@
+From 751423fa0cc96c4ff004d90f2b252a71d01089f5 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Fri, 14 Feb 2020 23:04:00 +0200
+Subject: [PATCH 109/269] s32g274a: Revert "s32g274a: Define
+ HW_ASSISTED_COHERENCY"
+
+Turns out that HW_ASSISTED_COHERENCY causes the PSCI_CPU_OFF call to
+crash because of the following scenario:
+
+psci_do_pwrdown_sequence
+    enters with caches enabled
+    pushes X30 onto the stack
+    calls prepare_cpu_pwr_dwn
+	prepare_cpu_pwr_dwn
+	    calls cortex_a53_core_pwr_dwn
+		cortex_a53_core_pwr_dwn
+		    disables dcache on the current core
+		    cleans and invalidate L1 cache
+		    disables SMPEN bit
+		    (...as per the procedure described in the
+		    A53 reference manual (DDI0500D), "Individual
+		    core shutdown mode")
+		    ret
+	    ret
+	ret
+    pops X30 from the stack
+    return
+
+Note that at the time when X30 was last pushed onto the stack, caches
+were enabled. At the time when it is popped, caches are disabled, but
+only L1 has been cleaned. The manual procedure does not specify that the
+clean must be to the PoC (Point of Coherency). As such, X30 may not have
+been flushed all the way to the main memory, which remained incoherent.
+Function psci_do_pwrdown_sequence() will return to an invalid address
+and crash.
+
+This reverts commit 4a4c315c70377eb910058a741e9004b9600ecaaf.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4909
+---
+ plat/s32g/platform.mk | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 4c1d7ef72..d0211a74d 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -102,8 +102,6 @@ RESET_TO_BL31			:= 0
+ # We need SMP boot in order to make specific initializations such as
+ # secure GIC registers, which U-Boot and then Linux won't be able to.
+ COLD_BOOT_SINGLE_CPU		:= 0
+-# Using Ncore as the cache coherency interconnect
+-HW_ASSISTED_COHERENCY		:= 1
+ 
+ ### Platform-specific defines ###
+ # Which LinFlexD to use as a UART device
+-- 
+2.17.1
+

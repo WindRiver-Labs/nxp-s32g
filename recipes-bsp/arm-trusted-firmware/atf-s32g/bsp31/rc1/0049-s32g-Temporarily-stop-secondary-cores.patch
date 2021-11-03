@@ -1,0 +1,35 @@
+From c7ebd899ea27e91244af1bd2414125e24d9d0218 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 8 Jan 2020 12:43:41 +0200
+Subject: [PATCH 049/269] s32g: Temporarily stop secondary cores
+
+Prevent secondaries from advancing through BL31 stage, to allow
+debugging of SMP boot issue.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4497
+---
+ plat/s32g/bl31_lowlevel.S | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/plat/s32g/bl31_lowlevel.S b/plat/s32g/bl31_lowlevel.S
+index 9b0969834..315ec15bb 100644
+--- a/plat/s32g/bl31_lowlevel.S
++++ b/plat/s32g/bl31_lowlevel.S
+@@ -127,6 +127,10 @@ endfunc s32g_gic_fixups_for_secondary
+ 
+ 
+ func plat_secondary_cold_boot_setup
++	/* FIXME temporarily prevent the secondaries from progressing, to
++	 * allow SMP boot debugging
++	 */
++	b	.
+ 	bl	s32g_gic_fixups_for_secondary
+ 	bl	plat_my_core_pos
+ 	lsl	x0, x0, #2	/* array elements are of size 32-bit*/
+-- 
+2.17.1
+

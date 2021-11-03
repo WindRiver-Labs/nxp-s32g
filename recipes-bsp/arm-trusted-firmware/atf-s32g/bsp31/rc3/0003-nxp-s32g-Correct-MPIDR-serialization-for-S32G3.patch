@@ -1,0 +1,106 @@
+From 10898bda994f922a05cfd6c12e8c727920a0206d Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Date: Fri, 17 Sep 2021 09:02:40 +0300
+Subject: [PATCH 03/24] nxp/s32g: Correct MPIDR serialization for S32G3
+
+Issue: ALB-7714
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_platform_def.h  | 11 -----------
+ plat/nxp/s32g/s32g2/include/platform_def.h |  9 +++++++++
+ plat/nxp/s32g/s32g3/include/platform_def.h | 13 +++++++++++++
+ plat/nxp/s32g/s32g_lowlevel_common.S       |  3 +--
+ 4 files changed, 23 insertions(+), 13 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/s32g_platform_def.h b/plat/nxp/s32g/include/s32g_platform_def.h
+index 59a634acb..a0584dfc9 100644
+--- a/plat/nxp/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32g/include/s32g_platform_def.h
+@@ -17,17 +17,6 @@
+ 
+ #define SIZE_1M		(0x100000)
+ 
+-/* MPIDR_EL1 for the four A53 cores is as follows:
+- *	A53_0_cpu0:	0x8000_0000
+- *	A53_0_cpu1:	0x8000_0001
+- *	A53_0_cpu2:	0x8000_0002
+- *	A53_0_cpu3:	0x8000_0003
+- *	A53_1_cpu0:	0x8000_0100
+- *	A53_1_cpu1:	0x8000_0101
+- *	A53_1_cpu2:	0x8000_0102
+- *	A53_1_cpu3:	0x8000_0103
+- */
+-#define S32G_MPIDR_CPU_MASK		0xFF
+ #define S32G_MPIDR_CPU_CLUSTER_MASK	0xFFF
+ /* Cluster mask is the most significant 0xF from the CPU_CLUSTER_MASK */
+ #define S32G_MPIDR_CLUSTER_SHIFT	U(8)
+diff --git a/plat/nxp/s32g/s32g2/include/platform_def.h b/plat/nxp/s32g/s32g2/include/platform_def.h
+index 98fade658..2daa88b55 100644
+--- a/plat/nxp/s32g/s32g2/include/platform_def.h
++++ b/plat/nxp/s32g/s32g2/include/platform_def.h
+@@ -10,5 +10,14 @@
+ 
+ #define PLATFORM_CORE_COUNT		4
+ 
++/* MPIDR_EL1 for the four A53 cores is as follows:
++ *	A53_0_cpu0:	0x8000_0000
++ *	A53_0_cpu1:	0x8000_0001
++ *	A53_1_cpu0:	0x8000_0100
++ *	A53_1_cpu1:	0x8000_0101
++ */
++#define S32G_MPIDR_CPU_MASK		0x1
++#define S32G_MPIDR_CPU_MASK_BITS	0x1
++
+ #endif /* PLATFORM_DEF_H */
+ 
+diff --git a/plat/nxp/s32g/s32g3/include/platform_def.h b/plat/nxp/s32g/s32g3/include/platform_def.h
+index 87c8c472f..66eb76192 100644
+--- a/plat/nxp/s32g/s32g3/include/platform_def.h
++++ b/plat/nxp/s32g/s32g3/include/platform_def.h
+@@ -10,6 +10,19 @@
+ 
+ #define PLATFORM_CORE_COUNT		8
+ 
++/* MPIDR_EL1 for the four A53 cores is as follows:
++ *	A53_0_cpu0:	0x8000_0000
++ *	A53_0_cpu1:	0x8000_0001
++ *	A53_0_cpu2:	0x8000_0002
++ *	A53_0_cpu3:	0x8000_0003
++ *	A53_1_cpu0:	0x8000_0100
++ *	A53_1_cpu1:	0x8000_0101
++ *	A53_1_cpu2:	0x8000_0102
++ *	A53_1_cpu3:	0x8000_0103
++ */
++#define S32G_MPIDR_CPU_MASK		0x3
++#define S32G_MPIDR_CPU_MASK_BITS	0x2
++
+ 
+ #endif /* PLATFORM_DEF_H */
+ 
+diff --git a/plat/nxp/s32g/s32g_lowlevel_common.S b/plat/nxp/s32g/s32g_lowlevel_common.S
+index b305d4374..5bd765441 100644
+--- a/plat/nxp/s32g/s32g_lowlevel_common.S
++++ b/plat/nxp/s32g/s32g_lowlevel_common.S
+@@ -70,7 +70,7 @@ func s32g_core_pos_by_mpidr
+ 	and	x0, x0, #S32G_MPIDR_CPU_CLUSTER_MASK
+ 	and	x1, x0, #S32G_MPIDR_CPU_MASK
+ 	lsr	x0, x0, #S32G_MPIDR_CLUSTER_SHIFT
+-	add	x0, x1, x0, lsl #1
++	add	x0, x1, x0, lsl #S32G_MPIDR_CPU_MASK_BITS
+ 	ret
+ endfunc s32g_core_pos_by_mpidr
+ 
+@@ -78,7 +78,6 @@ endfunc s32g_core_pos_by_mpidr
+ /* Clobber list: x7 */
+ func plat_core_pos_by_mpidr
+ 	mov	x7, x30
+-	/* TODO validate MPIDR */
+ 	bl	s32g_core_pos_by_mpidr
+ 	mov	x30, x7
+ 	ret
+-- 
+2.17.1
+

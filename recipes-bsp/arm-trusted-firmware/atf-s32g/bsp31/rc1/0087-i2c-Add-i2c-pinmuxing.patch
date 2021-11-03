@@ -1,0 +1,234 @@
+From fbe624134329f41d37aaa4fda94f6d2db36a1c70 Mon Sep 17 00:00:00 2001
+From: Larisa <larisa.grigore@nxp.com>
+Date: Tue, 14 Apr 2020 16:13:50 +0300
+Subject: [PATCH 087/269] i2c: Add i2c pinmuxing
+
+Issue: ALB-4871
+Upstream-Status: Pending 
+
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/s32g_pinctrl.h | 123 ++++++++++++++++++++++++++++++-
+ plat/s32g/s32g_pinctrl.c         |  45 ++++++++++-
+ 2 files changed, 166 insertions(+), 2 deletions(-)
+
+diff --git a/plat/s32g/include/s32g_pinctrl.h b/plat/s32g/include/s32g_pinctrl.h
+index af0c87c10..1d8c23a36 100644
+--- a/plat/s32g/include/s32g_pinctrl.h
++++ b/plat/s32g/include/s32g_pinctrl.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -23,6 +23,7 @@
+ #define SIUL2_1_IMCRn(i)	(SIUL2_1_IMCR_BASE +  4 * (i - 119))
+ 
+ #define SIUL2_MSCR_S32_G1_SRC_100MHz            (5 << 14)
++#define SIUL2_MSCR_S32_G1_ODE_EN		BIT(20)
+ #define SIUL2_MSCR_S32_G1_OBE_EN		BIT(21)
+ #define SIUL2_MSCR_S32_G1_IBE_EN		BIT(19)
+ #define SIUL2_MSCR_S32_G1_PUE_EN		BIT(13)
+@@ -31,6 +32,9 @@
+ #define SIUL2_MSCR_MUX_MODE_ALT0		(0x0)
+ #define SIUL2_MSCR_MUX_MODE_ALT1		(0x1)
+ #define SIUL2_MSCR_MUX_MODE_ALT2		(0x2)
++#define SIUL2_MSCR_MUX_MODE_ALT3		(0x3)
++#define SIUL2_MSCR_MUX_MODE_ALT4		(0x4)
++#define SIUL2_MSCR_MUX_MODE_ALT5		(0x5)
+ 
+ /*
+  * Pinctrl for LinFlexD-UART
+@@ -80,6 +84,123 @@
+ 	 SIUL2_MSCR_S32_G1_SMC_DIS | \
+ 	 SIUL2_MSCR_MUX_MODE_ALT1)
+ 
++/*
++ * Pinctrl for I2C
++ */
++#define SIUL2_MSCR_S32G_PB_00   16
++#define SIUL2_MSCR_S32G_PB_01   17
++#define SIUL2_MSCR_S32G_PB_03   19
++#define SIUL2_MSCR_S32G_PB_04   20
++#define SIUL2_MSCR_S32G_PB_05   21
++#define SIUL2_MSCR_S32G_PB_06   22
++#define SIUL2_MSCR_S32G_PB_07   23
++#define SIUL2_MSCR_S32G_PB_13   29
++#define SIUL2_MSCR_S32G_PB_15   31
++#define SIUL2_MSCR_S32G_PC_00   32
++#define SIUL2_MSCR_S32G_PC_01   33
++#define SIUL2_MSCR_S32G_PC_02   34
++#define SIUL2_MSCR_S32G_PK_03   163
++#define SIUL2_MSCR_S32G_PK_05   165
++#define SIUL2_PB_00_IMCR_S32G_I2C0_SDA  (565 - 512)
++#define SIUL2_PB_01_IMCR_S32G_I2C0_SCLK (566 - 512)
++#define SIUL2_PB_03_IMCR_S32G_I2C1_SCLK (717 - 512)
++#define SIUL2_PB_04_IMCR_S32G_I2C1_SDA  (718 - 512)
++#define SIUL2_PK_03_IMCR_S32G_I2C1_SCLK (717 - 512)
++#define SIUL2_PK_05_IMCR_S32G_I2C1_SDA  (718 - 512)
++#define SIUL2_PB_05_IMCR_S32G_I2C2_SCLK (719 - 512)
++#define SIUL2_PB_06_IMCR_S32G_I2C2_SDA  (720 - 512)
++#define SIUL2_PB_07_IMCR_S32G_I2C3_SCLK (721 - 512)
++#define SIUL2_PB_13_IMCR_S32G_I2C3_SDA  (722 - 512)
++#define SIUL2_PC_01_IMCR_S32G_I2C4_SDA  (724 - 512)
++#define SIUL2_PC_02_IMCR_S32G_I2C4_SCLK (723 - 512)
++#define SIUL2_PB_15_IMCR_S32G_I2C1_SDA  (565 - 512)
++#define SIUL2_PC_00_IMCR_S32G_I2C1_SCLK (566 - 512)
++
++#define SIUL2_MSCR_S32G_I2C_SDA \
++	(SIUL2_MSCR_S32_G1_OBE_EN | \
++	 SIUL2_MSCR_S32_G1_IBE_EN | \
++	 SIUL2_MSCR_S32_G1_ODE_EN)
++
++#define SIUL2_MSCR_S32G_I2C_SCLK \
++	(SIUL2_MSCR_S32_G1_OBE_EN | \
++	 SIUL2_MSCR_S32_G1_IBE_EN | \
++	 SIUL2_MSCR_S32_G1_ODE_EN)
++
++/* I2C0 - Serial Data Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SDA \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SDA_ALT2 \
++	(SIUL2_MSCR_MUX_MODE_ALT2 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SDA (SIUL2_MSCR_MUX_MODE_ALT2)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SDA_ALT3 (SIUL2_MSCR_MUX_MODE_ALT3)
++
++/* I2C0 - Serial Clock Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SCLK \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SCLK)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SCLK (SIUL2_MSCR_MUX_MODE_ALT2)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SCLK_ALT3 (SIUL2_MSCR_MUX_MODE_ALT3)
++
++/* I2C1 - Serial Data Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SDA \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SDA_ALT3 \
++	(SIUL2_MSCR_MUX_MODE_ALT3 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SDA (SIUL2_MSCR_MUX_MODE_ALT2)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SDA_ALT4 (SIUL2_MSCR_MUX_MODE_ALT4)
++
++/* I2C1 - Serial Clock Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SCLK \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SCLK)
++
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SCLK_ALT3 \
++	(SIUL2_MSCR_MUX_MODE_ALT3 | \
++	 SIUL2_MSCR_S32G_I2C_SCLK)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SCLK (SIUL2_MSCR_MUX_MODE_ALT2)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SCLK_ALT5 (SIUL2_MSCR_MUX_MODE_ALT5)
++
++/* I2C2 - Serial Data Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C2_SDA \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C2_SDA (SIUL2_MSCR_MUX_MODE_ALT2)
++
++/* I2C2 - Serial Clock Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C2_SCLK \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SCLK)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C2_SCLK (SIUL2_MSCR_MUX_MODE_ALT2)
++
++/* I2C3 - Serial Data Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C3_SDA \
++	(SIUL2_MSCR_MUX_MODE_ALT2 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C3_SDA (SIUL2_MSCR_MUX_MODE_ALT4)
++
++/* I2C3 - Serial Clock Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C3_SCLK \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SCLK)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C3_SCLK (SIUL2_MSCR_MUX_MODE_ALT2)
++
++/* I2C4 - Serial Data Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C4_SDA \
++	(SIUL2_MSCR_MUX_MODE_ALT1 | \
++	 SIUL2_MSCR_S32G_I2C_SDA)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SDA (SIUL2_MSCR_MUX_MODE_ALT3)
++
++/* I2C4 - Serial Clock Input */
++#define SIUL2_MSCR_S32G_PAD_CTRL_I2C4_SCLK \
++	(SIUL2_MSCR_MUX_MODE_ALT2 | \
++	 SIUL2_MSCR_S32G_I2C_SCLK)
++#define SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SCLK (SIUL2_MSCR_MUX_MODE_ALT3)
++
+ void s32g_plat_config_pinctrl(void);
+ 
+ #endif
+diff --git a/plat/s32g/s32g_pinctrl.c b/plat/s32g/s32g_pinctrl.c
+index 5d934ff0d..a29f9e7d3 100644
+--- a/plat/s32g/s32g_pinctrl.c
++++ b/plat/s32g/s32g_pinctrl.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -73,8 +73,51 @@ static void sdhc_config_pinctrl(void)
+ 	mmio_write_32(SIUL2_0_MSCRn(524), 0x2);
+ }
+ 
++static void i2c_config_pinctrl(void)
++{
++	/* Plaftorm board - PCI X16 Express (J99) */
++	/* I2C1 Serial Data Input */
++	mmio_write_32(SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_04),
++			SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SDA);
++	mmio_write_32(SIUL2_1_IMCRn(SIUL2_PB_04_IMCR_S32G_I2C1_SDA),
++			SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SDA);
++
++	/* I2C1 Serial Clock Input */
++	mmio_write_32(SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_03),
++			SIUL2_MSCR_S32G_PAD_CTRL_I2C1_SCLK);
++	mmio_write_32(SIUL2_1_IMCRn(SIUL2_PB_03_IMCR_S32G_I2C1_SCLK),
++			SIUL2_IMCR_S32G_PAD_CTRL_I2C1_SCLK);
++
++	/* EEPROM - AT24C01B */
++	/* I2C0 Serial Data Input */
++	mmio_write_32(SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_00),
++			SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SDA);
++	mmio_write_32(SIUL2_0_IMCRn(SIUL2_PB_00_IMCR_S32G_I2C0_SDA),
++			SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SDA);
++
++	/* I2C0 Serial Clock Input */
++	mmio_write_32(SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PB_01),
++			SIUL2_MSCR_S32G_PAD_CTRL_I2C0_SCLK);
++	mmio_write_32(SIUL2_0_IMCRn(SIUL2_PB_01_IMCR_S32G_I2C0_SCLK),
++			SIUL2_IMCR_S32G_PAD_CTRL_I2C0_SCLK);
++
++	/* PMIC - I2C4 */
++	/* I2C4 Serial Data Input */
++	mmio_write_32(SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PC_01),
++			SIUL2_MSCR_S32G_PAD_CTRL_I2C4_SDA);
++	mmio_write_32(SIUL2_1_IMCRn(SIUL2_PC_01_IMCR_S32G_I2C4_SDA),
++			SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SDA);
++
++	/* I2C4 Serial Clock Input */
++	mmio_write_32(SIUL2_0_MSCRn(SIUL2_MSCR_S32G_PC_02),
++			SIUL2_MSCR_S32G_PAD_CTRL_I2C4_SCLK);
++	mmio_write_32(SIUL2_1_IMCRn(SIUL2_PC_02_IMCR_S32G_I2C4_SCLK),
++			SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SCLK);
++}
++
+ void s32g_plat_config_pinctrl(void)
+ {
+ 	linflex_config_pinctrl(S32G_LINFLEX_MODULE);
+ 	sdhc_config_pinctrl();
++	i2c_config_pinctrl();
+ }
+-- 
+2.17.1
+

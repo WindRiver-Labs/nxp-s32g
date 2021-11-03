@@ -1,0 +1,107 @@
+From b6b3505e34bfd56f56598ad27b8196da2d6b5a2f Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 13 May 2020 03:04:46 +0300
+Subject: [PATCH 111/269] s32g274a: Fix panic printing
+
+Fix a number of errors in the panic printing code.
+Add a simple platform panic handler function.
+Use different clobber registers to avoid interfering with the TF-A core
+panic printing code.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4909
+---
+ plat/s32g/s32g_linflexuart.S     | 23 ++++++++++++++++-------
+ plat/s32g/s32g_lowlevel_common.S |  6 ++++++
+ 2 files changed, 22 insertions(+), 7 deletions(-)
+
+diff --git a/plat/s32g/s32g_linflexuart.S b/plat/s32g/s32g_linflexuart.S
+index 646f572cf..6efa09316 100644
+--- a/plat/s32g/s32g_linflexuart.S
++++ b/plat/s32g/s32g_linflexuart.S
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -17,12 +17,21 @@
+ .globl plat_crash_console_putc
+ 
+ func plat_crash_console_init
++	ret
+ endfunc plat_crash_console_init
+ 
+ func plat_crash_console_flush
++	mov	x17, x30
++	bl	console_s32g_flush
++	mov	x30, x17
++	ret
+ endfunc plat_crash_console_flush
+ 
+ func plat_crash_console_putc
++	mov	x17, x30
++	bl	console_s32g_putc
++	mov	x30, x17
++	ret
+ endfunc plat_crash_console_putc
+ 
+ /* int console_s32g_register(uintptr_t base,
+@@ -109,14 +118,14 @@ endfunc console_s32g_register
+ /* In:  w0 - character to be printed
+  *      x1 - pointer to the console_s32g structure (FIXME: currently ignored)
+  * Out: w0 - printed character on success, < 0 on error
+- * Clobber list: x0,x1,x2,x5,x6
++ * Clobber list: x0,x1,x2,x16,x21
+  */
+ func console_s32g_putc
+ 	/* FIXME: Do not hardcode the UART base addr; instead, pass it via the
+ 	          console struct */
+ 	/* S32G_UART_BASE */
+-	movz	x6, #0x401C, lsl #16
+-	movk	x6, #0x8000
++	movz	x16, #0x401C, lsl #16
++	movk	x16, #0x8000
+ 
+ 	/* if c == '\n', also put a '\r' beforehand */
+ 	movz	w2, #0
+@@ -127,9 +136,9 @@ func console_s32g_putc
+ 	movz	w0, #0xD
+ putc_this:
+ tx_fifo_full:
+-	ldr	w5, [x6, #S32G_LINFLEX_UARTSR]
+-	tbnz	w5, #1, tx_fifo_full	/* UARTSR_DTFTFF */
+-	strb	w0, [x6, #S32G_LINFLEX_BDRL]
++	ldr	w21, [x16, #S32G_LINFLEX_UARTSR]
++	tbnz	w21, #1, tx_fifo_full	/* UARTSR_DTFTFF */
++	strb	w0, [x16, #S32G_LINFLEX_BDRL]
+ 
+ 	cbz	w2, done
+ 	mov	w0, w2
+diff --git a/plat/s32g/s32g_lowlevel_common.S b/plat/s32g/s32g_lowlevel_common.S
+index 4118541e1..0e41db751 100644
+--- a/plat/s32g/s32g_lowlevel_common.S
++++ b/plat/s32g/s32g_lowlevel_common.S
+@@ -12,9 +12,15 @@
+ .globl plat_is_my_cpu_primary
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
++.globl plat_panic_handler
+ .globl dma_mem_clr
+ .globl sram_clr
+ 
++func plat_panic_handler
++	wfi
++	b	plat_panic_handler
++endfunc plat_panic_handler
++
+ /* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+  * This is so cache invalidate operations from the early TF-A boot code
+  * won't cause Ncore to crash.
+-- 
+2.17.1
+

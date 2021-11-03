@@ -1,0 +1,446 @@
+From 4785ddad1f6957e9d4805641a9561967e130e747 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Wed, 22 Jan 2020 16:16:40 +0200
+Subject: [PATCH 059/269] s32g274a: pm: Add clock gating support for
+ peripherals
+
+Issue: ALB-4546
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h |   6 +-
+ plat/s32g/include/s32g274a_pm.h  |  50 +++++++
+ plat/s32g/include/s32g_clocks.h  |  16 +-
+ plat/s32g/platform.mk            |   3 +-
+ plat/s32g/s32g274a_pm.c          | 242 +++++++++++++++++++++++++++++++
+ plat/s32g/s32g275_bl31.c         |  10 +-
+ 6 files changed, 321 insertions(+), 6 deletions(-)
+ create mode 100644 plat/s32g/include/s32g274a_pm.h
+ create mode 100644 plat/s32g/s32g274a_pm.c
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index f0ddc56f2..e6a682a4a 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -146,8 +146,8 @@
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+ /* To limit usage, keep these in sync with sizeof(s32g_mmap) */
+-#define MAX_MMAP_REGIONS		9
+-#define MAX_XLAT_TABLES			9
++#define MAX_MMAP_REGIONS		10
++#define MAX_XLAT_TABLES			10
+ #endif
+ #if defined IMAGE_BL33
+ #pragma warning "BL33 image is being built; you should configure it out."
+diff --git a/plat/s32g/include/s32g274a_pm.h b/plat/s32g/include/s32g274a_pm.h
+new file mode 100644
+index 000000000..d0ca25c5d
+--- /dev/null
++++ b/plat/s32g/include/s32g274a_pm.h
+@@ -0,0 +1,50 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#ifndef S32G274A_PM_H
++#define S32G274A_PM_H
++
++#include <stdint.h>
++#include "s32g_clocks.h"
++
++enum periph_clock_id {
++	CLKOUT0,
++	CLKOUT1,
++	PCIE_0_REF_CLK,
++	PER_CLK,
++	FTM_0_REF_CLK,
++	FTM_1_REF_CLK,
++	FLEXRAY_PE_CLK,
++	CAN_PE_CLK,
++	LINFLEXD_CLK__LIN_BAUD_CLK,
++	GMAC_TS_CLK,
++	GMAC_0_TX_CLK,
++	GMAC_0_RX_CLK,
++	GMAC_0_REF_DIV_CLK,
++	SPI_CLK,
++	QSPI_1X_CLK__QSPI_2X_CLK,
++	SDHC_CLK
++};
++
++struct periph_clock {
++	enum periph_clock_id id;
++	uintptr_t cgm_mux_dc;
++	uintptr_t cgm_mux_div_upd_stat;
++	uintptr_t cgm_mux_csc;
++	uintptr_t plldig_pllodiv;
++	uintptr_t dfs_portreset;
++	uint8_t dfs_portreset_bitmask;
++};
++
++enum req_clk_state {
++	CLK_OFF,
++	CLK_ON
++};
++
++void periph_clock_ctrl(enum periph_clock_id id,
++		       enum req_clk_state req_clk_state);
++
++#endif /* S32G274A_PM_H */
+diff --git a/plat/s32g/include/s32g_clocks.h b/plat/s32g/include/s32g_clocks.h
+index 7c681d25a..5efcf6e45 100644
+--- a/plat/s32g/include/s32g_clocks.h
++++ b/plat/s32g/include/s32g_clocks.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -277,17 +277,31 @@ enum s32g_mc_cgm {
+ 
+ #define CGM_MUXn_CSC(cgm_addr, mux)	(((cgm_addr) + 0x300 + (mux) * 0x40))
+ #define CGM_MUXn_CSS(cgm_addr, mux)	(((cgm_addr) + 0x304 + (mux) * 0x40))
++#define CGM_MUXn_DCn(cgm_addr, mux, dc)		\
++			(((cgm_addr) + 0x308 + (mux) * 0x40 + (dc) * 0x4))
++#define CGM_MUXn_DIV_UPD_STAT(cgm_addr, mux)	\
++			(((cgm_addr) + 0x33c + (mux) * 0x40))
++
++#define CGM0_MUXn_CSC(mux)	(CGM_MUXn_CSC(MC_CGM0_BASE_ADDR, mux))
++#define CGM0_MUXn_DCn(mux, dc)	(CGM_MUXn_DCn(MC_CGM0_BASE_ADDR, mux, dc))
++#define CGM0_MUXn_DIV_UPD_STAT(mux)	\
++			(CGM_MUXn_DIV_UPD_STAT(MC_CGM0_BASE_ADDR, mux))
++
+ #define MC_CGM_MUXn_CSC_SELCTL(val)	\
+ 	(MC_CGM_MUXn_CSC_SELCTL_MASK & ((val) << MC_CGM_MUXn_CSC_SELCTL_OFFSET))
+ #define MC_CGM_MUXn_CSS_SWTRG(css)	\
+ 	((MC_CGM_MUXn_CSS_SWTRG_MASK & (css)) >> MC_CGM_MUXn_CSS_SWTRG_OFFSET)
+ #define MC_CGM_MUXn_CSS_SELSTAT(css)	((MC_CGM_MUXn_CSS_SELSTAT_MASK & (css))\
+ 					>> MC_CGM_MUXn_CSS_SELSTAT_OFFSET)
++#define MUXn_DCn_DE			BIT(31)
++#define DIV_UPD_STAT_DIV_STAT		BIT(0)
+ 
+ #define MC_CGM_MUXn_CSC_SEL_CORE_PLL_FIRC	0
+ #define MC_CGM_MUXn_CSC_SEL_CORE_PLL_PHI0	4
+ #define MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI3	21
+ #define MC_CGM_MUXn_CSC_SEL_DDR_PLL_PHI0	36
++#define MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI0	18
++#define MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI7	25
+ 
+ void s32g_plat_clock_init(void);
+ 
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index b07d3406e..eec4fa734 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -1,5 +1,5 @@
+ #
+-# Copyright 2019 NXP
++# Copyright 2019-2020 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+@@ -41,6 +41,7 @@ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 
+ BL31_SOURCES		+= plat/s32g/s32g275_bl31.c \
+ 			   plat/s32g/s32g_psci.c \
++			   plat/s32g/s32g274a_pm.c \
+ 			   plat/common/plat_psci_common.c \
+ 			   plat/common/plat_gicv3.c \
+ 			   drivers/arm/gic/v3/gicv3_main.c \
+diff --git a/plat/s32g/s32g274a_pm.c b/plat/s32g/s32g274a_pm.c
+new file mode 100644
+index 000000000..4600fd349
+--- /dev/null
++++ b/plat/s32g/s32g274a_pm.c
+@@ -0,0 +1,242 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include "s32g274a_pm.h"
++#include <arch_helpers.h>
++#include <errno.h>
++#include <lib/mmio.h>
++#include <stdbool.h>
++
++static const struct periph_clock periph_clocks[] = {
++	{.id = CLKOUT0,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(1, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(1),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(1),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 0),
++	 .dfs_portreset =		DFS_PORTRESET(S32G_PERIPH_DFS),
++	 .dfs_portreset_bitmask =	BIT(1) | BIT(4)
++	},
++	{.id = CLKOUT1,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(2, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(2),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(2),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 0),
++	 .dfs_portreset =		DFS_PORTRESET(S32G_PERIPH_DFS),
++	 .dfs_portreset_bitmask =	BIT(1) | BIT(4)
++	},
++	{.id = PCIE_0_REF_CLK,
++	 .cgm_mux_dc =			(uintptr_t)NULL,
++	 .cgm_mux_csc =			(uintptr_t)NULL,
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 0),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = PER_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(3, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(3),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(3),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = FTM_0_REF_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(4, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(4),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(4),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = FTM_1_REF_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(5, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(5),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(5),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = FLEXRAY_PE_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(6, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(6),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(6),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = CAN_PE_CLK,
++	 .cgm_mux_dc =			(uintptr_t)NULL,
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(7),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 2),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = LINFLEXD_CLK__LIN_BAUD_CLK,
++	 .cgm_mux_dc =			(uintptr_t)NULL,
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(8),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 3),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = GMAC_TS_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(9, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(9),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(9),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 4),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = GMAC_0_TX_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(10, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(10),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(10),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 5),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = GMAC_0_RX_CLK,
++	 .cgm_mux_dc =			(uintptr_t)NULL,
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(11),
++	 .plldig_pllodiv =		(uintptr_t)NULL,
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = GMAC_0_REF_DIV_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(15, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(15),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(15),
++	 .plldig_pllodiv =		(uintptr_t)NULL,
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = SPI_CLK,
++	 .cgm_mux_dc =			(uintptr_t)NULL,
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(16),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 7),
++	 .dfs_portreset =		(uintptr_t)NULL
++	},
++	{.id = QSPI_1X_CLK__QSPI_2X_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(12, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(12),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(12),
++	 .plldig_pllodiv =		(uintptr_t)NULL,
++	 .dfs_portreset =		DFS_PORTRESET(S32G_PERIPH_DFS),
++	 .dfs_portreset_bitmask =	BIT(0)
++	},
++	{.id = SDHC_CLK,
++	 .cgm_mux_dc =			CGM0_MUXn_DCn(14, 0),
++	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(14),
++	 .cgm_mux_csc =			CGM0_MUXn_CSC(14),
++	 .plldig_pllodiv =		(uintptr_t)NULL,
++	 .dfs_portreset =		DFS_PORTRESET(S32G_PERIPH_DFS),
++	 .dfs_portreset_bitmask =	BIT(2)
++	},
++};
++
++static size_t n_periph_clocks = ARRAY_SIZE(periph_clocks);
++
++static void periph_clock_cgmdiv_ctrl(const struct periph_clock *periph_clock,
++				     enum req_clk_state req_clk_state)
++{
++	uint32_t regdata;
++
++	if (!periph_clock->cgm_mux_dc)
++		return;
++
++	regdata = mmio_read_32(periph_clock->cgm_mux_dc);
++
++	if (req_clk_state == CLK_ON)
++		regdata |= MUXn_DCn_DE;
++	else
++		regdata &= (~MUXn_DCn_DE);
++
++	mmio_write_32(periph_clock->cgm_mux_dc, regdata);
++
++	while (mmio_read_32(periph_clock->cgm_mux_div_upd_stat)
++							& DIV_UPD_STAT_DIV_STAT)
++		;
++}
++
++static bool is_pllodiv_in_use_by(const struct periph_clock *periph_clock,
++				 uintptr_t pllodiv)
++{
++	uint32_t regdata;
++
++	if (periph_clock->plldig_pllodiv != pllodiv)
++		return false;
++
++	if (periph_clock->cgm_mux_csc) {
++		regdata = mmio_read_32(periph_clock->cgm_mux_csc);
++		regdata &= MC_CGM_MUXn_CSC_SELCTL_MASK;
++		regdata >>= MC_CGM_MUXn_CSC_SELCTL_OFFSET;
++		if (regdata < MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI0
++			|| regdata > MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI7)
++			return false;
++	}
++
++	if (periph_clock->cgm_mux_dc)
++		if (!(mmio_read_32(periph_clock->cgm_mux_dc) & MUXn_DCn_DE))
++			return false;
++
++	return true;
++}
++
++static void periph_clock_plldiv_ctrl(const struct periph_clock *periph_clock,
++				     enum req_clk_state req_clk_state)
++{
++	int i;
++	uint32_t regdata;
++
++	if (!periph_clock->plldig_pllodiv)
++		return;
++
++	for (i = 0; i < n_periph_clocks; i++) {
++		if (periph_clocks[i].id == periph_clock->id)
++			continue;
++		if (is_pllodiv_in_use_by(&periph_clocks[i],
++					 periph_clock->plldig_pllodiv))
++			return;
++	}
++
++	regdata = mmio_read_32(periph_clock->plldig_pllodiv);
++
++	if (req_clk_state == CLK_ON)
++		regdata |= PLLDIG_PLLODIV_DE;
++	else
++		regdata &= (~PLLDIG_PLLODIV_DE);
++
++	mmio_write_32(periph_clock->plldig_pllodiv, regdata);
++}
++
++static void periph_clock_dfsport_ctrl(const struct periph_clock *periph_clock,
++				      enum req_clk_state req_clk_state)
++{
++	uint32_t regdata;
++
++	if (!periph_clock->dfs_portreset)
++		return;
++
++	regdata = mmio_read_32(periph_clock->dfs_portreset);
++
++	if (req_clk_state == CLK_ON)
++		regdata &= (~periph_clock->dfs_portreset_bitmask);
++	else
++		regdata |= periph_clock->dfs_portreset_bitmask;
++
++	mmio_write_32(periph_clock->dfs_portreset, regdata);
++}
++
++void periph_clock_ctrl(enum periph_clock_id id,
++		       enum req_clk_state req_clk_state)
++{
++	int i;
++	const struct periph_clock *periph_clock;
++
++	for (i = 0; i < n_periph_clocks; i++)
++		if (periph_clocks[i].id == id) {
++			periph_clock = &periph_clocks[i];
++			break;
++		}
++
++	if (req_clk_state == CLK_OFF) {
++		periph_clock_cgmdiv_ctrl(periph_clock, CLK_OFF);
++		periph_clock_plldiv_ctrl(periph_clock, CLK_OFF);
++		periph_clock_dfsport_ctrl(periph_clock, CLK_OFF);
++		return;
++	}
++
++	periph_clock_dfsport_ctrl(periph_clock, CLK_ON);
++	periph_clock_plldiv_ctrl(periph_clock, CLK_ON);
++	periph_clock_cgmdiv_ctrl(periph_clock, CLK_ON);
++}
+diff --git a/plat/s32g/s32g275_bl31.c b/plat/s32g/s32g275_bl31.c
+index 8f1ebd659..36cf510cc 100644
+--- a/plat/s32g/s32g275_bl31.c
++++ b/plat/s32g/s32g275_bl31.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -21,6 +21,11 @@
+ #include "s32g_clocks.h"
+ #include "s32g_pinctrl.h"
+ 
++#include "s32g274a_pm.h"
++
++#define MMU_ROUND_UP_TO_4K(x)	\
++			(((x) & ~0xfff) == (x) ? (x) : ((x) & ~0xfff) + 0x1000)
++
+ IMPORT_SYM(uintptr_t, __RW_START__, BL31_RW_START);
+ IMPORT_SYM(uintptr_t, __RW_END__, BL31_RW_END);
+ 
+@@ -33,6 +38,9 @@ static const mmap_region_t s32g_mmap[] = {
+ 			MT_DEVICE | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_MC_ME_BASE_ADDR, S32G_MC_ME_SIZE,
+ 			MT_DEVICE | MT_RW),
++	MAP_REGION_FLAT(MC_CGM0_BASE_ADDR,
++			MMU_ROUND_UP_TO_4K(S32G_DFS_ADDR(S32G_DFS_NR)),
++			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(S32G_MC_RGM_BASE_ADDR, S32G_MC_RGM_SIZE,
+ 			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(S32G_BL33_IMAGE_BASE, S32G_BL33_IMAGE_SIZE,
+-- 
+2.17.1
+

@@ -1,0 +1,404 @@
+From 0c3917f861f74c9e2f927895dbfa930889892c57 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Thu, 19 Mar 2020 10:11:07 +0200
+Subject: [PATCH 085/269] s32g274a: Use io_mmc instead of io_memmap for loading
+ images
+
+Issue: ALB-4274
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/io/io_memmap.c  | 202 -------------------------------
+ plat/s32g/include/platform_def.h |  10 +-
+ plat/s32g/include/s32g_storage.h |   2 +-
+ plat/s32g/platform.mk            |   4 +-
+ plat/s32g/s32g274a_storage.c     |  65 +++++-----
+ 5 files changed, 34 insertions(+), 249 deletions(-)
+ delete mode 100644 drivers/nxp/s32g/io/io_memmap.c
+
+diff --git a/drivers/nxp/s32g/io/io_memmap.c b/drivers/nxp/s32g/io/io_memmap.c
+deleted file mode 100644
+index c1d01ea29..000000000
+--- a/drivers/nxp/s32g/io/io_memmap.c
++++ /dev/null
+@@ -1,202 +0,0 @@
+-/*
+- * Copyright (c) 2014-2018, ARM Limited and Contributors. All rights reserved.
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <assert.h>
+-#include <string.h>
+-#include <platform_def.h>
+-#include <common/debug.h>
+-#include <drivers/io/io_driver.h>
+-#include <drivers/io/io_memmap.h>
+-#include <drivers/io/io_storage.h>
+-#include <lib/utils.h>
+-#include <s32g274a_edma.h>
+-
+-/* As we need to be able to keep state for seek, only one file can be open
+- * at a time. Make this a structure and point to the entity->info. When we
+- * can malloc memory we can change this to support more open files.
+- */
+-struct file_state {
+-	/* Use the 'in_use' flag as any value for base and file_pos could be
+-	 * valid.
+-	 */
+-	int		in_use;
+-	uintptr_t	base;
+-	size_t		file_pos;
+-	size_t		size;
+-};
+-
+-static struct file_state current_file = {0};
+-
+-static io_type_t device_type_memmap(void)
+-{
+-	return IO_TYPE_MEMMAP;
+-}
+-
+-static const io_dev_info_t memmap_dev_info;
+-
+-static int memmap_dev_open(const uintptr_t dev_spec __unused,
+-			   io_dev_info_t **dev_info)
+-{
+-	assert(dev_info);
+-	*dev_info = (io_dev_info_t *)&memmap_dev_info;
+-
+-	return 0;
+-}
+-
+-static const io_dev_connector_t memmap_dev_connector = {
+-	.dev_open = memmap_dev_open
+-};
+-
+-static int memmap_dev_close(io_dev_info_t *dev_info)
+-{
+-	return 0;
+-}
+-
+-static int memmap_block_open(io_dev_info_t *dev_info, const uintptr_t spec,
+-			     io_entity_t *entity)
+-{
+-	int result = -ENOMEM;
+-	const io_block_spec_t *block_spec = (io_block_spec_t *)spec;
+-
+-	/* Since we need to track open state for seek() we only allow one open
+-	 * spec at a time. When we have dynamic memory we can malloc and set
+-	 * entity->info.
+-	 */
+-	if (current_file.in_use == 0) {
+-		assert(block_spec);
+-		assert(entity);
+-
+-		current_file.in_use = 1;
+-		current_file.base = block_spec->offset;
+-		current_file.file_pos = 0;
+-		current_file.size = block_spec->length;
+-		entity->info = (uintptr_t)&current_file;
+-		result = 0;
+-	} else {
+-		WARN("A Memmap device is already active. Close first.\n");
+-	}
+-
+-	return result;
+-}
+-
+-static int memmap_block_seek(io_entity_t *entity, int mode, ssize_t offset)
+-{
+-	int result = -ENOENT;
+-	struct file_state *fp;
+-
+-	/* We only support IO_SEEK_SET for the moment. */
+-	if (mode == IO_SEEK_SET) {
+-		assert(entity);
+-		fp = (struct file_state *)entity->info;
+-		assert((offset >= 0) && (offset < fp->size));
+-		fp->file_pos = offset;
+-		result = 0;
+-	}
+-
+-	return result;
+-}
+-
+-static int memmap_block_len(io_entity_t *entity, size_t *length)
+-{
+-	assert(entity);
+-	assert(length);
+-
+-	*length = ((struct file_state *)entity->info)->size;
+-
+-	return 0;
+-}
+-
+-static int memmap_block_read(io_entity_t *entity, uintptr_t buffer,
+-			     size_t length, size_t *length_read)
+-{
+-	struct file_state *fp;
+-	size_t pos_after;
+-
+-	assert(entity);
+-	assert(length_read);
+-
+-	fp = (struct file_state *)entity->info;
+-	pos_after = fp->file_pos + length;
+-	assert((pos_after >= fp->file_pos) && (pos_after <= fp->size));
+-
+-	if (IS_ON_32BITS(buffer) &&
+-	    IS_ON_32BITS((uint64_t)buffer + length) &&
+-	    IS_ON_32BITS((uint64_t)fp->base + fp->file_pos) &&
+-	    IS_ON_32BITS((uint64_t)fp->base + fp->file_pos + length))
+-		edma_xfer_sync(buffer, (uintptr_t)(fp->base + fp->file_pos),
+-			       length, DMA_CHANNEL_1);
+-	else
+-		memcpy((void *)buffer, (void *)(fp->base + fp->file_pos),
+-		       length);
+-
+-	*length_read = length;
+-	fp->file_pos = pos_after;
+-
+-	return 0;
+-}
+-
+-static int memmap_block_write(io_entity_t *entity, const uintptr_t buffer,
+-			      size_t length, size_t *length_written)
+-{
+-	struct file_state *fp;
+-	size_t pos_after;
+-
+-	assert(entity);
+-	assert(length_written);
+-
+-	fp = (struct file_state *)entity->info;
+-	pos_after = fp->file_pos + length;
+-	assert((pos_after >= fp->file_pos) && (pos_after <= fp->size));
+-
+-	memcpy((void *)(fp->base + fp->file_pos), (void *)buffer, length);
+-
+-	*length_written = length;
+-	fp->file_pos = pos_after;
+-
+-	return 0;
+-}
+-
+-static int memmap_block_close(io_entity_t *entity)
+-{
+-	assert(entity);
+-
+-	entity->info = 0;
+-
+-	/* This would be a mem free() if we had malloc.*/
+-	zeromem((void *)&current_file, sizeof(current_file));
+-
+-	return 0;
+-}
+-
+-int register_io_dev_memmap(const io_dev_connector_t **dev_con)
+-{
+-	int result;
+-
+-	assert(dev_con);
+-
+-	result = io_register_device(&memmap_dev_info);
+-	if (result == 0)
+-		*dev_con = &memmap_dev_connector;
+-
+-	return result;
+-}
+-
+-static const io_dev_funcs_t memmap_dev_funcs = {
+-	.type = device_type_memmap,
+-	.open = memmap_block_open,
+-	.seek = memmap_block_seek,
+-	.size = memmap_block_len,
+-	.read = memmap_block_read,
+-	.write = memmap_block_write,
+-	.close = memmap_block_close,
+-	.dev_init = NULL,
+-	.dev_close = memmap_dev_close,
+-};
+-
+-static const io_dev_info_t memmap_dev_info = {
+-	.funcs = &memmap_dev_funcs,
+-	.info = (uintptr_t)NULL
+-};
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 96a5cafa9..85b4ccf3b 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -132,13 +132,6 @@
+ /* this may be a bit too relaxed */
+ #define BL2_LIMIT		(S32G_SRAM_END - 1)
+ 
+-/* Temporary SRAM map:
+- * - 0x3402_0000	U-Boot (runtime image, i.e. S32G_BL33_IMAGE_BASE)
+- * - 0x3420_0000	Temporary BL31 (for development only)
+- * - 0x3430_0000	BL2 (runtime image, i.e. BL2_BASE)
+- */
+-#define TEMP_S32G_BL31_READ_ADDR_IN_SRAM	0x34200000ull
+-
+ /* U-boot address in SRAM */
+ #define S32G_BL33_OFF_IN_SRAM	0x00020000
+ #define S32G_BL33_IMAGE_BASE	(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
+@@ -151,6 +144,9 @@
+ #define BL31_BASE		(S32G_PMEM_START)
+ #define BL31_LIMIT		(S32G_PMEM_END)
+ 
++#define BL31_MMC_OFFSET		(0xf2000)
++#define BL31_MMC_SIZE		(0x20000)
++
+ /* FIXME value randomly chosen; should probably be revisited */
+ #define PLATFORM_STACK_SIZE		0x4000
+ 
+diff --git a/plat/s32g/include/s32g_storage.h b/plat/s32g/include/s32g_storage.h
+index e156f2570..5e84adb1f 100644
+--- a/plat/s32g/include/s32g_storage.h
++++ b/plat/s32g/include/s32g_storage.h
+@@ -7,7 +7,7 @@
+ #define S32G_STORAGE_H
+ 
+ enum s32g_boot_source {
+-	S32G_SRAM_BOOT,
++	S32G_MMC_BOOT,
+ 	/* TODO add FIP, QSPI, SD/MMC */
+ };
+ 
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 3cdc4f076..5ea52a9df 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -38,7 +38,9 @@ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   drivers/delay_timer/delay_timer.c \
+ 			   drivers/delay_timer/generic_delay_timer.c \
+ 			   common/desc_image_load.c \
+-			   drivers/nxp/s32g/io/io_memmap.c \
++			   drivers/mmc/mmc.c \
++			   drivers/nxp/s32g/io/io_mmc.c \
++			   drivers/nxp/s32g/mmc/s32g274a_mmc.c \
+ 			   ${DDR_DRV}/ddrss.c \
+ 			   ${DDR_DRV}/ddrss_firmware.c \
+ 			   ${DDR_DRV}/ddrss_regconf.c
+diff --git a/plat/s32g/s32g274a_storage.c b/plat/s32g/s32g274a_storage.c
+index 798c97704..9219f680c 100644
+--- a/plat/s32g/s32g274a_storage.c
++++ b/plat/s32g/s32g274a_storage.c
+@@ -5,45 +5,36 @@
+  */
+ #include <common/bl_common.h>
+ #include <drivers/io/io_driver.h>
+-#include <drivers/io/io_memmap.h>
++#include <drivers/nxp/s32g/io/io_mmc.h>
++#include <drivers/nxp/s32g/mmc/s32g274a_mmc.h>
+ #include <assert.h>
+ #include <tools_share/firmware_image_package.h>
+ #include "s32g_storage.h"
+ 
++static const io_dev_connector_t *s32g_mmc_io_dev;
++static uintptr_t s32g_mmc_boot_dev_handle;
+ 
+-static const io_dev_connector_t *s32g_sram_io_dev;
+-static uintptr_t s32g_sram_boot_dev_handle;
++static int s32g_check_mmc_dev(const uintptr_t spec);
+ 
+-static int s32g_check_sram_dev(const uintptr_t spec);
+-
+-static const io_block_spec_t bl31_sram_spec = {
+-	/* FIXME This layout is *only* valid for the development version */
+-	.offset = TEMP_S32G_BL31_READ_ADDR_IN_SRAM,
+-#if (TEMP_S32G_BL31_READ_ADDR_IN_SRAM < BL2_BASE)
+-#if (BL2_BASE - TEMP_S32G_BL31_READ_ADDR_IN_SRAM < BL31_LIMIT - BL31_BASE)
+-	.length = BL2_BASE - TEMP_S32G_BL31_READ_ADDR_IN_SRAM,
+-#else
+-	.length = BL31_LIMIT - BL31_BASE,
+-#endif
+-#else
+-#error "Unsupported BL31 layout, please check SRAM memory map"
+-#endif
++static const io_block_spec_t bl31_mmc_spec = {
++	.offset = BL31_MMC_OFFSET,
++	.length = BL31_MMC_SIZE,
+ };
+ 
+ static const struct plat_io_policy s32g_policies[] = {
+ 	[BL31_IMAGE_ID] = {
+-		&s32g_sram_boot_dev_handle,
+-		(uintptr_t)&bl31_sram_spec,
+-		s32g_check_sram_dev
++		&s32g_mmc_boot_dev_handle,
++		(uintptr_t)&bl31_mmc_spec,
++		s32g_check_mmc_dev
+ 	},
+ };
+ 
+-static int s32g_check_sram_dev(const uintptr_t spec)
++static int s32g_check_mmc_dev(const uintptr_t spec)
+ {
+ 	uintptr_t local_handle;
+ 	int ret;
+ 
+-	ret = io_open(s32g_sram_boot_dev_handle, spec, &local_handle);
++	ret = io_open(s32g_mmc_boot_dev_handle, spec, &local_handle);
+ 	if (ret)
+ 		return ret;
+ 	/* must be closed, as load_image() will do another io_open() */
+@@ -79,20 +70,23 @@ static void plat_s32g_io_setup(enum s32g_boot_source boot_source)
+ {
+ 	int ret;
+ 
+-	ret = register_io_dev_memmap(&s32g_sram_io_dev);
++	ret = s32g274a_mmc_register();
++	if (ret)
++		goto err_register;
++
++	ret = register_io_dev_mmc(&s32g_mmc_io_dev);
+ 	if (ret)
+-		goto err_memmap;
++		goto err_register;
+ 
+ 	switch (boot_source) {
+-	case S32G_SRAM_BOOT:
+-		ret = io_dev_open(s32g_sram_io_dev,
+-				  (uintptr_t)&bl31_sram_spec,
+-				  &s32g_sram_boot_dev_handle);
++	case S32G_MMC_BOOT:
++		ret = io_dev_open(s32g_mmc_io_dev,
++				  (uintptr_t)&bl31_mmc_spec,
++				  &s32g_mmc_boot_dev_handle);
+ 		if (ret)
+ 			goto err_io_dev_open;
+ 
+-		ret = io_dev_init(s32g_sram_boot_dev_handle,
+-				  (uintptr_t)BL31_IMAGE_ID);
++		ret = io_dev_init(s32g_mmc_boot_dev_handle, 0);
+ 		if (ret)
+ 			goto err_io_dev_init;
+ 
+@@ -106,18 +100,13 @@ static void plat_s32g_io_setup(enum s32g_boot_source boot_source)
+ 
+ err_boot_source:
+ err_io_dev_init:
+-	io_dev_close(s32g_sram_boot_dev_handle);
++	io_dev_close(s32g_mmc_boot_dev_handle);
+ err_io_dev_open:
+-err_memmap:
++err_register:
+ 	panic();
+ }
+ 
+ void s32g_io_setup(void)
+ {
+-	/* Assume next image is in SRAM at a known offset; while impractical in
+-	 * real-life deployment - mostly due to performance issues related to
+-	 * boot timing - this is convenient during development, when all images
+-	 * can be loaded by the BootROM.
+-	 */
+-	plat_s32g_io_setup(S32G_SRAM_BOOT);
++	plat_s32g_io_setup(S32G_MMC_BOOT);
+ }
+-- 
+2.17.1
+

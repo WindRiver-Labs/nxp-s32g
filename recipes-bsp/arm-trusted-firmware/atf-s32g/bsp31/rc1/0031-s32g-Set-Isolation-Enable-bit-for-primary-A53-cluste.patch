@@ -1,0 +1,71 @@
+From 8e0e35f5d059ad3fdb46c951d02994f77c1e3863 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 4 Dec 2019 05:37:18 +0200
+Subject: [PATCH 031/269] s32g: Set Isolation Enable bit for primary A53
+ cluster
+
+Temporarily disable CA53_0 transactions during early boot, to prevent
+any cache maintenance instructions from crashing Ncore.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4277
+---
+ plat/s32g/include/platform_def.h |  6 ++++++
+ plat/s32g/s32g_lowlevel.S        | 16 ++++++++++++++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index af00dced7..03e597332 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -27,6 +27,12 @@
+ #define S32G_MPIDR_CLUSTER_SHIFT	U(8)
+ #define S32G_PLAT_PRIMARY_CPU		0x0u	/* Cluster 0, cpu 0*/
+ 
++#define S32G_NCORE_CAIU0_BASE_ADDR	0x50400000
++#define S32G_NCORE_CAIU0_BASE_ADDR_H	(S32G_NCORE_CAIU0_BASE_ADDR >> 16)
++#define NCORE_CAIUTC_OFF		0x0
++#define NCORE_CAIUTC_ISOLEN_SHIFT	1
++#define NCORE_CAIUTC_ISOLEN_MASK	BIT(NCORE_CAIUTC_ISOLEN_SHIFT)
++
+ #define S32G_CACHE_WRITEBACK_SHIFT	6
+ #define CACHE_WRITEBACK_GRANULE		(1 << S32G_CACHE_WRITEBACK_SHIFT)
+ #define PLAT_PHY_ADDR_SPACE_SIZE        (1ull << 36)
+diff --git a/plat/s32g/s32g_lowlevel.S b/plat/s32g/s32g_lowlevel.S
+index 4c22a6c68..f5e69db76 100644
+--- a/plat/s32g/s32g_lowlevel.S
++++ b/plat/s32g/s32g_lowlevel.S
+@@ -13,11 +13,27 @@
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
+ .globl plat_secondary_cold_boot_setup
++.globl plat_reset_handler
+ 
+ .globl s32g_smp_fixup
+ 
+ .globl s32g_core_release_var
+ 
++
++func plat_reset_handler
++	/* Set the CAIUTC[IsolEn] bit for the primary A53 cluster. This is so
++	 * cache invalidate operations from the early TF-A boot code won't
++	 * cause Ncore to crash.
++	 */
++	movz	x8, #S32G_NCORE_CAIU0_BASE_ADDR_H, lsl #16
++	ldr	x9, [x8, #NCORE_CAIUTC_OFF]
++	movz	x10, #1
++	lsl	x10, x10, #NCORE_CAIUTC_ISOLEN_SHIFT
++	orr	x9, x9, x10
++	str	x9, [x8, #NCORE_CAIUTC_OFF]
++	ret
++endfunc plat_reset_handler
++
+ /* Set SMPEN bit on u-boot's behalf */
+ func s32g_smp_fixup
+ 	mrs x14, S3_1_c15_c2_1
+-- 
+2.17.1
+

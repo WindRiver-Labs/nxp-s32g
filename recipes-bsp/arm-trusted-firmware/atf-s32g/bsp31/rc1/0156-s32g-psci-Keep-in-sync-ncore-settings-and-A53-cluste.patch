@@ -1,0 +1,186 @@
+From e433c6d96c6c6010c1e9c1c17ef39b4630347ea6 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 6 Jul 2020 15:31:17 +0300
+Subject: [PATCH 156/269] s32g: psci: Keep in sync ncore settings and A53
+ clusters state
+
+Update the Ncore settings associated with a A53 cluster when:
+    - both cores are suspended (WFI)
+    - at least one core is enabled
+
+Issue: ALB-4910
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/s32g_bl_common.h |  2 ++
+ plat/nxp/s32g/include/s32g_ncore.h     |  3 +-
+ plat/nxp/s32g/s32g_bl31.c              | 14 ++++++++
+ plat/nxp/s32g/s32g_ncore.c             | 45 ++++++++++++++++++++------
+ plat/nxp/s32g/s32g_psci.c              | 13 +++++++-
+ 5 files changed, 66 insertions(+), 11 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/s32g_bl_common.h b/plat/nxp/s32g/include/s32g_bl_common.h
+index 70d7f1ec8..108649f0e 100644
+--- a/plat/nxp/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32g/include/s32g_bl_common.h
+@@ -17,5 +17,7 @@ int prepare_pmic(void);
+ 
+ void update_core_state(uint32_t core, uint32_t state);
+ bool is_last_core(void);
++bool is_cluster0_off(void);
++bool is_cluster1_off(void);
+ 
+ #endif
+diff --git a/plat/nxp/s32g/include/s32g_ncore.h b/plat/nxp/s32g/include/s32g_ncore.h
+index fffc0517d..52295ef5f 100644
+--- a/plat/nxp/s32g/include/s32g_ncore.h
++++ b/plat/nxp/s32g/include/s32g_ncore.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -63,6 +63,7 @@
+ 
+ #ifndef __ASSEMBLY__
+ void ncore_caiu_online(uint32_t caiu);
++void ncore_caiu_offline(uint32_t caiu);
+ void ncore_init(void);
+ bool ncore_is_caiu_online(uint32_t caiu);
+ #endif
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 1bc803b36..28d40149c 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -126,6 +126,20 @@ bool is_last_core(void)
+ 	return (on == 1);
+ }
+ 
++bool is_cluster0_off(void)
++{
++	inv_dcache_range((uintptr_t)s32g_core_release_var,
++			 sizeof(s32g_core_release_var));
++	return !s32g_core_release_var[0] && !s32g_core_release_var[1];
++}
++
++bool is_cluster1_off(void)
++{
++	inv_dcache_range((uintptr_t)s32g_core_release_var,
++			 sizeof(s32g_core_release_var));
++	return !s32g_core_release_var[2] && !s32g_core_release_var[3];
++}
++
+ static uint32_t s32g_get_spsr_for_bl33_entry(void)
+ {
+ 	uint32_t spsr;
+diff --git a/plat/nxp/s32g/s32g_ncore.c b/plat/nxp/s32g/s32g_ncore.c
+index bdd5b3417..6d5dbf7f6 100644
+--- a/plat/nxp/s32g/s32g_ncore.c
++++ b/plat/nxp/s32g/s32g_ncore.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -37,23 +37,50 @@ static void ncore_ncbu_online(uint32_t ncbu)
+ 	 */
+ }
+ 
+-void ncore_caiu_online(uint32_t caiu)
++static void set_caiu(uint32_t caiu, bool on)
+ {
+ 	int numdirus, diru;
++	uint32_t dirucase, csadser, caiuidr;
+ 
+ 	numdirus = CSUIDR_NUMDIRUS(mmio_read_32(CSUIDR));
+-	for (diru = 0; diru < numdirus; diru++)
+-		mmio_write_32(DIRUCASER(diru), mmio_read_32(DIRUCASER(diru)) |
+-						DIRUCASER_CASNPEN(caiu));
++	for (diru = 0; diru < numdirus; diru++) {
++		dirucase = mmio_read_32(DIRUCASER(diru));
++
++		if (on)
++			dirucase |= DIRUCASER_CASNPEN(caiu);
++		else
++			dirucase &= ~DIRUCASER_CASNPEN(caiu);
++
++		mmio_write_32(DIRUCASER(diru), dirucase);
++	}
+ 
+ 	if (caiu == A53_CLUSTER1_CAIU)
+ 		if (mmio_read_32(GPR_BASE_ADDR + GPR06_OFF) & CA53_LOCKSTEP_EN)
+ 			return;
+ 
+-	if ((mmio_read_32(CAIUIDR(caiu)) &
+-				CAIUIDR_TYPE) == CAIUIDR_TYPE_ACE_DVM)
+-		mmio_write_32(CSADSER, mmio_read_32(CSADSER) |
+-							CSADSER_DVMSNPEN(caiu));
++	caiuidr = mmio_read_32(CAIUIDR(caiu));
++
++	if ((caiuidr & CAIUIDR_TYPE) == CAIUIDR_TYPE_ACE_DVM) {
++		csadser = mmio_read_32(CSADSER);
++
++		if (on)
++			csadser |= CSADSER_DVMSNPEN(caiu);
++		else
++			csadser &= ~CSADSER_DVMSNPEN(caiu);
++
++		mmio_write_32(CSADSER, csadser);
++	}
++
++}
++
++void ncore_caiu_online(uint32_t caiu)
++{
++	set_caiu(caiu, true);
++}
++
++void ncore_caiu_offline(uint32_t caiu)
++{
++	set_caiu(caiu, false);
+ }
+ 
+ bool ncore_is_caiu_online(uint32_t caiu)
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 3786c742e..15c93fabf 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -71,10 +71,14 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	NOTICE("S32G TF-A: %s: booting up core %d\n", __func__, pos);
+ 	update_core_state(pos, 1);
+ 	plat_ic_raise_el3_sgi(S32G_SECONDARY_WAKE_SGI, mpidr);
++
+ 	if (is_core_in_secondary_cluster(pos) &&
+-			!ncore_is_caiu_online(A53_CLUSTER1_CAIU))
++	    !ncore_is_caiu_online(A53_CLUSTER1_CAIU))
+ 		ncore_caiu_online(A53_CLUSTER1_CAIU);
+ 
++	if (!is_core_in_secondary_cluster(pos) &&
++	    !ncore_is_caiu_online(A53_CLUSTER0_CAIU))
++		ncore_caiu_online(A53_CLUSTER0_CAIU);
+ 	return PSCI_E_SUCCESS;
+ }
+ 
+@@ -195,6 +199,13 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 
+ 	if (!is_last_core()) {
+ 		update_core_state(pos, 0);
++
++		if (is_cluster0_off())
++			ncore_caiu_offline(A53_CLUSTER0_CAIU);
++
++		if (is_cluster1_off())
++			ncore_caiu_offline(A53_CLUSTER1_CAIU);
++
+ 		plat_secondary_cold_boot_setup();
+ 	}
+ 
+-- 
+2.17.1
+

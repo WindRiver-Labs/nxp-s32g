@@ -1,0 +1,61 @@
+From 106de6e5a4b57a602b129892712757186706be0e Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Mon, 1 Jun 2020 23:31:01 +0300
+Subject: [PATCH 142/269] s32g: Validate the size of the FIP image
+
+Issue: ALB-4935
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h |  1 -
+ plat/s32g/platform.mk            | 11 +++++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 112cadced..20019aeae 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -166,7 +166,6 @@
+ #define BL31_BASE		(S32G_PMEM_START)
+ #define BL31_LIMIT		(S32G_PMEM_END)
+ 
+-#define FIP_MAXIMUM_SIZE	(0x400000)
+ #define FIP_BASE		(S32G_SRAM_END - FIP_MAXIMUM_SIZE)
+ /* Must be placed by mkimage starting with AppBootCode:Code, but
+  * aligned to the block size of 512 bytes
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 9991b2eae..65f3a8ed3 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -96,15 +96,26 @@ ${BL2_W_DTB}: bl2 dtbs
+ 	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
+ 	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
+ 
++FIP_MAXIMUM_SIZE	:= 0x400000
++$(eval $(call add_define,FIP_MAXIMUM_SIZE))
++
+ FIP_ALIGN := 512
+ all: add_to_fip
+ add_to_fip: fip ${BL2_W_DTB}
++	$(eval FIP_MAXIMUM_SIZE_10 = $(shell printf "%d\n" ${FIP_MAXIMUM_SIZE}))
+ 	${Q}${FIPTOOL} update ${FIP_ARGS} \
+ 		--tb-fw ${BUILD_PLAT}/bl2_w_dtb.bin \
+ 		--soc-fw-config ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} \
+ 		${BUILD_PLAT}/${FIP_NAME}
+ 	@echo "Added BL2 and DTB to ${BUILD_PLAT}/${FIP_NAME} successfully"
+ 	${Q}${FIPTOOL} info ${BUILD_PLAT}/${FIP_NAME}
++	$(eval ACTUAL_FIP_SIZE = $(shell \
++				stat --printf="%s" ${BUILD_PLAT}/${FIP_NAME}))
++	@if [ ${ACTUAL_FIP_SIZE} -gt ${FIP_MAXIMUM_SIZE_10} ]; then \
++		echo "FIP image exceeds the maximum size of" \
++		     "0x${FIP_MAXIMUM_SIZE}"; \
++		false; \
++	fi
+ 
+ DTB_BASE		:= 0x34300000
+ $(eval $(call add_define,DTB_BASE))
+-- 
+2.17.1
+

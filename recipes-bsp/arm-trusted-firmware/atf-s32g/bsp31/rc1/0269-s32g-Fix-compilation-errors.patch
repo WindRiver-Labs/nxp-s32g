@@ -1,0 +1,187 @@
+From fbc4b76e8cd43546a785c63ce39847420fdd26bd Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Date: Thu, 9 Sep 2021 13:34:51 +0300
+Subject: [PATCH 269/269] s32g: Fix compilation errors
+
+This fixes multiple compilation issues:
+ * outdated function prototype for console_linflex_flush
+ * drivers/st/scmi-msg is missing
+ * __ASSEMBLY__ macro usage is outdated
+
+Issue: ALB-7693
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/uart/linflexuart.c     |  4 ++--
+ include/drivers/nxp/linflexuart.h  |  4 ++--
+ plat/nxp/s32g/include/s32g_ncore.h |  4 ++--
+ plat/nxp/s32g/include/s32g_sramc.h |  2 +-
+ plat/nxp/s32g/s32g_common.mk       | 10 +++++-----
+ plat/nxp/s32g/s32g_linflexuart.c   |  2 +-
+ plat/nxp/s32g/s32g_scmi_clk.c      |  4 ++--
+ plat/nxp/s32g/s32g_scmi_rst.c      |  4 ++--
+ plat/nxp/s32g/s32g_svc.c           |  2 +-
+ 9 files changed, 18 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/nxp/uart/linflexuart.c b/drivers/nxp/uart/linflexuart.c
+index d8f5ea642..7f00885ca 100644
+--- a/drivers/nxp/uart/linflexuart.c
++++ b/drivers/nxp/uart/linflexuart.c
+@@ -115,9 +115,9 @@ int console_linflex_register(struct console_linflex *cons)
+ 	return 0;
+ }
+ 
+-int console_linflex_flush(struct console *console)
++void console_linflex_flush(struct console *console)
+ {
+-	return 0;
++	return;
+ }
+ 
+ int console_linflex_putc(int character, struct console *console)
+diff --git a/include/drivers/nxp/linflexuart.h b/include/drivers/nxp/linflexuart.h
+index 9e0f3dfef..5bb626024 100644
+--- a/include/drivers/nxp/linflexuart.h
++++ b/include/drivers/nxp/linflexuart.h
+@@ -6,7 +6,7 @@
+ #ifndef LINFLEXUART_H
+ #define LINFLEXUART_H
+ 
+-#ifndef __ASSEMBLY__
++#ifndef __ASSEMBLER__
+ #include <drivers/console.h>
+ 
+ struct console_linflex {
+@@ -18,7 +18,7 @@ struct console_linflex {
+ 
+ int console_linflex_register(struct console_linflex *console);
+ int console_linflex_putc(int character, struct console *console);
+-int console_linflex_flush(struct console *console);
++void console_linflex_flush(struct console *console);
+ #endif
+ 
+ #endif /* LINFLEXUART_H */
+diff --git a/plat/nxp/s32g/include/s32g_ncore.h b/plat/nxp/s32g/include/s32g_ncore.h
+index 52295ef5f..3c1e7ecba 100644
+--- a/plat/nxp/s32g/include/s32g_ncore.h
++++ b/plat/nxp/s32g/include/s32g_ncore.h
+@@ -7,7 +7,7 @@
+ #ifndef S32G_NCORE_H
+ #define S32G_NCORE_H
+ 
+-#ifndef __ASSEMBLY__
++#ifndef __ASSEMBLER__
+ #include <arch_helpers.h>
+ #endif
+ #include "platform_def.h"
+@@ -61,7 +61,7 @@
+ 
+ #define CA53_LOCKSTEP_EN	BIT(0)
+ 
+-#ifndef __ASSEMBLY__
++#ifndef __ASSEMBLER__
+ void ncore_caiu_online(uint32_t caiu);
+ void ncore_caiu_offline(uint32_t caiu);
+ void ncore_init(void);
+diff --git a/plat/nxp/s32g/include/s32g_sramc.h b/plat/nxp/s32g/include/s32g_sramc.h
+index 63ff3ad08..826503c9e 100644
+--- a/plat/nxp/s32g/include/s32g_sramc.h
++++ b/plat/nxp/s32g/include/s32g_sramc.h
+@@ -31,7 +31,7 @@
+ 
+ #define SSRAM_MAX_ADDR		0x7FF
+ 
+-#ifndef __ASSEMBLY__
++#ifndef __ASSEMBLER__
+ #include <stdint.h>
+ 
+ int s32g_sram_clear(uintptr_t start, uintptr_t end);
+diff --git a/plat/nxp/s32g/s32g_common.mk b/plat/nxp/s32g/s32g_common.mk
+index cebba3735..c0e26d263 100644
+--- a/plat/nxp/s32g/s32g_common.mk
++++ b/plat/nxp/s32g/s32g_common.mk
+@@ -47,7 +47,7 @@ PLAT_INCLUDES		+= -Iplat/nxp/s32g/include \
+ 			   -Iinclude/drivers \
+ 			   -Iinclude/lib/psci \
+ 			   -Iinclude/drivers/nxp/s32g \
+-			   -Idrivers/st \
++			   -Idrivers \
+ 
+ BL2_AT_EL3		:= 1
+ 
+@@ -112,10 +112,10 @@ BL31_SOURCES		+= plat/nxp/s32g/s32g_bl31.c \
+ 			   drivers/nxp/s32g/clk/s32g_scmi_ids.c \
+ 			   drivers/nxp/s32g/clk/s32gen1_scmi_clk.c \
+ 			   drivers/nxp/s32g/clk/s32gen1_scmi_ids.c \
+-			   drivers/st/scmi-msg/base.c \
+-			   drivers/st/scmi-msg/clock.c \
+-			   drivers/st/scmi-msg/entry.c \
+-			   drivers/st/scmi-msg/reset_domain.c \
++			   drivers/scmi-msg/base.c \
++			   drivers/scmi-msg/clock.c \
++			   drivers/scmi-msg/entry.c \
++			   drivers/scmi-msg/reset_domain.c \
+ 
+ BL31_SOURCES		+= plat/nxp/s32g/bl31_lowlevel.S \
+ 			   plat/nxp/s32g/include/plat_macros.S
+diff --git a/plat/nxp/s32g/s32g_linflexuart.c b/plat/nxp/s32g/s32g_linflexuart.c
+index 178ca8c5b..2abf60048 100644
+--- a/plat/nxp/s32g/s32g_linflexuart.c
++++ b/plat/nxp/s32g/s32g_linflexuart.c
+@@ -32,7 +32,7 @@ int s32g_plat_crash_console_putc(int c)
+ 	return console_linflex_putc(c, &console.console);
+ }
+ 
+-int s32g_plat_crash_console_flush(void)
++void s32g_plat_crash_console_flush(void)
+ {
+ 	return console_linflex_flush(&console.console);
+ }
+diff --git a/plat/nxp/s32g/s32g_scmi_clk.c b/plat/nxp/s32g/s32g_scmi_clk.c
+index 49eb7a70a..afbdfa2d4 100644
+--- a/plat/nxp/s32g/s32g_scmi_clk.c
++++ b/plat/nxp/s32g/s32g_scmi_clk.c
+@@ -6,8 +6,8 @@
+ #include <cdefs.h>
+ #include <clk/s32gen1_scmi_clk.h>
+ #include <common/debug.h>
+-#include <drivers/st/scmi-msg.h>
+-#include <drivers/st/scmi.h>
++#include <drivers/scmi-msg.h>
++#include <drivers/scmi.h>
+ #include <dt-bindings/clock/s32gen1-scmi-clock.h>
+ #include <errno.h>
+ #include <lib/utils_def.h>
+diff --git a/plat/nxp/s32g/s32g_scmi_rst.c b/plat/nxp/s32g/s32g_scmi_rst.c
+index 03da70133..97b63aedc 100644
+--- a/plat/nxp/s32g/s32g_scmi_rst.c
++++ b/plat/nxp/s32g/s32g_scmi_rst.c
+@@ -3,8 +3,8 @@
+ #include <cdefs.h>
+ #include <clk/s32gen1_scmi_rst.h>
+ #include <common/debug.h>
+-#include <drivers/st/scmi-msg.h>
+-#include <drivers/st/scmi.h>
++#include <drivers/scmi-msg.h>
++#include <drivers/scmi.h>
+ #include <dt-bindings/reset/s32g-scmi-reset.h>
+ 
+ struct reset_entry {
+diff --git a/plat/nxp/s32g/s32g_svc.c b/plat/nxp/s32g/s32g_svc.c
+index 651e2a696..b5f165cbc 100644
+--- a/plat/nxp/s32g/s32g_svc.c
++++ b/plat/nxp/s32g/s32g_svc.c
+@@ -6,7 +6,7 @@
+ #include <clk/s32gen1_scmi_clk.h>
+ #include <common/debug.h>
+ #include <common/runtime_svc.h>
+-#include <drivers/st/scmi.h>
++#include <drivers/scmi.h>
+ #include <scmi-msg/common.h>
+ 
+ #define S32G_SCMI_ID			0xc20000feU
+-- 
+2.17.1
+

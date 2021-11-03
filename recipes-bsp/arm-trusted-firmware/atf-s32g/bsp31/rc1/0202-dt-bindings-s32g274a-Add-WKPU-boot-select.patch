@@ -1,0 +1,31 @@
+From e6d5fe18dda79dc7659d419434b75a48958131e5 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Thu, 3 Dec 2020 09:47:52 +0200
+Subject: [PATCH 202/269] dt-bindings: s32g274a: Add WKPU boot select
+
+Issue: ALB-6094
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/reset/s32gen1-wkpu.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/dt-bindings/reset/s32gen1-wkpu.h b/include/dt-bindings/reset/s32gen1-wkpu.h
+index 13133bbbb..8753efcd6 100644
+--- a/include/dt-bindings/reset/s32gen1-wkpu.h
++++ b/include/dt-bindings/reset/s32gen1-wkpu.h
+@@ -19,5 +19,9 @@
+ #define S32GEN1_WKPU_RTC_IRQ		31
+ #define S32GEN1_WKPU_EXT_IRQ(N)		(N)
+ 
++/* Wakeup Short or Long Boot Select */
++#define S32GEN1_WKPU_SHORT_BOOT		0
++#define S32GEN1_WKPU_LONG_BOOT		1
++
+ #endif
+ 
+-- 
+2.17.1
+

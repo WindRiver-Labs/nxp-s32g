@@ -1,0 +1,54 @@
+From 96b17d9075692c77e80715617fa56b37c3cf97ee Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Wed, 30 Jun 2021 17:18:54 +0300
+Subject: [PATCH 250/269] s32g3: Add support for 8 cores
+
+Issue: ALB-7394
+Upstream-Status: Pending 
+
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/s32g_mc_me.c | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/plat/nxp/s32g/s32g_mc_me.c b/plat/nxp/s32g/s32g_mc_me.c
+index d9cee186d..88cb40ace 100644
+--- a/plat/nxp/s32g/s32g_mc_me.c
++++ b/plat/nxp/s32g/s32g_mc_me.c
+@@ -244,7 +244,16 @@ static void enable_a53_core_clock(uint32_t core)
+ 	uint32_t pconf;
+ 	uint32_t part = S32G_MC_ME_CA53_PART;
+ 
+-	pconf = mmio_read_32(S32G_MC_ME_PRTN_N_CORE_M_PCONF(part, core & ~1));
++	/* For S32G2 we have the following mapping:
++	 * MC_ME_PRTN1_CORE0_* -> CA53 cluster0 core0/1
++	 * MC_ME_PRTN1_CORE2_* -> CA53 cluster1 core0/1
++	 * For G32G3 we have the following mapping:
++	 * MC_ME_PRTN1_CORE0_* -> CA53 cluster0 core0/1/2/3
++	 * MC_ME_PRTN1_CORE2_* -> CA53 cluster1 core0/1/2/3
++	 */
++	uint32_t pconf_index = (core % 4) & ~1;
++
++	pconf = mmio_read_32(S32G_MC_ME_PRTN_N_CORE_M_PCONF(part, pconf_index));
+ 
+ 	if (pconf & S32G_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK)
+ 		return;
+@@ -255,11 +264,11 @@ static void enable_a53_core_clock(uint32_t core)
+ 	 * on even-numbered cores.
+ 	 */
+ 	/* Enable clock and make changes effective */
+-	mc_me_part_core_pconf_write_cce(1, part, core & ~1);
+-	mc_me_part_core_pupd_write_ccupd(1, part, core & ~1);
++	mc_me_part_core_pconf_write_cce(1, part, pconf_index);
++	mc_me_part_core_pupd_write_ccupd(1, part, pconf_index);
+ 	mc_me_apply_hw_changes();
+ 	/* Wait for the core clock to become active */
+-	while (!s32g_core_clock_running(part, core & ~1))
++	while (!s32g_core_clock_running(part, pconf_index))
+ 		;
+ }
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,107 @@
+From 6cd25913365f794db341a09c18ce57912700d296 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Tue, 7 Jan 2020 17:42:13 +0200
+Subject: [PATCH 056/269] s32g: Place BL31 in DDR
+
+BL31 moves from SRAM into DDR. It resides in a reserved (soon-to-be
+protected) memory buffer at the top of the physical memory.
+Lacking a proper driver to dynamically establish the amount of available
+RAM, we will for now hard-code the 4GB quantity.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4474
+---
+ plat/s32g/include/platform_def.h | 54 ++++++++++++--------------------
+ 1 file changed, 20 insertions(+), 34 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index b7e108e6a..f0ddc56f2 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -82,18 +82,18 @@
+ #define S32G_SRAM_BASE		0x34000000
+ #define S32G_SRAM_SIZE		0x00800000
+ #define S32G_SRAM_END		(S32G_SRAM_BASE + S32G_SRAM_SIZE)
+-#define S32G_DDR0_BASE		0x800000000ULL
+-#define S32G_DDR0_END		0x900000000ULL	/* Keep in sync with u-boot! */
+-#define S32G_DDR_SIZE		(S32G_DDR0_END - S32G_DDR0_BASE)
+ 
+-/* Protected zone at the very top of DDR for our future use */
+-#define S32G_PMEM_END		(S32G_DDR0_END)
+-#define S32G_PMEM_LEN		0x00200000	/* 2MB */
+-#define S32G_PMEM_START		(S32G_PMEM_END - S32G_PMEM_LEN)
++/* Top of the 4GB of physical memory, accessible through the
++ * extended memory map.
++ */
++#define S32G_DDR0_END		0x8ffffffff
+ 
+-/*
+- * Memory layout macros
++/* Protected zone in DDR - we'll deploy BL31 there. This must also be kept
++ * in sync with U-Boot, which is expected to alter the Linux device-tree.
+  */
++#define S32G_PMEM_END		(S32G_DDR0_END)
++#define S32G_PMEM_LEN		0x00200000	/* conservatively allow 2MB */
++#define S32G_PMEM_START		(S32G_PMEM_END - S32G_PMEM_LEN + 1)
+ 
+ /* Physical address 0x0 is actually mapped; to increase our
+  * chances of detecting a 'null pointer access', use a location
+@@ -108,41 +108,27 @@
+ /* BL2 image in SRAM */
+ #define S32G_BL2_OFF_IN_SRAM	0x00300000
+ #define BL2_BASE		(S32G_SRAM_BASE + S32G_BL2_OFF_IN_SRAM)
++/* this may be a bit too relaxed */
++#define BL2_LIMIT		(S32G_SRAM_END - 1)
+ 
+-/* BL31 and BL33 location in SRAM
+- */
+-
+-/* BL31 is located *after* BL33 in SRAM, where there is more space potentially
+- * allowing us to compile the TF-A with -O0 without overlapping with U-Boot;
+- * also, U-Boot will be able to reclaim the beginning of SRAM for its MMU
+- * tables without overwriting our exception vectors
+- */
+-#define S32G_BL31_OFF_IN_SRAM		0x00400000
+-#define BL31_BASE			(S32G_SRAM_BASE + S32G_BL31_OFF_IN_SRAM)
+ /* Temporary SRAM map:
+  * - 0x3402_0000	U-Boot (runtime image, i.e. S32G_BL33_IMAGE_BASE)
+  * - 0x3420_0000	Temporary BL31 (for development only)
+  * - 0x3430_0000	BL2 (runtime image, i.e. BL2_BASE)
+- * - 0x3440_0000	BL31 (runtime image, i.e. BL31_BASE)
+  */
+ #define TEMP_S32G_BL31_READ_ADDR_IN_SRAM	0x34200000ull
+ 
+ /* U-boot address in SRAM */
+-#define S32G_BL33_OFF_IN_SRAM		0x00020000
+-#define S32G_BL33_IMAGE_BASE		(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
+-
+-/* BL2 may reside before or after BL31 in SRAM */
+-#if (S32G_BL2_OFF_IN_SRAM < S32G_BL31_OFF_IN_SRAM)
+-#define BL2_LIMIT		(BL31_BASE - 1)
+-#define BL31_LIMIT		(S32G_SRAM_END)
+-#define S32G_BL33_LIMIT		(BL2_BASE - 1)
+-#else
+-#define BL2_LIMIT		(S32G_SRAM_END)
+-#define BL31_LIMIT		(BL2_BASE - 1)
+-#define S32G_BL33_LIMIT		(BL31_BASE - 1)
+-#endif
++#define S32G_BL33_OFF_IN_SRAM	0x00020000
++#define S32G_BL33_IMAGE_BASE	(S32G_SRAM_BASE + S32G_BL33_OFF_IN_SRAM)
++#define S32G_BL33_LIMIT		(S32G_SRAM_END)
++#define S32G_BL33_IMAGE_SIZE	(S32G_BL33_LIMIT - S32G_BL33_IMAGE_BASE)
+ 
+-#define S32G_BL33_IMAGE_SIZE	(S32G_BL33_LIMIT - S32G_BL33_IMAGE_BASE + 1)
++/* BL31 location in DDR - physical addresses only, as the MMU is not
++ * configured at that point yet
++ */
++#define BL31_BASE		(S32G_PMEM_START)
++#define BL31_LIMIT		(S32G_PMEM_END)
+ 
+ /* FIXME value randomly chosen; should probably be revisited */
+ #define PLATFORM_STACK_SIZE		0x4000
+-- 
+2.17.1
+

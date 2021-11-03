@@ -1,0 +1,46 @@
+From b798ce70b2509241d533bce06435ef2e2446a8ce Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Tue, 14 Apr 2020 11:34:44 +0300
+Subject: [PATCH 097/269] s32g: ddrss: Simplify signature of
+ ddrss_to_normal_mode()
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c         | 3 +--
+ include/drivers/nxp/s32g/ddr/ddrss.h | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index 0edc4b3c7..b9f5580c5 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -258,8 +258,7 @@ static void load_csr(uintptr_t load_from)
+ 	mmio_write_16(MICROCONTMUXSEL, MICROCONTMUXSEL_MASK);
+ }
+ 
+-void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf,
+-			  struct ddrss_firmware *ddrss_firmware)
++void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf)
+ {
+ 	write_regconf_32(ddrss_conf->ddrc_conf, ddrss_conf->ddrc_conf_length);
+ 
+diff --git a/include/drivers/nxp/s32g/ddr/ddrss.h b/include/drivers/nxp/s32g/ddr/ddrss.h
+index 0bcaabdac..f83668f4d 100644
+--- a/include/drivers/nxp/s32g/ddr/ddrss.h
++++ b/include/drivers/nxp/s32g/ddr/ddrss.h
+@@ -165,7 +165,6 @@ struct ddrss_firmware {
+ 
+ void ddrss_init(struct ddrss_conf *ddrss_conf,
+ 		struct ddrss_firmware *ddrss_firmware);
+-void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf,
+-			  struct ddrss_firmware *ddrss_firmware);
++void ddrss_to_normal_mode(struct ddrss_conf *ddrss_conf);
+ 
+ #endif
+-- 
+2.17.1
+

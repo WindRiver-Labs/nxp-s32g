@@ -1,0 +1,64 @@
+From 947535313d1238afd017379c7f7077efb21c4d1b Mon Sep 17 00:00:00 2001
+From: Catalin Udma <catalin-dan.udma@nxp.com>
+Date: Fri, 24 Sep 2021 10:04:37 +0300
+Subject: [PATCH 2/3] s32g: add MMC and QSPI offsets as makefile parameters
+
+BL2 used to read the FIP header from storage from hardcoded offsets
+(e.g. 0x3400). This commit allows the user to define custom offsets as
+make parameters, such that BL2 can handle other customer IVT headers.
+For example, this allows updating IVT headers with other application code
+(HSE, M7 bootloader) and recompile BL2's view of the IVT header
+accordingly.
+
+Issue: ALB-7700
+
+Upstream-Status: Pending
+
+Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/include/platform_def.h |  5 -----
+ plat/nxp/s32g/s32g_common.mk         | 11 +++++++++++
+ 2 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/platform_def.h b/plat/nxp/s32g/include/platform_def.h
+index c7f3597c1..1236cc3fd 100644
+--- a/plat/nxp/s32g/include/platform_def.h
++++ b/plat/nxp/s32g/include/platform_def.h
+@@ -195,11 +195,6 @@
+ #define S32G_BL32_LIMIT		(BL31_BASE)
+ 
+ #define FIP_BASE		(S32G_SRAM_END - FIP_MAXIMUM_SIZE)
+-/* Must be placed by mkimage starting with AppBootCode:Code, but
+- * aligned to the block size of 512 bytes
+- */
+-#define FIP_MMC_OFFSET		(0x3400)
+-#define FIP_QSPI_OFFSET		(0x3400)
+ 
+ /* FIXME value randomly chosen; should probably be revisited */
+ #define PLATFORM_STACK_SIZE		0x4000
+diff --git a/plat/nxp/s32g/s32g_common.mk b/plat/nxp/s32g/s32g_common.mk
+index 95f9da5cf..6220e3247 100644
+--- a/plat/nxp/s32g/s32g_common.mk
++++ b/plat/nxp/s32g/s32g_common.mk
+@@ -140,6 +140,17 @@ ${BL2_W_DTB}: bl2 dtbs
+ 	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
+ 	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
+ 
++# User defined parameters, for example:
++# 	make FIP_MMC_OFFSET=0x5400 <...other parameters>
++# These defines update only BL2's view of FIP AppBootCode:Code position.
++# IVT header updates (e.g. mkimage application code offset) should be updated
++# independently
++# These offsets must be aligned to the block size of 512 bytes
++FIP_MMC_OFFSET		?= 0x3400
++$(eval $(call add_define,FIP_MMC_OFFSET))
++FIP_QSPI_OFFSET		?= 0x3400
++$(eval $(call add_define,FIP_QSPI_OFFSET))
++
+ FIP_MAXIMUM_SIZE	:= 0x400000
+ $(eval $(call add_define,FIP_MAXIMUM_SIZE))
+ 
+-- 
+2.17.1
+

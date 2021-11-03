@@ -1,0 +1,42 @@
+From 5dd3efb953f4376c966b5d6e78f0545223e11f21 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Sat, 23 May 2020 12:25:46 +0300
+Subject: [PATCH 138/269] s32g: Append DTB to BL2 before adding it to the FIP
+ image
+
+Issue: ALB-4935
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/platform.mk | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 3071b13fe..a935f85b9 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -89,11 +89,17 @@ check_dtc_version:
+ 		false; \
+ 	fi
+ 
++BL2_W_DTB		:= ${BUILD_PLAT}/bl2_w_dtb.bin
++all: ${BL2_W_DTB}
++${BL2_W_DTB}: bl2 dtbs
++	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
++	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
++
+ FIP_ALIGN := 512
+ all: add_bl2_to_fip
+-add_bl2_to_fip: bl2 fip
++add_bl2_to_fip: fip ${BL2_W_DTB}
+ 	${Q}${FIPTOOL} update ${FIP_ARGS} \
+-		--tb-fw ${BUILD_PLAT}/bl2.bin \
++		--tb-fw ${BUILD_PLAT}/bl2_w_dtb.bin \
+ 		${BUILD_PLAT}/${FIP_NAME}
+ 	@echo "Added BL2 to ${BUILD_PLAT}/${FIP_NAME} successfully"
+ 	${Q}${FIPTOOL} info ${BUILD_PLAT}/${FIP_NAME}
+-- 
+2.17.1
+

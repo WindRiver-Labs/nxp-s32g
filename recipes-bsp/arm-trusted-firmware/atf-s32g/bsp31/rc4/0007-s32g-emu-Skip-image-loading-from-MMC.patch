@@ -1,0 +1,116 @@
+From b2502658397ea4fc6ee09b015857d3bc131de4e7 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 22 Oct 2021 08:01:51 +0300
+Subject: [PATCH 07/16] s32g: emu: Skip image loading from MMC
+
+Issue: ALB-7712
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/io/io_mmc.c            |  5 +++++
+ drivers/nxp/s32g/mmc/s32g_mmc.c         |  2 +-
+ include/drivers/nxp/s32g/mmc/s32g_mmc.h |  8 ++++----
+ plat/nxp/s32/s32g/s32g_bl2_el3.c        | 13 ++++++++++++-
+ plat/nxp/s32/s32g/s32g_storage.c        |  2 +-
+ 5 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/nxp/s32g/io/io_mmc.c b/drivers/nxp/s32g/io/io_mmc.c
+index f2a3d8ecf..74441346b 100644
+--- a/drivers/nxp/s32g/io/io_mmc.c
++++ b/drivers/nxp/s32g/io/io_mmc.c
+@@ -1,6 +1,7 @@
+ /*
+  * Copyright (c) 2018, ARM Limited and Contributors. All rights reserved.
+  * This file is based on 'drivers/st/io/io_mmc.c'.
++ * Copyright 2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -67,6 +68,10 @@ static int mmc_block_read(io_entity_t *entity, uintptr_t buffer,
+ 
+ 	*length_read = 0;
+ 
++	/* Skip image loading on emulator */
++	if (block_spec->length && S32G_EMU)
++		return 0;
++
+ 	length_bs_multiple = length & ~(MMC_BLOCK_SIZE - 1);
+ 	if (length_bs_multiple)
+ 		*length_read += mmc_read_blocks(block_spec->offset
+diff --git a/drivers/nxp/s32g/mmc/s32g_mmc.c b/drivers/nxp/s32g/mmc/s32g_mmc.c
+index c5dc71948..2e6c89c24 100644
+--- a/drivers/nxp/s32g/mmc/s32g_mmc.c
++++ b/drivers/nxp/s32g/mmc/s32g_mmc.c
+@@ -354,7 +354,7 @@ static const struct mmc_ops s32g274a_mmc_ops = {
+ 	.write		= s32g274a_mmc_write,
+ };
+ 
+-int s32g274a_mmc_register(uint32_t boot_source)
++int s32g_mmc_register(uint32_t boot_source)
+ {
+ 	struct mmc_device_info *device_info;
+ 
+diff --git a/include/drivers/nxp/s32g/mmc/s32g_mmc.h b/include/drivers/nxp/s32g/mmc/s32g_mmc.h
+index 6e32e7ba2..7d6f92577 100644
+--- a/include/drivers/nxp/s32g/mmc/s32g_mmc.h
++++ b/include/drivers/nxp/s32g/mmc/s32g_mmc.h
+@@ -4,9 +4,9 @@
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ 
+-#ifndef S32G274A_MMC_H
+-#define S32G274A_MMC_H
++#ifndef S32G_MMC_H
++#define S32G_MMC_H
+ 
+-int s32g274a_mmc_register(uint32_t boot_source);
++int s32g_mmc_register(uint32_t boot_source);
+ 
+-#endif /* S32G274A_MMC_H */
++#endif /* S32G_MMC_H */
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 808409741..dbafa0997 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -621,7 +621,7 @@ void s32g_el3_mmu_fixup(void)
+ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 				  u_register_t arg2, u_register_t arg3)
+ {
+-	size_t index;
++	size_t index = 0;
+ 	bl_mem_params_node_t *params = s32g_bl2_mem_params_descs;
+ 	/* No resume on emulator */
+ #if S32G_EMU == 0
+@@ -688,3 +688,14 @@ void bl2_el3_plat_arch_setup(void)
+ 	if (ret)
+ 		panic();
+ }
++
++#if S32G_EMU == 1
++void bl2_plat_preload_setup(void)
++{
++	printf("Now it's time to load the following images:\n");
++	printf("BL31 @ 0x%x\n", BL31_BASE);
++	printf("U-Boot @ 0x%x\n", BL33_BASE);
++
++	__asm__ volatile("b .");
++}
++#endif
+diff --git a/plat/nxp/s32/s32g/s32g_storage.c b/plat/nxp/s32/s32g/s32g_storage.c
+index 1d5a75235..0cb96a09c 100644
+--- a/plat/nxp/s32/s32g/s32g_storage.c
++++ b/plat/nxp/s32/s32g/s32g_storage.c
+@@ -330,7 +330,7 @@ void s32g_io_setup(void)
+ 
+ 	/* MMC/SD may not be inserted */
+ 	if (boot_source != BOOT_SOURCE_QSPI) {
+-		if (s32g274a_mmc_register(boot_source))
++		if (s32g_mmc_register(boot_source))
+ 			goto err;
+ 		if (register_io_dev_mmc(&s32g_mmc_io_conn))
+ 			goto err;
+-- 
+2.17.1
+

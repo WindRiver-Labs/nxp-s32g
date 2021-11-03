@@ -1,0 +1,121 @@
+From 5496883431820f1fa73dd137852b6f69cca60536 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 10 Jan 2020 21:07:58 +0200
+Subject: [PATCH 058/269] s32g: Add support for determining the reset cause
+
+Issue: ALB-4505
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/s32g_mc_me.h  |  3 +++
+ plat/s32g/include/s32g_mc_rgm.h | 21 +++++++++++++++++++++
+ plat/s32g/s32g274a_bl2_el3.c    | 31 ++++++++++++++++++++++++++++++-
+ 3 files changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/plat/s32g/include/s32g_mc_me.h b/plat/s32g/include/s32g_mc_me.h
+index faad4bf75..baaf5e576 100644
+--- a/plat/s32g/include/s32g_mc_me.h
++++ b/plat/s32g/include/s32g_mc_me.h
+@@ -17,6 +17,9 @@
+ #define S32G_MC_ME_BASE_ADDR	0x40088000ul
+ #define S32G_MC_ME_SIZE		0x1000ul
+ 
++#define MC_ME_MODE_STAT		(S32G_MC_ME_BASE_ADDR + 0xc)
++#define MODE_STAT_PREV_MODE	BIT(0)
++
+ #define S32G_MC_ME_PRIMARY_CORE_MASK	((1ul << S32G_PLAT_PRIMARY_CPU) & 0xF)
+ #define S32G_MC_ME_SECONDARY_CORE_MASK	(~S32G_MC_ME_PRIMARY_CORE_MASK & 0xF)
+ 
+diff --git a/plat/s32g/include/s32g_mc_rgm.h b/plat/s32g/include/s32g_mc_rgm.h
+index e8274b153..e055fec4e 100644
+--- a/plat/s32g/include/s32g_mc_rgm.h
++++ b/plat/s32g/include/s32g_mc_rgm.h
+@@ -22,4 +22,25 @@
+ /* The entire domain defined by S32G_MC_RGM_RST_DOMAIN_CA53 can be reset */
+ #define S32G_MC_RGM_RST_CA53_PART_BIT	BIT(0)
+ 
++#define MC_RGM_DES	(S32G_MC_RGM_BASE_ADDR)
++#define DES_F_POR	BIT(0)
++#define DES_F_DR_ANY	0xc0073f5a
++
++#define MC_RGM_FES	(S32G_MC_RGM_BASE_ADDR + 0x8)
++#define FES_F_FR_ANY	0xc0340058
++
++#define MC_RGM_RDSS	(S32G_MC_RGM_BASE_ADDR + 0x24)
++#define RDSS_FES_RES	BIT(1)
++#define RDSS_DES_RES	BIT(0)
++
++enum reset_cause {
++	CAUSE_POR,
++	CAUSE_DESTRUCTIVE_RESET_DURING_RUN,
++	CAUSE_DESTRUCTIVE_RESET_DURING_STANDBY,
++	CAUSE_FUNCTIONAL_RESET_DURING_RUN,
++	CAUSE_FUNCTIONAL_RESET_DURING_STANDBY,
++	CAUSE_WAKEUP_DURING_STANDBY,
++	CAUSE_ERROR
++};
++
+ #endif /* __S32G_MC_RGM_H__ */
+diff --git a/plat/s32g/s32g274a_bl2_el3.c b/plat/s32g/s32g274a_bl2_el3.c
+index e9378602c..31a23741f 100644
+--- a/plat/s32g/s32g274a_bl2_el3.c
++++ b/plat/s32g/s32g274a_bl2_el3.c
+@@ -7,6 +7,7 @@
+ #include <platform.h>
+ #include <common/bl_common.h>
+ #include <common/desc_image_load.h>
++#include <common/debug.h>
+ #include <drivers/console.h>
+ #include <lib/mmio.h>
+ #include "s32g_ncore.h"
+@@ -14,9 +15,10 @@
+ #include "s32g_clocks.h"
+ #include "s32g_linflexuart.h"
+ #include "s32g_storage.h"
++#include "s32g_mc_rgm.h"
++#include "s32g_mc_me.h"
+ #include <nxp/s32g/ddr/ddrss.h>
+ 
+-
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[] = {
+ 	{
+ 		.image_id = BL31_IMAGE_ID,
+@@ -83,6 +85,33 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	s32g_io_setup();
+ }
+ 
++enum reset_cause get_reset_cause(void)
++{
++	uint32_t mc_rgm_des = mmio_read_32(MC_RGM_DES);
++
++	if (mc_rgm_des & DES_F_POR)
++		return CAUSE_POR;
++
++	if (mc_rgm_des & DES_F_DR_ANY) {
++		if (mmio_read_32(MC_RGM_RDSS) & RDSS_DES_RES)
++			return CAUSE_DESTRUCTIVE_RESET_DURING_STANDBY;
++		else
++			return CAUSE_DESTRUCTIVE_RESET_DURING_RUN;
++	}
++
++	if (mmio_read_32(MC_RGM_FES) & FES_F_FR_ANY) {
++		if (mmio_read_32(MC_RGM_RDSS) & RDSS_FES_RES)
++			return CAUSE_FUNCTIONAL_RESET_DURING_STANDBY;
++		else
++			return CAUSE_FUNCTIONAL_RESET_DURING_RUN;
++	}
++
++	if (mmio_read_32(MC_ME_MODE_STAT) & MODE_STAT_PREV_MODE)
++		return CAUSE_WAKEUP_DURING_STANDBY;
++
++	return CAUSE_ERROR;
++}
++
+ void bl2_el3_plat_arch_setup(void)
+ {
+ 	static struct console_s32g console;
+-- 
+2.17.1
+

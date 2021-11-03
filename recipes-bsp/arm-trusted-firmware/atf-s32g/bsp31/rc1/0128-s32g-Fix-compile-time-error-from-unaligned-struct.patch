@@ -1,0 +1,38 @@
+From 4298210e68d9be38fd61c48bc7bd2655dc957e89 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Sun, 31 May 2020 10:30:26 +0300
+Subject: [PATCH 128/269] s32g: Fix compile-time error from unaligned struct
+
+struct s32gen1_ivt needs not be declared as aligned. In addition, this
+cause an error with gcc-9.2 because other structs that contain the ivt
+struct are packed, but not themselves aligned.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-5027
+---
+ plat/s32g/include/s32g_ivt.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/plat/s32g/include/s32g_ivt.h b/plat/s32g/include/s32g_ivt.h
+index 3d885651c..201103e06 100644
+--- a/plat/s32g/include/s32g_ivt.h
++++ b/plat/s32g/include/s32g_ivt.h
+@@ -33,10 +33,10 @@ struct s32gen1_ivt {
+ 	uint8_t  reserved_for_hse_h_fw[32];
+ 	uint8_t  reserved3[156];
+ 	uint32_t gmac[4];
+-} __attribute__((packed)) __attribute__ ((aligned (0x100)));
++} __attribute__((packed));
+ 
+ _Static_assert(sizeof(struct s32gen1_ivt) == 0x100,
+-		"Accordingly to S32G274A RM the IVT structure"
++		"According to S32G274A RM the IVT structure"
+ 		"must have 0x100 bytes");
+ 
+ struct s32gen1_application_boot_code {
+-- 
+2.17.1
+

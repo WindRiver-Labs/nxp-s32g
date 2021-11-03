@@ -1,0 +1,38 @@
+From 67192408c76718dbbb0aa289e8f9bffad6ae5419 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Sat, 23 May 2020 12:30:40 +0300
+Subject: [PATCH 139/269] s32g: Add BL31 DTB to FIP image
+
+Issue: ALB-4935
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/platform.mk | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index a935f85b9..c96f1c8e5 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -96,12 +96,13 @@ ${BL2_W_DTB}: bl2 dtbs
+ 	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
+ 
+ FIP_ALIGN := 512
+-all: add_bl2_to_fip
+-add_bl2_to_fip: fip ${BL2_W_DTB}
++all: add_to_fip
++add_to_fip: fip ${BL2_W_DTB}
+ 	${Q}${FIPTOOL} update ${FIP_ARGS} \
+ 		--tb-fw ${BUILD_PLAT}/bl2_w_dtb.bin \
++		--soc-fw-config ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} \
+ 		${BUILD_PLAT}/${FIP_NAME}
+-	@echo "Added BL2 to ${BUILD_PLAT}/${FIP_NAME} successfully"
++	@echo "Added BL2 and DTB to ${BUILD_PLAT}/${FIP_NAME} successfully"
+ 	${Q}${FIPTOOL} info ${BUILD_PLAT}/${FIP_NAME}
+ 
+ # Disable the PSCI platform compatibility layer
+-- 
+2.17.1
+

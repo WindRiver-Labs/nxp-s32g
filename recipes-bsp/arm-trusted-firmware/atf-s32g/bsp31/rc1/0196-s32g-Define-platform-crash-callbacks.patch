@@ -1,0 +1,171 @@
+From d678dfde07871d8faaf2ce1ced01b619f217e133 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 18 Jan 2021 09:27:25 +0200
+Subject: [PATCH 196/269] s32g: Define platform crash callbacks
+
+Define plat_crash_* callbacks on S32G. plat_crash_console_putc and
+plat_crash_console_flush will use a locally defined buffer as stack due
+to the lack of the stack when these callbacks are called.
+
+Issue: ALB-5358
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/bl31_sram/bl31_sram.mk   |  1 +
+ plat/nxp/s32g/bl31_ssram/bl31_ssram.mk |  1 +
+ plat/nxp/s32g/platform.mk              |  1 +
+ plat/nxp/s32g/s32g_linflexuart.c       | 11 +---
+ plat/nxp/s32g/s32g_linflexuart_crash.S | 78 ++++++++++++++++++++++++++
+ 5 files changed, 84 insertions(+), 8 deletions(-)
+ create mode 100644 plat/nxp/s32g/s32g_linflexuart_crash.S
+
+diff --git a/plat/nxp/s32g/bl31_sram/bl31_sram.mk b/plat/nxp/s32g/bl31_sram/bl31_sram.mk
+index c7d01ab64..eb5bf04f3 100644
+--- a/plat/nxp/s32g/bl31_sram/bl31_sram.mk
++++ b/plat/nxp/s32g/bl31_sram/bl31_sram.mk
+@@ -11,6 +11,7 @@ BL31SRAM_SOURCES = plat/common/aarch64/platform_up_stack.S \
+ 		   plat/nxp/s32g/s32g_lowlevel_common.S \
+ 		   plat/nxp/s32g/s32g_mc_me.c \
+ 		   plat/nxp/s32g/s32g_linflexuart.c \
++		   plat/nxp/s32g/s32g_linflexuart_crash.S \
+ 		   drivers/nxp/uart/linflexuart.c \
+ 		   ${DDR_DRV}/ddrss.c \
+ 
+diff --git a/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk b/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
+index 4252a5ace..89ffd920b 100644
+--- a/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
++++ b/plat/nxp/s32g/bl31_ssram/bl31_ssram.mk
+@@ -11,6 +11,7 @@ BL31SSRAM_SOURCES =  plat/nxp/s32g/bl31_ssram/bl31ssram_stacks.S \
+ 		     plat/nxp/s32g/s32g_clocks.c \
+ 		     plat/nxp/s32g/s32g_mc_me.c \
+ 		     plat/nxp/s32g/s32g_linflexuart.c \
++		     plat/nxp/s32g/s32g_linflexuart_crash.S \
+ 		     drivers/nxp/uart/linflexuart.c \
+ 		     ${DDR_DRV}/ddrss.c \
+ 		     ${DDR_DRV}/ddrss_regconf.c \
+diff --git a/plat/nxp/s32g/platform.mk b/plat/nxp/s32g/platform.mk
+index 3d092ceb2..e91ffb62b 100644
+--- a/plat/nxp/s32g/platform.mk
++++ b/plat/nxp/s32g/platform.mk
+@@ -38,6 +38,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   plat/nxp/s32g/s32g_clocks.c \
+ 			   plat/nxp/s32g/s32g_sramc.c \
+ 			   plat/nxp/s32g/s32g_linflexuart.c \
++			   plat/nxp/s32g/s32g_linflexuart_crash.S \
+ 			   drivers/nxp/s32g/i2c/s32g_i2c.c \
+ 			   drivers/delay_timer/delay_timer.c \
+ 			   drivers/delay_timer/generic_delay_timer.c \
+diff --git a/plat/nxp/s32g/s32g_linflexuart.c b/plat/nxp/s32g/s32g_linflexuart.c
+index 7feb587cc..178ca8c5b 100644
+--- a/plat/nxp/s32g/s32g_linflexuart.c
++++ b/plat/nxp/s32g/s32g_linflexuart.c
+@@ -27,17 +27,12 @@ int console_s32g_register(void)
+ 	return console_linflex_register(&console);
+ }
+ 
+-int plat_crash_console_init(void)
++int s32g_plat_crash_console_putc(int c)
+ {
+-	return 0;
++	return console_linflex_putc(c, &console.console);
+ }
+ 
+-int plat_crash_console_flush(void)
++int s32g_plat_crash_console_flush(void)
+ {
+ 	return console_linflex_flush(&console.console);
+ }
+-
+-int plat_crash_console_putc(int c)
+-{
+-	return console_linflex_putc(c, &console.console);
+-}
+diff --git a/plat/nxp/s32g/s32g_linflexuart_crash.S b/plat/nxp/s32g/s32g_linflexuart_crash.S
+new file mode 100644
+index 000000000..213e47f8e
+--- /dev/null
++++ b/plat/nxp/s32g/s32g_linflexuart_crash.S
+@@ -0,0 +1,78 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <asm_macros.S>
++
++.globl	plat_crash_console_init
++.globl	plat_crash_console_putc
++.globl	plat_crash_console_flush
++
++#ifndef S32G_CRASH_STACK_SIZE
++#define S32G_CRASH_STACK_SIZE	0x400
++#endif
++
++/**
++ * Use a local buffer as stack for Linflex crash callbacks
++ */
++.section .data.s32g_plat_crash_stack
++	.balign 16
++	s32g_plat_crash_stack: .skip S32G_CRASH_STACK_SIZE
++
++.section .data.crash_console_reg_stash
++	.align 3
++	crash_console_reg_stash: .quad 0, 0, 0, 0, 0, 0
++
++/* Save scratch & link registers and stack pointer */
++.macro	save_regs
++	mov	x2, sp
++	adrp	x1, crash_console_reg_stash
++	add	x1, x1, :lo12:crash_console_reg_stash
++	stp	x14, x15, [x1]
++	stp	x16, x17, [x1, #16]
++	stp	x30, x2, [x1, #32]
++.endm
++
++/* Restore scratch & link registers and stack pointer */
++.macro	restore_regs
++	adrp	x1, crash_console_reg_stash
++	add	x1, x1, :lo12:crash_console_reg_stash
++	ldp	x14, x15, [x1]
++	ldp	x16, x17, [x1, #16]
++	ldp	x30, x2, [x1, #32]
++	mov	sp, x2
++.endm
++
++.macro	init_local_stack
++	adrp	x1, s32g_plat_crash_stack
++	add	x1, x1, :lo12:s32g_plat_crash_stack
++	add	x1, x1, #S32G_CRASH_STACK_SIZE
++	mov	sp, x1
++.endm
++
++func plat_crash_console_init
++	mov	x0, #1
++	ret
++endfunc plat_crash_console_init
++
++func plat_crash_console_putc
++	save_regs
++	init_local_stack
++
++	bl s32g_plat_crash_console_putc
++
++	restore_regs
++	ret
++endfunc plat_crash_console_putc
++
++func plat_crash_console_flush
++	save_regs
++	init_local_stack
++
++	bl s32g_plat_crash_console_flush
++
++	restore_regs
++	ret
++endfunc plat_crash_console_flush
+-- 
+2.17.1
+

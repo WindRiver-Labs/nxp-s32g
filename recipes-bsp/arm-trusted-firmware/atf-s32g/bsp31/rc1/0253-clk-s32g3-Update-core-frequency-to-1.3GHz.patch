@@ -1,0 +1,71 @@
+From 6b51b5a7875b1ccadd18f2ff55c57cf71558996d Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Thu, 1 Jul 2021 10:08:23 +0300
+Subject: [PATCH 253/269] clk: s32g3: Update core frequency to 1.3GHz
+
+Issue: ALB-7394
+Upstream-Status: Pending 
+
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/fsl-s32-gen1.dtsi                        |  2 +-
+ .../dt-bindings/clock/s32gen1-clock-freq.h    | 20 ++++++++++++++++---
+ 2 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/fdts/fsl-s32-gen1.dtsi b/fdts/fsl-s32-gen1.dtsi
+index b7ccc5014..b9628f42a 100644
+--- a/fdts/fsl-s32-gen1.dtsi
++++ b/fdts/fsl-s32-gen1.dtsi
+@@ -210,7 +210,7 @@
+ 				<&clks S32GEN1_CLK_ARM_PLL_DFS1>,
+ 				<&clks S32GEN1_CLK_ARM_PLL_DFS2>;
+ 			assigned-clock-rates =
+-				<800000000>,
++				<S32GEN1_CLK_ARM_PLL_DFS1_FREQ>,
+ 				<800000000>;
+ 		};
+ 
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index 19843da34..0dce030b9 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -10,18 +10,32 @@
+ /* Frequencies */
+ #define S32GEN1_PERIPH_PLL_VCO_FREQ		(2000 * MHZ)
+ #define S32GEN1_FXOSC_FREQ			(40 * MHZ)
+-#define S32GEN1_XBAR_2X_FREQ			(800 * MHZ)
+ #define S32GEN1_LIN_BAUD_CLK_FREQ		(125 * MHZ)
+ #define S32GEN1_SDHC_CLK_FREQ			(400 * MHZ)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+ #define S32GEN1_DDR_FREQ			(800 * MHZ)
++#define S32GEN1_PERIPH_DFS3_FREQ		(800 * MHZ)
++#define S32GEN1_QSPI_CLK_FREQ			(200 * MHZ)
+ 
++#if defined(PLAT_s32g2)
+ #define S32GEN1_A53_MAX_FREQ			(1000 * MHZ)
+ #define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(2000 * MHZ)
+ #define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1000 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
+-#define S32GEN1_PERIPH_DFS3_FREQ		(800 * MHZ)
+-#define S32GEN1_QSPI_CLK_FREQ			(200 * MHZ)
++#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(800 * MHZ)
++#define S32GEN1_XBAR_2X_FREQ			(800 * MHZ)
++
++#elif defined(PLAT_s32g3)
++#define S32GEN1_A53_MAX_FREQ			(1300 * MHZ)
++#define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(2600 * MHZ)
++#define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1300 * MHZ)
++#define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
++#define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
++#define S32GEN1_CLK_ARM_PLL_DFS1_FREQ		(793220338UL)
++#define S32GEN1_XBAR_2X_FREQ			(793220338UL)
++#else
++#error Undefined platform
++#endif
+ 
+ #endif
+-- 
+2.17.1
+

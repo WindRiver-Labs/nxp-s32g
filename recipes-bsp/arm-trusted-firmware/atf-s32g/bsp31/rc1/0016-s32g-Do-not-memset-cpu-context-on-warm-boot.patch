@@ -1,0 +1,44 @@
+From a7492232eeedeaae97b2944a74e6907cab61da7c Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Thu, 7 Mar 2019 07:59:59 +0200
+Subject: [PATCH 016/269] s32g: Do not memset cpu context on warm boot
+
+As a workaround imposed by the fact that we aren't quite powering down
+the system yet, but instead are splicing together the suspend and resume
+execution paths, we must avoid context zeroization which destroys
+registers used by the non-secure world upon resume.
+
+In the U-Boot unit tests, the issue is resolved by simply saving the context
+separately, but for Linux that tends to become uglier, so it is simpler
+to just not do it at all in the TF-A.
+
+To be revisited once we have full power management support in the
+functional simulator.
+
+Issue: ALB-3702
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ lib/el3_runtime/aarch64/context_mgmt.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/lib/el3_runtime/aarch64/context_mgmt.c b/lib/el3_runtime/aarch64/context_mgmt.c
+index e0e429849..77afe9a8c 100644
+--- a/lib/el3_runtime/aarch64/context_mgmt.c
++++ b/lib/el3_runtime/aarch64/context_mgmt.c
+@@ -75,7 +75,9 @@ void cm_setup_context(cpu_context_t *ctx, const entry_point_info_t *ep)
+ 	security_state = GET_SECURITY_STATE(ep->h.attr);
+ 
+ 	/* Clear any residual register values from the context */
++#ifndef S32G_VIRTUAL_PLATFORM
+ 	zeromem(ctx, sizeof(*ctx));
++#endif
+ 
+ 	/*
+ 	 * SCR_EL3 was initialised during reset sequence in macro
+-- 
+2.17.1
+

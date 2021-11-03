@@ -1,0 +1,105 @@
+From 5bdcdd17688b9fc080e5c501c6daa26e2c872d58 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Tue, 14 Apr 2020 11:35:33 +0300
+Subject: [PATCH 100/269] s32g: ssram_bl1: Re-enable DDR and jump to BL31
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/s32g_clocks.h |  1 +
+ plat/s32g/platform.mk           |  5 ++++-
+ plat/s32g/s32g_clocks.c         | 15 +++++++++++++++
+ plat/s32g/s32g_ssram_bl1.c      | 16 ++++++++++++++++
+ 4 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/plat/s32g/include/s32g_clocks.h b/plat/s32g/include/s32g_clocks.h
+index 32ba76147..b6a6f59d5 100644
+--- a/plat/s32g/include/s32g_clocks.h
++++ b/plat/s32g/include/s32g_clocks.h
+@@ -322,6 +322,7 @@ enum s32g_mc_cgm {
+ #define MC_CGM_MUXn_CSC_SEL_PERIPH_DFS_DFS3	28
+ 
+ void s32g_plat_clock_init(void);
++void s32g_plat_ddr_clock_init(void);
+ 
+ #define S32G274A_A53_CORE_CLK_MIN		(48000000ul)
+ #define S32G274A_A53_CORE_CLK_MAX		(1000000000ul)
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 9a458639a..7b6601f7c 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -31,7 +31,10 @@ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/i2c/s32g274a_i2c.c \
+ 			   lib/cpus/aarch64/cortex_a53.S
+ 
+-BL1_SOURCES		+= plat/s32g/s32g_ssram_bl1.c
++BL1_SOURCES		+= plat/s32g/s32g_ssram_bl1.c \
++			   plat/s32g/s32g_clocks.c \
++			   ${DDR_DRV}/ddrss.c \
++			   ${DDR_DRV}/ddrss_regconf.c
+ 
+ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/s32g/s32g274a_bl2_el3.c \
+diff --git a/plat/s32g/s32g_clocks.c b/plat/s32g/s32g_clocks.c
+index ee89edc8c..3f61d4e1d 100644
+--- a/plat/s32g/s32g_clocks.c
++++ b/plat/s32g/s32g_clocks.c
+@@ -409,3 +409,18 @@ void s32g_plat_clock_init(void)
+ 		    s32g_pll_mfn[S32G_DDR_PLL]);
+ 	sw_mux_clk_config(MC_CGM5, 0, MC_CGM_MUXn_CSC_SEL_DDR_PLL_PHI0);
+ }
++
++void s32g_plat_ddr_clock_init(void)
++{
++	assert(ARRAY_SIZE(s32g_ddr_pll_phi_freq) ==
++	       s32g_pll_phi_nr[S32G_DDR_PLL]);
++
++	start_fxosc();
++	mc_me_enable_partition(S32G_MC_ME_PRTN0);
++	mc_me_enable_partition_block(S32G_MC_ME_DDR_0_PART,
++				     S32G_MC_ME_DDR_0_REQ);
++	program_pll(S32G_DDR_PLL, S32G_REFCLK_FXOSC, s32g_ddr_pll_phi_freq,
++		    s32g_pll_rdiv[S32G_DDR_PLL], s32g_pll_mfi[S32G_DDR_PLL],
++		    s32g_pll_mfn[S32G_DDR_PLL]);
++	sw_mux_clk_config(MC_CGM5, 0, MC_CGM_MUXn_CSC_SEL_DDR_PLL_PHI0);
++}
+diff --git a/plat/s32g/s32g_ssram_bl1.c b/plat/s32g/s32g_ssram_bl1.c
+index bf04ff754..0a4cad4cb 100644
+--- a/plat/s32g/s32g_ssram_bl1.c
++++ b/plat/s32g/s32g_ssram_bl1.c
+@@ -5,6 +5,21 @@
+  */
+ 
+ #include <plat/common/platform.h>
++#include <common/debug.h>
++#include <s32g_clocks.h>
++#include <drivers/nxp/s32g/ddr/ddrss.h>
++#include <platform_def.h>
++
++void  __attribute__ ((noreturn)) s32g_system_resume(void)
++{
++	extern struct ddrss_conf ddrss_conf;
++	void (*bl31_entrypoint)(void) = (void (*)(void))BL31_BASE;
++
++	s32g_plat_ddr_clock_init();
++	ddrss_to_normal_mode(&ddrss_conf);
++	bl31_entrypoint();
++	panic();
++}
+ 
+ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+ 			  uintptr_t *image_spec)
+@@ -48,6 +63,7 @@ void platform_mem_init(void)
+ 
+ void bl1_early_platform_setup(void)
+ {
++	s32g_system_resume();
+ }
+ 
+ void bl1_plat_arch_setup(void)
+-- 
+2.17.1
+

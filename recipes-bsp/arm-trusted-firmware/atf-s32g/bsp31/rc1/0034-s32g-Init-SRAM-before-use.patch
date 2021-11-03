@@ -1,0 +1,123 @@
+From 12d8b53d42c93f5a6305779e62e9cfd43172e07c Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Thu, 5 Dec 2019 11:24:44 +0200
+Subject: [PATCH 034/269] s32g: Init SRAM before use
+
+Naive implementation of SRAM initialization for BL2 use.
+So far, we're only initializing the stack and bss segments. Anything
+else that comes up will need to be initialized later.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4277
+---
+ plat/s32g/s32g_lowlevel_bl2.S    | 15 +++++----------
+ plat/s32g/s32g_lowlevel_common.S | 33 ++++++++++++++++++++++++++++++--
+ 2 files changed, 36 insertions(+), 12 deletions(-)
+
+diff --git a/plat/s32g/s32g_lowlevel_bl2.S b/plat/s32g/s32g_lowlevel_bl2.S
+index c80c2663a..1c7aced88 100644
+--- a/plat/s32g/s32g_lowlevel_bl2.S
++++ b/plat/s32g/s32g_lowlevel_bl2.S
+@@ -10,6 +10,7 @@
+ 
+ .globl platform_mem_init
+ .globl plat_reset_handler
++.globl s32g_sram_init
+ 
+ 
+ /* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+@@ -30,15 +31,9 @@ func s32g_ncore_isol_cluster0
+ endfunc s32g_ncore_isol_cluster0
+ 
+ 
+-func bl2_sram_init
+-	/* FIXME I WAS HERE */
+-	ret
+-endfunc bl2_sram_init
+-
+-
+-/* Clobber list: x0,x1,x8,x9,x10,x19 */
++/* Clobber list: x0,x1,x7,x8,x9,x10,x11 */
+ func plat_reset_handler
+-	mov	x19, x30
++	mov	x7, x30
+ 
+ 	/* Ncore quirks */
+ 	bl	s32g_ncore_isol_cluster0
+@@ -47,9 +42,9 @@ func plat_reset_handler
+ 	ldr	x0,=__STACKS_START__
+ 	ldr	x1,=__BL2_END__
+ 	sub	x1, x1, x0
+-	bl	bl2_sram_init
++	bl	s32g_sram_init
+ 
+-	mov	x30, x19
++	mov	x30, x7
+ 	ret
+ endfunc plat_reset_handler
+ 
+diff --git a/plat/s32g/s32g_lowlevel_common.S b/plat/s32g/s32g_lowlevel_common.S
+index 282322e42..3a9c1994c 100644
+--- a/plat/s32g/s32g_lowlevel_common.S
++++ b/plat/s32g/s32g_lowlevel_common.S
+@@ -13,6 +13,7 @@
+ .globl plat_core_pos_by_mpidr
+ .globl plat_secondary_cold_boot_setup
+ .globl s32g_smp_fixup
++.globl s32g_sram_init
+ 
+ .globl s32g_core_release_var
+ 
+@@ -35,9 +36,35 @@ func s32g_ncore_isol_cluster0
+ endfunc s32g_ncore_isol_cluster0
+ 
+ 
+-func bl2_sram_init
++/* Quick and dirty (read: 'naive') implementation of U-Boot's dma_mem_clr
++ * routine. TODO: We will switch to that one, based on eDMA, as soon as we
++ * finish up core clock debugging. Meanwhile, preserve the calling convention.
++ *
++ * x0: start address of memory to clear
++ * x1: size of memory area to clear
++ *
++ * Clobber list: x0,x1,x9,x11
++ *
++ * NOTE/FIXME: Memory area MUST be 8-byte aligned. We are not making any checks.
++ */
++func s32g_sram_init
++	mov	x9, x30
++
++	add	x1, x0, x1
++init:
++	str	xzr, [x0]
++	ldr	x11, [x0], #8
++	cmp	x11, xzr
++	bne	assert_loop
++	cmp	x0, x1
++	ble	init
++
++	mov x30, x9
+ 	ret
+-endfunc bl2_sram_init
++assert_loop:
++	b	.
++	no_ret	plat_panic_handler
++endfunc s32g_sram_init
+ 
+ 
+ /* Clobber list: x0,x1,x7,x8
+@@ -88,6 +115,8 @@ endfunc plat_core_pos_by_mpidr
+ 
+ 
+ /* Set SMPEN bit on u-boot's behalf */
++/* TODO check whether this function is still necessary in BL2; in cortex_a53.S
++ * there's a cortex_a53_rest_func doing the same. */
+ func s32g_smp_fixup
+ 	mrs x14, S3_1_c15_c2_1
+ 	orr x14, x14, #(1 << 6)
+-- 
+2.17.1
+

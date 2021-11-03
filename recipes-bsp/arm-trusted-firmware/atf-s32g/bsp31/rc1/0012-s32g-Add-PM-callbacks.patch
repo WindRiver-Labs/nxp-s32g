@@ -1,0 +1,148 @@
+From 3e14bcd76e66b672fdeb314a88f3c37c8ca6f114 Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Sun, 13 Jan 2019 22:48:28 +0200
+Subject: [PATCH 012/269] s32g: Add PM callbacks
+
+Add a set of (for now, mostly dummy) PM callbacks to enable PSCI main
+functions to progress without asserting.
+
+Redefine power levels and the power domain tree to properly describe the
+platform and to avoid psci lib asserting upon system domain suspend.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-3452
+---
+ plat/s32g/include/platform_def.h | 13 +++---
+ plat/s32g/s32g_psci.c            | 69 ++++++++++++++++++++++++++++----
+ 2 files changed, 69 insertions(+), 13 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 0690d1d35..339c75940 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -34,18 +34,21 @@
+ #define PLAT_VIRT_ADDR_SPACE_SIZE	(1ull << 32)
+ 
+ #define PLATFORM_CORE_COUNT		4
++#define PLATFORM_CLUSTER_COUNT		2
+ #define PLATFORM_SYSTEM_COUNT		1
+-
++/* FIXME I'm not sure this is technically correct. We do NOT have
++ * cluster-level power management operations, only core and system.
++ */
+ #define PLAT_NUM_PWR_DOMAINS		(PLATFORM_SYSTEM_COUNT + \
++					 PLATFORM_CLUSTER_COUNT + \
+ 					 PLATFORM_CORE_COUNT)
+ 
+-#define PLAT_MAX_OFF_STATE		2
+-#define PLAT_MAX_RET_STATE		1
+-#define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL1
++#define PLAT_MAX_OFF_STATE		U(2)
++#define PLAT_MAX_RET_STATE		U(1)
++#define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL2
+ #define PLAT_MAX_PWR_LVL_STATES		2
+ 
+ #define PLAT_PRIMARY_CPU		0x0
+-#define PLATFORM_MAX_CPU_PER_CLUSTER	4
+ #define COUNTER_FREQUENCY		0x40000000 /* FXOSC */
+ 
+ /* GIC (re)definitions, some from U-Boot's asm/gic.h and the s32gen1 config */
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index d0d4b8116..ab4d5e230 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -15,20 +15,72 @@ IMPORT_SYM(unsigned long, __BL31_END__, bl31_end);
+ /* See firmware-design, psci-lib-integration-guide for details */
+ static uintptr_t warmboot_entry;
+ 
++/* FIXME revisit tree composition */
+ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 	PLATFORM_SYSTEM_COUNT,
+-	PLATFORM_CORE_COUNT,
++	PLATFORM_CLUSTER_COUNT,
++	PLATFORM_CORE_COUNT / 2,
++	PLATFORM_CORE_COUNT / 2
+ };
+ 
+-static plat_psci_ops_t s32g_psci_pm_ops = {
+-	.pwr_domain_off = NULL,		/* cap: PSCI_CPU_OFF */
+-	.pwr_domain_on = NULL,		/* cap: ..                  */
+-	.pwr_domain_on_finish = NULL,	/*   .. PSCI_CPU_ON_AARCH64 */
+-	.pwr_domain_suspend = NULL,	/* cap: PSCI_CPU_SUSPEND_AARCH64 */
+-	.get_sys_suspend_power_state = NULL,
+-					/* cap: PSCI_SYSTEM_SUSPEND_AARCH64 */
++static int s32g_pwr_domain_on(u_register_t mpidr)
++{
++	NOTICE("S32G TF-A: %s\n", __func__);
++	return PSCI_E_SUCCESS;
++}
++
++static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
++{
++	NOTICE("S32G TF-A: %s\n", __func__);
++}
++
++static void __dead2 s32g_pwr_domain_pwr_down_wfi(
++					const psci_power_state_t *target_state)
++{
++	NOTICE("S32G TF-A: %s\n", __func__);
++
++	/* S32G suspend to RAM is broadly equivalent to a system power off */
++	psci_power_down_wfi();
++}
++
++static void s32g_pwr_domain_suspend_finish(
++					const psci_power_state_t *target_state)
++{
++	NOTICE("S32G TF-A: %s\n", __func__);
++}
++
++static void s32g_pwr_domain_suspend(const psci_power_state_t *target_state)
++{
++	NOTICE("S32G TF-A: %s\n", __func__);
++}
++
++static void s32g_get_sys_suspend_power_state(psci_power_state_t *req_state)
++{
++	int i;
++
++	NOTICE("S32G TF-A: %s\n", __func__);
++
++	/* FIXME revisit this, along with the power domain tree */
++	/* CPU, cluster & system: off */
++	for (i = MPIDR_AFFLVL0; i <= PLAT_MAX_PWR_LVL; i++)
++		req_state->pwr_domain_state[i] = PLAT_MAX_OFF_STATE;
++}
++
++const plat_psci_ops_t s32g_psci_pm_ops = {
++	/* cap: PSCI_CPU_OFF */
++	.pwr_domain_off = NULL,
++	/* cap: PSCI_CPU_ON_AARCH64 */
++	.pwr_domain_on = s32g_pwr_domain_on,
++	.pwr_domain_on_finish = s32g_pwr_domain_on_finish,
++	/* cap: PSCI_CPU_SUSPEND_AARCH64 */
++	.pwr_domain_suspend = s32g_pwr_domain_suspend,
++	/* cap: PSCI_SYSTEM_SUSPEND_AARCH64 */
++	.get_sys_suspend_power_state = s32g_get_sys_suspend_power_state,
++	.pwr_domain_suspend_finish = s32g_pwr_domain_suspend_finish,
++	.pwr_domain_pwr_down_wfi = s32g_pwr_domain_pwr_down_wfi,
+ };
+ 
++
+ /*
+  * Copy the PSCI callbacks (in fact, the entire bl31 binary) to the protected
+  * DRAM area only accessible to privileged contexts.
+@@ -59,6 +111,7 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
+ 			const plat_psci_ops_t **psci_ops)
+ {
+ 	warmboot_entry = sec_entrypoint;
++
+ 	*psci_ops = &s32g_psci_pm_ops;
+ 
+ 	return 0;
+-- 
+2.17.1
+

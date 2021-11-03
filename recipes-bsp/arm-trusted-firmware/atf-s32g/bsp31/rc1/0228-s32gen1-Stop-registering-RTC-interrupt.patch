@@ -1,0 +1,48 @@
+From 3daca977ed81c7a86a3a0900a1ff1a877ab1708d Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 12 May 2021 03:21:16 +0300
+Subject: [PATCH 228/269] s32gen1: Stop registering RTC interrupt
+
+We do not actually need the RTC interrupt during normal operation in
+full-power Run mode, and don't need to register its interrupt in order
+to be woken up, nor for the subsequent RTC cleanup.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-7084
+---
+ plat/nxp/s32g/include/platform_def.h | 2 --
+ plat/nxp/s32g/s32g_bl31.c            | 2 --
+ 2 files changed, 4 deletions(-)
+
+diff --git a/plat/nxp/s32g/include/platform_def.h b/plat/nxp/s32g/include/platform_def.h
+index d3d5b185f..852fd2f56 100644
+--- a/plat/nxp/s32g/include/platform_def.h
++++ b/plat/nxp/s32g/include/platform_def.h
+@@ -97,8 +97,6 @@
+ #define S32G274A_GIC_SIZE	0x100000
+ /* SGI to use for kicking the secondary cores out of wfi */
+ #define S32G_SECONDARY_WAKE_SGI	15
+-/* RTC interrupt (used to wake the system from low-power states) */
+-#define S32G_RTC_INT		153
+ 
+ #define S32G_XRDC_BASE		0x401A4000
+ #define S32G_XRDC_SIZE		0x10000
+diff --git a/plat/nxp/s32g/s32g_bl31.c b/plat/nxp/s32g/s32g_bl31.c
+index 428f33049..4226a3b12 100644
+--- a/plat/nxp/s32g/s32g_bl31.c
++++ b/plat/nxp/s32g/s32g_bl31.c
+@@ -90,8 +90,6 @@ static uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
+ static const interrupt_prop_t interrupt_props[] = {
+ 	INTR_PROP_DESC(S32G_SECONDARY_WAKE_SGI, GIC_HIGHEST_SEC_PRIORITY,
+ 		       INTR_GROUP0, GIC_INTR_CFG_EDGE),
+-	INTR_PROP_DESC(S32G_RTC_INT, GIC_HIGHEST_SEC_PRIORITY,
+-		       INTR_GROUP0, GIC_INTR_CFG_EDGE),
+ };
+ 
+ static unsigned int plat_s32g274a_mpidr_to_core_pos(unsigned long mpidr);
+-- 
+2.17.1
+

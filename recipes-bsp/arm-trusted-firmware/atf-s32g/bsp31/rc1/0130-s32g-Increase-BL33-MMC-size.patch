@@ -1,0 +1,32 @@
+From 2c119205847c0c2f41ff318f1bfdde2ae12cab4f Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 24 Jun 2020 12:19:54 +0300
+Subject: [PATCH 130/269] s32g: Increase BL33 MMC size
+
+Set U-Boot max size to 1MB.
+
+Issue: ALB-5026
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index cbc7af44d..34a4d8c9e 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -173,7 +173,7 @@
+ #define S32G_BL33_IMAGE_SIZE	(S32G_BL33_LIMIT - S32G_BL33_IMAGE_BASE)
+ 
+ #define BL33_MMC_OFFSET		(0x2000)
+-#define BL33_MMC_SIZE		(0xb0000)
++#define BL33_MMC_SIZE		(0x100000)
+ 
+ /* BL31 location in DDR - physical addresses only, as the MMU is not
+  * configured at that point yet
+-- 
+2.17.1
+

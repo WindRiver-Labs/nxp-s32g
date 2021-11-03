@@ -1,0 +1,53 @@
+From f6dab54f0f26d5322c5900bb81fec9f0f1a31aca Mon Sep 17 00:00:00 2001
+From: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Date: Tue, 5 Oct 2021 17:19:07 +0300
+Subject: [PATCH 10/24] s32-gen1: Remove Rev 1 of SoC references
+
+Issue: ALB-7914
+Upstream-Status: Pending 
+
+Signed-off-by: Ciprian Marian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/fsl-s32-gen1.dtsi               |  3 ---
+ plat/nxp/s32g/include/s32g_pinctrl.h | 12 ------------
+ 2 files changed, 15 deletions(-)
+
+diff --git a/fdts/fsl-s32-gen1.dtsi b/fdts/fsl-s32-gen1.dtsi
+index 2ac3bff3e..68d9085f6 100644
+--- a/fdts/fsl-s32-gen1.dtsi
++++ b/fdts/fsl-s32-gen1.dtsi
+@@ -340,9 +340,6 @@
+ 				<200000000>,
+ 				<100000000>,
+ 				<400000000>,
+-				/* If S32G274A Rev < 2, CLK_QSPI_2X maximum
+-				 * value can be 266666666.
+-				 */
+ 				<400000000>;
+ 		};
+ 
+diff --git a/plat/nxp/s32g/include/s32g_pinctrl.h b/plat/nxp/s32g/include/s32g_pinctrl.h
+index c7ca3bcea..86a3baff9 100644
+--- a/plat/nxp/s32g/include/s32g_pinctrl.h
++++ b/plat/nxp/s32g/include/s32g_pinctrl.h
+@@ -211,16 +211,4 @@
+ void s32g_plat_config_pinctrl(void);
+ void i2c_config_pinctrl(void);
+ 
+-static inline int get_siul2_midr1_major(void)
+-{
+-	return ((mmio_read_32(SIUL2_MIDR1) & SIUL2_MIDR1_MAJOR_MASK)
+-		>> SIUL2_MIDR1_MAJOR_SHIFT);
+-}
+-
+-/* If SOC REV < 2, QSPI clock max frequency should be 133,33MHz. */
+-static inline bool is_s32gen1_soc_rev1(void)
+-{
+-	return (get_siul2_midr1_major() < 1);
+-}
+-
+ #endif
+-- 
+2.17.1
+

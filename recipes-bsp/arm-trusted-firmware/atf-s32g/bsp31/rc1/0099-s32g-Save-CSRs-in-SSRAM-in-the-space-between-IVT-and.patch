@@ -1,0 +1,42 @@
+From a4b464485d4a46fc330df4f293f3fa479d2b9dfa Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Tue, 14 Apr 2020 11:35:33 +0300
+Subject: [PATCH 099/269] s32g: Save CSRs in SSRAM in the space between IVT and
+ Bootstrap Code
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/platform_def.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 0d08ebe9d..cbb69bf5d 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -108,9 +108,6 @@
+ #define BL1_RW_BASE		(S32G_SRAM_BASE)
+ #define BL1_RW_LIMIT		(BL1_RW_BASE + 0x10000)
+ 
+-#define SSRAM_CSR_BACKUP_SIZE	(1024)
+-#define SSRAM_CSR_BACKUP	(S32G_SSRAM_LIMIT - SSRAM_CSR_BACKUP_SIZE)
+-
+ #define MMC_BL1_IVT_ABC_BASE		(0x113000)
+ #define BL1_IVT_ABC_SIZE		(1024)
+ #define SRAM_BL1_IVT_ABC_BASE		(S32G_SRAM_BASE)
+@@ -120,6 +117,9 @@
+ #define BL1_BOOTSTRAP_CODE_SIZE		(BL1_RO_LIMIT - BL1_RO_BASE)
+ #define SRAM_BL1_RO_BASE		(S32G_SRAM_BASE + 1024)
+ 
++#define SSRAM_CSR_BACKUP_SIZE	(1024)
++#define SSRAM_CSR_BACKUP	(BL1_RO_BASE - SSRAM_CSR_BACKUP_SIZE)
++
+ /* Top of the 4GB of physical memory, accessible through the
+  * extended memory map.
+  */
+-- 
+2.17.1
+

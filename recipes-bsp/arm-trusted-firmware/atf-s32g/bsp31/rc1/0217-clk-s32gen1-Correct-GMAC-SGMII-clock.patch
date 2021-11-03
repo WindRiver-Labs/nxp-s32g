@@ -1,0 +1,33 @@
+From ca7d09bc1ba1f2ddb8da5e5a55eeb4b6af782fa2 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 31 Mar 2021 14:06:55 +0300
+Subject: [PATCH 217/269] clk: s32gen1: Correct GMAC SGMII clock
+
+Issue: ALB-6460
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/clk/s32gen1_scmi_ids.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/nxp/s32g/clk/s32gen1_scmi_ids.c b/drivers/nxp/s32g/clk/s32gen1_scmi_ids.c
+index 3d3b40b7d..ff71d6031 100644
+--- a/drivers/nxp/s32g/clk/s32gen1_scmi_ids.c
++++ b/drivers/nxp/s32g/clk/s32gen1_scmi_ids.c
+@@ -213,8 +213,9 @@ static int set_gmac_rx_parent(struct clk *clk)
+ 	uint32_t rx_id;
+ 	uint32_t clk_id = clk->id;
+ 
+-	if (clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_SGMII ||
+-	    clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_RGMII) {
++	if (clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_SGMII) {
++		rx_id = S32GEN1_CLK_SERDES0_LANE0_CDR;
++	} else if (clk_id == S32GEN1_SCMI_CLK_GMAC0_RX_RGMII) {
+ 		rx_id = S32GEN1_CLK_GMAC0_EXT_RX;
+ 	} else {
+ 		ERROR("Invalid GMAC RX mode\n");
+-- 
+2.17.1
+

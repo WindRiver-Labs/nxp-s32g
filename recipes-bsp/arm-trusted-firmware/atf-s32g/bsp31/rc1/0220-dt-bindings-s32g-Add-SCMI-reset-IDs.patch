@@ -1,0 +1,84 @@
+From 2aaa17992d4add69679c37504fe6efedf038946a Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 23 Mar 2021 09:13:42 +0200
+Subject: [PATCH 220/269] dt-bindings: s32g: Add SCMI reset IDs
+
+Issue: ALB-6624
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/reset/s32g-scmi-reset.h   | 19 +++++++++++
+ .../dt-bindings/reset/s32gen1-scmi-reset.h    | 33 +++++++++++++++++++
+ 2 files changed, 52 insertions(+)
+ create mode 100644 include/dt-bindings/reset/s32g-scmi-reset.h
+ create mode 100644 include/dt-bindings/reset/s32gen1-scmi-reset.h
+
+diff --git a/include/dt-bindings/reset/s32g-scmi-reset.h b/include/dt-bindings/reset/s32g-scmi-reset.h
+new file mode 100644
+index 000000000..b29bc4d27
+--- /dev/null
++++ b/include/dt-bindings/reset/s32g-scmi-reset.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2021 NXP
++ */
++#ifndef __DT_BINDINGS_S32G_SCMI_RESET_H
++#define __DT_BINDINGS_S32G_SCMI_RESET_H
++
++#include <dt-bindings/reset/s32gen1-scmi-reset.h>
++
++#define S32G_SCMI_RST_PFE	S32GEN1_PLAT_SCMI_RST(0)
++#define S32G_SCMI_RST_LLCE	S32GEN1_PLAT_SCMI_RST(1)
++#define S32G_SCMI_RST_MAX_ID	S32GEN1_PLAT_SCMI_RST(2)
++
++#if S32GEN1_SCMI_RST_MAX_ID < S32G_SCMI_RST_MAX_ID
++#error Please increase the value of S32GEN1_SCMI_RST_MAX_ID
++#endif
++
++#endif
++
+diff --git a/include/dt-bindings/reset/s32gen1-scmi-reset.h b/include/dt-bindings/reset/s32gen1-scmi-reset.h
+new file mode 100644
+index 000000000..7112dacab
+--- /dev/null
++++ b/include/dt-bindings/reset/s32gen1-scmi-reset.h
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * Copyright 2021 NXP
++ */
++#ifndef __DT_BINDINGS_S32GEN1_SCMI_RESET_H
++#define __DT_BINDINGS_S32GEN1_SCMI_RESET_H
++
++#define S32GEN1_SCMI_RST_BASE_ID	0U
++#define S32GEN1_SCMI_RST(N)		((N) + S32GEN1_SCMI_RST_BASE_ID)
++#define S32GEN1_PLAT_SCMI_RST(N)	((N) + S32GEN1_SCMI_PLAT_RST_BASE_ID)
++
++#define S32GEN1_SCMI_RST_PART0		S32GEN1_SCMI_RST(0)
++#define S32GEN1_SCMI_RST_PART1		S32GEN1_SCMI_RST(1)
++#define S32GEN1_SCMI_RST_PART2		S32GEN1_SCMI_RST(2)
++#define S32GEN1_SCMI_RST_PART3		S32GEN1_SCMI_RST(3)
++#define S32GEN1_SCMI_RST_CM7_0		S32GEN1_SCMI_RST(4)
++#define S32GEN1_SCMI_RST_CM7_1		S32GEN1_SCMI_RST(5)
++#define S32GEN1_SCMI_RST_CM7_2		S32GEN1_SCMI_RST(6)
++#define S32GEN1_SCMI_RST_DDR		S32GEN1_SCMI_RST(7)
++#define S32GEN1_SCMI_RST_PCIE0		S32GEN1_SCMI_RST(8)
++#define S32GEN1_SCMI_RST_SERDES0	S32GEN1_SCMI_RST(9)
++#define S32GEN1_SCMI_RST_PCIE1		S32GEN1_SCMI_RST(10)
++#define S32GEN1_SCMI_RST_SERDES1	S32GEN1_SCMI_RST(11)
++#define S32GEN1_SCMI_RST_A53_0		S32GEN1_SCMI_RST(12)
++#define S32GEN1_SCMI_RST_A53_1		S32GEN1_SCMI_RST(13)
++#define S32GEN1_SCMI_RST_A53_2		S32GEN1_SCMI_RST(14)
++#define S32GEN1_SCMI_RST_A53_3		S32GEN1_SCMI_RST(15)
++
++#define S32GEN1_SCMI_PLAT_RST_BASE_ID	S32GEN1_SCMI_RST(16)
++#define S32GEN1_SCMI_RST_MAX_ID		S32GEN1_PLAT_SCMI_RST(2)
++
++#endif
++
+-- 
+2.17.1
+

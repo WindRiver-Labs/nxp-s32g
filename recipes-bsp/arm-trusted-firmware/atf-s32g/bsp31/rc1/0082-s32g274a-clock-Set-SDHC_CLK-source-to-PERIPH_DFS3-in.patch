@@ -1,0 +1,44 @@
+From 495e77386807dae4e67c38fab30e7bf601b2017d Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 21 Feb 2020 11:11:12 +0200
+Subject: [PATCH 082/269] s32g274a: clock: Set SDHC_CLK source to PERIPH_DFS3
+ in MC_CGM0
+
+Issue: ALB-4274
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/include/s32g_clocks.h | 1 +
+ plat/s32g/s32g_clocks.c         | 2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/plat/s32g/include/s32g_clocks.h b/plat/s32g/include/s32g_clocks.h
+index 5efcf6e45..b1782bc3f 100644
+--- a/plat/s32g/include/s32g_clocks.h
++++ b/plat/s32g/include/s32g_clocks.h
+@@ -302,6 +302,7 @@ enum s32g_mc_cgm {
+ #define MC_CGM_MUXn_CSC_SEL_DDR_PLL_PHI0	36
+ #define MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI0	18
+ #define MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI7	25
++#define MC_CGM_MUXn_CSC_SEL_PERIPH_DFS_DFS3	28
+ 
+ void s32g_plat_clock_init(void);
+ 
+diff --git a/plat/s32g/s32g_clocks.c b/plat/s32g/s32g_clocks.c
+index 0d2a4af80..d1ef9205b 100644
+--- a/plat/s32g/s32g_clocks.c
++++ b/plat/s32g/s32g_clocks.c
+@@ -367,6 +367,8 @@ void s32g_plat_clock_init(void)
+ 	program_dfs(S32G_PERIPH_DFS, s32g_periph_dfs_params);
+ 	/* Configure the LinFlexD CGM mux */
+ 	sw_mux_clk_config(MC_CGM0, 8, MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI3);
++	/* Configure the SDHC CGM mux */
++	sw_mux_clk_config(MC_CGM0, 14, MC_CGM_MUXn_CSC_SEL_PERIPH_DFS_DFS3);
+ 
+ 	/* Configure the ACCEL_PLL */
+ 	program_pll(S32G_ACCEL_PLL, S32G_REFCLK_FXOSC, s32g_accel_pll_phi_freq,
+-- 
+2.17.1
+

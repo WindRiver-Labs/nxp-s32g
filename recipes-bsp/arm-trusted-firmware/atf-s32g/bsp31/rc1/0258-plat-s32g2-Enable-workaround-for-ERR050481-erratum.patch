@@ -1,0 +1,163 @@
+From 1b4ef9a51abceba22f1216d782b2e4828a7685fb Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 23 Jul 2021 11:21:57 +0300
+Subject: [PATCH 258/269] plat: s32g2: Enable workaround for ERR050481 erratum
+
+Issue: ALB-7285
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ lib/cpus/aarch64/cortex_a53.S   |  6 +++++
+ lib/cpus/aarch64/s32g2.S        | 45 +++++++++++++++++++++++++++++++++
+ plat/nxp/s32g/s32g2/platform.mk |  4 +++
+ plat/nxp/s32g/s32g3/platform.mk |  1 +
+ plat/nxp/s32g/s32g_common.mk    |  1 -
+ 5 files changed, 56 insertions(+), 1 deletion(-)
+ create mode 100644 lib/cpus/aarch64/s32g2.S
+
+diff --git a/lib/cpus/aarch64/cortex_a53.S b/lib/cpus/aarch64/cortex_a53.S
+index df11d8690..687016b81 100644
+--- a/lib/cpus/aarch64/cortex_a53.S
++++ b/lib/cpus/aarch64/cortex_a53.S
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2014-2020, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -258,6 +259,7 @@ endfunc check_errata_1530924
+ 	 * Shall clobber: x0-x19
+ 	 * -------------------------------------------------
+ 	 */
++	.globl  cortex_a53_reset_func
+ func cortex_a53_reset_func
+ 	mov	x19, x30
+ 	bl	cpu_get_rev_var
+@@ -290,6 +292,7 @@ func cortex_a53_reset_func
+ 	ret	x19
+ endfunc cortex_a53_reset_func
+ 
++	.globl cortex_a53_core_pwr_dwn
+ func cortex_a53_core_pwr_dwn
+ 	mov	x18, x30
+ 
+@@ -314,6 +317,7 @@ func cortex_a53_core_pwr_dwn
+ 	b	cortex_a53_disable_smp
+ endfunc cortex_a53_core_pwr_dwn
+ 
++	.globl cortex_a53_cluster_pwr_dwn
+ func cortex_a53_cluster_pwr_dwn
+ 	mov	x18, x30
+ 
+@@ -355,6 +359,7 @@ endfunc cortex_a53_cluster_pwr_dwn
+ /*
+  * Errata printing function for Cortex A53. Must follow AAPCS.
+  */
++	.globl cortex_a53_errata_report
+ func cortex_a53_errata_report
+ 	stp	x8, x30, [sp, #-16]!
+ 
+@@ -394,6 +399,7 @@ cortex_a53_regs:  /* The ascii list of register names to be reported */
+ 	.asciz	"cpuectlr_el1", "cpumerrsr_el1", "l2merrsr_el1", \
+ 		"cpuactlr_el1", ""
+ 
++.global cortex_a53_cpu_reg_dump
+ func cortex_a53_cpu_reg_dump
+ 	adr	x6, cortex_a53_regs
+ 	mrs	x8, CORTEX_A53_ECTLR_EL1
+diff --git a/lib/cpus/aarch64/s32g2.S b/lib/cpus/aarch64/s32g2.S
+new file mode 100644
+index 000000000..aa664a020
+--- /dev/null
++++ b/lib/cpus/aarch64/s32g2.S
+@@ -0,0 +1,45 @@
++/* SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause */
++/*
++ * Copyright 2021 NXP
++ */
++#include <asm_macros.S>
++#include <cortex_a53.h>
++#include <cpu_macros.S>
++
++#if REPORT_ERRATA
++/*
++ * Errata printing function for S32G2 family.
++ */
++func s32g2_errata_report
++	stp	x8, x30, [sp, #-16]!
++
++	bl	cpu_get_rev_var
++	mov	x8, x0
++
++	/*
++	 * Report all errata. The revision-variant information is passed to
++	 * checking functions of each errata.
++	 */
++	report_errata ERRATA_S32G2_050481, s32g2, 050481
++
++	bl cortex_a53_errata_report
++
++	ldp	x8, x30, [sp], #16
++	ret
++endfunc s32g2_errata_report
++#endif
++
++func s32g2_cpu_reg_dump
++	bl cortex_a53_cpu_reg_dump
++endfunc s32g2_cpu_reg_dump
++
++func check_errata_050481
++	/* Applies to all revisions */
++	mov x0, #ERRATA_APPLIES
++	ret
++endfunc check_errata_050481
++
++declare_cpu_ops s32g2, CORTEX_A53_MIDR, \
++	cortex_a53_reset_func, \
++	cortex_a53_core_pwr_dwn, \
++	cortex_a53_cluster_pwr_dwn
+diff --git a/plat/nxp/s32g/s32g2/platform.mk b/plat/nxp/s32g/s32g2/platform.mk
+index 283239059..814631aa7 100644
+--- a/plat/nxp/s32g/s32g2/platform.mk
++++ b/plat/nxp/s32g/s32g2/platform.mk
+@@ -8,6 +8,10 @@ include plat/nxp/s32g/s32g_common.mk
+ 
+ PLAT_BL_COMMON_SOURCES	+= drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   plat/nxp/s32g/s32g2/s32g2_sramc.S \
++			   lib/cpus/aarch64/s32g2.S \
++			   lib/cpus/aarch64/cortex_a53.S \
++
++ERRATA_S32G2_050481	:= 1
+ 
+ # Device tree
+ DTB_FILE_NAME		?= fsl-s32g274a-rdb.dtb
+diff --git a/plat/nxp/s32g/s32g3/platform.mk b/plat/nxp/s32g/s32g3/platform.mk
+index dbf486660..1caba6a31 100644
+--- a/plat/nxp/s32g/s32g3/platform.mk
++++ b/plat/nxp/s32g/s32g3/platform.mk
+@@ -8,6 +8,7 @@ include plat/nxp/s32g/s32g_common.mk
+ 
+ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g3/s32g3_sramc.S \
+ 			   drivers/nxp/s32g/clk/s32g398a_clk.c \
++			   lib/cpus/aarch64/cortex_a53.S \
+ 
+ # Device tree
+ DTB_FILE_NAME		?= fsl-s32g398a-rdb.dtb
+diff --git a/plat/nxp/s32g/s32g_common.mk b/plat/nxp/s32g/s32g_common.mk
+index ae0a452da..437a0a9ad 100644
+--- a/plat/nxp/s32g/s32g_common.mk
++++ b/plat/nxp/s32g/s32g_common.mk
+@@ -77,7 +77,6 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/rst/s32gen1_rst.c \
+ 			   drivers/nxp/s32g/clk/set_par_rate.c \
+ 			   drivers/nxp/uart/linflexuart.c \
+-			   lib/cpus/aarch64/cortex_a53.S\
+ 			   common/fdt_wrappers.c \
+ 			   ${GICV3_SOURCES} \
+ 			   ${BL31SRAM_SRC_DUMP} \
+-- 
+2.17.1
+

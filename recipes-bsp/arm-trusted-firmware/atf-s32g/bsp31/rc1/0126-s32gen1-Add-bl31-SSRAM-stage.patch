@@ -1,0 +1,783 @@
+From 4f7c4b97a209f7597ab93e84f18962f813bd5752 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 18 May 2020 12:57:04 +0300
+Subject: [PATCH 126/269] s32gen1: Add bl31 SSRAM stage
+
+This stage will be loaded into Static SRAM by BL2 and updated by BL31
+with bl31_warm_entrypoint address.
+
+Current memory map of this stage:
+0x24000000 - IVT
+0x24000200 - IVT Application header
+0x24000250 - Address of bl31_warm_entrypoint
+0x24000258 - Start of CSR array
+0x24000600 - bl31ssram_entrypoint
+
+Issue: ALB-4907
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss_regconf.c         |  10 +-
+ plat/s32g/bl31_ssram/.gitignore              |   2 +
+ plat/s32g/bl31_ssram/bl31SSRAM.ld.S          | 184 +++++++++++++++++++
+ plat/s32g/bl31_ssram/bl31_ssram.mk           |  29 +++
+ plat/s32g/bl31_ssram/bl31ssram_entrypoint.S  |  78 ++++++++
+ plat/s32g/bl31_ssram/bl31ssram_main.c        |  58 ++++++
+ plat/s32g/bl31_ssram/bl31ssram_stacks.S      |  51 +++++
+ plat/s32g/bl31_ssram/include/bl31_ssram.h    |  24 +++
+ plat/s32g/bl31_ssram/include/ssram_mailbox.h |  22 +++
+ plat/s32g/include/platform_def.h             |  11 +-
+ plat/s32g/include/s32g_ivt.h                 |  55 ++++++
+ plat/s32g/platform.mk                        |  16 +-
+ plat/s32g/s32g274a_bl31.c                    |   2 +
+ plat/s32g/s32g_common.mk                     |  11 ++
+ plat/s32g/s32g_psci.c                        |  11 ++
+ 15 files changed, 555 insertions(+), 9 deletions(-)
+ create mode 100644 plat/s32g/bl31_ssram/.gitignore
+ create mode 100644 plat/s32g/bl31_ssram/bl31SSRAM.ld.S
+ create mode 100644 plat/s32g/bl31_ssram/bl31_ssram.mk
+ create mode 100644 plat/s32g/bl31_ssram/bl31ssram_entrypoint.S
+ create mode 100644 plat/s32g/bl31_ssram/bl31ssram_main.c
+ create mode 100644 plat/s32g/bl31_ssram/bl31ssram_stacks.S
+ create mode 100644 plat/s32g/bl31_ssram/include/bl31_ssram.h
+ create mode 100644 plat/s32g/bl31_ssram/include/ssram_mailbox.h
+ create mode 100644 plat/s32g/include/s32g_ivt.h
+ create mode 100644 plat/s32g/s32g_common.mk
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss_regconf.c b/drivers/nxp/s32g/ddr/ddrss_regconf.c
+index 22c8dba0b..77c72931a 100644
+--- a/drivers/nxp/s32g/ddr/ddrss_regconf.c
++++ b/drivers/nxp/s32g/ddr/ddrss_regconf.c
+@@ -1,12 +1,14 @@
+ /*
+- * Copyright 2019 NXP
++ * Copyright 2019-2020 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #include <lib/utils_def.h>
+ #include <nxp/s32g/ddr/ddrss.h>
++#include <platform_def.h>
++#include <ssram_mailbox.h>
+ 
+-uintptr_t csr_to_store[] = {
++uint32_t csr_to_store[] = {
+ 	0x00001690,	/* DWC_DDRPHYA_MASTER0_VREFINGLOBAL_P0 */
+ 	0x00001718,	/* DWC_DDRPHYA_MASTER0_PLLCTRL3 */
+ 	0x0001451c,	/* DWC_DDRPHYA_DBYTE0_DQDQSRCVCNTRL_B0_P0 */
+@@ -1113,3 +1115,7 @@ struct ddrss_conf ddrss_conf = {
+ 	.message_block_1d = &message_block_1d[0],
+ 	.message_block_1d_length = ARRAY_SIZE(message_block_1d),
+ };
++
++_Static_assert(sizeof(uint16_t) * ARRAY_SIZE(csr_to_store) <=
++	       BL31SSRAM_CSR_SIZE,
++	       "csr_to_store exceeds the section allocated for it");
+diff --git a/plat/s32g/bl31_ssram/.gitignore b/plat/s32g/bl31_ssram/.gitignore
+new file mode 100644
+index 000000000..4350d04f8
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/.gitignore
+@@ -0,0 +1,2 @@
++# Generated file
++bl31_ssram.c*
+diff --git a/plat/s32g/bl31_ssram/bl31SSRAM.ld.S b/plat/s32g/bl31_ssram/bl31SSRAM.ld.S
+new file mode 100644
+index 000000000..f561062e5
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/bl31SSRAM.ld.S
+@@ -0,0 +1,184 @@
++/*
++ * Copyright (c) 2013-2018, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <platform_def.h>
++
++#include <lib/xlat_tables/xlat_tables_defs.h>
++
++OUTPUT_FORMAT(PLATFORM_LINKER_FORMAT)
++OUTPUT_ARCH(PLATFORM_LINKER_ARCH)
++ENTRY(bl31ssram_entrypoint)
++
++MEMORY {
++    RAM (rwx): ORIGIN = S32G_SSRAM_BASE, LENGTH = S32G_SSRAM_SIZE
++}
++
++SECTIONS
++{
++    . = S32G_SSRAM_BASE;
++
++    .ssram_ivt1 . : {
++        KEEP(*(s32g_ssram_ivt))
++    } >RAM
++
++    ASSERT(. == BL31SSRAM_IVT + BL31SSRAM_IVT_SIZE,
++           "BL31 SSRAM mailbox has exceeded its limit.")
++
++    . = BL31SSRAM_MAILBOX;
++    . = ALIGN(8);
++
++    .mailbox . : {
++        KEEP(*(s32g_ssram_mailbox))
++    } >RAM
++
++    ASSERT(. <= BL31SSRAM_BASE,
++           "BL31 SSRAM mailbox has exceeded its limit.")
++
++    . = ALIGN(512);
++
++    ASSERT(. == BL31SSRAM_BASE,
++           "BL31SSRAM_BASE doesn't point to the entrypoint")
++
++#if SEPARATE_CODE_AND_RODATA
++    .text . : {
++        __TEXT_START__ = .;
++        *bl31ssram_entrypoint.o(.text*)
++        *(.text*)
++        *(.vectors)
++        . = ALIGN(PAGE_SIZE);
++        __TEXT_END__ = .;
++     } >RAM
++
++     /* .ARM.extab and .ARM.exidx are only added because Clang need them */
++     .ARM.extab . : {
++        *(.ARM.extab* .gnu.linkonce.armextab.*)
++     } >RAM
++
++     .ARM.exidx . : {
++        *(.ARM.exidx* .gnu.linkonce.armexidx.*)
++     } >RAM
++
++    .rodata . : {
++        __RODATA_START__ = .;
++        *(.rodata*)
++
++        /* Ensure 8-byte alignment for descriptors and ensure inclusion */
++        . = ALIGN(8);
++        __PARSER_LIB_DESCS_START__ = .;
++        KEEP(*(.img_parser_lib_descs))
++        __PARSER_LIB_DESCS_END__ = .;
++
++        . = ALIGN(PAGE_SIZE);
++        __RODATA_END__ = .;
++    } >RAM
++#else
++    ro . : {
++        __RO_START__ = .;
++        *bl31ssram_entrypoint.o(.text*)
++        *(.text*)
++        *(.rodata*)
++
++        /* Ensure 8-byte alignment for descriptors and ensure inclusion */
++        . = ALIGN(8);
++        __PARSER_LIB_DESCS_START__ = .;
++        KEEP(*(.img_parser_lib_descs))
++        __PARSER_LIB_DESCS_END__ = .;
++
++        *(.vectors)
++        __RO_END_UNALIGNED__ = .;
++        /*
++         * Memory page(s) mapped to this section will be marked as
++         * read-only, executable.  No RW data from the next section must
++         * creep in.  Ensure the rest of the current memory page is unused.
++         */
++        . = ALIGN(PAGE_SIZE);
++        __RO_END__ = .;
++    } >RAM
++#endif
++
++    /*
++     * Define a linker symbol to mark start of the RW memory area for this
++     * image.
++     */
++    __RW_START__ = . ;
++
++    /*
++     * .data must be placed at a lower address than the stacks if the stack
++     * protector is enabled. Alternatively, the .data.stack_protector_canary
++     * section can be placed independently of the main .data section.
++     */
++    .data . : {
++        __DATA_START__ = .;
++        *(.data*)
++        __DATA_END__ = .;
++    } >RAM
++
++    stacks (NOLOAD) : {
++        __STACKS_START__ = .;
++        *(bl31ssram_normal_stacks)
++        __STACKS_END__ = .;
++    } >RAM
++
++    /*
++     * The .bss section gets initialised to 0 at runtime.
++     * Its base address should be 16-byte aligned for better performance of the
++     * zero-initialization code.
++     */
++    .bss : ALIGN(16) {
++        __BSS_START__ = .;
++        *(SORT_BY_ALIGNMENT(.bss*))
++        *(COMMON)
++        __BSS_END__ = .;
++    } >RAM
++
++    /*
++     * The xlat_table section is for full, aligned page tables (4K).
++     * Removing them from .bss avoids forcing 4K alignment on
++     * the .bss section. The tables are initialized to zero by the translation
++     * tables library.
++     */
++    xlat_table (NOLOAD) : {
++        *(xlat_table)
++    } >RAM
++
++#if USE_COHERENT_MEM
++    /*
++     * The base address of the coherent memory section must be page-aligned (4K)
++     * to guarantee that the coherent data are stored on their own pages and
++     * are not mixed with normal data.  This is required to set up the correct
++     * memory attributes for the coherent data page tables.
++     */
++    coherent_ram (NOLOAD) : ALIGN(PAGE_SIZE) {
++        __COHERENT_RAM_START__ = .;
++        *(tzfw_coherent_mem)
++        __COHERENT_RAM_END_UNALIGNED__ = .;
++        /*
++         * Memory page(s) mapped to this section will be marked
++         * as device memory.  No other unexpected data must creep in.
++         * Ensure the rest of the current memory page is unused.
++         */
++        . = ALIGN(PAGE_SIZE);
++        __COHERENT_RAM_END__ = .;
++    } >RAM
++#endif
++
++    /*
++     * Define a linker symbol to mark end of the RW memory area for this
++     * image.
++     */
++    __RW_END__ = .;
++    __BL31SSRAM_END__ = .;
++
++    __BSS_SIZE__ = SIZEOF(.bss);
++
++#if USE_COHERENT_MEM
++    __COHERENT_RAM_UNALIGNED_SIZE__ =
++        __COHERENT_RAM_END_UNALIGNED__ - __COHERENT_RAM_START__;
++#endif
++
++    ASSERT(. <= BL31SSRAM_LIMIT, "BL31SSRAM image has exceeded its limit.")
++}
+diff --git a/plat/s32g/bl31_ssram/bl31_ssram.mk b/plat/s32g/bl31_ssram/bl31_ssram.mk
+new file mode 100644
+index 000000000..debe46387
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/bl31_ssram.mk
+@@ -0,0 +1,29 @@
++#
++# Copyright 2020 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++BL31SSRAM_SOURCES =  plat/s32g/bl31_ssram/bl31ssram_stacks.S \
++		     plat/s32g/bl31_ssram/bl31ssram_entrypoint.S \
++		     plat/s32g/bl31_ssram/bl31ssram_main.c \
++		     plat/s32g/s32g_linflexuart.S \
++		     plat/s32g/s32g_clocks.c \
++		     plat/s32g/s32g_mc_me.c \
++		     ${DDR_DRV}/ddrss.c \
++		     ${DDR_DRV}/ddrss_regconf.c \
++		     ${LIBC_SRCS}
++
++BL31SSRAM_ARRAY_NAME ?= bl31ssram
++BL31SSRAM_ARRAY_LEN  ?= bl31ssram_len
++
++BL31SSRAM_SRC_DUMP   := plat/s32g/bl31_ssram/bl31_ssram.c
++BL31SSRAM_LINKERFILE := plat/s32g/bl31_ssram/bl31SSRAM.ld.S
++
++$(eval $(call MAKE_BL,31SSRAM))
++
++${BL31SSRAM_SRC_DUMP}: ${BIN}
++	${ECHO} "  XXD     $<"
++	@${HEXDUMP} -g4 -u -i $^ $@
++	@${SED} -ie "s#[[:alnum:]_]\+\[\]#${BL31SSRAM_ARRAY_NAME}[]#g" $@
++	@${SED} -ie  "s#^unsigned int [^=]\+= #unsigned int ${BL31SSRAM_ARRAY_LEN} = #g" $@
+diff --git a/plat/s32g/bl31_ssram/bl31ssram_entrypoint.S b/plat/s32g/bl31_ssram/bl31ssram_entrypoint.S
+new file mode 100644
+index 000000000..94680e59a
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/bl31ssram_entrypoint.S
+@@ -0,0 +1,78 @@
++/*
++ * Copyright (c) 2013-2019, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <arch.h>
++#include <asm_macros.S>
++#include <common/bl_common.h>
++
++.globl	bl31ssram_entrypoint
++
++func bl31ssram_entrypoint
++	/*---------------------------------------------
++	 * Save arguments x0 - x3 from BL1 for future
++	 * use.
++	 * ---------------------------------------------
++	 */
++	mov	x20, x0
++	mov	x21, x1
++	mov	x22, x2
++	mov	x23, x3
++
++	/* ---------------------------------------------
++	 * Zero out NOBITS sections. There are 2 of them:
++	 *   - the .bss section;
++	 *   - the coherent memory section.
++	 * ---------------------------------------------
++	 */
++	adrp	x0, __BSS_START__
++	add	x0, x0, :lo12:__BSS_START__
++	adrp	x1, __BSS_END__
++	add	x1, x1, :lo12:__BSS_END__
++	sub	x1, x1, x0
++	bl	zeromem
++
++#if USE_COHERENT_MEM
++	adrp	x0, __COHERENT_RAM_START__
++	add	x0, x0, :lo12:__COHERENT_RAM_START__
++	adrp	x1, __COHERENT_RAM_END_UNALIGNED__
++	add	x1, x1, :lo12:__COHERENT_RAM_END_UNALIGNED__
++	sub	x1, x1, x0
++	bl	zeromem
++#endif
++
++	/* --------------------------------------------
++	 * Allocate a stack whose memory will be marked
++	 * as Normal-IS-WBWA when the MMU is enabled.
++	 * There is no risk of reading stale stack
++	 * memory after enabling the MMU as only the
++	 * primary cpu is running at the moment.
++	 * --------------------------------------------
++	 */
++	bl	bl31ssram_set_my_stack
++
++	/* ---------------------------------------------
++	 * Initialize the stack protector canary before
++	 * any C code is called.
++	 * ---------------------------------------------
++	 */
++#if STACK_PROTECTOR_ENABLED
++	bl	update_stack_protector_canary
++#endif
++
++	/* ---------------------------------------------
++	 * Jump to main function.
++	 * ---------------------------------------------
++	 */
++	bl	bl31ssram_main
++
++	/* ---------------------------------------------
++	 * Should never reach this point.
++	 * ---------------------------------------------
++	 */
++	no_ret	plat_panic_handler
++
++endfunc bl31ssram_entrypoint
+diff --git a/plat/s32g/bl31_ssram/bl31ssram_main.c b/plat/s32g/bl31_ssram/bl31ssram_main.c
+new file mode 100644
+index 000000000..f2cc16345
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/bl31ssram_main.c
+@@ -0,0 +1,58 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <common/debug.h>
++#include <drivers/nxp/s32g/ddr/ddrss.h>
++#include <plat/common/platform.h>
++#include <platform_def.h>
++#include <s32g_clocks.h>
++#include <ssram_mailbox.h>
++#include <s32g_ivt.h>
++
++#include "bl31_ssram.h"
++
++struct ssram_ivt_sec s32g_ssram_ivt __section(".ssram_ivt1") = {
++	.ivt = {
++		.tag = IVT_TAG,
++		.length = IVT_LEN,
++		.version = APPLICATION_BOOT_CODE_VERSION,
++		.application_boot_code_pointer = BL31SSRAM_IVT +
++			sizeof(struct s32gen1_ivt),
++		.boot_configuration_word = BCW_BOOT_TARGET_A53_0,
++	},
++	.app_code = {
++		.tag = APPLICATION_BOOT_CODE_TAG,
++		.version = APPLICATION_BOOT_CODE_VERSION,
++		.ram_start_pointer = BL31SSRAM_BASE,
++		.ram_entry_pointer = BL31SSRAM_BASE,
++		.code_length = S32G_SSRAM_LIMIT - BL31SSRAM_BASE,
++	},
++};
++
++struct s32g_ssram_mailbox s32g_ssram_mailbox __section(".mailbox");
++
++void bl31ssram_main(void)
++{
++	extern struct ddrss_conf ddrss_conf;
++	s32g_warm_entrypoint_t bl31_warm_entrypoint;
++	uintptr_t csr_addr;
++
++	bl31_warm_entrypoint = s32g_ssram_mailbox.bl31_warm_entrypoint;
++	csr_addr = (uintptr_t)&s32g_ssram_mailbox.csr_settings[0];
++
++	s32g_plat_ddr_clock_init();
++	ddrss_to_normal_mode(&ddrss_conf, csr_addr);
++
++	/* To be debugged */
++	__asm__ volatile("bl .");
++	bl31_warm_entrypoint();
++
++	/*
++	 * This forces the linker to keep s32g_ssram_ivt
++	 * and s32g_boot_code symbols.
++	 */
++	printf("SSRAM IVT address = 0x%p\n", &s32g_ssram_ivt);
++	panic();
++}
+diff --git a/plat/s32g/bl31_ssram/bl31ssram_stacks.S b/plat/s32g/bl31_ssram/bl31ssram_stacks.S
+new file mode 100644
+index 000000000..74f6859d9
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/bl31ssram_stacks.S
+@@ -0,0 +1,51 @@
++/*
++ * Copyright (c) 2014-2019, ARM Limited and Contributors. All rights reserved.
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <arch.h>
++#include <asm_macros.S>
++#include <platform_def.h>
++
++
++	.local	platform_normal_stacks
++	.weak	bl31ssram_set_my_stack
++	.weak	bl31ssram_get_my_stack
++
++	/* -----------------------------------------------------
++	 * uintptr_t bl31ssram_get_my_stack ()
++	 *
++	 * For cold-boot BL images, only the primary CPU needs a
++	 * stack. This function returns the stack pointer for a
++	 * stack allocated in device memory.
++	 * -----------------------------------------------------
++	 */
++func bl31ssram_get_my_stack
++	get_up_stack platform_normal_stacks, BL31SSRAM_STACK_SIZE
++	ret
++endfunc bl31ssram_get_my_stack
++
++	/* -----------------------------------------------------
++	 * void bl31ssram_set_my_stack ()
++	 *
++	 * For cold-boot BL images, only the primary CPU needs a
++	 * stack. This function sets the stack pointer to a stack
++	 * allocated in normal memory.
++	 * -----------------------------------------------------
++	 */
++func bl31ssram_set_my_stack
++	get_up_stack platform_normal_stacks, BL31SSRAM_STACK_SIZE
++	mov sp, x0
++	ret
++endfunc bl31ssram_set_my_stack
++
++	/* -----------------------------------------------------
++	 * Single cpu stack in normal memory.
++	 * Used for C code during boot, BL31SSRAM_STACK_SIZE bytes
++	 * are allocated
++	 * -----------------------------------------------------
++	 */
++declare_stack platform_normal_stacks, bl31ssram_normal_stacks, \
++		BL31SSRAM_STACK_SIZE, 1, CACHE_WRITEBACK_GRANULE
+diff --git a/plat/s32g/bl31_ssram/include/bl31_ssram.h b/plat/s32g/bl31_ssram/include/bl31_ssram.h
+new file mode 100644
+index 000000000..53ea1503a
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/include/bl31_ssram.h
+@@ -0,0 +1,24 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef BL31_SSRAM_H
++#define BL31_SSRAM_H
++
++#include <s32g_ivt.h>
++
++struct ssram_ivt_sec {
++	struct s32gen1_ivt ivt;
++	struct s32gen1_application_boot_code app_code;
++} __attribute__((packed));
++
++_Static_assert(sizeof(struct ssram_ivt_sec) == BL31SSRAM_IVT_SIZE,
++		"The value of BL31SSRAM_IVT_SIZE isn't accurate."
++		"Please adjust it to reflect ssram_ivt_sec's size.");
++
++/* The content of BL31_SSRAM stage */
++extern unsigned char bl31ssram[];
++extern unsigned int bl31ssram_len;
++
++#endif
+diff --git a/plat/s32g/bl31_ssram/include/ssram_mailbox.h b/plat/s32g/bl31_ssram/include/ssram_mailbox.h
+new file mode 100644
+index 000000000..d35ead099
+--- /dev/null
++++ b/plat/s32g/bl31_ssram/include/ssram_mailbox.h
+@@ -0,0 +1,22 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef SSRAM_MAILBOX_H
++#define SSRAM_MAILBOX_H
++
++#include <platform_def.h>
++
++#define CSR_SETTING_OFFSET offsetof(struct s32g_ssram_mailbox, csr_settings)
++#define BL31SSRAM_CSR_BASE (BL31SSRAM_MAILBOX + CSR_SETTING_OFFSET)
++#define BL31SSRAM_CSR_SIZE (0x230)
++
++typedef void (*s32g_warm_entrypoint_t)(void);
++
++struct s32g_ssram_mailbox {
++	s32g_warm_entrypoint_t bl31_warm_entrypoint;
++	uint8_t csr_settings[BL31SSRAM_CSR_SIZE];
++};
++
++#endif
+diff --git a/plat/s32g/include/platform_def.h b/plat/s32g/include/platform_def.h
+index 898810da7..d4bd3a24f 100644
+--- a/plat/s32g/include/platform_def.h
++++ b/plat/s32g/include/platform_def.h
+@@ -146,6 +146,15 @@
+ #define BL31SRAM_MAX_PAGES	50
+ #define BL31SRAM_LIMIT		(BL31SRAM_BASE + BL31SRAM_MAX_PAGES * PAGE_SIZE)
+ 
++#define BL31SSRAM_IVT		(S32G_SSRAM_BASE)
++#define BL31SSRAM_IVT_SIZE	(0x140)
++#define BL31SSRAM_MAILBOX	(BL31SSRAM_IVT + BL31SSRAM_IVT_SIZE)
++#define BL31SSRAM_OFFSET	(0x400)
++#define BL31SSRAM_BASE		(S32G_SSRAM_BASE + BL31SSRAM_OFFSET)
++#define BL31SSRAM_LIMIT		S32G_SSRAM_LIMIT
++#define BL31SSRAM_MAX_CODE_SIZE	(S32G_SSRAM_LIMIT - BL31SSRAM_BASE)
++#define BL31SSRAM_STACK_SIZE	0x1000
++
+ /* BL2 DTB in SRAM */
+ #define DTB_SIZE		U(0x00002000)   /* 8Ko for DTB */
+ #define DTB_BASE		(BL2_BASE - DTB_SIZE)
+@@ -191,7 +200,7 @@
+ #if defined IMAGE_BL31
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G BL31\n"
+ /* To limit usage, keep these in sync with sizeof(s32g_mmap) */
+-#define MAX_MMAP_REGIONS		11
++#define MAX_MMAP_REGIONS		12
+ #define MAX_XLAT_TABLES			(MAX_MMAP_REGIONS + BL31SRAM_MAX_PAGES)
+ #endif
+ #if defined IMAGE_BL33
+diff --git a/plat/s32g/include/s32g_ivt.h b/plat/s32g/include/s32g_ivt.h
+new file mode 100644
+index 000000000..3d885651c
+--- /dev/null
++++ b/plat/s32g/include/s32g_ivt.h
+@@ -0,0 +1,55 @@
++/*
++ * Copyright 2020 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef S32G_IVT_H
++#define S32G_IVT_H
++
++#include <stdint.h>
++
++#define BCW_BOOT_TARGET_A53_0           BIT(0)
++#define IVT_TAG				0xd1
++#define IVT_LEN				0x01
++#define APPLICATION_BOOT_CODE_TAG	0xd5
++#define APPLICATION_BOOT_CODE_VERSION	0x60
++
++struct s32gen1_ivt {
++	uint8_t  tag;
++	uint16_t length;
++	uint8_t  version;
++	uint8_t  reserved1[4];
++	uint32_t self_test_dcd_pointer;
++	uint32_t self_test_dcd_pointer_backup;
++	uint32_t dcd_pointer;
++	uint32_t dcd_pointer_backup;
++	uint32_t hse_h_firmware_pointer;
++	uint32_t hse_h_firmware_pointer_backup;
++	uint32_t application_boot_code_pointer;
++	uint32_t application_boot_code_pointer_backup;
++	uint32_t boot_configuration_word;
++	uint32_t lifecycle_configuration_word;
++	uint8_t  reserved2[4];
++	uint8_t  reserved_for_hse_h_fw[32];
++	uint8_t  reserved3[156];
++	uint32_t gmac[4];
++} __attribute__((packed)) __attribute__ ((aligned (0x100)));
++
++_Static_assert(sizeof(struct s32gen1_ivt) == 0x100,
++		"Accordingly to S32G274A RM the IVT structure"
++		"must have 0x100 bytes");
++
++struct s32gen1_application_boot_code {
++	uint8_t  tag;
++	uint8_t  reserved1[2];
++	uint8_t  version;
++	uint32_t ram_start_pointer;
++	uint32_t ram_entry_pointer;
++	uint32_t code_length;
++	uint32_t auth_mode;
++	uint8_t  reserved2[44];
++	uint8_t  code[0];
++} __attribute__((packed));
++
++#endif
++
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index ea6305e9c..b9c69087c 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -4,14 +4,16 @@
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+ 
+-DDR_DRV = drivers/nxp/s32g/ddr
+-
+-include lib/xlat_tables_v2/xlat_tables.mk
++include lib/libc/libc.mk
+ include lib/libfdt/libfdt.mk
++include lib/xlat_tables_v2/xlat_tables.mk
++include plat/s32g/s32g_common.mk
+ include plat/s32g/bl31_sram/bl31_sram.mk
++include plat/s32g/bl31_ssram/bl31_ssram.mk
+ 
+ PLAT_INCLUDES		+= -Iplat/s32g/include \
+ 			   -Iplat/s32g/bl31_sram/include \
++			   -Iplat/s32g/bl31_ssram/include \
+ 			   -Iinclude/common/tbbr \
+ 			   -Iinclude/plat/common \
+ 			   -Iinclude/plat/arm/common \
+@@ -34,7 +36,9 @@ PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/i2c/s32g274a_i2c.c \
+ 			   drivers/delay_timer/delay_timer.c \
+ 			   drivers/delay_timer/generic_delay_timer.c \
+-			   lib/cpus/aarch64/cortex_a53.S
++			   lib/cpus/aarch64/cortex_a53.S\
++			   ${BL31SRAM_SRC_DUMP} \
++
+ 
+ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/s32g/s32g274a_bl2_el3.c \
+@@ -50,7 +54,8 @@ BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
+ 			   drivers/nxp/s32g/mmc/s32g274a_mmc.c \
+ 			   ${DDR_DRV}/ddrss.c \
+ 			   ${DDR_DRV}/ddrss_firmware.c \
+-			   ${DDR_DRV}/ddrss_regconf.c
++			   ${DDR_DRV}/ddrss_regconf.c \
++			   ${BL31SSRAM_SRC_DUMP} \
+ 
+ BL31_SOURCES		+= plat/s32g/s32g274a_bl31.c \
+ 			   plat/s32g/s32g_clocks.c \
+@@ -64,7 +69,6 @@ BL31_SOURCES		+= plat/s32g/s32g274a_bl31.c \
+ 			   lib/utils/crc8.c \
+ 			   drivers/nxp/s32g/pmic/vr5510.c \
+ 			   drivers/nxp/s32g/s32g_wkpu.c \
+-			   ${BL31SRAM_SRC_DUMP} \
+ 
+ BL31_SOURCES		+= plat/s32g/bl31_lowlevel.S \
+ 			   plat/s32g/include/plat_macros.S
+diff --git a/plat/s32g/s32g274a_bl31.c b/plat/s32g/s32g274a_bl31.c
+index cca7e9714..d26348962 100644
+--- a/plat/s32g/s32g274a_bl31.c
++++ b/plat/s32g/s32g274a_bl31.c
+@@ -43,6 +43,8 @@ IMPORT_SYM(uintptr_t, __RW_START__, BL31_RW_START);
+ IMPORT_SYM(uintptr_t, __RW_END__, BL31_RW_END);
+ 
+ static const mmap_region_t s32g_mmap[] = {
++	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
++			 MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_UART_BASE, S32G_UART_SIZE,
+ 			MT_DEVICE | MT_RW | MT_NS),
+ 	MAP_REGION_FLAT(S32G274A_GIC_BASE, S32G274A_GIC_SIZE,
+diff --git a/plat/s32g/s32g_common.mk b/plat/s32g/s32g_common.mk
+new file mode 100644
+index 000000000..342b09e9a
+--- /dev/null
++++ b/plat/s32g/s32g_common.mk
+@@ -0,0 +1,11 @@
++#
++# Copyright 2020 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++# Tools
++HEXDUMP ?= xxd
++SED ?= sed
++
++DDR_DRV = drivers/nxp/s32g/ddr
+diff --git a/plat/s32g/s32g_psci.c b/plat/s32g/s32g_psci.c
+index 2c1dad4ed..b07d6ade2 100644
+--- a/plat/s32g/s32g_psci.c
++++ b/plat/s32g/s32g_psci.c
+@@ -10,6 +10,7 @@
+ #include "s32g_lowlevel.h"	/* plat_is_my_cpu_primary() */
+ #include "s32g_mc_me.h"
+ #include "s32g_ncore.h"
++#include "ssram_mailbox.h"
+ 
+ #include <arch_helpers.h>
+ #include <assert.h>
+@@ -323,11 +324,21 @@ static void copy_bl31sram_image(void)
+ 		ERROR("Failed to change the attributes of BL31 SRAM memory\n");
+ }
+ 
++static void set_warm_entry(void)
++{
++	uintptr_t warm_entry;
++
++	warm_entry = BL31SSRAM_MAILBOX + offsetof(struct s32g_ssram_mailbox,
++						  bl31_warm_entrypoint);
++	mmio_write_64(warm_entry, (uintptr_t)bl31_warm_entrypoint);
++}
++
+ static void s32g_pwr_domain_suspend(const psci_power_state_t *target_state)
+ {
+ 	NOTICE("S32G TF-A: %s\n", __func__);
+ 
+ 	copy_bl31sram_image();
++	set_warm_entry();
+ 
+ 	prepare_vr5510();
+ 
+-- 
+2.17.1
+

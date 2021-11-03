@@ -1,0 +1,191 @@
+From f2adf8e09037b4f959b0e8c20730b7e9841b07af Mon Sep 17 00:00:00 2001
+From: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Date: Wed, 4 Dec 2019 22:17:27 +0200
+Subject: [PATCH 033/269] s32g: Reorganize low-level code between BL2 and BL31
+
+Move asm routines around in two separate files: one BL2-specific, and
+one common to BL2 and BL3. This is so we can refer from BL2 linker
+symbols which only exist in the BL2 symbols map.
+
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Hamciuc <bogdan.hamciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+Issue: ALB-4277
+---
+ plat/s32g/platform.mk                         |  5 +-
+ plat/s32g/s32g_lowlevel_bl2.S                 | 59 +++++++++++++++++++
+ ...s32g_lowlevel.S => s32g_lowlevel_common.S} | 41 ++++++-------
+ 3 files changed, 80 insertions(+), 25 deletions(-)
+ create mode 100644 plat/s32g/s32g_lowlevel_bl2.S
+ rename plat/s32g/{s32g_lowlevel.S => s32g_lowlevel_common.S} (78%)
+
+diff --git a/plat/s32g/platform.mk b/plat/s32g/platform.mk
+index 3811fada5..77e9e1bd3 100644
+--- a/plat/s32g/platform.mk
++++ b/plat/s32g/platform.mk
+@@ -18,11 +18,12 @@ PLAT_INCLUDES		+= -Iplat/s32g/include \
+ BL2_AT_EL3		:= 1
+ 
+ 
+-PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel.S \
++PLAT_BL_COMMON_SOURCES	+= plat/s32g/s32g_lowlevel_common.S \
+ 			   plat/s32g/s32g_linflexuart.S \
+ 			   lib/cpus/aarch64/cortex_a53.S
+ 
+-BL2_SOURCES		+= plat/s32g/s32g274a_bl2_el3.c \
++BL2_SOURCES		+= plat/s32g/s32g_lowlevel_bl2.S \
++			   plat/s32g/s32g274a_bl2_el3.c \
+ 			   drivers/io/io_storage.c \
+ 			   plat/s32g/s32g_ncore.c \
+ 			   plat/s32g/s32g_clocks.c \
+diff --git a/plat/s32g/s32g_lowlevel_bl2.S b/plat/s32g/s32g_lowlevel_bl2.S
+new file mode 100644
+index 000000000..c80c2663a
+--- /dev/null
++++ b/plat/s32g/s32g_lowlevel_bl2.S
+@@ -0,0 +1,59 @@
++/*
++ * Copyright 2019 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <asm_macros.S>
++#include <console_macros.S>
++#include "platform_def.h"
++
++.globl platform_mem_init
++.globl plat_reset_handler
++
++
++/* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
++ * This is so cache invalidate operations from the early TF-A boot code
++ * won't cause Ncore to crash.
++ *
++ * Clobber list: x8,x9,x10
++ */
++func s32g_ncore_isol_cluster0
++	movz	x8, #S32G_NCORE_CAIU0_BASE_ADDR_H, lsl #16
++	ldr	x9, [x8, #NCORE_CAIUTC_OFF]
++	movz	x10, #1
++	lsl	x10, x10, #NCORE_CAIUTC_ISOLEN_SHIFT
++	orr	x9, x9, x10
++	str	x9, [x8, #NCORE_CAIUTC_OFF]
++
++	ret
++endfunc s32g_ncore_isol_cluster0
++
++
++func bl2_sram_init
++	/* FIXME I WAS HERE */
++	ret
++endfunc bl2_sram_init
++
++
++/* Clobber list: x0,x1,x8,x9,x10,x19 */
++func plat_reset_handler
++	mov	x19, x30
++
++	/* Ncore quirks */
++	bl	s32g_ncore_isol_cluster0
++
++	/* Initialize SRAM, as BootROM did us no favours */
++	ldr	x0,=__STACKS_START__
++	ldr	x1,=__BL2_END__
++	sub	x1, x1, x0
++	bl	bl2_sram_init
++
++	mov	x30, x19
++	ret
++endfunc plat_reset_handler
++
++
++func platform_mem_init
++	ret
++endfunc platform_mem_init
+diff --git a/plat/s32g/s32g_lowlevel.S b/plat/s32g/s32g_lowlevel_common.S
+similarity index 78%
+rename from plat/s32g/s32g_lowlevel.S
+rename to plat/s32g/s32g_lowlevel_common.S
+index 175b14d25..282322e42 100644
+--- a/plat/s32g/s32g_lowlevel.S
++++ b/plat/s32g/s32g_lowlevel_common.S
+@@ -9,23 +9,21 @@
+ #include "platform_def.h"
+ 
+ .globl plat_is_my_cpu_primary
+-.globl platform_mem_init
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
+ .globl plat_secondary_cold_boot_setup
+-.globl plat_reset_handler
+-
+ .globl s32g_smp_fixup
+ 
+ .globl s32g_core_release_var
+ 
+ 
+-/* Clobber list: x8,x9,x10 */
+-func plat_reset_handler
+-	/* Ncore quirks: set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+-	 * This is so cache invalidate operations from the early TF-A boot code
+-	 * won't cause Ncore to crash.
+-	 */
++/* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
++ * This is so cache invalidate operations from the early TF-A boot code
++ * won't cause Ncore to crash.
++ *
++ * Clobber list: x8,x9,x10
++ */
++func s32g_ncore_isol_cluster0
+ 	movz	x8, #S32G_NCORE_CAIU0_BASE_ADDR_H, lsl #16
+ 	ldr	x9, [x8, #NCORE_CAIUTC_OFF]
+ 	movz	x10, #1
+@@ -33,22 +31,13 @@ func plat_reset_handler
+ 	orr	x9, x9, x10
+ 	str	x9, [x8, #NCORE_CAIUTC_OFF]
+ 
+-	/* Initialize SRAM, as BootROM did us no favours */
+-//	bl sram_init
+-
+ 	ret
+-endfunc plat_reset_handler
+-
++endfunc s32g_ncore_isol_cluster0
+ 
+-/* Set SMPEN bit on u-boot's behalf */
+-func s32g_smp_fixup
+-	mrs x14, S3_1_c15_c2_1
+-	orr x14, x14, #(1 << 6)
+-	msr S3_1_c15_c2_1, x14
+-	isb
+ 
++func bl2_sram_init
+ 	ret
+-endfunc s32g_smp_fixup
++endfunc bl2_sram_init
+ 
+ 
+ /* Clobber list: x0,x1,x7,x8
+@@ -98,9 +87,15 @@ func plat_core_pos_by_mpidr
+ endfunc plat_core_pos_by_mpidr
+ 
+ 
+-func platform_mem_init
++/* Set SMPEN bit on u-boot's behalf */
++func s32g_smp_fixup
++	mrs x14, S3_1_c15_c2_1
++	orr x14, x14, #(1 << 6)
++	msr S3_1_c15_c2_1, x14
++	isb
++
+ 	ret
+-endfunc platform_mem_init
++endfunc s32g_smp_fixup
+ 
+ 
+ func plat_secondary_cold_boot_setup
+-- 
+2.17.1
+

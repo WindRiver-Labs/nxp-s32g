@@ -1,0 +1,208 @@
+From 54d86540edbd537135e8a967b7f71c1d0177816b Mon Sep 17 00:00:00 2001
+From: Larisa Grigore <larisa.grigore@nxp.com>
+Date: Tue, 11 May 2021 17:29:22 +0300
+Subject: [PATCH 230/269] s32g: Copy from SD/QSPI only FIP image size
+
+Loading the entire FIP_MAXIMUM_SIZE from SD/QSPI is a time
+consuming operation. Instead we can load first the FIP header
+and parse it to find the real FIP image size.
+This will decrease the time for bl2_load_images in SD case from
+~200ms to ~90ms and in QSPI case, from ~725ms to ~237ms.
+
+Issue: ALB-6995
+Upstream-Status: Pending 
+
+Signed-off-by: Larisa Grigore <larisa.grigore@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/s32g_bl2_el3.c | 66 +++++++++++++++++++++++++++++++++++-
+ plat/nxp/s32g/s32g_storage.c | 27 +++++++++++----
+ 2 files changed, 86 insertions(+), 7 deletions(-)
+
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index f072611a8..31209c72c 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -27,7 +27,9 @@
+ #include <ssram_mailbox.h>
+ #include "s32g_sramc.h"
+ #include <lib/libfdt/libfdt.h>
++#include <drivers/io/io_storage.h>
+ #include <drivers/nxp/s32g/ddr/ddrss.h>
++#include <tools_share/firmware_image_package.h>
+ 
+ #define S32G_FDT_UPDATES_SPACE		100U
+ 
+@@ -35,6 +37,8 @@
+ #define AARCH64_UNCOND_BRANCH_OP	(BIT(26) | BIT(28))
+ #define BL33_DTB_MAGIC			(0xedfe0dd0)
+ 
++#define FIP_HEADER_SIZE			(0x200)
++
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[6];
+ REGISTER_BL_IMAGE_DESCS(s32g_bl2_mem_params_descs)
+ 
+@@ -51,6 +55,7 @@ static void add_fip_img_to_mem_params_descs(bl_mem_params_node_t *params,
+ 		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+ 				      image_info_t, IMAGE_ATTRIB_PLAT_SETUP),
+ 		.image_info.image_max_size = FIP_MAXIMUM_SIZE,
++		.image_info.image_size = FIP_HEADER_SIZE,
+ 		.image_info.image_base = FIP_BASE,
+ 		.next_handoff_image_id = BL31_IMAGE_ID,
+ 	};
+@@ -331,6 +336,43 @@ static bool is_branch_op(uint32_t op)
+ 	return (op & AARCH64_UNCOND_BRANCH_MASK) == AARCH64_UNCOND_BRANCH_OP;
+ }
+ 
++/* Return 0 for equal uuids. */
++static inline int compare_uuids(const uuid_t *uuid1, const uuid_t *uuid2)
++{
++	return memcmp(uuid1, uuid2, sizeof(uuid_t));
++}
++
++/* Computes the real FIP image size and updates image info.
++ * At this point, only FIP header was read so we can walk though all
++ * fip_toc_entry_t entries until the last one.
++ * The last entry will give us FIP image size.
++ */
++static int set_fip_size(bl_mem_params_node_t *fip_params)
++{
++	static const uuid_t uuid_null = { {0} };
++	uint64_t last_offset = 0, last_size = 0;
++	image_info_t *image_info = &fip_params->image_info;
++	char *buf = (char *)image_info->image_base;
++	char *buf_end = buf + image_info->image_size;
++	fip_toc_header_t *toc_header = (fip_toc_header_t *)buf;
++	fip_toc_entry_t *toc_entry = (fip_toc_entry_t *)(toc_header + 1);
++
++	while((char *)toc_entry < buf_end) {
++		if (compare_uuids(&toc_entry->uuid, &uuid_null) == 0)
++			break;
++
++		last_offset = toc_entry->offset_address;
++		last_size = toc_entry->size;
++
++		toc_entry++;
++	}
++
++	/* Update the real image size. */
++	image_info->image_size = last_size + last_offset;
++
++	return 0;
++}
++
+ int bl2_plat_handle_post_image_load(unsigned int image_id)
+ {
+ 	uint32_t magic;
+@@ -344,6 +386,24 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
+ #define AARCH64_UNCOND_BRANCH_OP	(BIT(26) | BIT(28))
+ #define BL33_DTB_MAGIC			(0xedfe0dd0)
+ 
++	if (image_id == FIP_IMAGE_ID) {
++		bl_mem_params = get_bl_mem_params_node(image_id);
++		assert(bl_mem_params && "FIP params cannot be NULL");
++
++		set_fip_size(bl_mem_params);
++
++		/* Now that we know the real image size, we can load
++		 * the entire FIP.
++		 */
++		s32g_sram_clear(FIP_BASE, FIP_BASE + bl_mem_params->image_info.image_size);
++		ret = load_auth_image(image_id, &bl_mem_params->image_info);
++		if (ret != 0) {
++			ERROR("BL2: Failed to load image id %d (%i)\n",
++			      image_id, ret);
++			plat_error_handler(ret);
++		}
++	}
++
+ 	if (image_id == BL33_IMAGE_ID) {
+ 		magic = mmio_read_32(BL33_ENTRYPOINT);
+ 		if (!is_branch_op(magic))
+@@ -533,7 +593,11 @@ void bl2_el3_plat_arch_setup(void)
+ 	s32g_el3_mmu_fixup();
+ 
+ 	s32g_sram_clear(S32G_BL33_IMAGE_BASE, DTB_BASE);
+-	s32g_sram_clear(FIP_BASE, FIP_BASE + FIP_MAXIMUM_SIZE);
++	/* Clear only the necessary part for the FIP header. The rest will
++	 * be cleared in bl2_plat_handle_post_image_load, before loading
++	 * the entire FIP image.
++	 */
++	s32g_sram_clear(FIP_BASE, FIP_BASE + FIP_HEADER_SIZE);
+ 
+ 	s32g_ssram_clear();
+ 
+diff --git a/plat/nxp/s32g/s32g_storage.c b/plat/nxp/s32g/s32g_storage.c
+index 407e1c0d1..c935e58d8 100644
+--- a/plat/nxp/s32g/s32g_storage.c
++++ b/plat/nxp/s32g/s32g_storage.c
+@@ -4,6 +4,7 @@
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #include <common/bl_common.h>
++#include <common/desc_image_load.h>
+ #include <drivers/io/io_driver.h>
+ #include <drivers/mmc.h>
+ #include <drivers/nxp/s32g/io/io_mmc.h>
+@@ -30,9 +31,8 @@ static int s32g_check_mmc_dev(const uintptr_t spec);
+ static int s32g_check_fip_dev(const uintptr_t spec);
+ static int s32g_check_memmap_dev(const uintptr_t spec);
+ 
+-static const io_block_spec_t fip_mmc_spec = {
++static io_block_spec_t fip_mmc_spec = {
+ 	.offset = FIP_MMC_OFFSET,
+-	.length = ROUND_TO_MMC_BLOCK_SIZE(FIP_MAXIMUM_SIZE),
+ };
+ 
+ static const io_block_spec_t fip_memmap_spec = {
+@@ -58,9 +58,8 @@ static const io_uuid_spec_t bl33_uuid_spec = {
+ 	.uuid = UUID_NON_TRUSTED_FIRMWARE_BL33,
+ };
+ 
+-static const io_block_spec_t qspi_fip_memmap_spec = {
++static io_block_spec_t qspi_fip_memmap_spec = {
+ 	.offset = FIP_QSPI_OFFSET,
+-	.length = ROUND_TO_MMC_BLOCK_SIZE(FIP_MAXIMUM_SIZE),
+ };
+ 
+ static struct plat_io_policy s32g_policies[] = {
+@@ -154,18 +153,34 @@ static bool boot_from_qspi(void)
+ 
+ static void set_fip_img_source(struct plat_io_policy *policy)
+ {
+-	if (boot_from_qspi())
++	bl_mem_params_node_t *fip_params =
++			get_bl_mem_params_node(FIP_IMAGE_ID);
++	image_info_t *image_info = &fip_params->image_info;
++
++	/* We know the real FIP image length only after FIP header
++	 * is read and parsed in bl2_plat_handle_post_image_load.
++	 * This code will be executed twice: the first time when the
++	 * FIP header is read and the image_size will be FIP_HEADER_SIZE
++	 * and second time when the entire FIP is read and image_size
++	 * will be the one obtained in bl2_plat_handle_post_image_load.
++	 */
++	if (boot_from_qspi()) {
++		qspi_fip_memmap_spec.length =
++			image_info->image_size;
+ 		*policy = (struct plat_io_policy) {
+ 			.dev_handle = &s32g_memmap_dev_handle,
+ 			.image_spec = (uintptr_t)&qspi_fip_memmap_spec,
+ 			.check = s32g_check_memmap_dev,
+ 		};
+-	else
++	} else {
++		fip_mmc_spec.length =
++			ROUND_TO_MMC_BLOCK_SIZE(image_info->image_size);
+ 		*policy = (struct plat_io_policy) {
+ 			.dev_handle = &s32g_mmc_dev_handle,
+ 			.image_spec = (uintptr_t)&fip_mmc_spec,
+ 			.check = s32g_check_mmc_dev,
+ 		};
++	}
+ }
+ 
+ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+-- 
+2.17.1
+

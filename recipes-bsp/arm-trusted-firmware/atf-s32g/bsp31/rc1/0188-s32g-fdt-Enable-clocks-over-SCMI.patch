@@ -1,0 +1,196 @@
+From 792e67148d28f346bd3cd505eb016ec3ed69f234 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Tue, 3 Nov 2020 10:43:04 +0200
+Subject: [PATCH 188/269] s32g: fdt: Enable clocks over SCMI
+
+Alter U-Boot's DTB by using clocks over SCMI.
+
+Issue: ALB-5510
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/s32g_bl2_el3.c | 143 +++++++++++++++++++++++++++++++++--
+ 1 file changed, 137 insertions(+), 6 deletions(-)
+
+diff --git a/plat/nxp/s32g/s32g_bl2_el3.c b/plat/nxp/s32g/s32g_bl2_el3.c
+index b3a0160b5..c42d975c7 100644
+--- a/plat/nxp/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32g/s32g_bl2_el3.c
+@@ -21,6 +21,13 @@
+ #include <drivers/generic_delay_timer.h>
+ #include <ssram_mailbox.h>
+ #include "s32g_sramc.h"
++#include <lib/libfdt/libfdt.h>
++
++#define S32G_FDT_UPDATES_SPACE		100U
++
++#define AARCH64_UNCOND_BRANCH_MASK	(0x7c000000)
++#define AARCH64_UNCOND_BRANCH_OP	(BIT(26) | BIT(28))
++#define BL33_DTB_MAGIC			(0xedfe0dd0)
+ 
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[] = {
+ 	{
+@@ -99,21 +106,141 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	s32g_io_setup();
+ }
+ 
++static int disable_clk_node(void *blob, uint32_t *phandle)
++{
++	const char *clk_path;
++	int nodeoff, ret;
++
++	clk_path = fdt_get_alias(blob, "clks");
++	if (!clk_path) {
++		ERROR("Failed to get the path of 'clks' alias\n");
++		return -EIO;
++	}
++
++	nodeoff = fdt_path_offset(blob, clk_path);
++	if (nodeoff < 0) {
++		ERROR("Failed to get offset of '%s' node\n", clk_path);
++		return nodeoff;
++	}
++
++	*phandle = fdt_get_phandle(blob, nodeoff);
++	if (*phandle < 0) {
++		ERROR("Failed to get phandle of '%s' node\n", clk_path);
++		return *phandle;
++	}
++
++	ret = fdt_setprop_string(blob, nodeoff, "status", "disabled");
++	if (ret) {
++		ERROR("Failed to disable '%s' node\n", clk_path);
++		return ret;
++	}
++
++	ret = fdt_delprop(blob, nodeoff, "phandle");
++	if (ret) {
++		ERROR("Failed to remove phandle property of '%s' node\n",
++		       clk_path);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int enable_scmi_clk_node(void *blob, uint32_t phandle)
++{
++	int nodeoff, ret;
++
++	nodeoff = fdt_path_offset(blob, "/firmware/scmi/protocol@14");
++	if (nodeoff < 0) {
++		ERROR("Failed to get offset of '/firmware/scmi/protocol@14' node\n");
++		return nodeoff;
++	}
++
++	ret = fdt_setprop_cell(blob, nodeoff, "phandle", phandle);
++	if (ret) {
++		ERROR("Failed to set phandle property of '/firmware/scmi/protocol@14' node\n");
++		return ret;
++	}
++
++	ret = fdt_setprop_string(blob, nodeoff, "status", "okay");
++	if (ret) {
++		ERROR("Failed to enable '/firmware/scmi/protocol@14' node\n");
++		return ret;
++	}
++
++	return 0;
++}
++
++static int enable_scmi_mbox(void *blob)
++{
++	int nodeoff, ret;
++
++	nodeoff = fdt_node_offset_by_compatible(blob, -1, "arm,scmi-smc");
++	if (nodeoff < 0) {
++		ERROR("Failed to get offset of 'arm,scmi-smc' node\n");
++		return nodeoff;
++	}
++
++	ret = fdt_setprop_string(blob, nodeoff, "status", "okay");
++	if (ret) {
++		ERROR("Failed to enable 'arm,scmi-smc' node\n");
++		return nodeoff;
++	}
++
++	return 0;
++}
++
++static int ft_fixup_scmi_clks(void *blob)
++{
++	uint32_t phandle;
++	int ret;
++
++	ret = disable_clk_node(blob, &phandle);
++	if (ret)
++		return ret;
++
++	ret = enable_scmi_clk_node(blob, phandle);
++	if (ret)
++		return ret;
++
++	ret = enable_scmi_mbox(blob);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static int ft_fixups(void *blob)
++{
++	size_t size = fdt_totalsize(blob);
++	int ret;
++
++	size += S32G_FDT_UPDATES_SPACE;
++	fdt_set_totalsize(blob, size);
++
++	ret = ft_fixup_scmi_clks(blob);
++
++	flush_dcache_range((uintptr_t)blob, size);
++
++	return ret;
++}
++
++static bool is_branch_op(uint32_t op)
++{
++	return (op & AARCH64_UNCOND_BRANCH_MASK) == AARCH64_UNCOND_BRANCH_OP;
++}
++
+ int bl2_plat_handle_post_image_load(unsigned int image_id)
+ {
+ 	uint32_t magic;
+-
+-#define AARCH64_UNCOND_BRANCH_MASK	(0x7c000000)
+-#define AARCH64_UNCOND_BRANCH_OP	(BIT(26) | BIT(28))
+-#define BL33_DTB_MAGIC			(0xedfe0dd0)
++	int ret;
+ 
+ 	if (image_id == BL33_IMAGE_ID) {
+ 		magic = mmio_read_32(BL33_ENTRYPOINT);
+-		if ((magic & AARCH64_UNCOND_BRANCH_MASK)
+-					!= AARCH64_UNCOND_BRANCH_OP)
++		if (!is_branch_op(magic))
+ 			printf("Warning: Instruction at BL33_ENTRYPOINT"
+ 			       " is 0x%x, which is not a B or BL!\n",
+ 			       magic);
++
+ 		magic = mmio_read_32(BL33_DTB);
+ 		if (magic != BL33_DTB_MAGIC) {
+ 			printf("Error: Instruction at BL33_DTB is 0x%x"
+@@ -121,6 +248,10 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
+ 			       magic, BL33_DTB_MAGIC);
+ 			return -EINVAL;
+ 		}
++
++		ret = ft_fixups((void *)BL33_DTB);
++		if (ret)
++			return ret;
+ 	}
+ 
+ 	return 0;
+-- 
+2.17.1
+

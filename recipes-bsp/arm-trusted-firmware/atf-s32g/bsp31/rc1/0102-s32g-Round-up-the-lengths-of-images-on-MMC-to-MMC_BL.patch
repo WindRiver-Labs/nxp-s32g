@@ -1,0 +1,70 @@
+From 5803f72416eceff8ffcaacf2ea084d40e7e036b4 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Fri, 24 Apr 2020 11:12:56 +0300
+Subject: [PATCH 102/269] s32g: Round up the lengths of images on MMC to
+ MMC_BLOCK_SIZE
+
+The MMC subsystem requires all length to be MMC_BLOCK_SIZE aligned.
+
+Issue: ALB-4798
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/s32g/s32g274a_storage.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/plat/s32g/s32g274a_storage.c b/plat/s32g/s32g274a_storage.c
+index dd65c7ad8..8cbb0dfde 100644
+--- a/plat/s32g/s32g274a_storage.c
++++ b/plat/s32g/s32g274a_storage.c
+@@ -5,6 +5,7 @@
+  */
+ #include <common/bl_common.h>
+ #include <drivers/io/io_driver.h>
++#include <drivers/mmc.h>
+ #include <drivers/nxp/s32g/io/io_mmc.h>
+ #include <drivers/io/io_memmap.h>
+ #include <drivers/nxp/s32g/mmc/s32g274a_mmc.h>
+@@ -12,6 +13,10 @@
+ #include <tools_share/firmware_image_package.h>
+ #include "s32g_storage.h"
+ 
++#define ROUND_TO_MMC_BLOCK_SIZE(x) \
++	(((x) & ~(MMC_BLOCK_MASK)) == (x) ? (x) : \
++	 ((x) & ~(MMC_BLOCK_MASK)) + (MMC_BLOCK_SIZE))
++
+ static const io_dev_connector_t *s32g_mmc_io_dev;
+ static uintptr_t s32g_mmc_boot_dev_handle;
+ static const io_dev_connector_t *s32g_sram_io_dev;
+@@ -22,22 +27,22 @@ static int s32g_check_sram_dev(const uintptr_t spec);
+ 
+ static const io_block_spec_t bl31_mmc_spec = {
+ 	.offset = BL31_MMC_OFFSET,
+-	.length = BL31_MMC_SIZE,
++	.length = ROUND_TO_MMC_BLOCK_SIZE(BL31_MMC_SIZE),
+ };
+ 
+ static const io_block_spec_t bl33_mmc_spec = {
+ 	.offset = BL33_MMC_OFFSET,
+-	.length = BL33_MMC_SIZE,
++	.length = ROUND_TO_MMC_BLOCK_SIZE(BL33_MMC_SIZE),
+ };
+ 
+ static const io_block_spec_t bl1_ivt_abc_mmc_spec = {
+ 	.offset = MMC_BL1_IVT_ABC_BASE,
+-	.length = BL1_IVT_ABC_SIZE,
++	.length = ROUND_TO_MMC_BLOCK_SIZE(BL1_IVT_ABC_SIZE),
+ };
+ 
+ static const io_block_spec_t bl1_bootstrap_code_mmc_spec = {
+ 	.offset = MMC_BL1_RO_BASE,
+-	.length = BL1_BOOTSTRAP_CODE_SIZE,
++	.length = ROUND_TO_MMC_BLOCK_SIZE(BL1_BOOTSTRAP_CODE_SIZE),
+ };
+ 
+ static const io_block_spec_t bl1_ivt_abc_sram_spec = {
+-- 
+2.17.1
+

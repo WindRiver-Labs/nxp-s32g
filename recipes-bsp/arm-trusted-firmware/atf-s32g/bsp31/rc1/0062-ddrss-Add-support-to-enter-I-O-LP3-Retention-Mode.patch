@@ -1,0 +1,123 @@
+From 5543558b6260ddb498c6e889f1ab83ced4689b14 Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Wed, 15 Jan 2020 15:15:35 +0200
+Subject: [PATCH 062/269] ddrss: Add support to enter I/O LP3 Retention Mode
+
+Issue: ALB-4507
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/ddrss.c         | 46 ++++++++++++++++++++++++++++
+ include/drivers/nxp/s32g/ddr/ddrss.h | 15 +++++++++
+ 2 files changed, 61 insertions(+)
+
+diff --git a/drivers/nxp/s32g/ddr/ddrss.c b/drivers/nxp/s32g/ddr/ddrss.c
+index 4c01b8e63..e2a0cf342 100644
+--- a/drivers/nxp/s32g/ddr/ddrss.c
++++ b/drivers/nxp/s32g/ddr/ddrss.c
+@@ -179,3 +179,49 @@ void ddrss_init(struct ddrss_conf *ddrss_conf,
+ 	mmio_write_32(PCTRL_1, mmio_read_32(PCTRL_1) | PORT_EN_MASK);
+ 	mmio_write_32(PCTRL_2, mmio_read_32(PCTRL_2) | PORT_EN_MASK);
+ }
++
++void ddrss_to_io_lp3_retention_mode(void)
++{
++	/* Disable AXI Ports */
++	mmio_write_16(PCTRL_0, 0);
++	mmio_write_16(PCTRL_1, 0);
++	mmio_write_16(PCTRL_2, 0);
++	while (mmio_read_32(PSTAT))
++		;
++
++	/* Disable Scrubber */
++	mmio_write_32(SBRCTL, mmio_read_32(SBRCTL) & (~SCRUB_EN_MASK));
++	while (mmio_read_32(SBRSTAT) & SCRUB_BUSY_MASK)
++		;
++
++	/* Move to Self Refresh */
++	mmio_write_32(PWRCTL, mmio_read_32(PWRCTL) | SELFREF_SW_MASK);
++	while ((mmio_read_32(STAT) & OPERATING_MODE_MASK)
++			!= OPERATING_MODE_SELF_REFRESH)
++		;
++	while ((mmio_read_32(STAT) & SELFREF_TYPE_MASK)
++			!= SELFREF_TYPE_NOT_UNDER_AUTO_SR_CTRL)
++		;
++	while ((mmio_read_32(STAT) & SELFREF_STATE_MASK)
++			!= SELFREF_STATE_SRPD)
++		;
++
++	/* Transition Phy to LP3 */
++	mmio_write_32(DFIMISC, 0);
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) & (~SW_DONE_MASK));
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_FREQUENCY(0x1f));
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_INIT_START_MASK);
++	while (mmio_read_32(DFISTAT) & DFI_INIT_COMPLETE_MASK)
++		;
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) | DFI_FREQUENCY(0x1f));
++	mmio_write_32(DFIMISC, mmio_read_32(DFIMISC) & (~DFI_INIT_START_MASK));
++	while (!(mmio_read_32(DFISTAT) & DFI_INIT_COMPLETE_MASK))
++		;
++	mmio_write_32(SWCTL, mmio_read_32(SWCTL) | SW_DONE_MASK);
++	while (!(mmio_read_32(SWSTAT) & SW_DONE_ACK_MASK))
++		;
++
++	/* Set PwrOkIn to 0 */
++	mmio_write_32(DDR_RET_CONTROL,
++		      mmio_read_32(DDR_RET_CONTROL) & (~DDR_RET_CONTROL_MASK));
++}
+diff --git a/include/drivers/nxp/s32g/ddr/ddrss.h b/include/drivers/nxp/s32g/ddr/ddrss.h
+index a823f2f79..f2adbc16c 100644
+--- a/include/drivers/nxp/s32g/ddr/ddrss.h
++++ b/include/drivers/nxp/s32g/ddr/ddrss.h
+@@ -66,6 +66,11 @@
+ #define STAT				(UMCTL2_REGS + 0x4)
+ #define OPERATING_MODE_MASK		(BIT(0) | BIT(1) | BIT(2))
+ #define OPERATING_MODE_NORMAL		(0x1)
++#define OPERATING_MODE_SELF_REFRESH	(0x3)
++#define SELFREF_TYPE_MASK		(BIT(4) | BIT(5))
++#define SELFREF_TYPE_NOT_UNDER_AUTO_SR_CTRL	(0x2 << 4)
++#define SELFREF_STATE_MASK		(BIT(8) | BIT(9))
++#define SELFREF_STATE_SRPD		(0x2 << 8)
+ #define MRCTRL0				(UMCTL2_REGS + 0x10)
+ #define PBA_MODE			BIT(30)
+ #define MR_ADDR_MR6			(6U << 12U)
+@@ -84,6 +89,7 @@
+ #define INIT0				(UMCTL2_REGS + 0xd0)
+ #define SKIP_DRAM_INIT_MASK		(BIT(30) | BIT(31))
+ #define DFIMISC				(UMCTL2_REGS + 0x1b0)
++#define DFI_FREQUENCY(f)		(f << 8)
+ #define DFI_INIT_COMPLETE_EN_MASK	BIT(0)
+ #define CTL_IDLE_EN_MASK		BIT(4)
+ #define DFI_INIT_START_MASK		BIT(5)
+@@ -112,10 +118,15 @@
+ #define ADDRMAP_ROW_B16_OFFSET		(0)
+ 
+ #define UMCTL2_MP			(DDRSS_BASE_ADDR + 0x403f8)
++#define PSTAT				(UMCTL2_MP + 0x4)
+ #define PCTRL_0				(UMCTL2_MP + 0x98)
+ #define PCTRL_1				(UMCTL2_MP + 0x148)
+ #define PCTRL_2				(UMCTL2_MP + 0x1f8)
+ #define PORT_EN_MASK			BIT(0)
++#define SBRCTL				(UMCTL2_MP + 0xb2c)
++#define SCRUB_EN_MASK			BIT(0)
++#define SBRSTAT				(UMCTL2_MP + 0xb30)
++#define SCRUB_BUSY_MASK			BIT(0)
+ 
+ #define DDR_SUBSYSTEM			(DDRSS_BASE_ADDR + 0x50000)
+ #define REG_GRP0			(DDR_SUBSYSTEM + 0x0)
+@@ -125,6 +136,10 @@
+ 
+ #define MAIL_TRAINING_SUCCESS		(0x07)
+ 
++#define DDR_GPR				(0x4007c600ul)
++#define DDR_RET_CONTROL			(DDR_GPR + 0x1c)
++#define DDR_RET_CONTROL_MASK		BIT(0)
++
+ struct regconf {
+ 	uint32_t addr;
+ 	uint32_t data;
+-- 
+2.17.1
+

@@ -1,0 +1,86 @@
+From 2d333edaa8ef56668a35d67c59b9a33bc8d628a5 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Wed, 27 Jan 2021 11:32:22 +0200
+Subject: [PATCH 207/269] s32g: Use S32G_DRAM_INLINE_ECC make flag to enable
+ ECC
+
+Issue: ALB-5845
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/ddr/rev2/ddrc_cfg_rev2.c | 10 +++++-----
+ plat/nxp/s32g/s32g_common.mk              |  5 +++++
+ 2 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/nxp/s32g/ddr/rev2/ddrc_cfg_rev2.c b/drivers/nxp/s32g/ddr/rev2/ddrc_cfg_rev2.c
+index aa2fecd96..ad9e4d25e 100644
+--- a/drivers/nxp/s32g/ddr/rev2/ddrc_cfg_rev2.c
++++ b/drivers/nxp/s32g/ddr/rev2/ddrc_cfg_rev2.c
+@@ -33,7 +33,7 @@
+ 
+ struct regconf ddrc_cfg_rev2[] = {
+ 	{0x4007c604, 0x00000000},
+-#ifdef S32GEN1_DRAM_INLINE_ECC
++#if (S32G_DRAM_INLINE_ECC == 1)
+ 	{0x4007c608, 0x37ffffff},
+ #else
+ 	{0x4007c608, 0x00000000},
+@@ -53,7 +53,7 @@ struct regconf ddrc_cfg_rev2[] = {
+ 	{0x403c0060, 0x00000000},
+ 	{0x403c0064, 0x006100e0},
+ 	{0x403c0068, 0x008c0000},
+-#ifdef S32GEN1_DRAM_INLINE_ECC
++#if (S32G_DRAM_INLINE_ECC == 1)
+ 	{0x403c0070, 0x033f7f54},
+ 	{0x403c0074, 0x00000780},
+ #else
+@@ -106,7 +106,7 @@ struct regconf ddrc_cfg_rev2[] = {
+ 	{0x403c01b8, 0x00000000},
+ 	{0x403c01c0, 0x00000001},
+ 	{0x403c01c4, 0x00000001},
+-#ifdef S32GEN1_DRAM_INLINE_ECC
++#if (S32G_DRAM_INLINE_ECC == 1)
+ 	{0x403c0200, 0x00000014},
+ 	{0x403c0204, 0x00050505},
+ #else
+@@ -114,13 +114,13 @@ struct regconf ddrc_cfg_rev2[] = {
+ 	{0x403c0204, 0x00080808},
+ #endif
+ 	{0x403c0208, 0x00000000},
+-#ifdef S32GEN1_DRAM_INLINE_ECC
++#if (S32G_DRAM_INLINE_ECC == 1)
+ 	{0x403c020c, 0x14141400},
+ #else
+ 	{0x403c020c, 0x00000000},
+ #endif
+ 	{0x403c0210, 0x00001f1f},
+-#ifdef S32GEN1_DRAM_INLINE_ECC
++#if (S32G_DRAM_INLINE_ECC == 1)
+ 	{0x403c0214, 0x04040404},
+ 	{0x403c0218, 0x04040404},
+ #else
+diff --git a/plat/nxp/s32g/s32g_common.mk b/plat/nxp/s32g/s32g_common.mk
+index 8f34e8dae..144240ca6 100644
+--- a/plat/nxp/s32g/s32g_common.mk
++++ b/plat/nxp/s32g/s32g_common.mk
+@@ -4,10 +4,15 @@
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+ 
++include make_helpers/build_macros.mk
++
+ # Tools
+ HEXDUMP ?= xxd
+ SED ?= sed
+ 
++S32G_DRAM_INLINE_ECC	?= 1
++$(eval $(call add_define_val,S32G_DRAM_INLINE_ECC,$(S32G_DRAM_INLINE_ECC)))
++
+ DDR_DRV = drivers/nxp/s32g/ddr
+ 
+ DDR_DRV_SRCS = \
+-- 
+2.17.1
+

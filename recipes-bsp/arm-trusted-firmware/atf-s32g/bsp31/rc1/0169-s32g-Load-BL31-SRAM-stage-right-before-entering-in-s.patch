@@ -1,0 +1,107 @@
+From 559d7457574442b79a4fe3377ec46e5650c229ab Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Date: Mon, 27 Jul 2020 07:27:21 +0300
+Subject: [PATCH 169/269] s32g: Load BL31 SRAM stage right before entering in
+ suspend
+
+Issue: ALB-5320
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <Ghennadi.Procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32g/s32g_psci.c | 24 ++++++++----------------
+ 1 file changed, 8 insertions(+), 16 deletions(-)
+
+diff --git a/plat/nxp/s32g/s32g_psci.c b/plat/nxp/s32g/s32g_psci.c
+index 2d9f7f4a9..51e791a91 100644
+--- a/plat/nxp/s32g/s32g_psci.c
++++ b/plat/nxp/s32g/s32g_psci.c
+@@ -36,8 +36,6 @@ static const unsigned char s32g_power_domain_tree_desc[] = {
+ 	PLATFORM_CORE_COUNT / 2
+ };
+ 
+-static bool copied_bl31sram;
+-
+ static bool is_core_in_secondary_cluster(int pos)
+ {
+ 	return (pos == 2 || pos == 3);
+@@ -79,6 +77,7 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	if (!is_core_in_secondary_cluster(pos) &&
+ 	    !ncore_is_caiu_online(A53_CLUSTER0_CAIU))
+ 		ncore_caiu_online(A53_CLUSTER0_CAIU);
++
+ 	return PSCI_E_SUCCESS;
+ }
+ 
+@@ -109,15 +108,11 @@ static void copy_bl31sram_image(void)
+ 	uint32_t npages;
+ 	int ret;
+ 
+-	if (copied_bl31sram)
+-		return;
+-
+ 	/* Clear all BL31SRAM sections */
+ 	ret = s32g_sram_clear(BL31SRAM_BASE, BL31SRAM_LIMIT);
+ 	if (ret)
+ 		ERROR("Failed to initialize SRAM from BL31SRAM stage\n");
+ 
+-
+ 	npages = bl31sram_len / PAGE_SIZE;
+ 	if (bl31sram_len % PAGE_SIZE)
+ 		npages++;
+@@ -135,8 +130,6 @@ static void copy_bl31sram_image(void)
+ 			MT_CODE | MT_SECURE);
+ 	if (ret)
+ 		ERROR("Failed to change the attributes of BL31 SRAM memory\n");
+-
+-	copied_bl31sram = true;
+ }
+ 
+ static void bl31sram_entry(void)
+@@ -156,7 +149,7 @@ static void set_warm_entry(void)
+ 	mmio_write_64(warm_entry, (uintptr_t)s32g_resume_entrypoint);
+ }
+ 
+-static void __dead2 platform_suspend(void)
++static void __dead2 platform_suspend(unsigned int current_cpu)
+ {
+ 	size_t i;
+ 
+@@ -174,9 +167,10 @@ static void __dead2 platform_suspend(void)
+ 	s32g_turn_off_core(S32G_MC_ME_CM7_PART, 0);
+ 
+ 	/* A53 cores */
+-	s32g_turn_off_core(S32G_MC_ME_CA53_PART, 3);
+-	s32g_turn_off_core(S32G_MC_ME_CA53_PART, 2);
+-	s32g_turn_off_core(S32G_MC_ME_CA53_PART, 1);
++	for (i = 0; i < PLATFORM_CORE_COUNT; i++) {
++		if (i != current_cpu)
++			s32g_turn_off_core(S32G_MC_ME_CA53_PART, i);
++	}
+ 
+ 	/* PFE blocks */
+ 	s32g_disable_cofb_clk(S32G_MC_ME_PFE_PART, 0);
+@@ -207,8 +201,6 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 
+ 	NOTICE("S32G TF-A: %s: cpu = %u\n", __func__, pos);
+ 
+-	copy_bl31sram_image();
+-
+ 	if (!is_last_core()) {
+ 		update_core_state(pos, 0);
+ 
+@@ -221,8 +213,8 @@ static void __dead2 s32g_pwr_domain_pwr_down_wfi(
+ 		plat_secondary_cold_boot_setup();
+ 	}
+ 
+-	copied_bl31sram = false;
+-	platform_suspend();
++	copy_bl31sram_image();
++	platform_suspend(pos);
+ 
+ 	/* Unreachable code */
+ 	plat_panic_handler();
+-- 
+2.17.1
+
