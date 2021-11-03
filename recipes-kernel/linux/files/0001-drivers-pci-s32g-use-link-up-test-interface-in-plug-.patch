@@ -1,0 +1,70 @@
+From 83263792b958f82d2ceb2a364412de40d9aab84c Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Wed, 3 Nov 2021 16:09:51 +0800
+Subject: [PATCH] drivers: pci: s32g: use link up test interface in plug irq
+ handler
+
+In the original codes, s32gen1_pcie_hot_plug_irq() used phy_validate()
+to check if the endpoint is connected, but in phy_validate(), there is
+a mutex lock operation, which may sleep, and will cause the following
+call trace show:
+
+ BUG: sleeping function called from invalid context at kernel/locking/mutex.c:947
+ in_atomic(): 1, irqs_disabled(): 128, non_block: 0, pid: 343, name: rngd
+ no locks held by rngd/343.
+ irq event stamp: 3945356
+ hardirqs last  enabled at (3945355): [<ffffffc010013090>] finish_ret_to_user+0x4/0x148
+ hardirqs last disabled at (3945356): [<ffffffc010012d7c>] el0_irq_naked+0x4/0x58
+ softirqs last  enabled at (3945354): [<ffffffc0100108f8>] __do_softirq+0x6a8/0x768
+ softirqs last disabled at (3945349): [<ffffffc010050114>] __irq_exit_rcu+0x190/0x19c
+ Preemption disabled at:
+ [<ffffffc0100504c8>] irq_enter_rcu+0x38/0xa0
+ CPU: 0 PID: 343 Comm: rngd Tainted: G           O      5.10.76-yocto-standard #1
+ Hardware name: Freescale S32G274 (DT)
+ Call trace:
+  dump_backtrace+0x0/0x1d4
+  show_stack+0x24/0x30
+  dump_stack+0xf0/0x13c
+  ___might_sleep+0x19c/0x244
+  __might_sleep+0x60/0x9c
+  __mutex_lock+0x64/0x8d4
+  mutex_lock_nested+0x4c/0x5c
+  phy_validate+0x54/0xac
+  s32gen1_pcie_hot_plug_irq+0x5c/0x74
+  __handle_irq_event_percpu+0x140/0x4b0
+  handle_irq_event+0x70/0x120
+  handle_fasteoi_irq+0xcc/0x230
+  __handle_domain_irq+0xbc/0x13c
+  gic_handle_irq+0x94/0x160
+  el0_irq_naked+0x50/0x58
+
+So use s32gen1_pcie_link_is_up() to replace phy_validate() to fix the above issue.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/pci/controller/dwc/pci-s32gen1.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/pci/controller/dwc/pci-s32gen1.c b/drivers/pci/controller/dwc/pci-s32gen1.c
+index c4dc20e96d5f..02469606142a 100644
+--- a/drivers/pci/controller/dwc/pci-s32gen1.c
++++ b/drivers/pci/controller/dwc/pci-s32gen1.c
+@@ -872,11 +872,12 @@ static irqreturn_t s32gen1_pcie_hot_unplug_thread(int irq, void *arg)
+ static irqreturn_t s32gen1_pcie_hot_plug_irq(int irq, void *arg)
+ {
+ 	struct s32gen1_pcie *s32_pci = arg;
++	struct dw_pcie *pcie = &s32_pci->pcie;
+ 
+ 	BSET32(s32_pci, ctrl, PE0_INT_STS, HP_INT_STS);
+ 
+ 	/* if EP is not connected, we exit */
+-	if (phy_validate(s32_pci->phy0, PHY_MODE_PCIE, 0, NULL))
++	if (!s32gen1_pcie_link_is_up(pcie))
+ 		return IRQ_HANDLED;
+ 
+ 	return IRQ_WAKE_THREAD;
+-- 
+2.25.1
+
