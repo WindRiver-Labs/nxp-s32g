@@ -1,0 +1,114 @@
+From b1fcb14e3589521caec923c37c25b97c34c4aab2 Mon Sep 17 00:00:00 2001
+From: Bogdan Folea <bogdan.folea@nxp.com>
+Date: Thu, 21 Oct 2021 12:29:48 +0300
+Subject: [PATCH 4/4] libhse: enable UIO device configuration from makefile
+
+ALB-7965
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Folea <bogdan.folea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Makefile         | 23 +++++++++++++++--------
+ libhse/hse-usr.c | 11 ++++++++---
+ libhse/libhse.h  |  1 -
+ 3 files changed, 23 insertions(+), 12 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 5cbc3ad..0c7d156 100644
+--- a/Makefile
++++ b/Makefile
+@@ -27,6 +27,11 @@ ifeq (,$(HSE_FWDIR))
+     $(warning Path to HSE firmware package not defined, using default $HSE_FWDIR)
+ endif
+ 
++ifeq (,$(UIO_DEV))
++    UIO_DEV ?= uio0
++    $(warning HSE UIO device not defined, using default device $(UIO_DEV))
++endif
++
+ # Build libraries
+ CC := $(CROSS_COMPILE)gcc
+ LD := $(CROSS_COMPILE)ld
+@@ -48,12 +53,14 @@ HSE_ODIR = $(HSE_SDIR)/obj
+ HSE_SRCS = $(wildcard $(HSE_SDIR)/*.c)
+ HSE_OBJS = $(patsubst $(HSE_SDIR)/%.c,$(HSE_ODIR)/%.o,$(HSE_SRCS))
+ 
+-INCLUDE = -I$(HSE_FWDIR)/interface \
+-		  -I$(HSE_FWDIR)/interface/inc_common \
+-		  -I$(HSE_FWDIR)/interface/inc_custom \
+-		  -I$(HSE_FWDIR)/interface/inc_services \
+-		  -I$(HSE_FWDIR)/interface/config \
+-		  -I$(HSE_SDIR)
++INCL = -I$(HSE_FWDIR)/interface                                                \
++       -I$(HSE_FWDIR)/interface/inc_common                                     \
++       -I$(HSE_FWDIR)/interface/inc_custom                                     \
++       -I$(HSE_FWDIR)/interface/inc_services                                   \
++       -I$(HSE_FWDIR)/interface/config                                         \
++       -I$(HSE_SDIR)
++
++DEFS := -DUIO_DEV=$(UIO_DEV)
+ 
+ all: $(HSE_LIB).$(HSE_LIBVER)
+ 
+@@ -61,7 +68,7 @@ $(PKCS_LIB): $(HSE_LIB).$(HSE_LIBVER) $(PKCS_OBJS)
+ 	$(CC) -shared $(CFLAGS) -L$(shell pwd) $(LDFLAGS) $(PKCS_OBJS) -o $@ -lhse
+ 
+ $(PKCS_ODIR)/%.o: $(PKCS_SDIR)/%.c $(PKCS_ODIR)
+-	$(CC) -c $(CFLAGS) $(INCLUDE) $(LDFLAGS) $< -o $@
++	$(CC) -c $(CFLAGS) $(INCL) $(LDFLAGS) $< -o $@
+ 
+ $(PKCS_ODIR):
+ 	mkdir -p $@
+@@ -71,7 +78,7 @@ $(HSE_LIB).$(HSE_LIBVER): $(HSE_OBJS)
+ 	ln -s $@ $(HSE_LIB)
+ 
+ $(HSE_ODIR)/%.o: $(HSE_SDIR)/%.c $(HSE_ODIR)
+-	$(CC) -c $(CFLAGS) $(INCLUDE) $(LDFLAGS) $< -o $@
++	$(CC) -c $(CFLAGS) $(INCL) $(DEFS) $(LDFLAGS) $< -o $@
+ 
+ $(HSE_ODIR):
+ 	mkdir -p $@
+diff --git a/libhse/hse-usr.c b/libhse/hse-usr.c
+index 5331d9a..e55469f 100644
+--- a/libhse/hse-usr.c
++++ b/libhse/hse-usr.c
+@@ -21,15 +21,20 @@
+ 
+ #include "hse_interface.h"
+ 
++#define __stringify_1(x)    #x
++#define __stringify(x)      __stringify_1(x)
++
++#ifndef UIO_DEV
++#error HSE UIO device not defined
++#endif /* UIO_DEV */
++#define HSE_UIO_DEVICE    __stringify(UIO_DEV)
++
+ /* UIO mappings index */
+ #define HSE_UIO_MAP_REGS    0 /* MU hardware register space */
+ #define HSE_UIO_MAP_DESC    1 /* service descriptor space */
+ #define HSE_UIO_MAP_INTL    2 /* driver internal shared memory */
+ #define HSE_UIO_MAP_RMEM    3 /* reserved DMA-able memory range */
+ 
+-#define __stringify_1(x)    #x
+-#define __stringify(x)      __stringify_1(x)
+-
+ /* sysfs files containing base address and size of UIO mappings */
+ #define HSE_UIO_REGS_SIZE    "/sys/class/uio/" HSE_UIO_DEVICE "/maps/map" \
+ 			     __stringify(HSE_UIO_MAP_REGS) "/size"
+diff --git a/libhse/libhse.h b/libhse/libhse.h
+index ec0ea1d..bac28e0 100644
+--- a/libhse/libhse.h
++++ b/libhse/libhse.h
+@@ -8,7 +8,6 @@
+ #ifndef LIBHSE_H
+ #define LIBHSE_H
+ 
+-#define HSE_UIO_DEVICE    "uio0" /* HSE UIO device registered by the kernel */
+ #define HSE_NUM_CHANNELS    16u /* number of available service channels */
+ 
+ #define HSE_CHANNEL_ANY    0xACu /* use any channel, no request ordering */
+-- 
+2.17.1
+

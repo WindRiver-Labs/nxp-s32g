@@ -1,0 +1,47 @@
+From e8f908320e80b8aec960ae1dfb4e07f6dc5269ef Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Mon, 18 Oct 2021 19:05:04 +0800
+Subject: [PATCH] pkcs11-hse: Makefile: using internal compile variables in
+ bitbake system
+
+In bsp31 rc3, the pkcs11-hse demo changed its make file and set the
+CC variable to "$(CROSS_COMPILE)gcc", this will make the demo build
+failure due to CROSS_COMPILE is not set in bitbake system, so this
+patch will replace it with internal CC variable in bitbake system.
+So as LD variable. And change the message "CROSS_COMPILE is not set"
+to be a warning to make the compile to continue.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Makefile | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index e6c45af..500aeea 100644
+--- a/Makefile
++++ b/Makefile
+@@ -19,7 +19,7 @@ endif
+ 
+ # Prerequisites check
+ ifeq (,$(CROSS_COMPILE))
+-    $(error CROSS_COMPILE is not set)
++    $(warning CROSS_COMPILE is not set)
+ endif
+ 
+ ifeq (,$(HSE_FWDIR))
+@@ -33,8 +33,8 @@ ifeq (,$(UIO_DEV))
+ endif
+ 
+ # Build libraries
+-CC := $(CROSS_COMPILE)gcc
+-LD := $(CROSS_COMPILE)ld
++CC := $(CC)
++LD := $(LD)
+ CFLAGS ?= -fPIC -Wall -g
+ LDFLAGS ?=
+ 
+-- 
+2.17.1
+

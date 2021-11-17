@@ -1,0 +1,157 @@
+From 5657f309697d37980c3e94bc917149b17a642d08 Mon Sep 17 00:00:00 2001
+From: Vlad Pelin <vlad.pelin@nxp.com>
+Date: Thu, 9 Sep 2021 12:57:07 +0300
+Subject: [PATCH 1/4] pkcs: ddr memory allocator
+
+Issue: ALB-6511
+Upstream-Status: Pending 
+
+Signed-off-by: Vlad Pelin <vlad.pelin@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ libhse/hse_memalloc.c | 100 ++++++++++++++++++++++++++++++++++++++++++
+ libhse/hse_memalloc.h |  25 +++++++++++
+ 2 files changed, 125 insertions(+)
+ create mode 100644 libhse/hse_memalloc.c
+ create mode 100644 libhse/hse_memalloc.h
+
+diff --git a/libhse/hse_memalloc.c b/libhse/hse_memalloc.c
+new file mode 100644
+index 0000000..a2a99e9
+--- /dev/null
++++ b/libhse/hse_memalloc.c
+@@ -0,0 +1,100 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * NXP HSE Driver - Userspace memory allocation
++ *
++ * Copyright 2021 NXP
++ */
++
++#include <stdio.h>
++#include <stdint.h>
++#include "libhse.h"
++#include "hse_memalloc.h"
++
++static unsigned char PLACEHOLDER[PLACEHOLDER_MEM_SIZE];
++
++static struct node_data *mem_start = (struct node_data *)PLACEHOLDER;
++
++void hse_mem_init()
++{
++	mem_start = (struct node_data *)PLACEHOLDER;
++	mem_start->size = PLACEHOLDER_MEM_SIZE;
++	mem_start->next = NULL;
++}
++
++void *hse_mem_malloc(size_t size)
++{
++	struct node_data *curr_block;
++	struct node_data *best_block;
++	struct node_data *alloc_block;
++	uint32_t best_block_size;
++
++	/* align size to 16 */
++	size = (size + (ALIGNMENT - 1)) & ~ALIGNMENT;
++
++	curr_block = mem_start;
++	best_block = NULL;
++	best_block_size = PLACEHOLDER_MEM_SIZE;
++	while (curr_block) {
++		/* check if curr_block fits */
++		if ((curr_block->size >= size + HSE_NODE_SIZE) &&
++		    (curr_block->size <= best_block_size)) {
++			best_block = curr_block;
++			best_block_size = curr_block->size;
++		}
++
++		curr_block = curr_block->next;
++	}
++
++	/* found a match, split a chunk of requested size and return it */
++	if (best_block != NULL) {
++		best_block->size = best_block->size - size - HSE_NODE_SIZE;
++		alloc_block = (struct node_data *)((uint8_t *)best_block + HSE_NODE_SIZE + best_block->size);
++		alloc_block->size = size;
++
++		return (void *)((uint8_t *)alloc_block + HSE_NODE_SIZE);
++	}
++
++	return NULL;
++}
++
++void hse_mem_free(void *p)
++{
++	struct node_data *prev_block;
++	struct node_data *next_block;
++	struct node_data *free_block;
++
++	if (p == NULL)
++		return;
++
++	/* get the node_data for the block to be freed */
++	free_block = (struct node_data *)((uint8_t *)p - HSE_NODE_SIZE);
++	if (free_block == NULL)
++		return;
++
++	/* find left neighbour of free_block */
++	prev_block = NULL;
++	next_block = mem_start;
++	while ((next_block != NULL) && (next_block < free_block)) {
++		prev_block = next_block;
++		next_block = next_block->next;
++	}
++
++	/* add the free_block to the node list */
++	free_block->next = next_block;
++	if (prev_block != NULL)
++		prev_block->next = free_block;
++
++	/* check if free_block can be merged with next_block */
++	if ((next_block != NULL) &&
++		((uint8_t *)free_block + free_block->size + HSE_NODE_SIZE == (uint8_t *)next_block)) {
++		free_block->size += next_block->size + HSE_NODE_SIZE;
++		free_block->next = next_block->next;
++		}
++
++	/* check if free_block can be merged with prev_block */
++	if ((prev_block != NULL) &&
++		((uint8_t *)prev_block + prev_block->size + HSE_NODE_SIZE == (uint8_t *)free_block)) {
++		prev_block->size += free_block->size + HSE_NODE_SIZE;
++		prev_block->next = free_block->next;
++	}
++}
+diff --git a/libhse/hse_memalloc.h b/libhse/hse_memalloc.h
+new file mode 100644
+index 0000000..b37d3bc
+--- /dev/null
++++ b/libhse/hse_memalloc.h
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: BSD-3-Clause */
++/*
++ * NXP HSE Driver - Userspace memory allocation
++ *
++ * Copyright 2021 NXP
++ */
++
++#ifndef HSE_MEMALLOC_H
++#define HSE_MEMALLOC_H
++
++#define ALIGNMENT 16
++#define HSE_NODE_SIZE sizeof(struct node_data)
++#define PLACEHOLDER_MEM_SIZE 4096
++
++struct node_data {
++	uint32_t size;
++	struct node_data *next;
++};
++
++void hse_mem_init();
++
++void *hse_mem_malloc(size_t size);
++void hse_mem_free(void *p);
++
++#endif /* HSE_MEMALLOC_H */
+-- 
+2.17.1
+
