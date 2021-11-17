@@ -73,6 +73,25 @@ SRC_URI += " \
     file://bsp31/rc4/0009-s32r-pcie-Set-Device-ID-to-0x4002.patch \
     file://bsp31/rc4/0010-s32-pcie-Document-device-tree-PCIe-bindings.patch \
     file://bsp31/rc4/0011-s32gen1-serdes-Update-PLL-locking-conditions.patch \
+    file://bsp31/rc5/0001-Correct-s32g3evb-ddr-config.patch \
+    file://bsp31/rc5/0002-s32g3-sramc-Correct-the-way-memory-offset-is-calcula.patch \
+    file://bsp31/rc5/0003-clk-s32-Add-cgm-mux-id-to-cgm-div-errors.patch \
+    file://bsp31/rc5/0004-s32g3-Correct-Linux-device-tree-name.patch \
+    file://bsp31/rc5/0005-s32g3-Correct-GICR-base-address.patch \
+    file://bsp31/rc5/0006-s32g3-mc_me-Correct-the-way-A53-cluster-is-enabled.patch \
+    file://bsp31/rc5/0007-s32g3-Use-A53-max-frequencies-for-test-samples.patch \
+    file://bsp31/rc5/0008-s32g3-Correct-lockstep-cpu-mask.patch \
+    file://bsp31/rc5/0009-sec-boot-update-to-hse-fw-1.0.0.patch \
+    file://bsp31/rc5/0010-s32r45-revision-Print-subminor-revision.patch \
+    file://bsp31/rc5/0011-s32-gen1-eth-This-commit-should-add-some-required-ch.patch \
+    file://bsp31/rc5/0012-s32g3-ddr-Add-ECC_OFF-configuration-mode.patch \
+    file://bsp31/rc5/0013-s32gen1-arch_misc_init-enable_saf1508bet-ignore-retu.patch \
+    file://bsp31/rc5/0014-usb-ehci-mx6-decrease-some-wait_for_bit_le32-timeout.patch \
+    file://bsp31/rc5/0015-s32-gen1-ddr-Add-S32CTv1.4-Update-2-firmware.patch \
+    file://bsp31/rc5/0016-driver-net-pfeng-detect-PFE-version.patch \
+    file://bsp31/rc5/0017-driver-net-pfeng-fix-HIF-soft-reset-for-G3.patch \
+    file://bsp31/rc5/0018-driver-net-pfeng-Add-PFE-G3-soft-reset-optimization.patch \
+    file://bsp31/rc5/0019-driver-net-pfeng-Disable-safety-for-G3.patch \
 "
 
 SRCREV = "7eba18e1c0b994180e173e9343c7fe50819d9732"

@@ -1,0 +1,162 @@
+From 55aa6bbb575a4eefe1aae9b5043edd17041f6983 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 1 Nov 2021 14:50:42 +0200
+Subject: [PATCH 08/19] s32g3: Correct lockstep cpu mask
+
+S32G3 should use cores 0-3 when operating in lockstep mode.
+
+Issue: ALB-8016
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/fdt.c             |  4 +---
+ arch/arm/cpu/armv8/s32/mp.h              |  1 +
+ arch/arm/cpu/armv8/s32/s32-gen1/Makefile |  1 +
+ arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c  | 10 ++++++++++
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c    | 13 ++++++++++++-
+ arch/arm/cpu/armv8/s32/s32v234/soc.c     |  5 +++++
+ arch/arm/include/asm/arch-s32/cpu.h      |  4 ++++
+ 7 files changed, 34 insertions(+), 4 deletions(-)
+ create mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c
+
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index 9d67147dbf..954766d951 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -23,8 +23,6 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+-#define ID_TO_CORE(ID)	(((ID) & 3) | ((ID) >> 7))
+-
+ #define PCIE_ALIAS_FMT		"pcie%d"
+ #define PCIE_ALIAS_SIZE		sizeof(PCIE_ALIAS_FMT)
+ 
+@@ -142,7 +140,7 @@ void ft_fixup_cpu(void *blob)
+ 		}
+ 
+ 		core_id = fdt_read_number(reg, addr_cells);
+-		if (!test_bit(ID_TO_CORE(core_id), &mask)) {
++		if (!test_bit(fdt_to_cpu_id(core_id), &mask)) {
+ 			fdt_del_node(blob, off);
+ 			off = off_prev;
+ 		} else {
+diff --git a/arch/arm/cpu/armv8/s32/mp.h b/arch/arm/cpu/armv8/s32/mp.h
+index 5636b6a133..d7a7ddbd5d 100644
+--- a/arch/arm/cpu/armv8/s32/mp.h
++++ b/arch/arm/cpu/armv8/s32/mp.h
+@@ -19,6 +19,7 @@ void *get_spin_tbl_addr(void);
+ phys_addr_t determine_mp_bootpg(void);
+ void secondary_boot_func(void);
+ u32 cpu_pos_mask(void);
++u64 fdt_to_cpu_id(u64 fdt_id);
+ #endif
+ 
+ #endif /* _S32_MP_H */
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+index a026aef3e8..7bdacb0444 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+@@ -12,6 +12,7 @@ obj-$(CONFIG_HSE_SECBOOT)		+= hse_adv_secboot.o
+ obj-y					+= ncore.o
+ obj-y					+= soc.o
+ obj-$(CONFIG_NXP_S32G2XX)		+= s32g274a.o
++obj-$(CONFIG_NXP_S32G3XX)		+= s32g3.o
+ obj-y					+= sram.o
+ ifdef CONFIG_S32_GEN1
+ obj-$(CONFIG_NETDEVICES)		+= sgmii/sgmii.o sgmii/serdes_xpcs.o
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c
+new file mode 100644
+index 0000000000..14f18d39c6
+--- /dev/null
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c
+@@ -0,0 +1,10 @@
++// SPDX-License-Identifier:     GPL-2.0+
++/*
++ * Copyright 2021 NXP
++ */
++#include <asm/arch/cpu.h>
++
++u64 fdt_to_cpu_id(u64 fdt_id)
++{
++	return (fdt_id & 0x3u) | (fdt_id >> 0x6u);
++}
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index edb56e66f8..36ae3fcfcb 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -42,10 +42,16 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++__weak u32 cpu_pos_lockstep_mask(void)
++{
++	return CPUMASK_LOCKSTEP;
++}
++
+ __weak u32 cpu_pos_mask(void)
+ {
+ 	if (is_a53_lockstep_enabled())
+-		return cpu_pos_mask_cluster0();
++		return cpu_pos_lockstep_mask();
++
+ 	return cpu_pos_mask_cluster0() | cpu_pos_mask_cluster1();
+ }
+ 
+@@ -407,3 +413,8 @@ __weak u32 mc_me_get_cluster_ptrn(u32 core)
+ 	 */
+ 	return (core % 4) & ~1;
+ }
++
++__weak u64 fdt_to_cpu_id(u64 fdt_id)
++{
++	return (fdt_id & 0x3u) | (fdt_id >> 0x7u);
++}
+diff --git a/arch/arm/cpu/armv8/s32/s32v234/soc.c b/arch/arm/cpu/armv8/s32/s32v234/soc.c
+index c14a6e1c78..b5e613d372 100644
+--- a/arch/arm/cpu/armv8/s32/s32v234/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32v234/soc.c
+@@ -1155,3 +1155,8 @@ u32 get_sram_size(void)
+ {
+ 	return S32_SRAM_SIZE;
+ }
++
++u64 fdt_to_cpu_id(u64 fdt_id)
++{
++	return (fdt_id & 0x3u) | (fdt_id >> 0x7u);
++}
+diff --git a/arch/arm/include/asm/arch-s32/cpu.h b/arch/arm/include/asm/arch-s32/cpu.h
+index f310d0d012..c028c63a28 100644
+--- a/arch/arm/include/asm/arch-s32/cpu.h
++++ b/arch/arm/include/asm/arch-s32/cpu.h
+@@ -7,6 +7,7 @@
+ #ifndef _FSL_S32_CPU_H
+ #define _FSL_S32_CPU_H
+ 
++#include <linux/types.h>
+ #include <asm/armv8/mmu.h>
+ #include <config.h>
+ 
+@@ -40,14 +41,17 @@
+ #if defined(CONFIG_NXP_S32G3XX)
+ #define CPUMASK_CLUSTER0	(BIT(0) | BIT(1) | BIT(4) | BIT(5))
+ #define CPUMASK_CLUSTER1	(BIT(2) | BIT(3) | BIT(6) | BIT(7))
++#define CPUMASK_LOCKSTEP	(BIT(0) | BIT(1) | BIT(2) | BIT(3))
+ #elif defined(CONFIG_NXP_S32G2XX) || defined(CONFIG_NXP_S32R45)
+ #define CPUMASK_CLUSTER0	(BIT(0) | BIT(1))
+ #define CPUMASK_CLUSTER1	(BIT(2) | BIT(3))
++#define CPUMASK_LOCKSTEP	CPUMASK_CLUSTER0
+ #endif
+ 
+ u32 cpu_mask(void);
+ int cpu_numcores(void);
+ u32 cpu_pos_mask_cluster0(void);
+ u32 cpu_pos_mask_cluster1(void);
++u32 cpu_pos_lockstep_mask(void);
+ 
+ #endif /* _FSL_S32_CPU_H */
+-- 
+2.17.1
+

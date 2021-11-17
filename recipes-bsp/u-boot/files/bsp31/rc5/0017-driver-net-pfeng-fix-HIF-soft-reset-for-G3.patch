@@ -1,0 +1,78 @@
+From 9b86ac8f6cf5ebec6cf29795f685c0952b86d1e9 Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Tue, 2 Nov 2021 14:01:06 +0100
+Subject: [PATCH 17/19] driver:net:pfeng: fix HIF soft reset for G3
+
+On G3, the PFE HIF soft reset behaves slightly differently.
+Because it can be use also on G2, use modified HIF soft
+reset also for G2.
+
+Issue: ALB-8061
+Upstream-Status: Pending 
+
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/net/pfeng/pfeng_hw.c           | 11 +++++++----
+ drivers/net/pfeng/regmap/pfe_hif_csr.h | 13 ++++++++++++-
+ 2 files changed, 19 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/pfeng/pfeng_hw.c b/drivers/net/pfeng/pfeng_hw.c
+index e3a34521a1..777451c631 100644
+--- a/drivers/net/pfeng/pfeng_hw.c
++++ b/drivers/net/pfeng/pfeng_hw.c
+@@ -1041,13 +1041,16 @@ static int pfeng_hw_init_hif(struct pfe_platform *platform,
+ 	writel(0xffffffffU, base + HIF_RX_FIFO_ERR_INT_SRC);
+ 
+ 	/* SOFT RESET */
+-	writel(0xfu, base + HIF_SOFT_RESET);
+-	while (readl(base + HIF_SOFT_RESET)) {
+-		if (++ii < 1000u)
++	writel(HIF_SOFT_RESET_CMD, base + HIF_SOFT_RESET);
++	while (readl(base + HIF_SOFT_RESET) & ~CSR_SW_RESET) {
++		if (++ii < 1000u) {
+ 			mdelay(1);
+-		else
++		} else {
++			pr_err("HIF reset timed out.\n");
+ 			return -ETIMEDOUT;
++		}
+ 	}
++	writel(0, base + HIF_SOFT_RESET);
+ 
+ 	/* Numbers of poll cycles */
+ 	writel((0xff << 16) | (0xff), base + HIF_TX_POLL_CTRL);
+diff --git a/drivers/net/pfeng/regmap/pfe_hif_csr.h b/drivers/net/pfeng/regmap/pfe_hif_csr.h
+index ba4552d9bc..a70a8f778d 100644
+--- a/drivers/net/pfeng/regmap/pfe_hif_csr.h
++++ b/drivers/net/pfeng/regmap/pfe_hif_csr.h
+@@ -1,7 +1,7 @@
+ /* SPDX-License-Identifier: GPL 2.0 */
+ /*
+  *  Copyright (c) 2020 Imagination Technologies Limited
+- *  Copyright 2018-2020 NXP
++ *  Copyright 2018-2021 NXP
+  */
+ 
+ /**
+@@ -316,6 +316,17 @@
+ #define HIF_AXI_BDP_CSR_RX_BVALID_FIFO_INDERRUN_INT BIT(18)
+ #define DXR_CSR_RX_BVALID_FIFO_UNDERRUN_INT	    BIT(19)
+ #define HIF_AXI_DXR_CSR_RX_BVALID_FIFO_UNDERRUN_INT BIT(20)
++
++/*	HIF_SOFT_RESET bits */
++#define SYS_SW_RESET_RX_PATH			    BIT(0)
++#define SYS_SW_RESET_TX_PATH			    BIT(1)
++#define SYS_SW_RESET_RX_TX_PATH			    BIT(2)
++#define CSR_SW_RESET				    BIT(3)
++#define HIF_SOFT_RESET_CMD			    (SYS_SW_RESET_RX_PATH | \
++						     SYS_SW_RESET_TX_PATH | \
++						     SYS_SW_RESET_RX_TX_PATH | \
++						     CSR_SW_RESET)
++
+ #endif /* PFE_HIF_CSR_H_ */
+ 
+ /** @}*/
+-- 
+2.17.1
+

@@ -1,0 +1,74 @@
+From dc68e1eda18e3ee493eaef36c7b83f0b3b53240f Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Tue, 2 Nov 2021 14:10:29 +0100
+Subject: [PATCH 19/19] driver:net:pfeng: Disable safety for G3
+
+On G3, the safety feature are enabled by default.
+U-boot driver doesn't support it, so disable it.
+
+Issue: ALB-8061
+Upstream-Status: Pending 
+
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/net/pfeng/pfeng_hw.c | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+diff --git a/drivers/net/pfeng/pfeng_hw.c b/drivers/net/pfeng/pfeng_hw.c
+index ef24b6585d..722543bd37 100644
+--- a/drivers/net/pfeng/pfeng_hw.c
++++ b/drivers/net/pfeng/pfeng_hw.c
+@@ -32,6 +32,9 @@
+ #define WSP_VERSION_SILICON_G2		0x00050300
+ #define WSP_VERSION_SILICON_G3		0x00000101
+ 
++#define WSP_FAIL_STOP_MODE_EN		(0xB4)
++#define WSP_FAIL_STOP_MODE_INT_EN	(0xC0)
++#define WSP_ECC_ERR_INT_EN		(0x130)
+ #define WSP_DBUG_BUS1			(0xA4)
+ 
+ #define SOFT_RESET_DONE			BIT(19)
+@@ -1932,6 +1935,30 @@ static int pfeng_hw_soft_reset_g3(struct pfe_platform *platform)
+ 	return 0;
+ }
+ 
++static void safety_clear(struct pfe_platform *pfe)
++{
++	u32 *addr;
++
++	if (pfe->on_g3) {
++		/* Disable S32G3 safety */
++
++		addr = (u32 *)(void *)((uint64_t)pfe->cbus_baseaddr +
++				    CBUS_GLOBAL_CSR_BASE_ADDR +
++				    WSP_FAIL_STOP_MODE_INT_EN);
++		writel(0x0, addr);
++
++		addr = (u32 *)(void *)((uint64_t)pfe->cbus_baseaddr +
++				    CBUS_GLOBAL_CSR_BASE_ADDR +
++				    WSP_FAIL_STOP_MODE_EN);
++		writel(0x0, addr);
++
++		addr = (u32 *)(void *)((uint64_t)pfe->cbus_baseaddr +
++				    CBUS_GLOBAL_CSR_BASE_ADDR +
++				    WSP_ECC_ERR_INT_EN);
++		writel(0x0, addr);
++	}
++}
++
+ int pfeng_hw_init(struct pfe_platform_config *config)
+ {
+ 	int ret = 0;
+@@ -1970,6 +1997,8 @@ int pfeng_hw_init(struct pfe_platform_config *config)
+ 		pfe.on_g3 = false;
+ 	}
+ 
++	safety_clear(&pfe);
++
+ 	/* Init LMEM */
+ 	addr = (u32 *)(void *)((uint64_t)pfe.cbus_baseaddr +
+ 				    CBUS_LMEM_BASE_ADDR);
+-- 
+2.17.1
+

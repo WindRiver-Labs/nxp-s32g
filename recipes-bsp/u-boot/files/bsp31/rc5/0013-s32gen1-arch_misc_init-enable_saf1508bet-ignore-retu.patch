@@ -1,0 +1,48 @@
+From 5464b75dbf2d27398378e52d01d3463bc8a614ae Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Fri, 5 Nov 2021 10:34:11 +0200
+Subject: [PATCH 13/19] s32gen1: arch_misc_init: enable_saf1508bet ignore
+ return code
+
+Ignore return code of the enable_saf1508bet. This function may fail if
+the board have a hardware hack or if the SoC is not well placed in the
+socket.
+
+Issue: ALB-8074
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 70eb2302ea..a2d5d0e1c9 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -341,16 +341,15 @@ static int enable_saf1508bet(void)
+ 
+ int arch_misc_init(void)
+ {
+-	int ret = 0;
+-
+ 	clear_swt_faults();
+ 
+ #ifdef CONFIG_SAF1508BET_USB_PHY
+-	ret = enable_saf1508bet();
+-	if (ret)
+-		return ret;
++	/* The usb phy must be probed in u-boot in order to have a working USB
++	 * interface in linux.
++	 */
++	enable_saf1508bet();
+ #endif
+-	return ret;
++	return 0;
+ }
+ 
+ #ifdef CONFIG_FSL_DSPI
+-- 
+2.17.1
+
