@@ -1,0 +1,33 @@
+From e58b0cb7e1666bac8d5866958957ac1b7215fc64 Mon Sep 17 00:00:00 2001
+From: Bogdan Folea <bogdan.folea@nxp.com>
+Date: Fri, 12 Nov 2021 09:11:17 +0200
+Subject: [PATCH 19/24] crypto: hse: search for next channel in reverse
+
+commit e58b0cb7e1666bac8d5866958957ac1b7215fc64 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-8106
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Folea <bogdan.folea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/crypto/hse/hse-core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/hse/hse-core.c b/drivers/crypto/hse/hse-core.c
+index d7fee5f90f4c..d8cb633f1d71 100644
+--- a/drivers/crypto/hse/hse-core.c
++++ b/drivers/crypto/hse/hse-core.c
+@@ -375,7 +375,7 @@ static u8 hse_next_free_channel(struct device *dev)
+ 	struct hse_drvdata *drv = dev_get_drvdata(dev);
+ 	u8 channel;
+ 
+-	for (channel = 0; channel < HSE_NUM_CHANNELS; channel++)
++	for (channel = HSE_NUM_CHANNELS - 1; channel > 0; channel--)
+ 		switch (drv->type[channel]) {
+ 		case HSE_CH_TYPE_STREAM:
+ 			if (atomic_read(&drv->refcnt[channel]))
+-- 
+2.17.1
+

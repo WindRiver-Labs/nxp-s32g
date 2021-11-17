@@ -1,0 +1,39 @@
+From 4e23fee5152c8e1429e0b5bd6f9dcff3f0a8e421 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 28 Oct 2021 10:32:02 +0300
+Subject: [PATCH 01/24] boot/dts: s32-gen1: Mark generic timer interrupt as PPI
+
+commit 4e23fee5152c8e1429e0b5bd6f9dcff3f0a8e421 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-8016
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+index a9803c09fe6d..8521eda37cbd 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+@@ -170,10 +170,10 @@
+ 
+ 	generic_timer: timer {
+ 		compatible = "arm,armv8-timer";
+-		interrupts = <1 13 0xf08>,
+-			     <1 14 0xf08>,
+-			     <1 11 0xf08>,
+-			     <1 10 0xf08>;
++		interrupts = <GIC_PPI 13 0xf08>,
++			     <GIC_PPI 14 0xf08>,
++			     <GIC_PPI 11 0xf08>,
++			     <GIC_PPI 10 0xf08>;
+ 	};
+ 
+ 	fxosc: fxosc@40050000 {
+-- 
+2.17.1
+

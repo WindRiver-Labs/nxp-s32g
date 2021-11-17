@@ -1,0 +1,89 @@
+From 9f587575fe3799379089b532b68ff8a3951097a6 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 3 Nov 2021 11:50:58 +0200
+Subject: [PATCH 03/24] gpio/siul2: Translate EIRQ number before mapping
+
+commit 9f587575fe3799379089b532b68ff8a3951097a6 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+This is needed when SIUL2 is referenced as interrupt
+controller in device tree using:
+
+demo-node {
+	...
+	interrupt-parent = <&gpio1>;
+	interrupts = <11 IRQ_TYPE_EDGE_FALLING>;
+	...
+};
+
+In this case, demo-node is expected to use EIRQ11 but
+this ID has to be translated into its associated GPIO ID
+before creating the IRQ mapping, as this is how gpiolib
+keeps the IRQ mappings.
+
+Issue: ALB-8065
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/gpio/gpio-siul2-s32gen1.c | 36 +++++++++++++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+diff --git a/drivers/gpio/gpio-siul2-s32gen1.c b/drivers/gpio/gpio-siul2-s32gen1.c
+index 04252909ad14..4b296dccb284 100644
+--- a/drivers/gpio/gpio-siul2-s32gen1.c
++++ b/drivers/gpio/gpio-siul2-s32gen1.c
+@@ -866,6 +866,41 @@ static int siul2_gpio_pads_init(struct platform_device *pdev,
+ 	return 0;
+ }
+ 
++static int siul2_irq_domain_xlate(struct irq_domain *d,
++				  struct device_node *ctrlr, const u32 *intspec,
++				  unsigned int intsize,
++				  irq_hw_number_t *out_hwirq,
++				  unsigned int *out_type)
++{
++	int ret, pin, gpio, eirq;
++	struct gpio_chip *gc = d->host_data;
++	struct siul2_gpio_dev *gpio_dev;
++
++	ret = irq_domain_xlate_twocell(d, ctrlr, intspec, intsize,
++				       out_hwirq, out_type);
++	if (ret)
++		return ret;
++
++	gpio_dev = to_siul2_gpio_dev(gc);
++
++	eirq = *out_hwirq;
++	pin = siul2_eirq_to_pin(gpio_dev, eirq);
++	gpio = siul2_pin_to_gpio(gc, pin);
++
++	if (gpio < 0)
++		return -EINVAL;
++
++	*out_hwirq = gpio;
++
++	return 0;
++}
++
++static const struct irq_domain_ops siul2_domain_ops = {
++	.map	= gpiochip_irq_map,
++	.unmap	= gpiochip_irq_unmap,
++	.xlate	= siul2_irq_domain_xlate,
++};
++
+ static int siul2_gpio_probe(struct platform_device *pdev)
+ {
+ 	int err = 0;
+@@ -936,6 +971,7 @@ static int siul2_gpio_probe(struct platform_device *pdev)
+ 	girq->parents = NULL;
+ 	girq->default_type = IRQ_TYPE_NONE;
+ 	girq->handler = handle_simple_irq;
++	girq->domain_ops = &siul2_domain_ops;
+ 
+ 	err = devm_gpiochip_add_data(dev, gc, gpio_dev);
+ 	if (err) {
+-- 
+2.17.1
+

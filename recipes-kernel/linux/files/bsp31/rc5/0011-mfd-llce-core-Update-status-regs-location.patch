@@ -1,0 +1,42 @@
+From ccc8bde19075f05ee695178bbe45c2467d5d1e76 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 5 Nov 2021 11:21:05 +0200
+Subject: [PATCH 11/24] mfd/llce-core: Update status regs location
+
+commit ccc8bde19075f05ee695178bbe45c2467d5d1e76 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-7935
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mfd/llce-core.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mfd/llce-core.c b/drivers/mfd/llce-core.c
+index 2ea0c537dfa6..a9fe41b25d47 100644
+--- a/drivers/mfd/llce-core.c
++++ b/drivers/mfd/llce-core.c
+@@ -29,6 +29,7 @@
+ #define LLCE_MGR_TX_BOOT_END			(0x00000F00U)
+ #define LLCE_MGR_FRPE_BOOT_END			(0x0000F000U)
+ #define LLCE_MGR_BOOT_END_ALL_CORES_MASK	(0x0000FFFFU)
++#define STATUS_REGS_OFFSET			(0x8A0U)
+ 
+ 
+ struct llce_fw_cont {
+@@ -321,7 +322,8 @@ static int start_llce_cores(struct device *dev, struct llce_core *core)
+ 
+ 	llce_flush_fw(core);
+ 
+-	ret = llce_cores_kickoff(dev, core->sysctrl_base, status->addr);
++	ret = llce_cores_kickoff(dev, core->sysctrl_base,
++				 status->addr + STATUS_REGS_OFFSET);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to start LLCE cores\n");
+ 		return ret;
+-- 
+2.17.1
+

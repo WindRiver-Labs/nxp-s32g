@@ -1,0 +1,163 @@
+From c715f322c2eccf22dd00246a07c99f21995b3f75 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 4 Nov 2021 12:26:47 +0200
+Subject: [PATCH 07/24] Adapt LLCE SRAM regions for s32g3
+
+commit c715f322c2eccf22dd00246a07c99f21995b3f75 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-7935
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32g.dtsi   | 18 +++++++-------
+ .../dts/freescale/fsl-s32g274a-bluebox3.dts   |  8 +++----
+ .../boot/dts/freescale/fsl-s32g398a.dtsi      | 12 ++++++++++
+ .../boot/dts/freescale/fsl-s32gxxxa-evb.dtsi  | 24 +++++++++++++++++++
+ 4 files changed, 49 insertions(+), 13 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
+index 2b12d87b09a2..59638dac113e 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g.dtsi
+@@ -511,34 +511,34 @@
+ 		status = "disabled";
+ 	};
+ 
+-	llce0_sram: llce0_sram@43000000 {
++	llce_dte_sram: llce_dte_sram@43000000 {
+ 		compatible = "mmio-sram";
+ 		reg = <0x0 0x43000000 0x0 0x2000>;
+ 	};
+ 
+-	llce1_sram: llce1_sram@43100000 {
++	llce_ppe_rx_sram: llce_ppe_rx_sram@43100000 {
+ 		compatible = "mmio-sram";
+ 		reg = <0x0 0x43100000 0x0 0x8000>;
+ 	};
+ 
+-	llce2_sram: llce2_sram@43200000 {
++	llce_ppe_tx_sram: llce_ppe_tx_sram@43200000 {
+ 		compatible = "mmio-sram";
+ 		reg = <0x0 0x43200000 0x0 0x8000>;
+ 	};
+ 
+-	llce3_sram: llce3_sram@43300000 {
++	llce_frpe_sram: llce_frpe_sram@43300000 {
+ 		compatible = "mmio-sram";
+ 		reg = <0x0 0x43300000 0x0 0x10000>;
+ 	};
+ 
+ 	llce_shmem: llce_shmem@43800000 {
+ 		compatible = "mmio-sram";
+-		reg = <0x0 0x43800000 0x0 0x40000>;
++		reg = <0x0 0x43800000 0x0 0x3c000>;
+ 	};
+ 
+-	llce_boot_status: llce_boot_status@43840000 {
++	llce_boot_status: llce_boot_status@4383c000 {
+ 		compatible = "mmio-sram";
+-		reg = <0x0 0x43840000 0x0 0x10000>;
++		reg = <0x0 0x4383c000 0x0 0x14000>;
+ 	};
+ 
+ 	llce {
+@@ -561,8 +561,8 @@
+ 		clock-names = "llce_sys";
+ 		firmware-name = "dte.bin", "ppe_rx.bin",
+ 			"ppe_tx.bin", "frpe.bin";
+-		memory-region = <&llce0_sram>, <&llce1_sram>,
+-			<&llce2_sram>, <&llce3_sram>,
++		memory-region = <&llce_dte_sram>, <&llce_ppe_rx_sram>,
++			<&llce_ppe_tx_sram>, <&llce_frpe_sram>,
+ 			<&llce_shmem>, <&llce_boot_status>;
+ 		memory-region-names = "dte.bin", "ppe_rx.bin",
+ 			"ppe_tx.bin", "frpe.bin", "shmem", "status";
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+index da45dfe86404..7bec49067edb 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g274a-bluebox3.dts
+@@ -88,19 +88,19 @@
+ 	status = "okay";
+ };
+ 
+-&llce0_sram {
++&llce_dte_sram {
+ 	status = "okay";
+ };
+ 
+-&llce1_sram {
++&llce_ppe_rx_sram {
+ 	status = "okay";
+ };
+ 
+-&llce2_sram {
++&llce_ppe_tx_sram {
+ 	status = "okay";
+ };
+ 
+-&llce3_sram {
++&llce_frpe_sram {
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32g398a.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32g398a.dtsi
+index 8b8ddc04075b..3dcf11e78a8d 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32g398a.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32g398a.dtsi
+@@ -157,3 +157,15 @@
+ &usbmisc {
+ 	compatible = "fsl,s32g3-usbmisc";
+ };
++
++&llce_dte_sram {
++	reg = <0x0 0x43000000 0x0 0x4000>;
++};
++
++&llce_ppe_rx_sram {
++	reg = <0x0 0x43100000 0x0 0x18000>;
++};
++
++&llce_frpe_sram {
++	reg = <0x0 0x43300000 0x0 0x40000>;
++};
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32gxxxa-evb.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32gxxxa-evb.dtsi
+index d88ab61fc84e..9f1ad1f7757e 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32gxxxa-evb.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32gxxxa-evb.dtsi
+@@ -918,6 +918,30 @@
+ 	status = "okay";
+ };
+ 
++&llce_dte_sram {
++	status = "okay";
++};
++
++&llce_ppe_rx_sram {
++	status = "okay";
++};
++
++&llce_ppe_tx_sram {
++	status = "okay";
++};
++
++&llce_frpe_sram {
++	status = "okay";
++};
++
++&llce_shmem {
++	status = "okay";
++};
++
++&llce_boot_status {
++	status = "okay";
++};
++
+ &llce_can1 {
+ 	status = "okay";
+ };
+-- 
+2.17.1
+

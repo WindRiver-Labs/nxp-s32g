@@ -1,0 +1,51 @@
+From 3f6b029dd3be0dd21bbd23d1a28af7242d5c6ffe Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 5 Nov 2021 12:28:20 +0200
+Subject: [PATCH 12/24] mailbox: llce: Send config commands over host0
+ interface
+
+commit 3f6b029dd3be0dd21bbd23d1a28af7242d5c6ffe from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-7935
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mailbox/llce-mailbox.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mailbox/llce-mailbox.c b/drivers/mailbox/llce-mailbox.c
+index dfea39d4efc2..9f08f980cdba 100644
+--- a/drivers/mailbox/llce-mailbox.c
++++ b/drivers/mailbox/llce-mailbox.c
+@@ -557,7 +557,7 @@ static int execute_config_cmd(struct mbox_chan *chan,
+ 
+ 	txack = get_host_txack(mb, LLCE_CAN_HIF0);
+ 
+-	sh_cmd = &mb->sh_mem->can_cmd[idx];
++	sh_cmd = &mb->sh_mem->can_cmd[LLCE_CAN_HIF0];
+ 	push0 = LLCE_FIFO_PUSH0(txack);
+ 
+ 	if (!is_tx_fifo_empty(txack)) {
+@@ -978,7 +978,6 @@ static void llce_mbox_chan_received_data(struct mbox_chan *chan, void *msg)
+ static bool llce_mb_last_tx_done(struct mbox_chan *chan)
+ {
+ 	struct llce_chan_priv *priv = chan->con_priv;
+-	unsigned int idx = priv->index;
+ 	void __iomem *txack;
+ 	struct llce_mb *mb = priv->mb;
+ 	struct llce_can_command *cmd;
+@@ -995,7 +994,7 @@ static bool llce_mb_last_tx_done(struct mbox_chan *chan)
+ 	spin_until_cond(is_tx_fifo_empty(txack));
+ 
+ 	cmd = priv->last_msg;
+-	sh_cmd = &mb->sh_mem->can_cmd[idx];
++	sh_cmd = &mb->sh_mem->can_cmd[LLCE_CAN_HIF0];
+ 
+ 	memcpy(cmd, sh_cmd, sizeof(*cmd));
+ 
+-- 
+2.17.1
+

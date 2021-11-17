@@ -1,0 +1,44 @@
+From a7fbef8ca59c959b364b142ea55e9764711bfb2f Mon Sep 17 00:00:00 2001
+From: Bogdan Folea <bogdan.folea@nxp.com>
+Date: Fri, 12 Nov 2021 13:40:46 +0200
+Subject: [PATCH 23/24] uio: hse: fix reference counter logic
+
+commit a7fbef8ca59c959b364b142ea55e9764711bfb2f from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-7912
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Folea <bogdan.folea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/uio/uio_hse.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/uio/uio_hse.c b/drivers/uio/uio_hse.c
+index 8cc3205c737a..d493b9af598e 100644
+--- a/drivers/uio/uio_hse.c
++++ b/drivers/uio/uio_hse.c
+@@ -417,9 +417,8 @@ static int hse_uio_open(struct uio_info *info, struct inode *inode)
+ {
+ 	struct hse_uio_drvdata *drv = info->priv;
+ 
+-	if (!refcount_dec_and_test(&drv->refcnt)) {
++	if (!refcount_dec_if_one(&drv->refcnt)) {
+ 		dev_err(drv->dev, "%s device already in use\n", info->name);
+-		refcount_inc(&drv->refcnt);
+ 
+ 		return -EBUSY;
+ 	}
+@@ -440,7 +439,7 @@ static int hse_uio_release(struct uio_info *info, struct inode *inode)
+ {
+ 	struct hse_uio_drvdata *drv = info->priv;
+ 
+-	refcount_inc(&drv->refcnt);
++	refcount_set(&drv->refcnt, 1);
+ 
+ 	dev_info(drv->dev, "device %s released\n", info->name);
+ 
+-- 
+2.17.1
+

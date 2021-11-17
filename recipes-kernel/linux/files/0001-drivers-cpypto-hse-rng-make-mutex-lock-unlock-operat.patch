@@ -1,0 +1,92 @@
+From 1e3300d211e009db2d28443b60b792fe8342c381 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Wed, 17 Nov 2021 17:22:01 +0800
+Subject: [PATCH] drivers: cpypto: hse-rng: make mutex lock/unlock operations
+ balance
+
+The NXP HSE updates its rng driver and add async read support, but
+in the async support codes, there is a mutex lock for cached random
+data, and it will cause the following issue:
+
+ =====================================
+ WARNING: bad unlock balance detected!
+ 5.10.78-yocto-standard #1 Not tainted
+ -------------------------------------
+ irq/40-hse-mu0b/144 is trying to release lock (&ctx->req_lock) at:
+ [<ffffffc01104027c>] hse_rng_done+0x88/0x9c
+ but there are no more locks to release!
+
+ other info that might help us debug this:
+ no locks held by irq/40-hse-mu0b/144.
+
+ stack backtrace:
+ CPU: 0 PID: 144 Comm: irq/40-hse-mu0b Not tainted 5.10.78-yocto-standard #1
+ Hardware name: Freescale S32G274A (DT)
+ Call trace:
+  dump_backtrace+0x0/0x1d4
+  show_stack+0x24/0x30
+  dump_stack+0xf0/0x13c
+  print_unlock_imbalance_bug.part.0+0xc8/0xdc
+  __lock_release+0x158/0x290
+  lock_release+0x120/0x2c0
+  __mutex_unlock_slowpath+0x6c/0x2d0
+  mutex_unlock+0x38/0x60
+  hse_rng_done+0x88/0x9c
+  hse_srv_rsp_dispatch+0x114/0x270
+  hse_rx_dispatcher+0x30/0x60
+  irq_thread_fn+0x38/0xa0
+  irq_thread+0x224/0x304
+  kthread+0x158/0x164
+  ret_from_fork+0x10/0x3c
+
+The reason is that, the mutex is first acquired by the hse_rng_refill_cache(),
+which is called by hse_rng_read() from userspace, but the mutex_unlock() is in
+hse_rng_done() which is called in the threaded irq function hse_rx_dispatcher(),
+so the above warning shows. And this patch will fix it.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/crypto/hse/hse-rng.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/crypto/hse/hse-rng.c b/drivers/crypto/hse/hse-rng.c
+index e8ce89bbf38b..5f25b5be3e39 100644
+--- a/drivers/crypto/hse/hse-rng.c
++++ b/drivers/crypto/hse/hse-rng.c
+@@ -46,12 +46,15 @@ static void hse_rng_done(int err, void *_ctx)
+ {
+ 	struct hse_rng_ctx *ctx = (struct hse_rng_ctx *)_ctx;
+ 
+-	if (unlikely(err))
+-		dev_dbg(ctx->dev, "%s: request failed: %d\n", __func__, err);
+-	else
+-		ctx->cache_idx += ctx->srv_desc.rng_req.random_num_len;
++	if (unlikely(err)) {
++		dev_err(ctx->dev, "%s: request failed: %d\n", __func__, err);
++		return;
++	}
+ 
++	mutex_lock(&ctx->req_lock);
++	ctx->cache_idx += ctx->srv_desc.rng_req.random_num_len;
+ 	mutex_unlock(&ctx->req_lock);
++
+ }
+ 
+ /**
+@@ -78,9 +81,10 @@ static void hse_rng_refill_cache(struct hwrng *rng)
+ 	err = hse_srv_req_async(ctx->dev, HSE_CHANNEL_ANY, &ctx->srv_desc, ctx,
+ 				hse_rng_done);
+ 	if (unlikely(err)) {
+-		mutex_unlock(&ctx->req_lock);
+ 		dev_dbg(ctx->dev, "%s: request failed: %d\n", __func__, err);
+ 	}
++
++	mutex_unlock(&ctx->req_lock);
+ }
+ 
+ /**
+-- 
+2.25.1
+

@@ -1,0 +1,392 @@
+From 57cfa6585a6ddaf571218cda2761006da51eca6e Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 4 Nov 2021 13:12:12 +0200
+Subject: [PATCH 08/24] llce: Interface update for 1.0.3 firmware
+
+commit 05038e0a2c9d32feff026c721b69b56a2c78c84c from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-7935
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mailbox/llce-mailbox.c                |  16 ++-
+ include/linux/mailbox/nxp-llce/llce_can.h     | 100 +++++++++++++-----
+ .../mailbox/nxp-llce/llce_fw_interface.h      |   5 +
+ .../mailbox/nxp-llce/llce_interface_config.h  |  26 ++++-
+ 4 files changed, 112 insertions(+), 35 deletions(-)
+
+diff --git a/drivers/mailbox/llce-mailbox.c b/drivers/mailbox/llce-mailbox.c
+index 8d5075c8fdce..e0c339968a80 100644
+--- a/drivers/mailbox/llce-mailbox.c
++++ b/drivers/mailbox/llce-mailbox.c
+@@ -28,7 +28,7 @@
+ #include "mailbox.h"
+ 
+ #define LLCE_FIFO_SIZE			0x400
+-#define LLCE_RXMBEXTENSION_OFFSET	0x50
++#define LLCE_RXMBEXTENSION_OFFSET	0x8F0U
+ 
+ #define LLCE_NFIFO_WITH_IRQ		16
+ #define LLCE_RXIN_N_FIFO		20
+@@ -67,6 +67,10 @@
+ #define LLCE_MODULE_ENTRY(MODULE) \
+ 	LLCE_ARR_ENTRY(LLCE_TX, MODULE)
+ 
++/* Mask to extract the hw ctrl where the frame comes from */
++#define HWCTRL_MBEXTENSION_MASK		0x0FFU
++#define HWCTRL_MBEXTENSION_SHIFT	24
++
+ struct llce_icsr {
+ 	uint8_t icsr0_num;
+ 	uint8_t icsr8_num;
+@@ -141,6 +145,7 @@ const char *llce_errors[] = {
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_SW_FIFO_EMPTY),
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_SW_FIFO_FULL),
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_MB_NOTAVAILABLE),
++	LLCE_ERROR_ENTRY(LLCE_ERROR_SHORT_MB_NOTAVAILABLE),
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_BCAN_FRZ_EXIT),
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_BCAN_SYNC),
+ 	LLCE_ERROR_ENTRY(LLCE_ERROR_BCAN_FRZ_ENTER),
+@@ -1324,17 +1329,18 @@ static int process_pop_rxout(struct mbox_chan *chan, struct llce_rx_msg *msg)
+ 	return 0;
+ }
+ 
+-static u8 *get_ctrl_extension(struct llce_mb *mb)
++static u32 *get_ctrl_extension(struct llce_mb *mb)
+ {
+-	return (u8 *)mb->status + LLCE_RXMBEXTENSION_OFFSET;
++	return (uint32_t *)(mb->status + LLCE_RXMBEXTENSION_OFFSET);
+ }
+ 
+ static uint8_t get_hwctrl(struct llce_mb *mb, uint32_t frame_id,
+ 			  uint32_t mb_index)
+ {
+-	u8 *ctrl_extensions = get_ctrl_extension(mb);
++	u32 *ctrl_extensions = get_ctrl_extension(mb);
+ 
+-	return ctrl_extensions[frame_id - LLCE_CAN_CONFIG_MAXTXMB];
++	return (ctrl_extensions[frame_id] >> HWCTRL_MBEXTENSION_SHIFT) &
++	    HWCTRL_MBEXTENSION_MASK;
+ }
+ 
+ static void pop_logger_frame(struct llce_mb *mb, struct llce_can_mb **frame,
+diff --git a/include/linux/mailbox/nxp-llce/llce_can.h b/include/linux/mailbox/nxp-llce/llce_can.h
+index 6ac23ff6c757..59f60152fbf9 100644
+--- a/include/linux/mailbox/nxp-llce/llce_can.h
++++ b/include/linux/mailbox/nxp-llce/llce_can.h
+@@ -414,6 +414,18 @@ enum llce_can_abort_mb {
+ 	ABORT_ALL_MB
+ } __packed;
+ 
++/**
++ * MB length accepted by a filter
++ * MB length (8/64 bytes) configured to be accepted by a filter.
++ * No mixed mode available.
++ **/
++enum llce_can_rx_mb_length {
++	/** Opt for 64 bytes MB size accepted by a filter */
++	USE_LONG_MB = 0U,
++	/** Opt for 8 bytes MB size accepted by a filter */
++	USE_SHORT_MB,
++} __packed;
++
+ /*
+  * These structure must be kept as they are because BCAN is
+  * sending data in this format !
+@@ -451,6 +463,31 @@ struct llce_can_mb {
+ 	 * for the transmitted frames.
+ 	 */
+ 	u32 timestamp;
++
++} __aligned(4) __packed;
++
++struct llce_can_short_mb {
++	/**
++	 * INPUT/OUTPUT: The first word of a frame as it is
++	 * expected/provided by the CAN controller.
++	 */
++	u32 word0;
++	/**
++	 * INPUT/OUTPUT: The second word of a frame as it is
++	 * expected/provided by the CAN controller.
++	 */
++	u32 word1;
++	/**
++	 * INPUT/OUTPUT: Frame payload needed for the short
++	 * payload size case.
++	 */
++	u8 payload[LLCE_CAN_CONFIG_SHORT_PAYLOAD_MAX_SIZE];
++	/**
++	 * INPUT: Time stamp of the received frames.It is not used
++	 * for the transmitted frames.
++	 */
++	u32 timestamp;
++
+ } __aligned(4) __packed;
+ 
+ /**
+@@ -489,7 +526,7 @@ struct llce_can_rx_mb_desc {
+  * Transmission message buffer descriptor.
+  * Transmission message buffer descriptor is a memory area placed in the shared
+  * memory which is written by the host software with other additional info
+- * (e.g. frame tag IDs) which is send back to the host by the LLCE firmware as
++ * (e.g. frame tag IDs) which is sent back to the host by the LLCE firmware as
+  * acknowledge information. Those internal tags are not changed/used by the
+  * LLCE firmware.
+  * Before to use any transmission message buffer descriptor it is needed
+@@ -564,7 +601,7 @@ struct llce_can_tx2host_ack_info {
+ 
+ /**
+  * Command for polling of controller state .
+- * It is send from host to LLCE to query it for the controller state.
++ * It is sent from host to LLCE to query it for the controller state.
+  **/
+ struct llce_can_get_controller_mode_cmd {
+ 	/** OUTPUT: Current state of the CAN controller. */
+@@ -573,7 +610,7 @@ struct llce_can_get_controller_mode_cmd {
+ 
+ /**
+  * Set controller mode command.
+- * It is send from host to LLCE module in order request changing the state of a
++ * It is sent from host to LLCE module in order request changing the state of a
+  * CAN controller. Currently it allows only to start and stop a controller.
+  * When a controller is started it allows to transmit and receive frames from
+  * the bus. When the controller is stopped it ignores all frames from the bus
+@@ -635,7 +672,7 @@ struct llce_can_controller_fd_config {
+ 
+ /**
+  * Set baud rate command.
+- * It is send from host to LLCE module in order to configure baud rate
++ * It is sent from host to LLCE module in order to configure baud rate
+  * parameters for arbitration phase.
+  **/
+ struct llce_can_set_baudrate_cmd {
+@@ -697,13 +734,6 @@ struct llce_can_rx_filter {
+ 	 * the LLCE internal hardware resources (e.g. message buffers, FIFOs).
+ 	 */
+ 	u16 mb_count;
+-	/**
+-	 * INPUT: Reception interface id used to deliver frames accepted
+-	 * by that filter to the host.
+-	 */
+-	u8 rx_dest_interface;
+-	/** INPUT: Filter entry type: mask, range, exact match */
+-	enum llce_can_entry entry_type;
+ 	/**
+ 	 * OUTPUT: Filter address inside hardware filtering accelerator
+ 	 * where the filter fields are stored.
+@@ -713,11 +743,21 @@ struct llce_can_rx_filter {
+ 	 * the high filter addresses.
+ 	 */
+ 	u16 filter_addr;
++	/**
++	 * INPUT: Reception interface id used to deliver frames accepted
++	 * by that filter to the host.
++	 */
++	u8 rx_dest_interface;
++	/** INPUT: Filter entry type: mask, range, exact match */
++	enum llce_can_entry entry_type;
++	/** INPUT: Message buffer payload length: 8 or 64 bytes */
++	enum llce_can_rx_mb_length filter_mb_length;
++
+ } __aligned(4) __packed;
+ 
+ /**
+  * Set filter command.
+- * It is send by the host to LLCE in order to configure one or more reception
++ * It is sent by the host to LLCE in order to configure one or more reception
+  * filters inside LLCE.
+  **/
+ struct llce_can_set_filter_cmd {
+@@ -841,7 +881,7 @@ struct llce_can_advanced_filter {
+ 
+ /**
+  * Set advanced filter command.
+- * It is send by the host to LLCE in order to set one or more advanced filters.
++ * It is sent by the host to LLCE in order to set one or more advanced filters.
+  **/
+ struct llce_can_set_advanced_filter_cmd {
+ 	/**
+@@ -973,9 +1013,7 @@ struct llce_can_init_cmd {
+ struct llce_can_init_pfe_cmd {
+ 	/** OUTPUT: Address of the PFE RX Ring in LLCE memory */
+ 	u32 p_rx_ring;
+-	/**
+-	 * OUTPUT: Address of the PFE RX Writeback Ring in LLCE memory
+-	 */
++	/** OUTPUT: Address of the PFE RX Writeback Ring in LLCE memory */
+ 	u32 p_rx_wb_ring;
+ 	/** OUTPUT: Address of the PFE TX Ring in LLCE memory */
+ 	u32 p_tx_ring;
+@@ -987,7 +1025,7 @@ struct llce_can_init_pfe_cmd {
+ 
+ /**
+  * Get status command.
+- * It is send by the host to LLCE in order to get the content of all status
++ * It is sent by the host to LLCE in order to get the content of all status
+  * registers of a specific CAN controller. This command makes only a read
+  * operation on the status registers of CAN controller.
+  **/
+@@ -1004,7 +1042,7 @@ struct llce_can_get_status_cmd {
+ 
+ /**
+  * Get firmware version command.
+- * It is send by the host to LLCE in order to get the firmware version string.
++ * It is sent by the host to LLCE in order to get the firmware version string.
+  * It is copied in the response.
+  **/
+ struct llce_can_get_fw_version {
+@@ -1016,7 +1054,7 @@ struct llce_can_get_fw_version {
+ 
+ /**
+  * Remove filter command structure.
+- * It is send by the host to LLCE in order to remove a specific filter
++ * It is sent by the host to LLCE in order to remove a specific filter
+  * identified by a hardware address.
+  **/
+ struct llce_can_remove_filter {
+@@ -1029,7 +1067,7 @@ struct llce_can_remove_filter {
+ 
+ /**
+  * Add AF destination command structure.
+- * It is send by the host to LLCE in order add a destination to be used by AF
++ * It is sent by the host to LLCE in order add a destination to be used by AF
+  **/
+ struct llce_can_create_af_destination {
+ 	/** INPUT: Destination to add to the list */
+@@ -1040,7 +1078,7 @@ struct llce_can_create_af_destination {
+ 
+ /**
+  * Abort MB command structure
+- * It is send by the host to LLCE in order to abort the lowest priority pending
++ * It is sent by the host to LLCE in order to abort the lowest priority pending
+  * transmission of a specific controller.
+  **/
+ struct llce_can_abort_mb_cmd {
+@@ -1175,7 +1213,7 @@ struct llce_can_channel_error_notif {
+ } __aligned(4) __packed;
+ 
+ /**
+- * List of notifications sent by LLCE to host, used by host.
++ * List of notifications send by LLCE to host, used by host.
+  * It is used by LLCE to notify host about specific events inside LLCE.
+  **/
+ union llce_can_notification_list {
+@@ -1217,7 +1255,7 @@ struct llce_can_notification {
+ /**
+  * Notification tables.
+  * Notification tables used to store the details of the notifications.
+- * The index of entries are sent to host cores.The two tables are related to
++ * The index of entries are send to host cores.The two tables are related to
+  * reporting method:interrupt or polling.
+  **/
+ struct llce_can_notification_table {
+@@ -1243,15 +1281,21 @@ struct llce_can_notification_table {
+  **/
+ struct llce_can_shared_memory {
+ 	/** Receive message buffer descriptors. */
+-	struct llce_can_rx_mb_desc can_rx_mb_desc[LLCE_CAN_CONFIG_MAXRXMB];
++	struct llce_can_rx_mb_desc
++		can_rx_mb_desc[LLCE_CAN_CONFIG_MAXRXMB +
++			       LLCE_CAN_CONFIG_MAX_SHORTRXMB];
+ 	/** Transmit message buffer descriptors. */
+ 	struct llce_can_tx_mb_desc can_tx_mb_desc[LLCE_CAN_CONFIG_MAXTXMB];
+-	/** Shared memory used store the CAN message buffers. */
+-	struct llce_can_mb can_mb[LLCE_CAN_CONFIG_MAXTXMB +
+-				LLCE_CAN_CONFIG_MAXRXMB +
++	/** Shared memory used to store the LONG CAN message buffers (64B). */
++	struct llce_can_mb can_mb[LLCE_CAN_CONFIG_MAXRXMB +
++				LLCE_CAN_CONFIG_MAXTXMB +
+ 				LLCE_CAN_CONFIG_MAXAFFRMB];
++
++	/** Shared memory used to store the SHORT CAN message buffers (8B). */
++	struct llce_can_short_mb can_short_mb[LLCE_CAN_CONFIG_MAX_SHORTRXMB];
++
+ 	/** Shared memory used to send commands from Host to LLCE . */
+-	struct llce_can_command can_cmd[LLCE_CAN_CONFIG_MAXCTRL_COUNT];
++	struct llce_can_command can_cmd[LLCE_CAN_CONFIG_HIF_COUNT];
+ 	/**
+  * Shared memory used to store notifications from LLCE to host.
+ 	 */
+diff --git a/include/linux/mailbox/nxp-llce/llce_fw_interface.h b/include/linux/mailbox/nxp-llce/llce_fw_interface.h
+index e84a7184074b..5d1360f64ef3 100644
+--- a/include/linux/mailbox/nxp-llce/llce_fw_interface.h
++++ b/include/linux/mailbox/nxp-llce/llce_fw_interface.h
+@@ -23,6 +23,11 @@ enum llce_fw_return {
+ 	LLCE_ERROR_SW_FIFO_FULL,
+ 	/** CAN firmware error: Message buffer is not available. */
+ 	LLCE_ERROR_MB_NOTAVAILABLE,
++	/**
++	 * CAN firmware error: Short Message buffer is configured
++	 * but a long frame is received.
++	 */
++	LLCE_ERROR_SHORT_MB_NOTAVAILABLE,
+ 	/**
+ 	 * CAN firmware error: CAN protocol error due to inability to get
+ 	 * out from the freeze mode.
+diff --git a/include/linux/mailbox/nxp-llce/llce_interface_config.h b/include/linux/mailbox/nxp-llce/llce_interface_config.h
+index 5b9222d54ea3..a4ebb32b88f7 100644
+--- a/include/linux/mailbox/nxp-llce/llce_interface_config.h
++++ b/include/linux/mailbox/nxp-llce/llce_interface_config.h
+@@ -26,6 +26,11 @@
+  * See Llce_can_Mb_type
+  */
+ #define LLCE_CAN_CONFIG_PAYLOAD_MAX_SIZE 64U
++/**
++ * Maximum buffer size used to store the short CAN FD frame payload.
++ * See Llce_can_Short_mb_type
++ */
++#define LLCE_CAN_CONFIG_SHORT_PAYLOAD_MAX_SIZE 8U
+ /**
+  * Maximum number of hardware controllers usable inside LLCE.
+  * See Llce_can_Init_cmd_type
+@@ -45,12 +50,19 @@
+  */
+ #define LLCE_CAN_CONFIG_MAXTXMB 256U
+ /**
+- * Maximum number of reception message buffers.
++ * Maximum number of 64B reception message buffers.
+  * Note: 32 from those are reserved
+  * for internal usage and are not available to the host.
+  * See Llce_can_Rx_mb_descriptor_type
+  */
+-#define LLCE_CAN_CONFIG_MAXRXMB 2048U
++#define LLCE_CAN_CONFIG_MAXRXMB 1732U
++
++/**
++ * Maximum number of 8B reception message buffers.
++ * for internal usage and are not available to the host.
++ * See Llce_can_Rx_mb_descriptor_type
++ */
++#define LLCE_CAN_CONFIG_MAX_SHORTRXMB 2396U
+ 
+ /**
+  * Number of AF descriptors reserved for each
+@@ -101,11 +113,21 @@
+ #define LLCE_CAN_HIF1 1U
+ /** Number of interfaces which can be used by host cores. */
+ #define LLCE_CAN_CONFIG_HIF_COUNT 2U
++/** Number of semaphores for each HIF. */
++#define LLCE_CAN_CONFIG_IER_SEMA4_COUNT 2U
++/** Index of FIFO_RXOUT inside Can_sema4_Ier array. */
++#define LLCE_FIFO_RXOUT_INDEX 0U
++/** Index of FIFO_TXACK inside Can_sema4_Ier array. */
++#define LLCE_FIFO_TXACK_INDEX 1U
++/** Number of FIFOs used by first HIF. */
++#define LLCE_CAN_HIF0_FIFO_CNT 8U
+ /**
+  * Number of occurrences of last error reported by the notification
+  * mechanism.Limited by Llce_can_Error_notif_type structure size.
+  */
+ #define LLCE_CAN_CONFIG_MAX_OCCURENCES 255U
++/** Semaphore core domain */
++#define LLCE_HOST_CORE_SEMA42_DOMAIN LLCE_SEMA42_GR_GTFSM_9
+ 
+ /* LIN defines */
+ /** Maximum buffer size used to store the LIN frame payload */
+-- 
+2.17.1
+

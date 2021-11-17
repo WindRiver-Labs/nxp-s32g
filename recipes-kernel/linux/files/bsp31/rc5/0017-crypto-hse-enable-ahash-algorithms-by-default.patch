@@ -1,0 +1,33 @@
+From 792fc1b62e23c7c7540f0bd15bc6a0196076df97 Mon Sep 17 00:00:00 2001
+From: Bogdan Folea <bogdan.folea@nxp.com>
+Date: Fri, 12 Nov 2021 08:45:14 +0200
+Subject: [PATCH 17/24] crypto: hse: enable ahash algorithms by default
+
+commit 792fc1b62e23c7c7540f0bd15bc6a0196076df97 from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-8105
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Folea <bogdan.folea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/crypto/hse/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/hse/Kconfig b/drivers/crypto/hse/Kconfig
+index db249a9a2468..97c1bdd2c2a3 100644
+--- a/drivers/crypto/hse/Kconfig
++++ b/drivers/crypto/hse/Kconfig
+@@ -20,7 +20,7 @@ config CRYPTO_DEV_NXP_HSE_AHASH
+ 	bool "Message Digest Support"
+ 	depends on CRYPTO_DEV_NXP_HSE
+ 	select CRYPTO_HASH
+-	default n
++	default y
+ 	help
+ 	  Enables hash and hash-based MAC offloading to HSE.
+ 
+-- 
+2.17.1
+

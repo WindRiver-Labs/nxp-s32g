@@ -1,0 +1,132 @@
+From 3d0ba76cb09c5697d5b7017fdabadf15f23f4d1b Mon Sep 17 00:00:00 2001
+From: Bogdan Folea <bogdan.folea@nxp.com>
+Date: Fri, 12 Nov 2021 08:52:21 +0200
+Subject: [PATCH 18/24] crypto: hse: minor type fixes in core interface
+
+commit 3d0ba76cb09c5697d5b7017fdabadf15f23f4d1b from
+https://source.codeaurora.org/external/autobsps32/linux
+
+Issue: ALB-8106
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Folea <bogdan.folea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/crypto/hse/hse-aead.c | 12 ++++++++++++
+ drivers/crypto/hse/hse-core.c | 10 +++++-----
+ drivers/crypto/hse/hse-core.h | 20 ++++----------------
+ 3 files changed, 21 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/crypto/hse/hse-aead.c b/drivers/crypto/hse/hse-aead.c
+index dfe12a789900..1953bd00a513 100644
+--- a/drivers/crypto/hse/hse-aead.c
++++ b/drivers/crypto/hse/hse-aead.c
+@@ -23,6 +23,18 @@
+ #define HSE_AEAD_MAX_KEY_SIZE    AES_MAX_KEY_SIZE
+ #define HSE_AEAD_MAX_IV_SIZE     GCM_AES_IV_SIZE
+ 
++/**
++ * enum hse_alg_type - algorithm type
++ * @HSE_ALG_TYPE_AEAD: AEAD
++ * @HSE_ALG_TYPE_AUTHENC: authenticated encryption
++ * @HSE_ALG_TYPE_KEYWRAP: key wrapping/blobbing
++ */
++enum hse_alg_type {
++	HSE_ALG_TYPE_AEAD = 0u,
++	HSE_ALG_TYPE_AUTHENC = 1u,
++	HSE_ALG_TYPE_KEYWRAP = 2u,
++};
++
+ /**
+  * struct hse_aead_tpl - algorithm template
+  * @cipher_name: cipher algorithm name
+diff --git a/drivers/crypto/hse/hse-core.c b/drivers/crypto/hse/hse-core.c
+index c6b6f69e6478..d7fee5f90f4c 100644
+--- a/drivers/crypto/hse/hse-core.c
++++ b/drivers/crypto/hse/hse-core.c
+@@ -316,7 +316,7 @@ static inline void hse_config_channels(struct device *dev)
+  * Copy descriptor to the dedicated space and cache service ID internally.
+  */
+ static inline void hse_sync_srv_desc(struct device *dev, u8 channel,
+-				     struct hse_srv_desc *srv_desc)
++				     const struct hse_srv_desc *srv_desc)
+ {
+ 	struct hse_drvdata *drv = dev_get_drvdata(dev);
+ 
+@@ -521,8 +521,8 @@ int hse_channel_release(struct device *dev, u8 channel)
+  *         index out of range, -EBUSY for channel busy, no channel available or
+  *         firmware on stand-by, -ENOTRECOVERABLE for firmware in shutdown state
+  */
+-int hse_srv_req_async(struct device *dev, u8 channel, void *srv_desc,
+-		      void *ctx, void (*rx_cbk)(int err, void *ctx))
++int hse_srv_req_async(struct device *dev, u8 channel, const void *srv_desc,
++		      const void *ctx, void (*rx_cbk)(int err, void *ctx))
+ {
+ 	struct hse_drvdata *drv = dev_get_drvdata(dev);
+ 	int err;
+@@ -564,7 +564,7 @@ int hse_srv_req_async(struct device *dev, u8 channel, void *srv_desc,
+ 	spin_unlock(&drv->tx_lock);
+ 
+ 	drv->rx_cbk[channel].fn = rx_cbk;
+-	drv->rx_cbk[channel].ctx = ctx;
++	drv->rx_cbk[channel].ctx = (void *)ctx;
+ 
+ 	hse_sync_srv_desc(dev, channel, srv_desc);
+ 
+@@ -587,7 +587,7 @@ int hse_srv_req_async(struct device *dev, u8 channel, void *srv_desc,
+  *         index out of range, -EBUSY for channel busy, no channel available or
+  *         firmware on stand-by, -ENOTRECOVERABLE for firmware in shutdown state
+  */
+-int hse_srv_req_sync(struct device *dev, u8 channel, void *srv_desc)
++int hse_srv_req_sync(struct device *dev, u8 channel, const void *srv_desc)
+ {
+ 	struct hse_drvdata *drv = dev_get_drvdata(dev);
+ 	DECLARE_COMPLETION_ONSTACK(done);
+diff --git a/drivers/crypto/hse/hse-core.h b/drivers/crypto/hse/hse-core.h
+index 1dddca8a1ce2..a55a3192385e 100644
+--- a/drivers/crypto/hse/hse-core.h
++++ b/drivers/crypto/hse/hse-core.h
+@@ -10,7 +10,7 @@
+ #ifndef HSE_CORE_H
+ #define HSE_CORE_H
+ 
+-#define HSE_CRA_PRIORITY    2000u /* HSE crypto algorithm priority */
++#define HSE_CRA_PRIORITY    2000u /* HSE crypto algorithm default priority */
+ 
+ #define HSE_CHANNEL_ANY    0xACu /* use any channel, no request ordering */
+ #define HSE_CHANNEL_ADM    0u /* channel reserved for administrative services */
+@@ -27,18 +27,6 @@ enum hse_ch_type {
+ 	HSE_CH_TYPE_STREAM = 2u,
+ };
+ 
+-/**
+- * enum hse_alg_type - algorithm type
+- * @HSE_ALG_TYPE_AEAD: AEAD
+- * @HSE_ALG_TYPE_AUTHENC: authenticated encryption
+- * @HSE_ALG_TYPE_KEYWRAP: key wrapping/blobbing
+- */
+-enum hse_alg_type {
+-	HSE_ALG_TYPE_AEAD = 0u,
+-	HSE_ALG_TYPE_AUTHENC = 1u,
+-	HSE_ALG_TYPE_KEYWRAP = 2u,
+-};
+-
+ /**
+  * struct hse_key - HSE key slot
+  * @entry: list position
+@@ -59,9 +47,9 @@ int hse_channel_acquire(struct device *dev, enum hse_ch_type type, u8 *channel,
+ 			u8 *stream_id);
+ int hse_channel_release(struct device *dev, u8 channel);
+ 
+-int hse_srv_req_async(struct device *dev, u8 channel, void *srv_desc,
+-		      void *ctx, void (*rx_cbk)(int err, void *ctx));
+-int hse_srv_req_sync(struct device *dev, u8 channel, void *srv_desc);
++int hse_srv_req_async(struct device *dev, u8 channel, const void *srv_desc,
++		      const void *ctx, void (*rx_cbk)(int err, void *ctx));
++int hse_srv_req_sync(struct device *dev, u8 channel, const void *srv_desc);
+ 
+ void hse_ahash_register(struct device *dev, struct list_head *alg_list);
+ void hse_ahash_unregister(struct list_head *alg_list);
+-- 
+2.17.1
+
