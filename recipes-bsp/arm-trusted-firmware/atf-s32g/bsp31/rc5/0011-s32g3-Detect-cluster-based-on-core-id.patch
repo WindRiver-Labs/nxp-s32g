@@ -1,0 +1,44 @@
+From 12cdac4dddf07bd4461c0eae7de434cf01e48276 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 1 Nov 2021 14:40:10 +0200
+Subject: [PATCH 11/14] s32g3: Detect cluster based on core id
+
+[0, PLATFORM_CORE_COUNT/2) cores will be considered part
+of cluster 0 and rest of the cores will be assigned to
+cluster 1.
+
+Issue: ALB-8016
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/bl31_lowlevel.S | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32/s32g/bl31_lowlevel.S b/plat/nxp/s32/s32g/bl31_lowlevel.S
+index 639e90bf9..e19d2c1d6 100644
+--- a/plat/nxp/s32/s32g/bl31_lowlevel.S
++++ b/plat/nxp/s32/s32g/bl31_lowlevel.S
+@@ -151,13 +151,16 @@ endfunc s32g_gic_fixups_for_secondary
+ /* Wait until CSADSER[DVMSNPEN1<n>] becomes set, meaning that we're safe
+  * to run with caches enabled on this cluster.
+  *
+- * In: x0 - core pos (0..3)
++ * In: x0 - core pos (0..7)
+  * Clobber list: x7, x8, x9, x13
+  */
+ func wait_ncore_caiu_online
+ 	mov	x13, x30
+ 
+-	cmp	x0, #0x2
++	/* Detect cluster id */
++	mov	x7, #PLATFORM_CORE_COUNT
++	cmp	x0, x7, asr #1
++
+ 	blt	caiu0
+ 	mov	x7, #0x2
+ 	b	csadse0_addr
+-- 
+2.17.1
+

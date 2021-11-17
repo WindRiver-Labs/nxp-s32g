@@ -1,0 +1,59 @@
+From d2400aae740d1889ddb56e375eff73a7e9d838e5 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 28 Oct 2021 10:42:48 +0300
+Subject: [PATCH 04/14] s32g3: Correct GICR base address
+
+Issue: ALB-8016
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/include/s32g_platform_def.h  | 5 -----
+ plat/nxp/s32/s32g/s32g2/include/platform_def.h | 1 +
+ plat/nxp/s32/s32g/s32g3/include/platform_def.h | 1 +
+ 3 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index ada537895..560b7f3ea 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -89,11 +89,6 @@
+ /* GIC (re)definitions */
+ #define S32G274A_GIC_BASE	0x50800000
+ #define PLAT_GICD_BASE		S32G274A_GIC_BASE
+-#if S32G_EMU == 1
+-#define PLAT_GICR_BASE		(S32G274A_GIC_BASE + 0x100000)
+-#else
+-#define PLAT_GICR_BASE		(S32G274A_GIC_BASE + 0x80000)
+-#endif
+ #define S32G274A_GIC_SIZE	0x100000
+ /* SGI to use for kicking the secondary cores out of wfi */
+ #define S32G_SECONDARY_WAKE_SGI	15
+diff --git a/plat/nxp/s32/s32g/s32g2/include/platform_def.h b/plat/nxp/s32/s32g/s32g2/include/platform_def.h
+index 659f9834b..e2558c97d 100644
+--- a/plat/nxp/s32/s32g/s32g2/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g2/include/platform_def.h
+@@ -9,6 +9,7 @@
+ #include <s32g_platform_def.h>
+ 
+ #define PLATFORM_CORE_COUNT		4
++#define PLAT_GICR_BASE			(S32G274A_GIC_BASE + 0x80000)
+ 
+ /* MPIDR_EL1 for the four A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+diff --git a/plat/nxp/s32/s32g/s32g3/include/platform_def.h b/plat/nxp/s32/s32g/s32g3/include/platform_def.h
+index dadcf3927..40b8e7e0c 100644
+--- a/plat/nxp/s32/s32g/s32g3/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g3/include/platform_def.h
+@@ -9,6 +9,7 @@
+ #include <s32g_platform_def.h>
+ 
+ #define PLATFORM_CORE_COUNT		8
++#define PLAT_GICR_BASE			(S32G274A_GIC_BASE + 0x100000)
+ 
+ /* MPIDR_EL1 for the eight A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+-- 
+2.17.1
+

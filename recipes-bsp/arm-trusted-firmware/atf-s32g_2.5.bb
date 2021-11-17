@@ -331,6 +331,20 @@ SRC_URI += " \
     file://bsp31/rc4/0013-s32g-emu-Skip-PMIC-OCOTP-WKPU-initialization.patch \
     file://bsp31/rc4/0014-s32gen1-dts-remove-clock-rate-for-early-configured-c.patch \
     file://bsp31/rc4/0015-s32gen1-select-A53-maximum-clock-frequency-based-on-.patch \
+    file://bsp31/rc5/0001-s32g-Define-an-array-that-can-be-used-as-temporary-s.patch \
+    file://bsp31/rc5/0002-s32g-SRAMC-refactoring.patch \
+    file://bsp31/rc5/0003-s32g3-Correct-the-way-SRAMC-addresses-are-calculated.patch \
+    file://bsp31/rc5/0004-s32g3-Correct-GICR-base-address.patch \
+    file://bsp31/rc5/0005-s32g3-Correct-SRAM-ranges.patch \
+    file://bsp31/rc5/0006-s32g3-fdts-Add-VR5510-on-RDB-board.patch \
+    file://bsp31/rc5/0007-s32g-Apply-SVS-settings-for-S32G2-only.patch \
+    file://bsp31/rc5/0008-s32g3-Correct-DDR-settings.patch \
+    file://bsp31/rc5/0009-s32g3-mc_me-Correct-the-way-A53-cluster-is-enabled.patch \
+    file://bsp31/rc5/0010-s32g3-Use-A53-max-frequencies-for-test-samples.patch \
+    file://bsp31/rc5/0011-s32g3-Detect-cluster-based-on-core-id.patch \
+    file://bsp31/rc5/0012-s32g-don-t-copy-the-entire-FIP-image-to-SRAM.patch \
+    file://bsp31/rc5/0013-s32g3-ddr-Add-ECC_OFF-configuration-mode.patch \
+    file://bsp31/rc5/0014-s32g-ddr-Add-S32CTv1.4-Update-2-code.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g2"

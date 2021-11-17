@@ -1,0 +1,48 @@
+From 8fbbe60532f763ff30a5784f97eaae55c6ee42a0 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 1 Nov 2021 09:16:06 +0200
+Subject: [PATCH 10/14] s32g3: Use A53 max frequencies for test samples
+
+Issue: ALB-7717
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/clk/s32g398a_clk.c | 7 +++++++
+ drivers/nxp/s32g/clk/s32gen1_clk.c  | 2 +-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/nxp/s32g/clk/s32g398a_clk.c b/drivers/nxp/s32g/clk/s32g398a_clk.c
+index da65ecb68..8ead40118 100644
+--- a/drivers/nxp/s32g/clk/s32g398a_clk.c
++++ b/drivers/nxp/s32g/clk/s32g398a_clk.c
+@@ -184,5 +184,12 @@ const struct siul2_freq_mapping siul2_clk_freq_map[] = {
+ 			S32GEN1_ARM_PLL_VCO_MAX_FREQ,
+ 			S32GEN1_ARM_PLL_PHI0_MAX_FREQ,
+ 			S32GEN1_XBAR_2X_MAX_FREQ),
++
++	/* Test samples, let's assume it's S32G399A */
++	SIUL2_FREQ_MAP(0x0, S32GEN1_A53_MAX_FREQ,
++			S32GEN1_ARM_PLL_VCO_MAX_FREQ,
++			S32GEN1_ARM_PLL_PHI0_MAX_FREQ,
++			S32GEN1_XBAR_2X_MAX_FREQ),
++
+ 	{} /* empty entry */
+ };
+diff --git a/drivers/nxp/s32g/clk/s32gen1_clk.c b/drivers/nxp/s32g/clk/s32gen1_clk.c
+index e4fb045f2..d84ea8140 100644
+--- a/drivers/nxp/s32g/clk/s32gen1_clk.c
++++ b/drivers/nxp/s32g/clk/s32gen1_clk.c
+@@ -570,7 +570,7 @@ int s32gen1_get_early_clks_freqs(const struct siul2_freq_mapping **mapping)
+ 	freq = get_siul2_midr2_freq();
+ 
+ 	/* Last entry is empty */
+-	for (i = 0; siul2_clk_freq_map[i].siul2_midr2_freq != 0; i++)
++	for (i = 0; siul2_clk_freq_map[i].a53_freq != 0; i++)
+ 
+ 		if (siul2_clk_freq_map[i].siul2_midr2_freq == freq) {
+ 			*mapping = &siul2_clk_freq_map[i];
+-- 
+2.17.1
+

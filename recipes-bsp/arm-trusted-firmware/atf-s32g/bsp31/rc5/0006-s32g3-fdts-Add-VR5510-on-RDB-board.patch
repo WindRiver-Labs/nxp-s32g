@@ -1,0 +1,118 @@
+From f351182b304267fa39d92cbe4c77188197bce029 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 29 Oct 2021 07:39:19 +0300
+Subject: [PATCH 06/14] s32g3: fdts: Add VR5510 on RDB board
+
+Issue: ALB-8016
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/fsl-s32g-rdb.dtsi    | 26 ++++++++++++++++++++++++++
+ fdts/fsl-s32g274a-rdb.dts | 22 ++--------------------
+ fdts/fsl-s32g398a-rdb.dts |  1 +
+ fdts/fsl-s32g398a.dtsi    |  1 -
+ 4 files changed, 29 insertions(+), 21 deletions(-)
+ create mode 100644 fdts/fsl-s32g-rdb.dtsi
+
+diff --git a/fdts/fsl-s32g-rdb.dtsi b/fdts/fsl-s32g-rdb.dtsi
+new file mode 100644
+index 000000000..39ed770fd
+--- /dev/null
++++ b/fdts/fsl-s32g-rdb.dtsi
+@@ -0,0 +1,26 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++/* PMIC */
++&i2c4 {
++	status = "okay";
++	clock-frequency=<100000>;
++
++	vr5510@20 {
++		compatible = "fsl,vr5510";
++		reg = <0x20>;
++		status = "okay";
++	};
++
++	vr5510_fsu@21 {
++		compatible = "fsl,vr5510";
++		reg = <0x21>;
++		status = "okay";
++	};
++
++};
++
++
+diff --git a/fdts/fsl-s32g274a-rdb.dts b/fdts/fsl-s32g274a-rdb.dts
+index 96a61b5c6..cf3e57afd 100644
+--- a/fdts/fsl-s32g274a-rdb.dts
++++ b/fdts/fsl-s32g274a-rdb.dts
+@@ -1,34 +1,16 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ /dts-v1/;
+ #include "fsl-s32g274a.dtsi"
++#include "fsl-s32g-rdb.dtsi"
+ 
+ / {
+ 	compatible = "fsl,s32g274ardb";
+ };
+ 
+-/* PMIC */
+-&i2c4 {
+-	status = "okay";
+-	clock-frequency=<100000>;
+-
+-	vr5510@20 {
+-		compatible = "fsl,vr5510";
+-		reg = <0x20>;
+-		status = "okay";
+-	};
+-
+-	vr5510_fsu@21 {
+-		compatible = "fsl,vr5510";
+-		reg = <0x21>;
+-		status = "okay";
+-	};
+-
+-};
+-
+ &wkpu {
+ 	status = "okay";
+ };
+diff --git a/fdts/fsl-s32g398a-rdb.dts b/fdts/fsl-s32g398a-rdb.dts
+index c8ef598ea..7299cbfc3 100644
+--- a/fdts/fsl-s32g398a-rdb.dts
++++ b/fdts/fsl-s32g398a-rdb.dts
+@@ -5,6 +5,7 @@
+  */
+ /dts-v1/;
+ #include "fsl-s32g398a.dtsi"
++#include "fsl-s32g-rdb.dtsi"
+ 
+ / {
+ 	compatible = "fsl,s32g398ardb";
+diff --git a/fdts/fsl-s32g398a.dtsi b/fdts/fsl-s32g398a.dtsi
+index e4b8a1f24..6f55d6647 100644
+--- a/fdts/fsl-s32g398a.dtsi
++++ b/fdts/fsl-s32g398a.dtsi
+@@ -6,7 +6,6 @@
+ 
+ #include <dt-bindings/clock/s32g3-clock.h>
+ 
+-/dts-v1/;
+ #include "fsl-s32g.dtsi"
+ / {
+ 	model = "NXP S32G";
+-- 
+2.17.1
+

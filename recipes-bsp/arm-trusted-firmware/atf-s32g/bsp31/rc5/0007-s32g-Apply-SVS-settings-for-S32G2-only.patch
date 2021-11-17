@@ -1,0 +1,293 @@
+From ec8e57a3f47d0a3ccecce814fbdbb4fffbaaa932 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 29 Oct 2021 09:46:09 +0300
+Subject: [PATCH 07/14] s32g: Apply SVS settings for S32G2 only
+
+Issue: ALB-8016
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/include/s32g_bl_common.h |  4 +-
+ plat/nxp/s32/s32g/s32g2/platform.mk        |  1 +
+ plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c     | 83 ++++++++++++++++++++++
+ plat/nxp/s32/s32g/s32g3/platform.mk        |  1 +
+ plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c     | 22 ++++++
+ plat/nxp/s32/s32g/s32g_vr5510.c            | 82 +--------------------
+ 6 files changed, 112 insertions(+), 81 deletions(-)
+ create mode 100644 plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c
+ create mode 100644 plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c
+
+diff --git a/plat/nxp/s32/s32g/include/s32g_bl_common.h b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+index f23ba2889..4ba6a9526 100644
+--- a/plat/nxp/s32/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+@@ -6,9 +6,10 @@
+ #ifndef S32G_BL_COMMON_H
+ #define S32G_BL_COMMON_H
+ 
++#include <i2c/s32g_i2c.h>
++#include <pmic/vr5510.h>
+ #include <stdbool.h>
+ #include <stdint.h>
+-#include "i2c/s32g_i2c.h"
+ 
+ /**
+  * container_of - cast a member of a structure out to the containing structure
+@@ -36,6 +37,7 @@ void plat_gic_restore(void);
+ void s32g_early_plat_init(bool skip_ddr_clk);
+ int pmic_prepare_for_suspend(void);
+ void pmic_system_off(void);
++int pmic_disable_wdg(vr5510_t fsu);
+ int pmic_setup(void);
+ 
+ void update_core_state(uint32_t core, uint32_t state);
+diff --git a/plat/nxp/s32/s32g/s32g2/platform.mk b/plat/nxp/s32/s32g/s32g2/platform.mk
+index ecba75be2..22500d232 100644
+--- a/plat/nxp/s32/s32g/s32g2/platform.mk
++++ b/plat/nxp/s32/s32g/s32g2/platform.mk
+@@ -18,6 +18,7 @@ PLAT_BL_COMMON_SOURCES	+= drivers/nxp/s32g/clk/s32g274a_clk.c \
+ 			   plat/nxp/s32/s32g/s32g2/s32g2_mc_me.c \
+ 			   plat/nxp/s32/s32g/s32g2/s32g2_mc_rgm.c \
+ 			   plat/nxp/s32/s32g/s32g2/s32g2_sramc.c \
++			   plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c \
+ 			   lib/cpus/aarch64/s32g2.S \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+ 
+diff --git a/plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c b/plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c
+new file mode 100644
+index 000000000..08df8b6a4
+--- /dev/null
++++ b/plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c
+@@ -0,0 +1,83 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <s32g_bl_common.h>
++#include <drivers/nxp/s32g/ocotp.h>
++
++static int is_svs_needed(bool *status)
++{
++	uint32_t val;
++	int ret;
++
++	ret = s32gen1_ocotp_read(S32GEN1_OCOTP_DIE_PROCESS_ADDR, &val);
++	if (ret)
++		return ret;
++
++	*status = !!(val & S32GEN1_OCOTP_DIE_PROCESS_MASK);
++
++	return 0;
++}
++
++static int apply_svs(vr5510_t fsu)
++{
++	int ret;
++	uint16_t reg;
++	bool enable_svs;
++	uint8_t *regp = (uint8_t *)&reg;
++
++	ret = is_svs_needed(&enable_svs);
++	if (ret)
++		return ret;
++
++	if (!enable_svs)
++		return 0;
++
++	ret = vr5510_read(fsu, VR5510_FS_STATES, regp, sizeof(reg));
++	if ((VR5510_STATE(reg) != INIT_FS) || ret) {
++		ERROR("Cannot apply SVS in state %u\n",
++			VR5510_STATE(reg));
++		return -1;
++	}
++
++	/**
++	 * Targeted voltage according to S32G & S32R DS : 0.76875V ->
++	 * 5 SVS steps
++	 */
++	reg = 5 << VR5510_FS_I_SVS_SVS_OFFSET;
++	ret = vr5510_write(fsu, VR5510_FS_I_SVS, regp, sizeof(reg));
++	if (ret) {
++		ERROR("Failed to write SVS\n");
++		return ret;
++	}
++
++	reg = ~reg & 0xFFFFU;
++	ret = vr5510_write(fsu, VR5510_FS_I_NOT_SVS, regp, sizeof(reg));
++	if (ret) {
++		ERROR("Failed to write NOT_SVS\n");
++		return ret;
++	}
++
++	return 0;
++}
++
++int pmic_setup(void)
++{
++	vr5510_t fsu;
++	int ret;
++
++	s32g_reinit_i2c();
++
++	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
++	if (ret) {
++		ERROR("Failed to get VR5510 FSU\n");
++		return ret;
++	}
++
++	ret = apply_svs(fsu);
++	if (ret)
++		return ret;
++
++	return pmic_disable_wdg(fsu);
++}
+diff --git a/plat/nxp/s32/s32g/s32g3/platform.mk b/plat/nxp/s32/s32g/s32g3/platform.mk
+index 8504db415..23fbebf7e 100644
+--- a/plat/nxp/s32/s32g/s32g3/platform.mk
++++ b/plat/nxp/s32/s32g/s32g3/platform.mk
+@@ -17,6 +17,7 @@ PLAT_INCLUDES		+= -Iplat/nxp/s32/s32g/s32g3/include \
+ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g3/s32g3_mc_me.c \
+ 			   plat/nxp/s32/s32g/s32g3/s32g3_mc_rgm.c \
+ 			   plat/nxp/s32/s32g/s32g3/s32g3_sramc.c \
++			   plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c \
+ 			   drivers/nxp/s32g/clk/s32g398a_clk.c \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+ 
+diff --git a/plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c b/plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c
+new file mode 100644
+index 000000000..f14596e59
+--- /dev/null
++++ b/plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c
+@@ -0,0 +1,22 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <s32g_bl_common.h>
++
++int pmic_setup(void)
++{
++	vr5510_t fsu;
++	int ret;
++
++	s32g_reinit_i2c();
++
++	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
++	if (ret) {
++		ERROR("Failed to get VR5510 FSU\n");
++		return ret;
++	}
++
++	return pmic_disable_wdg(fsu);
++}
+diff --git a/plat/nxp/s32/s32g/s32g_vr5510.c b/plat/nxp/s32/s32g/s32g_vr5510.c
+index 29b51a100..a25c62841 100644
+--- a/plat/nxp/s32/s32g/s32g_vr5510.c
++++ b/plat/nxp/s32/s32g/s32g_vr5510.c
+@@ -3,10 +3,7 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#include "pmic/vr5510.h"
+-#include "s32g_bl_common.h"
+-#include <drivers/nxp/s32g/ocotp.h>
+-#include <lib/libc/stdint.h>
++#include <s32g_bl_common.h>
+ 
+ static int watchdog_refresh(vr5510_t fsu)
+ {
+@@ -192,7 +189,7 @@ void pmic_system_off(void)
+ 		ERROR("Failed to write VR5510_M_SM_CTRL1 register\n");
+ }
+ 
+-static int pmic_disable_wdg(vr5510_t fsu)
++int pmic_disable_wdg(vr5510_t fsu)
+ {
+ 	uint16_t reg;
+ 	uint8_t *regp = (uint8_t *)&reg;
+@@ -257,78 +254,3 @@ static int pmic_disable_wdg(vr5510_t fsu)
+ 	return watchdog_refresh(fsu);
+ }
+ 
+-static int is_svs_needed(bool *status)
+-{
+-	uint32_t val;
+-	int ret;
+-
+-	ret = s32gen1_ocotp_read(S32GEN1_OCOTP_DIE_PROCESS_ADDR, &val);
+-	if (ret)
+-		return ret;
+-
+-	*status = !!(val & S32GEN1_OCOTP_DIE_PROCESS_MASK);
+-
+-	return 0;
+-}
+-
+-static int apply_svs(vr5510_t fsu)
+-{
+-	int ret;
+-	uint16_t reg;
+-	bool enable_svs;
+-	uint8_t *regp = (uint8_t *)&reg;
+-
+-	ret = is_svs_needed(&enable_svs);
+-	if (ret)
+-		return ret;
+-
+-	if (!enable_svs)
+-		return 0;
+-
+-	ret = vr5510_read(fsu, VR5510_FS_STATES, regp, sizeof(reg));
+-	if (VR5510_STATE(reg) != INIT_FS) {
+-		ERROR("Cannot apply SVS in state %u\n",
+-			VR5510_STATE(reg));
+-		return -1;
+-	}
+-
+-	/**
+-	 * Targeted voltage according to S32G & S32R DS : 0.76875V ->
+-	 * 5 SVS steps
+-	 */
+-	reg = 5 << VR5510_FS_I_SVS_SVS_OFFSET;
+-	ret = vr5510_write(fsu, VR5510_FS_I_SVS, regp, sizeof(reg));
+-	if (ret) {
+-		ERROR("Failed to write SVS\n");
+-		return ret;
+-	}
+-
+-	reg = ~reg & 0xFFFFU;
+-	ret = vr5510_write(fsu, VR5510_FS_I_NOT_SVS, regp, sizeof(reg));
+-	if (ret) {
+-		ERROR("Failed to write NOT_SVS\n");
+-		return ret;
+-	}
+-
+-	return 0;
+-}
+-
+-int pmic_setup(void)
+-{
+-	vr5510_t fsu;
+-	int ret;
+-
+-	s32g_reinit_i2c();
+-
+-	ret = vr5510_get_inst(VR5510_FSU_NAME, &fsu);
+-	if (ret) {
+-		ERROR("Failed to get VR5510 FSU\n");
+-		return ret;
+-	}
+-
+-	ret = apply_svs(fsu);
+-	if (ret)
+-		return ret;
+-
+-	return pmic_disable_wdg(fsu);
+-}
+-- 
+2.17.1
+
