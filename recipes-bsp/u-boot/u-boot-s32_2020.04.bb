@@ -92,6 +92,7 @@ SRC_URI += " \
     file://bsp31/rc5/0017-driver-net-pfeng-fix-HIF-soft-reset-for-G3.patch \
     file://bsp31/rc5/0018-driver-net-pfeng-Add-PFE-G3-soft-reset-optimization.patch \
     file://bsp31/rc5/0019-driver-net-pfeng-Disable-safety-for-G3.patch \
+    file://bsp31/rc7/0001-SerDes-s32-gen1-Fix-wrong-SerDes-mode-being-set.patch \
 "
 
 SRCREV = "7eba18e1c0b994180e173e9343c7fe50819d9732"
