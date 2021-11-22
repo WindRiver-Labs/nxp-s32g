@@ -46,6 +46,8 @@ This BSP supports the following boards:
 			   bsp30.0-5.10.41-rt.
   - 2021/10 (LINUXPG-938): WindRiver Linux 10.21 RCPL6. Standard and rt support based on NXP SDK
 			   bsp30.0-5.10.41-rt.
+  - 2021/11 (LINUXPG-940): WindRiver Linux 10.21 RCPL7. Standard and rt support based on NXP SDK
+                           bsp31.0-5.10.41-rt.
 
 3. BSP Features
 ===============

@@ -363,7 +363,9 @@ NOTICE:
 
     The linux HSE & PKCS#11 demo supports S32G274AEVB board only for now,
     because the RDB2 board does not include the HSE related configurations
-    and dts node in U-Boot. And this will be fixed in future.
+    and dts node in U-Boot. And this will be fixed in future. Moreover,
+    there will be "hse-rng: no data available" message shown with HSE 0.8.5
+    version firmware, and using 1.0.0 version HSE firmware can fix it.
 
 6.3 PFE
 -------
@@ -462,7 +464,7 @@ There are 4 LLCE firmwares:
 	ppe_tx.bin
 	ppe_rx.bin
 
-with version 1.0.0 to be downloaded from NXP Software.
+with version 1.0.3 to be downloaded from NXP Software.
 
 6.4.2 LLCE CAN verify steps
 ---------------------------
