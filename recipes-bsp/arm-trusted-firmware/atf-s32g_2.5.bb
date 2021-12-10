@@ -17,7 +17,10 @@ SRC_URI = "${URL};branch=${BRANCH}"
 SRCREV ?= "daa402f07e4d88e5c887a64a709b2f9839038c14"
 SRC_URI[sha256sum] = "15d263b62089b46375effede12a1917cd7b267b93dd97c68fd5ddbd1dddede07"
 
-
+FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
+SRC_URI += " \
+    file://0001-Fix-fiptool-build-error.patch \
+"
 
 PLATFORM_nxp-s32g2xx = "s32g2"
 BUILD_TYPE = "release"
