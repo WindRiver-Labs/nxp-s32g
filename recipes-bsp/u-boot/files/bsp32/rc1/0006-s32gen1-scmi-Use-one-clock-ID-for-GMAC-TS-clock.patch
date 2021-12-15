@@ -1,0 +1,130 @@
+From 15645219f8598f6ac983a35cc759ea7c673ceb76 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 19 Nov 2021 14:52:45 +0200
+Subject: [PATCH 06/20] s32gen1: scmi: Use one clock ID for GMAC TS clock
+
+Remove TS clocks based on GMAC configuration due to
+their redundancy.
+
+Issue: ALB-8216
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/eth.c     | 7 +++----
+ drivers/clk/s32/s32g274a_clk.c     | 3 +--
+ drivers/clk/s32/s32g3_clk.c        | 3 +--
+ drivers/clk/s32/s32gen1_scmi_ids.c | 9 +++------
+ drivers/clk/s32/s32r45_clk.c       | 3 +--
+ 5 files changed, 9 insertions(+), 16 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/eth.c b/board/freescale/s32-gen1/eth.c
+index b73b92f73e..cc14a6fa11 100644
+--- a/board/freescale/s32-gen1/eth.c
++++ b/board/freescale/s32-gen1/eth.c
+@@ -288,22 +288,21 @@ static ulong gmac_calc_link_speed(u32 speed)
+ static int get_gmac_clocks(u32 mode, const char **rx,
+ 			   const char **tx, const char **ts)
+ {
++	if (ts)
++		*ts = "ts";
++
+ 	switch (mode) {
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 		if (rx)
+ 			*rx = "rx_sgmii";
+ 		if (tx)
+ 			*tx = "tx_sgmii";
+-		if (ts)
+-			*ts = "ts_sgmii";
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+ 		if (rx)
+ 			*rx = "rx_rgmii";
+ 		if (tx)
+ 			*tx = "tx_rgmii";
+-		if (ts)
+-			*ts = "ts_rgmii";
+ 		break;
+ 	case PHY_INTERFACE_MODE_RMII:
+ 	case PHY_INTERFACE_MODE_MII:
+diff --git a/drivers/clk/s32/s32g274a_clk.c b/drivers/clk/s32/s32g274a_clk.c
+index 8166b39951..fdc07898a4 100644
+--- a/drivers/clk/s32/s32g274a_clk.c
++++ b/drivers/clk/s32/s32g274a_clk.c
+@@ -138,8 +138,7 @@ int cc_compound_clk_get_pid(u32 id, u32 *parent_id)
+ 	case S32GEN1_SCMI_CLK_GMAC0_TX_SGMII:
+ 		*parent_id = S32GEN1_CLK_MC_CGM0_MUX10;
+ 		break;
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_RGMII:
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_SGMII:
++	case S32GEN1_SCMI_CLK_GMAC0_TS:
+ 		*parent_id = S32GEN1_CLK_MC_CGM0_MUX9;
+ 		break;
+ 	default:
+diff --git a/drivers/clk/s32/s32g3_clk.c b/drivers/clk/s32/s32g3_clk.c
+index f030742f3e..470788005d 100644
+--- a/drivers/clk/s32/s32g3_clk.c
++++ b/drivers/clk/s32/s32g3_clk.c
+@@ -167,8 +167,7 @@ int cc_compound_clk_get_pid(u32 id, u32 *parent_id)
+ 	case S32GEN1_SCMI_CLK_GMAC0_TX_SGMII:
+ 		*parent_id = S32G_CLK_MC_CGM6_MUX1;
+ 		break;
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_RGMII:
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_SGMII:
++	case S32GEN1_SCMI_CLK_GMAC0_TS:
+ 		*parent_id = S32G_CLK_MC_CGM6_MUX0;
+ 		break;
+ 	default:
+diff --git a/drivers/clk/s32/s32gen1_scmi_ids.c b/drivers/clk/s32/s32gen1_scmi_ids.c
+index 93ea5eb251..5a990414dd 100644
+--- a/drivers/clk/s32/s32gen1_scmi_ids.c
++++ b/drivers/clk/s32/s32gen1_scmi_ids.c
+@@ -33,8 +33,7 @@ static u32 s32gen1_scmi_ids[] = {
+ 	[INDEX(S32GEN1_SCMI_CLK_GMAC0_TX_SGMII)] = S32GEN1_SCMI_COMPLEX_CLK,
+ 	[INDEX(S32GEN1_SCMI_CLK_GMAC0_RX_RGMII)] = S32GEN1_SCMI_COMPLEX_CLK,
+ 	[INDEX(S32GEN1_SCMI_CLK_GMAC0_TX_RGMII)] = S32GEN1_SCMI_COMPLEX_CLK,
+-	[INDEX(S32GEN1_SCMI_CLK_GMAC0_TS_SGMII)] = S32GEN1_SCMI_COMPLEX_CLK,
+-	[INDEX(S32GEN1_SCMI_CLK_GMAC0_TS_RGMII)] = S32GEN1_SCMI_COMPLEX_CLK,
++	[INDEX(S32GEN1_SCMI_CLK_GMAC0_TS)] = S32GEN1_SCMI_COMPLEX_CLK,
+ 	[INDEX(S32GEN1_SCMI_CLK_GMAC0_AXI)] = S32GEN1_CLK_XBAR,
+ 	[INDEX(S32GEN1_SCMI_CLK_SPI_REG)] = S32GEN1_CLK_SPI,
+ 	[INDEX(S32GEN1_SCMI_CLK_SPI_MODULE)] = S32GEN1_CLK_SPI,
+@@ -83,8 +82,7 @@ static int compound2clkid(u32 scmi_clk_id, u32 *clk_id)
+ 		if (clk_id)
+ 			*clk_id = S32GEN1_CLK_GMAC0_TX;
+ 		break;
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_SGMII:
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_RGMII:
++	case S32GEN1_SCMI_CLK_GMAC0_TS:
+ 		if (clk_id)
+ 			*clk_id = S32GEN1_CLK_GMAC0_TS;
+ 		break;
+@@ -158,8 +156,7 @@ static int set_gmac_ts_parent(struct clk *clk)
+ 	u32 ts_id, parent_id;
+ 	u32 clk_id = clk->id;
+ 
+-	if (clk_id == S32GEN1_SCMI_CLK_GMAC0_TS_RGMII ||
+-	    clk_id == S32GEN1_SCMI_CLK_GMAC0_TS_SGMII) {
++	if (clk_id == S32GEN1_SCMI_CLK_GMAC0_TS) {
+ 		ts_id = S32GEN1_CLK_PERIPH_PLL_PHI4;
+ 	} else {
+ 		pr_err("Invalid GMAC TS mode\n");
+diff --git a/drivers/clk/s32/s32r45_clk.c b/drivers/clk/s32/s32r45_clk.c
+index 51f69ab9c6..13a5392432 100644
+--- a/drivers/clk/s32/s32r45_clk.c
++++ b/drivers/clk/s32/s32r45_clk.c
+@@ -321,8 +321,7 @@ int cc_compound_clk_get_pid(u32 id, u32 *parent_id)
+ 	case S32GEN1_SCMI_CLK_GMAC0_TX_SGMII:
+ 		*parent_id = S32GEN1_CLK_MC_CGM0_MUX10;
+ 		break;
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_RGMII:
+-	case S32GEN1_SCMI_CLK_GMAC0_TS_SGMII:
++	case S32GEN1_SCMI_CLK_GMAC0_TS:
+ 		*parent_id = S32GEN1_CLK_MC_CGM0_MUX9;
+ 		break;
+ 	default:
+-- 
+2.17.1
+

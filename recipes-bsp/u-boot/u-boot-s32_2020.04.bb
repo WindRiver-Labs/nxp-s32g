@@ -24,6 +24,25 @@ SRC_URI += " \
     file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
     file://0001-scripts-mailmapper-python2-python3.patch \
+    file://bsp32/rc1/0002-driver-clk-s32g3-Rename-S32G398A-to-S32G3.patch \
+    file://bsp32/rc1/0003-arch-arm-dts-Rename-S32G398-to-S32G3.patch \
+    file://bsp32/rc1/0004-Rename-target-s32g398a-to-s32g399a.patch \
+    file://bsp32/rc1/0005-board-s32g3-Rename-DDR-folder-to-s32g3.patch \
+    file://bsp32/rc1/0006-s32gen1-scmi-Use-one-clock-ID-for-GMAC-TS-clock.patch \
+    file://bsp32/rc1/0007-bindings-clock-Use-one-clock-ID-for-GMAC-TS-clock.patch \
+    file://bsp32/rc1/0008-dts-s32gen1-Remove-redundant-GMAC-clocks.patch \
+    file://bsp32/rc1/0009-s32gen1-Enable-HS400-Enhanced-Strobe.patch \
+    file://bsp32/rc1/0010-s32gen1-Correct-SRAM-initialization-algorithm.patch \
+    file://bsp32/rc1/0011-s32-gen1-pcie-Check-if-SerDes-subsystem-is-present.patch \
+    file://bsp32/rc1/0012-s32-gen1-pcie-doc-Document-new-dts-binding-entry.patch \
+    file://bsp32/rc1/0013-Remove-S32V2-configs.patch \
+    file://bsp32/rc1/0014-Remove-S32V2-boards.patch \
+    file://bsp32/rc1/0015-Remove-S32V2-Kconfig-options.patch \
+    file://bsp32/rc1/0016-Remove-S32V2-drivers.patch \
+    file://bsp32/rc1/0017-s32gen1-Add-AHB-buffer-to-MMU-tables-when-needed-onl.patch \
+    file://bsp32/rc1/0018-s32g-sramc-Don-t-subtract-SRAM-base-from-an-SRAM-off.patch \
+    file://bsp32/rc1/0019-s32gen1-sramc-Adjust-SRAMC-range-to-delete-only-the-.patch \
+    file://bsp32/rc1/0020-s32gen1-sram-Report-the-size-of-the-cleared-SRAM.patch \
 "
 
 SRCREV = "6286902c946f15b2b2ab66904a26d6e0e8748802"

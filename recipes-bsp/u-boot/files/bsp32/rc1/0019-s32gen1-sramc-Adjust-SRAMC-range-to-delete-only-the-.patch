@@ -1,0 +1,34 @@
+From fd12a13674aeff23ded67520ba03eb13f5799b62 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 10 Dec 2021 16:22:04 +0200
+Subject: [PATCH 19/20] s32gen1: sramc: Adjust SRAMC range to delete only the
+ requested region.
+
+This decreases the end of the calculated range to avoid situations
+when more bytes are cleared than requested.
+
+Issue: ALB-8270
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c
+index 29f270517f..996b29c31c 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c
+@@ -81,7 +81,7 @@ static void clear_sram_range(struct sram_ctrl *c, uintptr_t start_addr,
+ 	end_addr -= c->min_sram_addr;
+ 
+ 	start_offset = c->a53_to_sramc_offset(start_addr);
+-	end_offset = c->a53_to_sramc_offset(end_addr);
++	end_offset = c->a53_to_sramc_offset(end_addr) - 1;
+ 
+ 	clear_sramc_range(base, start_offset, end_offset);
+ }
+-- 
+2.17.1
+

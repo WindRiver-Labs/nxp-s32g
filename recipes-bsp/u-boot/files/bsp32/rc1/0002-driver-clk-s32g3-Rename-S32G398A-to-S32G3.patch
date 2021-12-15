@@ -1,0 +1,125 @@
+From ea5f044fcb8ef2256981bb75d283f026c21c3265 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 15 Nov 2021 14:22:52 +0200
+Subject: [PATCH 02/20] driver/clk: s32g3: Rename S32G398A to S32G3
+
+Issue: ALB-8146
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/clk/s32/Makefile                             |  2 +-
+ drivers/clk/s32/clk_dump/Makefile                    |  2 +-
+ .../{s32g398a_clk_names.c => s32g3_clk_names.c}      |  6 +++---
+ drivers/clk/s32/{s32g398a_clk.c => s32g3_clk.c}      | 12 ++++++------
+ 4 files changed, 11 insertions(+), 11 deletions(-)
+ rename drivers/clk/s32/clk_dump/{s32g398a_clk_names.c => s32g3_clk_names.c} (79%)
+ rename drivers/clk/s32/{s32g398a_clk.c => s32g3_clk.c} (96%)
+
+diff --git a/drivers/clk/s32/Makefile b/drivers/clk/s32/Makefile
+index 924bba008a..3cae736fbd 100644
+--- a/drivers/clk/s32/Makefile
++++ b/drivers/clk/s32/Makefile
+@@ -12,7 +12,7 @@ obj-y += clk_utils.o
+ obj-y += s32gen1_scmi_ids.o
+ obj-y += s32gen1_scmi_clk.o
+ obj-$(CONFIG_NXP_S32G2XX) += s32g274a_clk.o s32g_clk.o s32g_scmi_ids.o
+-obj-$(CONFIG_NXP_S32G3XX) += s32g398a_clk.o s32g_clk.o s32g_scmi_ids.o
++obj-$(CONFIG_NXP_S32G3XX) += s32g3_clk.o s32g_clk.o s32g_scmi_ids.o
+ obj-$(CONFIG_NXP_S32R45) += s32r45_clk.o s32r45_scmi_ids.o
+ obj-$(CONFIG_CMD_CLK) += clk_dump/
+ 
+diff --git a/drivers/clk/s32/clk_dump/Makefile b/drivers/clk/s32/clk_dump/Makefile
+index 48edeb4637..02ab8cf63a 100644
+--- a/drivers/clk/s32/clk_dump/Makefile
++++ b/drivers/clk/s32/clk_dump/Makefile
+@@ -6,7 +6,7 @@
+ obj-y += clk_dump.o
+ obj-y += s32gen1_clk_names.o
+ obj-$(CONFIG_NXP_S32G2XX) += s32g_clk_names.o
+-obj-$(CONFIG_NXP_S32G3XX) += s32g_clk_names.o s32g398a_clk_names.o
++obj-$(CONFIG_NXP_S32G3XX) += s32g_clk_names.o s32g3_clk_names.o
+ obj-$(CONFIG_NXP_S32R45) += s32r45_clk_names.o
+ 
+ ccflags-y += -Idrivers/clk/s32/include
+diff --git a/drivers/clk/s32/clk_dump/s32g398a_clk_names.c b/drivers/clk/s32/clk_dump/s32g3_clk_names.c
+similarity index 79%
+rename from drivers/clk/s32/clk_dump/s32g398a_clk_names.c
+rename to drivers/clk/s32/clk_dump/s32g3_clk_names.c
+index dcb29630f5..d4c7530d8d 100644
+--- a/drivers/clk/s32/clk_dump/s32g398a_clk_names.c
++++ b/drivers/clk/s32/clk_dump/s32g3_clk_names.c
+@@ -10,7 +10,7 @@
+ #define CLK_NAME(ID_DEF)     \
+ 	S32GEN1_CLK_NAME_INIT(ID_DEF, #ID_DEF)
+ 
+-static struct s32gen1_clk_blk s32g398a_clk_blks[] = {
++static struct s32gen1_clk_blk s32g3_clk_blks[] = {
+ 	CLK_NAME(S32G_CLK_MC_CGM6_MUX0),
+ 	CLK_NAME(S32G_CLK_MC_CGM6_MUX1),
+ 	CLK_NAME(S32G_CLK_MC_CGM6_MUX2),
+@@ -19,8 +19,8 @@ static struct s32gen1_clk_blk s32g398a_clk_blks[] = {
+ 
+ struct s32gen1_clk_blk *s32g_get_plat_clk_blk(u32 id)
+ {
+-	if (id < ARRAY_SIZE(s32g398a_clk_blks))
+-		return &s32g398a_clk_blks[id];
++	if (id < ARRAY_SIZE(s32g3_clk_blks))
++		return &s32g3_clk_blks[id];
+ 
+ 	return NULL;
+ }
+diff --git a/drivers/clk/s32/s32g398a_clk.c b/drivers/clk/s32/s32g3_clk.c
+similarity index 96%
+rename from drivers/clk/s32/s32g398a_clk.c
+rename to drivers/clk/s32/s32g3_clk.c
+index 316848b0e0..f030742f3e 100644
+--- a/drivers/clk/s32/s32g398a_clk.c
++++ b/drivers/clk/s32/s32g3_clk.c
+@@ -103,14 +103,14 @@ static struct s32gen1_clk gmac0_ref_div_clk =
+ static struct s32gen1_clk gmac0_ref_clk =
+ 		S32GEN1_CHILD_CLK(cgm6_mux3_clk, 0, 50 * MHZ);
+ 
+-static struct s32gen1_clk *s32g398a_clocks[] = {
++static struct s32gen1_clk *s32g3_clocks[] = {
+ 	[ARR_CLK(S32G_CLK_MC_CGM6_MUX0)] = &cgm6_mux0_clk,
+ 	[ARR_CLK(S32G_CLK_MC_CGM6_MUX1)] = &cgm6_mux1_clk,
+ 	[ARR_CLK(S32G_CLK_MC_CGM6_MUX2)] = &cgm6_mux2_clk,
+ 	[ARR_CLK(S32G_CLK_MC_CGM6_MUX3)] = &cgm6_mux3_clk,
+ };
+ 
+-static struct s32gen1_clk *s32g398a_cc_clocks[] = {
++static struct s32gen1_clk *s32g3_cc_clocks[] = {
+ 	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_TX)] = &gmac_tx_clk,
+ 	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_EXT_TS)] = &gmac_ext_ts_clk,
+ 	[CC_ARR_CLK(S32GEN1_CLK_GMAC0_TS)] = &gmac_ts_clk,
+@@ -126,10 +126,10 @@ struct s32gen1_clk *s32g_get_plat_cc_clock(uint32_t id)
+ {
+ 	id = s32gen1_platclk2mux(id);
+ 
+-	if (id >= ARRAY_SIZE(s32g398a_cc_clocks))
++	if (id >= ARRAY_SIZE(s32g3_cc_clocks))
+ 		return NULL;
+ 
+-	return s32g398a_cc_clocks[id];
++	return s32g3_cc_clocks[id];
+ }
+ 
+ struct s32gen1_clk *s32g_get_plat_clock(uint32_t id)
+@@ -139,10 +139,10 @@ struct s32gen1_clk *s32g_get_plat_clock(uint32_t id)
+ 
+ 	id -= S32GEN1_PLAT_CLK_ID_BASE;
+ 
+-	if (id >= ARRAY_SIZE(s32g398a_clocks))
++	if (id >= ARRAY_SIZE(s32g3_clocks))
+ 		return NULL;
+ 
+-	return s32g398a_clocks[id];
++	return s32g3_clocks[id];
+ }
+ 
+ ulong s32gen1_plat_set_rate(struct clk *c, ulong rate)
+-- 
+2.17.1
+

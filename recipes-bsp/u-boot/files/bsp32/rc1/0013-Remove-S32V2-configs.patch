@@ -1,0 +1,1092 @@
+From d9ecdd5646ca00a00f74ef87ea283c8d1d9c7042 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 16 Nov 2021 15:40:43 +0200
+Subject: [PATCH 13/20] Remove S32V2 configs
+
+Issue: ALB-8201
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ configs/s32v234bbmini_defconfig     | 32 -------------
+ configs/s32v234campp_defconfig      | 34 --------------
+ configs/s32v234campp_revb_defconfig | 34 --------------
+ configs/s32v234ccpb_defconfig       | 32 -------------
+ configs/s32v234evb28899_defconfig   | 30 ------------
+ configs/s32v234evb29288_defconfig   | 31 -------------
+ configs/s32v234evb_defconfig        |  1 -
+ configs/s32v234evb_flash_defconfig  | 31 -------------
+ configs/s32v234evbbcm_defconfig     | 27 -----------
+ configs/s32v234hpcsom_defconfig     | 25 ----------
+ configs/s32v234pcie_defconfig       | 27 -----------
+ configs/s32v234pciebcm_defconfig    | 26 -----------
+ configs/s32v234sbc_defconfig        | 29 ------------
+ include/campps32v2.h                | 11 -----
+ include/configs/campps32v2.h        | 61 -------------------------
+ include/configs/mpxs32v234.h        | 67 ---------------------------
+ include/configs/s32v234_common.h    | 71 -----------------------------
+ include/configs/s32v234bbmini.h     | 38 ---------------
+ include/configs/s32v234ccpb.h       | 48 -------------------
+ include/configs/s32v234evb28899.h   | 48 -------------------
+ include/configs/s32v234evb29288.h   | 34 --------------
+ include/configs/s32v234evb_2016q4.h | 39 ----------------
+ include/configs/s32v234hpcsom.h     | 45 ------------------
+ include/configs/s32v234pcie.h       | 53 ---------------------
+ include/configs/s32v234sbc.h        |  1 -
+ 25 files changed, 875 deletions(-)
+ delete mode 100644 configs/s32v234bbmini_defconfig
+ delete mode 100644 configs/s32v234campp_defconfig
+ delete mode 100644 configs/s32v234campp_revb_defconfig
+ delete mode 100644 configs/s32v234ccpb_defconfig
+ delete mode 100644 configs/s32v234evb28899_defconfig
+ delete mode 100644 configs/s32v234evb29288_defconfig
+ delete mode 120000 configs/s32v234evb_defconfig
+ delete mode 100644 configs/s32v234evb_flash_defconfig
+ delete mode 100644 configs/s32v234evbbcm_defconfig
+ delete mode 100644 configs/s32v234hpcsom_defconfig
+ delete mode 100644 configs/s32v234pcie_defconfig
+ delete mode 100644 configs/s32v234pciebcm_defconfig
+ delete mode 100644 configs/s32v234sbc_defconfig
+ delete mode 100644 include/campps32v2.h
+ delete mode 100644 include/configs/campps32v2.h
+ delete mode 100644 include/configs/mpxs32v234.h
+ delete mode 100644 include/configs/s32v234_common.h
+ delete mode 100644 include/configs/s32v234bbmini.h
+ delete mode 100644 include/configs/s32v234ccpb.h
+ delete mode 100644 include/configs/s32v234evb28899.h
+ delete mode 100644 include/configs/s32v234evb29288.h
+ delete mode 100644 include/configs/s32v234evb_2016q4.h
+ delete mode 100644 include/configs/s32v234hpcsom.h
+ delete mode 100644 include/configs/s32v234pcie.h
+ delete mode 100644 include/configs/s32v234sbc.h
+
+diff --git a/configs/s32v234bbmini_defconfig b/configs/s32v234bbmini_defconfig
+deleted file mode 100644
+index 71abba186a..0000000000
+--- a/configs/s32v234bbmini_defconfig
++++ /dev/null
+@@ -1,32 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_S32V234BBMINI_29406=y
+-CONFIG_S32_DDR3=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_SJA1105=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234campp_defconfig b/configs/s32v234campp_defconfig
+deleted file mode 100644
+index e0beee81f8..0000000000
+--- a/configs/s32v234campp_defconfig
++++ /dev/null
+@@ -1,34 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_CAMPPS32V2=y
+-CONFIG_DISTRO_DEFAULTS=y
+-# CONFIG_SYS_MALLOC_F is not set
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_BOARD_LATE_INIT=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_RGMII=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_SJA1105=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234campp_revb_defconfig b/configs/s32v234campp_revb_defconfig
+deleted file mode 100644
+index bc2c677b6e..0000000000
+--- a/configs/s32v234campp_revb_defconfig
++++ /dev/null
+@@ -1,34 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_CAMPPS32V2_REVB=y
+-CONFIG_DISTRO_DEFAULTS=y
+-# CONFIG_SYS_MALLOC_F is not set
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_BOARD_LATE_INIT=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_RGMII=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_SJA1105=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234ccpb_defconfig b/configs/s32v234ccpb_defconfig
+deleted file mode 100644
+index 280b34caaf..0000000000
+--- a/configs/s32v234ccpb_defconfig
++++ /dev/null
+@@ -1,32 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_S32V234CCPB=y
+-CONFIG_S32_DDR3=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_SJA1105=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234evb28899_defconfig b/configs/s32v234evb28899_defconfig
+deleted file mode 100644
+index fe26a19f5d..0000000000
+--- a/configs/s32v234evb28899_defconfig
++++ /dev/null
+@@ -1,30 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_S32V234EVB_28899=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234evb29288_defconfig b/configs/s32v234evb29288_defconfig
+deleted file mode 100644
+index f5e54f0317..0000000000
+--- a/configs/s32v234evb29288_defconfig
++++ /dev/null
+@@ -1,31 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_S32_DDR3=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_SJA1105=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234evb_defconfig b/configs/s32v234evb_defconfig
+deleted file mode 120000
+index 2e11a06e2c..0000000000
+--- a/configs/s32v234evb_defconfig
++++ /dev/null
+@@ -1 +0,0 @@
+-s32v234evb29288_defconfig
+\ No newline at end of file
+diff --git a/configs/s32v234evb_flash_defconfig b/configs/s32v234evb_flash_defconfig
+deleted file mode 100644
+index 363f4592c2..0000000000
+--- a/configs/s32v234evb_flash_defconfig
++++ /dev/null
+@@ -1,31 +0,0 @@
+-CONFIG_FLASH_BOOT=y
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_SECT_SIZE=0x40000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_S32_DDR3=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_SPI=y
+-CONFIG_ENV_IS_IN_FLASH=y
+-CONFIG_ENV_ADDR=0x20080000
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_SPI=y
+-CONFIG_FSL_DSPI=y
+-CONFIG_SJA1105=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234evbbcm_defconfig b/configs/s32v234evbbcm_defconfig
+deleted file mode 100644
+index 543588cfff..0000000000
+--- a/configs/s32v234evbbcm_defconfig
++++ /dev/null
+@@ -1,27 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_S32V234EVB_28899=y
+-CONFIG_PHY_RGMII_DIRECT_CONNECTED=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234hpcsom_defconfig b/configs/s32v234hpcsom_defconfig
+deleted file mode 100644
+index 8dda41587e..0000000000
+--- a/configs/s32v234hpcsom_defconfig
++++ /dev/null
+@@ -1,25 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_S32V234HPCSOM=y
+-CONFIG_DISTRO_DEFAULTS=y
+-# CONFIG_SYS_MALLOC_F is not set
+-CONFIG_SD_BOOT=y
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_FEC_MXC=y
+-CONFIG_RGMII=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_OF_LIBFDT=y
+-CONFIG_FSL_DCU_FB=y
+diff --git a/configs/s32v234pcie_defconfig b/configs/s32v234pcie_defconfig
+deleted file mode 100644
+index a306a5bbde..0000000000
+--- a/configs/s32v234pcie_defconfig
++++ /dev/null
+@@ -1,27 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_S32V234PCIE=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_BROADCOM=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_FSL_LINFLEX_MODULE=1
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234pciebcm_defconfig b/configs/s32v234pciebcm_defconfig
+deleted file mode 100644
+index 7e23e9055c..0000000000
+--- a/configs/s32v234pciebcm_defconfig
++++ /dev/null
+@@ -1,26 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_S32V234PCIE=y
+-CONFIG_PHY_RGMII_DIRECT_CONNECTED=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_FSL_LINFLEX_MODULE=1
+-CONFIG_OF_LIBFDT=y
+diff --git a/configs/s32v234sbc_defconfig b/configs/s32v234sbc_defconfig
+deleted file mode 100644
+index be5cbdbb76..0000000000
+--- a/configs/s32v234sbc_defconfig
++++ /dev/null
+@@ -1,29 +0,0 @@
+-CONFIG_ARM=y
+-CONFIG_ARCH_S32=y
+-CONFIG_ENV_SIZE=0x2000
+-CONFIG_ENV_OFFSET=0x100000
+-CONFIG_NR_DRAM_BANKS=3
+-CONFIG_TARGET_MPXS32V234=y
+-CONFIG_S32_DDR3=y
+-CONFIG_DISTRO_DEFAULTS=y
+-CONFIG_SD_BOOT=y
+-CONFIG_BOOTDELAY=3
+-CONFIG_USE_BOOTARGS=y
+-CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+-CONFIG_CMD_MEMTEST=y
+-CONFIG_CMD_I2C=y
+-CONFIG_CMD_MMC=y
+-CONFIG_CMD_PCI=y
+-CONFIG_CMD_DATE=y
+-CONFIG_ENV_IS_IN_MMC=y
+-CONFIG_DM=y
+-CONFIG_FSL_CSE3=y
+-CONFIG_FSL_USDHC=y
+-CONFIG_PHYLIB=y
+-CONFIG_PHY_MICREL=y
+-CONFIG_PHY_MICREL_KSZ90X1=y
+-CONFIG_FEC_MXC=y
+-CONFIG_MII=y
+-CONFIG_FSL_LINFLEXUART=y
+-CONFIG_OF_LIBFDT=y
+diff --git a/include/campps32v2.h b/include/campps32v2.h
+deleted file mode 100644
+index 7c4b41f26e..0000000000
+--- a/include/campps32v2.h
++++ /dev/null
+@@ -1,11 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Copyright 2020 NXP
+- */
+-
+-#ifndef __CAMPPS32V2_H__
+-#define __CAMPPS32V2_H__
+-
+-int campps32v2_get_device_id(void);
+-
+-#endif /* __CAMPPS32V2_H__ */
+diff --git a/include/configs/campps32v2.h b/include/configs/campps32v2.h
+deleted file mode 100644
+index 5c3fd4df4f..0000000000
+--- a/include/configs/campps32v2.h
++++ /dev/null
+@@ -1,61 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Copyright 2020 NXP
+- *
+- * Configuration settings for the NXP X-CAMPPS32V2 board,
+- * Schematics 46300.
+- */
+-
+-#ifndef __CONFIG_H
+-#define __CONFIG_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+- * the ones in the header included at the end, configs/s32v234_common.h
+- */
+-
+-#define	FDT_FILE fsl-s32v234-campp-primary.dtb
+-#define FDT_FILE_SEC fsl-s32v234-campp-secondary.dtb
+-
+-#define CONFIG_SYS_FSL_DRAM_SIZE1	0x20000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2	0x20000000
+-
+-/* #define CONFIG_CMD_PCI */
+-
+-#define CONFIG_BOARD_USE_RAMFS_IN_NFSBOOT
+-#define CONFIG_BOARD_EXTRA_ENV_SETTINGS \
+-	"setphy=mii write 3 d 2; mii write 3 e 2; mii write 3 d 4002; " \
+-	"mii write 3 e 8000; mii write 3 0 8000;\0"
+-
+-#define CONFIG_DSPI_CS_SCK_DELAY 100
+-#define CONFIG_DSPI_SCK_CS_DELAY 100
+-
+-#define CONFIG_DDR_INIT_DELAY 100
+-
+-#define CONFIG_SYS_FSL_ESDHC_ADDR	USDHC_BASE_ADDR
+-
+-/* Ethernet config */
+-
+-#define CONFIG_FEC_FIXED_SPEED  1000
+-#define CONFIG_FEC_MXC_PHYADDR  3
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-
+-#define CONFIG_PCIE_EP_MODE
+-
+-#ifdef CONFIG_CMD_PCI
+-#define CONFIG_GICSUPPORT
+-#define CONFIG_CMD_IRQ
+-#endif
+-
+-#define PCIE_EXTRA_ENV_SETTINGS "hwconfig=pcie:mode=ep,clock=ext"
+-
+-#ifdef CONFIG_SJA1105
+-#define SJA_1_BUS	0
+-#define SJA_1_CS	0
+-#define SJA_2_BUS	0
+-#define SJA_2_CS	1
+-#endif /* CONFIG_SJA1105 */
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/mpxs32v234.h b/include/configs/mpxs32v234.h
+deleted file mode 100644
+index 5e99d1f5f2..0000000000
+--- a/include/configs/mpxs32v234.h
++++ /dev/null
+@@ -1,67 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * (C) Copyright 2017 MicroSys Electronics GmbH
+- * Copyright 2018-2020 NXP
+- */
+-
+-/*
+- * Configuration settings for the MicroSys MPXS32V234 board.
+- */
+-
+-#ifndef __MPXS32V234_H
+-#define __MPXS32V234_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+-* the ones in the header included at the end, configs/s32v234_common.h */
+-
+-#define CONFIG_MPXS32V234_R2
+-
+-/* 1GB x 2 banks */
+-#define CONFIG_SYS_FSL_DRAM_SIZE1       0x40000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2       0x40000000
+-
+-#define CONFIG_DDR_INIT_DELAY 100
+-
+-/* Config DCU */
+-#define CONFIG_FSL_DCU_FB
+-
+-/* HDMI TFP410P configuration */
+-#define CONFIG_SYS_HDMI_BUS_NUM		2
+-#define CONFIG_SYS_I2C_HDMI_ADDR	0x3F
+-#define CONFIG_SYS_HDMI_REG_CTL_1_MODE	0x8
+-
+-#define TFP410P_CTL_1_MODE_RSVD		(1 << 7)
+-#define TFP410P_CTL_1_MODE_TDIS		(1 << 6)
+-#define TFP410P_CTL_1_MODE_VEN		(1 << 5)
+-#define TFP410P_CTL_1_MODE_HEN		(1 << 4)
+-#define TFP410P_CTL_1_MODE_DSEL		(1 << 3)
+-#define TFP410P_CTL_1_MODE_BSEL		(1 << 2)
+-#define TFP410P_CTL_1_MODE_EDGE		(1 << 1)
+-#define TFP410P_CTL_1_MODE_PD		(1 << 0)
+-
+-/*
+- * RTC configuration
+- */
+-#define CONFIG_SYS_I2C_MXC_I2C2
+-#define CONFIG_SYS_I2C_MXC_I2C3
+-
+-#define CONFIG_SYS_RTC_BUS_NUM          2
+-#define CONFIG_SYS_I2C_RTC_ADDR		0x51
+-
+-#define CONFIG_RTC_PCF85263
+-
+-/* Ethernet config */
+-
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-#define CONFIG_FEC_MXC_PHYADDR  1
+-
+-#define	FDT_FILE fsl-s32v234sbc.dtb
+-
+-#define CONFIG_BOARD_EXTRA_ENV_SETTINGS "dvi_on=i2c dev 2; i2c mw 3f 8 35\0"
+-
+-#define CONFIG_PCIE_EXT_CLOCK
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/s32v234_common.h b/include/configs/s32v234_common.h
+deleted file mode 100644
+index 961086599e..0000000000
+--- a/include/configs/s32v234_common.h
++++ /dev/null
+@@ -1,71 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2016-2021 NXP
+- */
+-
+-/*
+- * Configuration settings for all the Freescale S32V234 boards.
+- */
+-
+-#ifndef __S32V234_COMMON_H
+-#define __S32V234_COMMON_H
+-
+-#define CONFIG_S32V234
+-
+-#define S32_SRAM_BASE		0x3E800000
+-#define S32_SRAM_SIZE		0x00400000
+-
+-#define IRAM_BASE_ADDR		CONFIG_SYS_DATA_BASE
+-#define IRAM_SIZE		CONFIG_SYS_MEM_SIZE
+-
+-#if CONFIG_FSL_LINFLEX_MODULE == 0
+-#define LINFLEXUART_BASE	LINFLEXD0_BASE_ADDR
+-#else
+-#define LINFLEXUART_BASE	LINFLEXD1_BASE_ADDR
+-#endif
+-
+-#define CONFIG_SYS_FSL_DRAM_BASE1	0x80000000
+-#define CONFIG_SYS_FSL_DRAM_BASE2	0xC0000000
+-
+-/* S32V234 flash driver */
+-#define CONFIG_S32V234_FLASH
+-/* Debug stuff for qspi/hyperflash */
+-#undef CONFIG_DEBUG_S32_QSPI_QSPI
+-
+-/* memory mapped external flash */
+-#define CONFIG_SYS_FSL_FLASH0_BASE      0x20000000
+-#define CONFIG_SYS_FSL_FLASH0_SIZE      0x10000000
+-#define CONFIG_SYS_FSL_FLASH1_BASE      0x60000000
+-#define CONFIG_SYS_FSL_FLASH1_SIZE      0x10000000
+-#define QSPI_BASE_ADDR		        0x400A6000
+-/* Flash related definitions */
+-#define CONFIG_S32V234_USES_FLASH
+-
+-#if !defined(CONFIG_TARGET_CAMPPS32V2) || \
+-	!defined(CONFIG_TARGET_CAMPPS32V2_REVB)
+-/* Enable DCU QoS fix */
+-#define CONFIG_DCU_QOS_FIX
+-#endif
+-
+-#include <configs/s32.h>
+-
+-/* Config DCU */
+-#ifdef CONFIG_FSL_DCU_FB
+-#define CONFIG_SYS_DCU_ADDR             0x40028000
+-#define DCU_LAYER_MAX_NUM               8
+-#define DCU_CTRL_DESC_LAYER_NUM		10
+-#define CONFIG_SYS_FSL_DCU_LE
+-#endif
+-
+-/* Config GIC */
+-#define CONFIG_GICV2
+-#define GICD_BASE		0x7D001000
+-#define GICC_BASE		0x7D002000
+-
+-#define CONFIG_SYS_TEXT_BASE        0x3E820000 /* SDRAM */
+-#define CONFIG_SYS_TEXT_OFFSET      0x00020000
+-
+-#define IMX_FEC_BASE            ENET_BASE_ADDR
+-
+-#endif
+diff --git a/include/configs/s32v234bbmini.h b/include/configs/s32v234bbmini.h
+deleted file mode 100644
+index b3dbe77136..0000000000
+--- a/include/configs/s32v234bbmini.h
++++ /dev/null
+@@ -1,38 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2016-2017,2019-2020 NXP
+- */
+-
+-/*
+- * Configuration settings for the Freescale S32V234 mini Bluebox board
+- */
+-
+-#ifndef __CONFIG_H
+-#define __CONFIG_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+-* the ones in the header included at the end, configs/s32v234evb_2016q4.h */
+-
+-#define	FDT_FILE fsl-s32v234-bbmini.dtb
+-
+-/* 1 GB x 2 banks */
+-#define CONFIG_SYS_FSL_DRAM_SIZE1       0x40000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2       0x40000000
+-
+-#define CONFIG_PCIE_EP_MODE
+-
+-/* #define CONFIG_CMD_PCI */
+-
+-#define CONFIG_BOARD_USE_RAMFS_IN_NFSBOOT
+-#define CONFIG_BOARD_EXTRA_ENV_SETTINGS \
+-	"setphy=mii write 3 d 2; mii write 3 e 2; mii write 3 d 4002; " \
+-	"mii write 3 e 8000; mii write 3 0 8000;\0"
+-
+-#define CONFIG_DSPI_CS_SCK_DELAY 100
+-#define CONFIG_DSPI_SCK_CS_DELAY 100
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234evb_2016q4.h>
+-
+-#endif
+diff --git a/include/configs/s32v234ccpb.h b/include/configs/s32v234ccpb.h
+deleted file mode 100644
+index fa10856e17..0000000000
+--- a/include/configs/s32v234ccpb.h
++++ /dev/null
+@@ -1,48 +0,0 @@
+-/*
+- * (C) Copyright 2018-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-/*
+- * Configuration settings for the X-S32GRV-PLAT board, Schematics 30081,
+- * using the X-S32V234TPROC board, Schematics 30094, as processor board.
+- *
+- */
+-
+-#ifndef __CONFIG_H
+-#define __CONFIG_H
+-
+-#define	FDT_FILE fsl-s32v234-ccpb.dtb
+-
+-/* 512 MB x 2 banks */
+-#define CONFIG_SYS_FSL_DRAM_SIZE1       0x20000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2       0x20000000
+-
+-#define CONFIG_BOARD_USE_RAMFS_IN_NFSBOOT
+-
+-#define CONFIG_DSPI_CS_SCK_DELAY 100
+-#define CONFIG_DSPI_SCK_CS_DELAY 100
+-
+-#define CONFIG_DDR_INIT_DELAY 100
+-
+-/* HDMI configs */
+-#define CONFIG_FSL_DCU_SII9022A
+-#define CONFIG_SYS_I2C_MXC_I2C1		/* enable I2C bus 1 */
+-#define CONFIG_SYS_I2C_DVI_BUS_NUM      0
+-#define CONFIG_SYS_I2C_DVI_ADDR         0x39
+-
+-/* Ethernet config */
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-
+-#define CONFIG_FEC_MXC_PHYADDR  3
+-
+-#ifdef CONFIG_SJA1105
+-#define SJA_1_BUS	0
+-#define SJA_1_CS	0
+-#endif /* CONFIG_SJA1105 */
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/s32v234evb28899.h b/include/configs/s32v234evb28899.h
+deleted file mode 100644
+index c91326e52f..0000000000
+--- a/include/configs/s32v234evb28899.h
++++ /dev/null
+@@ -1,48 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017-2020 NXP
+- */
+-
+-/*
+- * Configuration settings for the Freescale S32V234 EVB board.
+- */
+-
+-#ifndef __CONFIG_H
+-#define __CONFIG_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+-* the ones in the header included at the end, configs/s32v234_common.h */
+-
+-/* HDMI configs */
+-#define CONFIG_FSL_DCU_SII9022A
+-#define CONFIG_SYS_I2C_MXC_I2C2         /* enable I2C bus 2 */
+-#define CONFIG_SYS_I2C_DVI_BUS_NUM      1
+-#define CONFIG_SYS_I2C_DVI_ADDR         0x39
+-
+-/* 256 MB x 2 banks */
+-#define CONFIG_SYS_FSL_DRAM_SIZE1       0x10000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2       0x10000000
+-
+-/* Ethernet config */
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-
+-/* CONFIG_PHY_RGMII_DIRECT_CONNECTED should be enabled when
+- * BCM switch is configured.
+- */
+-#ifdef CONFIG_PHY_RGMII_DIRECT_CONNECTED
+-#define CONFIG_BCM_SPEED	SPEED_1000
+-#else
+-#define CONFIG_FEC_MXC_PHYADDR  7
+-#endif
+-
+-#ifdef CONFIG_PHY_RGMII_DIRECT_CONNECTED
+-	#define FDT_FILE fsl-s32v234-evbbcm.dtb
+-#else
+-	#define	FDT_FILE fsl-s32v234-evb28899.dtb
+-#endif
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/s32v234evb29288.h b/include/configs/s32v234evb29288.h
+deleted file mode 100644
+index e6f66872c9..0000000000
+--- a/include/configs/s32v234evb29288.h
++++ /dev/null
+@@ -1,34 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * (C) Copyright 2016-2017,2019-2020 NXP
+- */
+-
+-/*
+- * Configuration settings for the Freescale S32V234 EVB board,
+- * Schematics 29288.
+- */
+-
+-#ifndef __CONFIG_H
+-#define __CONFIG_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+-* the ones in the header included at the end, configs/s32v234evb_2016q4.h */
+-
+-#define	FDT_FILE fsl-s32v234-evb.dtb
+-
+-/* 1 GB x 2 banks */
+-#define CONFIG_SYS_FSL_DRAM_SIZE1       0x40000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2       0x40000000
+-
+-/* #define CONFIG_CMD_PCI */
+-
+-#define CONFIG_BOARD_USE_RAMFS_IN_NFSBOOT
+-
+-#define CONFIG_DSPI_CS_SCK_DELAY 100
+-#define CONFIG_DSPI_SCK_CS_DELAY 100
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234evb_2016q4.h>
+-
+-#endif
+diff --git a/include/configs/s32v234evb_2016q4.h b/include/configs/s32v234evb_2016q4.h
+deleted file mode 100644
+index 5df70146bb..0000000000
+--- a/include/configs/s32v234evb_2016q4.h
++++ /dev/null
+@@ -1,39 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2016-2020 NXP
+- *
+- */
+-
+-/*
+- * Configuration settings for the Freescale S32V234 boards,
+- * 2016, quarter 4 versions.
+- */
+-
+-#ifndef __S32V234EVB_2016Q4_CONFIG_H
+-#define __S32V234EVB_2016Q4_CONFIG_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+-* the ones in the header included at the end, configs/s32v234_common.h */
+-
+-#define CONFIG_DDR_INIT_DELAY 100
+-
+-/* HDMI configs */
+-#define CONFIG_FSL_DCU_SII9022A
+-#define CONFIG_SYS_I2C_MXC_I2C2         /* enable I2C bus 2 */
+-#define CONFIG_SYS_I2C_DVI_BUS_NUM      1
+-#define CONFIG_SYS_I2C_DVI_ADDR         0x39
+-
+-/* Ethernet config */
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-#define CONFIG_FEC_MXC_PHYADDR  3
+-
+-#ifdef CONFIG_SJA1105
+-#define SJA_1_BUS	0
+-#define SJA_1_CS	0
+-#endif /* CONFIG_SJA1105 */
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/s32v234hpcsom.h b/include/configs/s32v234hpcsom.h
+deleted file mode 100644
+index ea5d475efc..0000000000
+--- a/include/configs/s32v234hpcsom.h
++++ /dev/null
+@@ -1,45 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Copyright 2021 NXP
+- *
+- * Configuration settings for the NXP HPC SOM board, S32V SoC.
+- * Schematics 50519.
+- */
+-
+-#ifndef __S32V234HPCSOM_H
+-#define __S32V234HPCSOM_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+- * the ones in the header included at the end, configs/s32v234_common.h
+- */
+-
+-#define	FDT_FILE fsl-s32v234-hpcsom.dtb
+-
+-#define CONFIG_SYS_FSL_DRAM_SIZE1	0x20000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2	0x20000000
+-
+-#define CONFIG_FSL_DCU_FB
+-
+-#define CONFIG_DDR_INIT_DELAY 100
+-
+-#define CONFIG_SYS_FSL_ESDHC_ADDR	USDHC_BASE_ADDR
+-
+-/* Ethernet config */
+-
+-#define CONFIG_FEC_FIXED_SPEED  1000
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-#define CONFIG_FEC_MXC_PHYADDR	0
+-
+-#define CONFIG_PCIE_EP_MODE
+-
+-#ifdef CONFIG_CMD_PCI
+-#define CONFIG_GICSUPPORT
+-#define CONFIG_CMD_IRQ
+-#endif
+-
+-#define PCIE_EXTRA_ENV_SETTINGS "hwconfig=pcie:mode=ep,clock=ext"
+-
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/s32v234pcie.h b/include/configs/s32v234pcie.h
+deleted file mode 100644
+index 3b0185e09f..0000000000
+--- a/include/configs/s32v234pcie.h
++++ /dev/null
+@@ -1,53 +0,0 @@
+-/*
+- * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2018-2020 NXP
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-/*
+- * Configuration settings for the Freescale S32V234PCIE board.
+- */
+-
+-#ifndef __S32V234EVB_2016Q4_CONFIG_H
+-#define __S32V234EVB_2016Q4_CONFIG_H
+-
+-/* The configurations of this board depend on the definitions in this file and
+-* the ones in the header included at the end, configs/s32v234_common.h */
+-
+-/* 256 MB x 2 banks */
+-#define CONFIG_SYS_FSL_DRAM_SIZE1       0x10000000
+-#define CONFIG_SYS_FSL_DRAM_SIZE2       0x10000000
+-
+-/* HDMI configs */
+-#define CONFIG_FSL_DCU_SII9022A
+-#define CONFIG_SYS_I2C_MXC_I2C2         /* enable I2C bus 2 */
+-#define CONFIG_SYS_I2C_DVI_BUS_NUM      1
+-#define CONFIG_SYS_I2C_DVI_ADDR         0x39
+-
+-/* Ethernet config */
+-
+-#define CONFIG_FEC_XCV_TYPE     RGMII
+-
+-/* CONFIG_PHY_RGMII_DIRECT_CONNECTED should be enabled when
+- * BCM switch is configured.
+- */
+-#ifdef CONFIG_PHY_RGMII_DIRECT_CONNECTED
+-#define CONFIG_BCM_SPEED	SPEED_1000
+-#else
+-#define CONFIG_FEC_MXC_PHYADDR  1
+-#endif
+-
+-#ifdef CONFIG_PHY_RGMII_DIRECT_CONNECTED
+-	#define FDT_FILE fsl-s32v234-pciebcm.dtb
+-#else
+-	#define	FDT_FILE fsl-s32v234-pcie.dtb
+-#endif
+-
+-#ifdef CONFIG_CMD_PCI
+-#define CONFIG_PCIE_EP_MODE
+-#endif
+-/* we include this file here because it depends on the above definitions */
+-#include <configs/s32v234_common.h>
+-
+-#endif
+diff --git a/include/configs/s32v234sbc.h b/include/configs/s32v234sbc.h
+deleted file mode 100644
+index e7e6e970e1..0000000000
+--- a/include/configs/s32v234sbc.h
++++ /dev/null
+@@ -1 +0,0 @@
+-#include <configs/mpxs32v234.h>
+-- 
+2.17.1
+

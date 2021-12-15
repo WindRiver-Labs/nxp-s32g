@@ -1,0 +1,31 @@
+From 1f81fc0979b4a11fd6b5d28d543bf0a92ec1d989 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 10 Dec 2021 16:21:12 +0200
+Subject: [PATCH 18/20] s32g: sramc: Don't subtract SRAM base from an SRAM
+ offset
+
+Issue: ALB-8270
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c
+index 98293be5fb..d1b1a0864c 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c
+@@ -13,8 +13,6 @@
+ 
+ static uintptr_t a53_to_sramc_offset(uintptr_t addr)
+ {
+-	addr -= S32_SRAM_BASE;
+-
+ 	/* mem_addr[16:0] = {bus_addr[23:9], bus_addr[5:4]} */
+ 	addr = ((addr >> 9) << 2) | ((addr >> 4) & 0x3);
+ 
+-- 
+2.17.1
+

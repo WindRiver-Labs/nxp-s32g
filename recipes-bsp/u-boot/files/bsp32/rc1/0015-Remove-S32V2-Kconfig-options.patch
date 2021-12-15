@@ -1,0 +1,228 @@
+From 99c3c8e9d030803b7707df2b5ff94a3068a246e9 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 16 Nov 2021 15:58:48 +0200
+Subject: [PATCH 15/20] Remove S32V2 Kconfig options
+
+Issue: ALB-8201
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/Kconfig     |  1 -
+ arch/arm/cpu/armv8/s32/Kconfig | 75 +---------------------------------
+ board/freescale/Kconfig        | 35 ----------------
+ drivers/gpio/Kconfig           |  2 +-
+ drivers/misc/Kconfig           |  2 +-
+ drivers/pinctrl/nxp/Kconfig    |  2 +-
+ 6 files changed, 5 insertions(+), 112 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/Kconfig b/arch/arm/cpu/armv8/Kconfig
+index 1245852b46..8c8e4f623f 100644
+--- a/arch/arm/cpu/armv8/Kconfig
++++ b/arch/arm/cpu/armv8/Kconfig
+@@ -111,7 +111,6 @@ config PSCI_RESET
+ 		   !TARGET_LS2081ARDB && !TARGET_LX2160ARDB && \
+ 		   !TARGET_LX2160AQDS && \
+ 		   !ARCH_UNIPHIER && \
+-		   !S32V2 && \
+ 		   !S32_GEN1
+ 	help
+ 	  Most armv8 systems have PSCI support enabled in EL3, either through
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index d5fee722a7..624f5c4427 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -32,49 +32,6 @@ choice
+ 	help
+ 	  S32 Target Board Selection
+ 
+-config TARGET_S32V234HPCSOM
+-	bool "Support HPC SOM Board"
+-	select S32V2
+-
+-config TARGET_S32V234CCPB
+-	bool "Support s32v234ccpb"
+-	select S32V234CCPB
+-	select S32V2
+-
+-config TARGET_S32V234EVB
+-	bool "Support s32v234evb"
+-	select SYS_FSL_ERRATUM_ESDHC111
+-	select S32V2
+-	help
+-	  S32V Evaluation System for high-performance, safe computation-intensive
+-	  front vision, surround vision and sensor fusion applications.
+-
+-config TARGET_S32V234PCIE
+-	bool "Support s32v234pcie"
+-	select S32V2
+-	help
+-	  S32V234 board with PCIe Edge connector.
+-
+-config TARGET_MPXS32V234
+-	bool "Support s32v234sbc"
+-	select S32V234EVB_29288
+-	select S32V2
+-
+-config TARGET_CAMPPS32V2
+-	bool "Support Camera card"
+-	select S32V2
+-	help
+-	  Enable Camera card target.
+-	  Camera card is a development board with 6x S32V.
+-	  This config always will target the latest revision of the board.
+-
+-config TARGET_CAMPPS32V2_REVB
+-	bool "Support Camera card rev B"
+-	select S32V2
+-	help
+-	  Enable Camera card Rev B target.
+-	  Camera card is a development board with 6x S32V.
+-
+ config TARGET_S32R45EVB
+ 	bool "Support s32r45evb"
+ 	select NXP_S32R45
+@@ -121,41 +78,13 @@ config TARGET_S32G3XXAEVB
+ 
+ endchoice
+ 
+-if TARGET_S32V234EVB
+-
+-choice
+-	prompt "S32V234EVB Board Family Member"
+-	default S32V234EVB_29288
+-	help
+-	  S32V234EVB Board Family Members.
+-	  Default selection is S32V234EVB_29288.
+-
+-config S32V234EVB_28899
+-	bool "S32V234EVB_28899"
+-	help
+-	  First S32V234EVB generation.
+-
+-config S32V234EVB_29288
+-	bool "S32V234EVB_29288"
+-	help
+-	  Second S32V234EVB generation.
+-
+-config S32V234BBMINI_29406
+-	bool "S32V234BBMINI_29406"
+-	help
+-	  S32V234EVB mini bluebox.
+-
+-endchoice
+-
+-endif
+-
+ if TARGET_S32G274ARDB
+ 
+ choice
+-	prompt "S32V234G274ARDB Revision"
++	prompt "S32G274ARDB Revision"
+ 	default S32G274ARDB2
+ 	help
+-	  S32V234G274ARDB Revision.
++	  S32G274ARDB Revision.
+ 	  Default selection is S32G274ARDB2
+ 
+ config S32G274ARDB
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 02cb6e7606..5dddc99a89 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -1,12 +1,6 @@
+-config S32V2
+-	bool
+-	default false
+-
+-if !TARGET_MPXS32V234
+ config SYS_VENDOR
+ 	string
+ 	default "freescale"
+-endif
+ 
+ config S32_GEN1
+ 	bool "S32 GEN1 Common Chassis"
+@@ -31,8 +25,6 @@ config S32_GEN1
+ 	help
+ 	  Platform Selection
+ 
+-if S32V2 || S32_GEN1
+-
+ config EXTRA_KERNEL_BOOT_ARGS
+ 	string "Additional boot arguments for Linux kernel"
+ 	default ""
+@@ -63,30 +55,3 @@ config XEN_SUPPORT
+ if S32_GEN1
+ source "board/freescale/s32-gen1/Kconfig"
+ endif
+-
+-if S32V2
+-config SYS_DATA_BASE
+-	hex "Data Base"
+-	default 0x3E800000
+-	help
+-	  U-boot data base address (normally SRAM base address)
+-
+-config SYS_TEXT_BASE
+-	default 0x3E820000
+-
+-config SYS_MEM_SIZE
+-	hex "RAM Memory Size"
+-	default 0x00400000
+-	help
+-	  U-boot SRAM size (8 MB for Gen1, 4 MB for older architectures)
+-
+-config S32V234_FAST_BOOT
+-	bool "Configure DCD and RUNMODE for a fast-boot efused board"
+-	default n
+-	help
+-	  Configure DCD and RUNMODE for a board that has been efused such that
+-	  OCOTP_CFG6:[19]FAST_BOOT_ENABLE = 0 and OCOTP_CFG6:[18]NO_PLL = 1.
+-
+-endif
+-
+-endif
+diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
+index d7ee98047d..7eda437099 100644
+--- a/drivers/gpio/Kconfig
++++ b/drivers/gpio/Kconfig
+@@ -244,7 +244,7 @@ config S32_GPIO
+ 	depends on DM_GPIO
+ 	help
+ 	  GPIO driver for SIUL2.
+-	  SIUL2 is found in S32G2XX, S32R45 and S32V234 SoCs.
++	  SIUL2 is found in S32G2XX and S32R45 SoCs.
+ 
+ config SANDBOX_GPIO
+ 	bool "Enable sandbox GPIO driver"
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index 13720d66c0..8909c6750b 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -381,7 +381,7 @@ config SJA1105
+ 	depends on FSL_DSPI
+ 	help
+ 	  Enable the NXP SJA1105x driver.
+-	  The NXP SJA1105x switch is used on several boards, such as S32V234EVB.
++	  The NXP SJA1105x switch is used on several boards, such as S32G2XXAEVB.
+ 
+ if I2C_EEPROM
+ 
+diff --git a/drivers/pinctrl/nxp/Kconfig b/drivers/pinctrl/nxp/Kconfig
+index d06da33e4a..f53b954111 100644
+--- a/drivers/pinctrl/nxp/Kconfig
++++ b/drivers/pinctrl/nxp/Kconfig
+@@ -119,7 +119,7 @@ config PINCTRL_S32
+ 	help
+ 	  Say Y here to enable the S32 pinctrl driver.
+ 	  This driver is the pinctrl driver for SIUL2 that is available on the
+-	  following SoCs: S32G2XX, S32V234, S32R45.
++	  following SoCs: S32G2XX, S32R45.
+ 
+ config PINCTRL_VYBRID
+ 	bool "Vybrid (vf610) pinctrl driver"
+-- 
+2.17.1
+
