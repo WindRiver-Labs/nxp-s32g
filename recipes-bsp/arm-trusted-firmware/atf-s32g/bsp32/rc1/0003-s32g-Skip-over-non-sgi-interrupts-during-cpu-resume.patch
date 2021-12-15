@@ -1,0 +1,38 @@
+From 1d28c262b9bac196a86311b3b67bba455fb246f2 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 24 Nov 2021 12:36:13 +0200
+Subject: [PATCH 03/14] s32g: Skip over non-sgi interrupts during cpu resume
+
+Issue: ALB-8236
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/s32g_psci.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32g/s32g_psci.c
+index 0265b47b9..3f552c78d 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32g/s32g_psci.c
+@@ -94,10 +94,13 @@ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ 	/* Clear pending interrupt */
+ 	pos = plat_my_core_pos();
+ 	while ((intid = gicv3_get_pending_interrupt_id()) <= MAX_SPI_ID) {
+-		if (intid != S32G_SECONDARY_WAKE_SGI)
+-			WARN("%s(): Interrupt %d found pending instead of the expected %d\n",
+-			     __func__, intid, S32G_SECONDARY_WAKE_SGI);
+ 		gicv3_clear_interrupt_pending(intid, pos);
++
++		if (intid == S32G_SECONDARY_WAKE_SGI)
++			break;
++
++		WARN("%s(): Interrupt %d found pending instead of the expected %d\n",
++		     __func__, intid, S32G_SECONDARY_WAKE_SGI);
+ 	}
+ 
+ 	write_scr_el3(read_scr_el3() & ~SCR_IRQ_BIT);
+-- 
+2.17.1
+

@@ -20,6 +20,20 @@ SRC_URI[sha256sum] = "15d263b62089b46375effede12a1917cd7b267b93dd97c68fd5ddbd1dd
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
 SRC_URI += " \
     file://0001-Fix-fiptool-build-error.patch \
+    file://bsp32/rc1/0001-s32g3-Rename-S32G398-to-S32G399.patch \
+    file://bsp32/rc1/0002-s32g-fix-accessing-s32g_policies-array-outside-array.patch \
+    file://bsp32/rc1/0003-s32g-Skip-over-non-sgi-interrupts-during-cpu-resume.patch \
+    file://bsp32/rc1/0004-bindings-clock-Use-one-clock-ID-for-GMAC-TS-clock.patch \
+    file://bsp32/rc1/0005-s32g-scmi-Use-one-clock-ID-for-GMAC-TS-clock.patch \
+    file://bsp32/rc1/0006-s32g-Correct-SRAM-initialization-algorithm.patch \
+    file://bsp32/rc1/0007-s32g-clk-Remove-unused-function.patch \
+    file://bsp32/rc1/0008-plat-s32g-Reduce-fip-size-to-account-for-M7-bootload.patch \
+    file://bsp32/rc1/0009-s32g-Add-AHB-buffer-to-MMU-tables-when-needed-only.patch \
+    file://bsp32/rc1/0010-s32gen1-sramc-Adjust-SRAMC-range-to-delete-only-the-.patch \
+    file://bsp32/rc1/0011-s32g-sramc-Don-t-substract-SRAM-base-from-an-SRAM-of.patch \
+    file://bsp32/rc1/0012-drivers-s32g-pmic-Fix-uninitialized-usage-warning.patch \
+    file://bsp32/rc1/0013-drivers-mmc-Fix-uninitialized-variable-warning.patch \
+    file://bsp32/rc1/0014-plat-s32g-Use-Os-optimization-level-on-release-build.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g2"

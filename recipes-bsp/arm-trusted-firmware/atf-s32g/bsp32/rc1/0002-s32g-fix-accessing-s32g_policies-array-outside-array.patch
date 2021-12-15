@@ -1,0 +1,45 @@
+From 04a7b36f871940f9b70584515ba2736897e4049c Mon Sep 17 00:00:00 2001
+From: Catalin Udma <catalin-dan.udma@nxp.com>
+Date: Wed, 24 Nov 2021 09:28:51 +0200
+Subject: [PATCH 02/14] s32g: fix accessing s32g_policies array outside array
+ size
+
+This is reproducible when optee is enabled. If ATF is compiled with
+DEBUG=1, the issue is detected in an assert:
+	ASSERT: plat/nxp/s32/s32g/s32g_storage.c:337:
+		image_id < ARRAY_SIZE(s32g_policies)
+If compiled without DEBUG, the memory is written outside s32g_policies
+array.
+
+The fix consists of correct dimensioning of s32g_policies array if optee
+is enabled.
+
+Issue: ALB-8232
+
+Upstream-Status: Pending 
+
+Signed-off-by: Catalin Udma <catalin-dan.udma@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32g/s32g_storage.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/plat/nxp/s32/s32g/s32g_storage.c b/plat/nxp/s32/s32g/s32g_storage.c
+index 20c6098ff..f8ac8761d 100644
+--- a/plat/nxp/s32/s32g/s32g_storage.c
++++ b/plat/nxp/s32/s32g/s32g_storage.c
+@@ -21,7 +21,11 @@
+ #include "s32g_bl_common.h"
+ #include "s32g_dt.h"
+ 
++#ifdef SPD_opteed
++#define FIP_BACKEND_MEMMAP_ID	(BL32_EXTRA1_IMAGE_ID + 1)
++#else
+ #define FIP_BACKEND_MEMMAP_ID	(BL33_IMAGE_ID + 1)
++#endif
+ 
+ #define EEPROM_CHIP_ADDR		0x50
+ #define EEPROM_BOOT_CFG_OFF		0x0
+-- 
+2.17.1
+
