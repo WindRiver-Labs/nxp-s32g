@@ -383,7 +383,7 @@ and download the PFE firmware.
 
 PFE is a firmware-based module. Load the firmware before using PFE.
 The firmwares name are "s32g_pfe_class.fw" and "s32g_pfe_util.fw" with
-version 0.9.4, which have to be downloaded from NXP Software.
+version 1.1.1, which have to be downloaded from NXP Software.
 
 6.3.2 Steps to verify
 ---------------------
@@ -409,8 +409,8 @@ the wrlinux. You can set the ip address for the pfe port to do a simple test
 in the wrlinux. More complex usage and testing can refer to the document
 "S32G Linux PFE Driver User’s Manual".
 
-About the detailed pfe port map information can refer to the chapter "Ethernet Hardware Support on S32G274A"
-of the document "Linux BSP 30.0 User Manual for S32G".
+About the detailed pfe port map information can refer to the chapter "Ethernet Hardware Support on S32G2"
+of the document "S32G2_LinuxBSP_31.0_User_Manual.pdf".
 
 Note:
 
@@ -521,7 +521,7 @@ details of ATF, please refer to the sections
 and
 	"19 Power Management"
 
-in "S32G274_BSP30.0_User_Manual.pdf".
+in "S32G2_LinuxBSP_31.0_User_Manual.pdf".
 
 NOTICE:
     For hardware reasons, the power management features are only supported
@@ -659,7 +659,7 @@ For ATF feature, there are some known issues.
      Same as SDK, the usb devices can not be identified after STR, because
      the USB driver does not support STR currentlly, there is a STR supported
      driver list in section:
-	"19.3 Suspend to RAM" in "S32G274_BSP30.0_User_Manual.pdf"
+	"19.3 Suspend to RAM" in "S32G2_LinuxBSP_31.0_User_Manual.pdf"
 
      And this list will be updated in future.
 

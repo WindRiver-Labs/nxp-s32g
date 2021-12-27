@@ -107,7 +107,7 @@ S32G274A-EVB:
 	CPU Revision:           rev. 1.0.0/1.0.1/2.1.0
 	Board Serial:   	NXP S32G27x
 	BootLoader:		U-Boot
-	BootLoader Version:	U-Boot 2020.04+g7eba18e1c0 (Sep 18 2021 - 02:52:32 +0000)
+	BootLoader Version:	U-Boot 2020.04+g6286902c94 (Dec 20 2021 - 11:33:57 +0000)
 
 
 S32G274A-RDB2:
@@ -115,4 +115,4 @@ S32G274A-RDB2:
 	CPU Revision:           rev. 2.1.0
 	Board Serial:           NXP S32G27x
 	BootLoader:		U-Boot
-	BootLoader Version:	U-Boot 2020.04+g7eba18e1c0 (Sep 18 2021 - 02:52:32 +0000)
+	BootLoader Version:	U-Boot 2020.04+g6286902c94 (Dec 20 2021 - 11:33:57 +0000)
