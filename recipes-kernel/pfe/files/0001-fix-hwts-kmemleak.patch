@@ -1,0 +1,77 @@
+From de5a187e42f408d25acc0ebe529e36987d4ae34b Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Thu, 23 Dec 2021 16:32:59 +0800
+Subject: [PATCH] fix hwts kmemleak
+
+Issue: LIN1021-2232
+
+This patch is to fix the following kmemleak issue:
+
+ unreferenced object 0xffffff8809425000 (size 2048):
+ comm "rtcwake", pid 954, jiffies 4295119059 (age 425.872s)
+ hex dump (first 32 bytes):
+ 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b kkkkkkkkkkkkkkkk
+ 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b 6b kkkkkkkkkkkkkkkk
+ backtrace:
+ [<00000000e50a75c4>] __kmalloc+0x26c/0x4b4
+ [<000000005531ec64>] __kfifo_alloc+0x60/0xb0
+ [<000000000b2a4c96>] pfeng_hwts_init+0x34/0xe0 [pfeng]
+ [<00000000907db5ad>] pfeng_netif_logif_init_second_stage+0xb4/0xf0 [pfeng]
+ [<000000002840aef8>] pfeng_netif_logif_resume.isra.0+0x19c/0x42c [pfeng]
+ [<000000005ccb1f13>] pfeng_netif_resume+0x34/0x60 [pfeng]
+ [<00000000c3c14e85>] pfeng_drv_pm_resume+0x248/0x270 [pfeng]
+ [<00000000de69ba9a>] platform_pm_resume+0x38/0x74
+ [<00000000ad3fd7fa>] dpm_run_callback+0x5c/0xb0
+ [<0000000019503256>] device_resume+0xa0/0x1f4
+ [<00000000d78d3b88>] dpm_resume+0x120/0x280
+ [<000000006f137b0f>] dpm_resume_end+0x24/0x40
+ [<000000008b25bcc0>] suspend_devices_and_enter+0x1a4/0x200
+ [<00000000c49bc0a0>] enter_state+0xe4/0x138
+ [<0000000074a7c478>] pm_suspend+0x64/0xf0
+ [<00000000f15b1bac>] state_store+0x3c/0x84
+
+This issue happens when execute suspend/resume, and is caused due to variables
+netif->ts_skb_fifo and netif->ts_tx_fifo memory did not freed when pfe suspend,
+so add kfifo_initialized() to check if the variables initialized and reuse them
+when pfe resume.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ sw/linux-pfeng/pfeng-hwts.c | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/sw/linux-pfeng/pfeng-hwts.c b/sw/linux-pfeng/pfeng-hwts.c
+index a21d514..cffdca8 100644
+--- a/sw/linux-pfeng/pfeng-hwts.c
++++ b/sw/linux-pfeng/pfeng-hwts.c
+@@ -249,11 +249,21 @@ int pfeng_hwts_init(struct pfeng_netif *netif)
+ {
+ #ifdef PFE_CFG_PFE_MASTER
+ 
+-	if (kfifo_alloc(&netif->ts_skb_fifo, 32, GFP_KERNEL))
+-		return -ENOMEM;
++	int ret = EOK;
++	if (!kfifo_initialized(&netif->ts_skb_fifo))
++	{
++		ret = kfifo_alloc(&netif->ts_skb_fifo, 32, GFP_KERNEL);
++		if (ret)
++			return -ENOMEM;
++	}
++
++	if (!kfifo_initialized(&netif->ts_tx_fifo))
++	{
++		ret = kfifo_alloc(&netif->ts_tx_fifo, 32, GFP_KERNEL);
++		if (ret)
++			return -ENOMEM;
++	}
+ 
+-	if (kfifo_alloc(&netif->ts_tx_fifo, 32, GFP_KERNEL))
+-		return -ENOMEM;
+ #endif /* PFE_CFG_PFE_MASTER */
+ 
+ 	/* Initialize for master and slave to have easier cleanup */
+-- 
+2.25.1
+

@@ -1,0 +1,94 @@
+From ae14d3005ce2294bb2589c204900afb8dd4d701e Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Thu, 23 Dec 2021 16:34:35 +0800
+Subject: [PATCH] fix hardware feature kmemleak
+
+Issue: LIN1021-2232
+
+This patch is to fix the following kmemleak issue:
+
+ unreferenced object 0xffffff8829dde100 (size 128):
+ comm "rtcwake", pid 954, jiffies 4295119033 (age 425.972s)
+ hex dump (first 32 bytes):
+ 80 ed dd 29 88 ff ff ff 00 00 00 00 00 00 00 00 ...)............
+ 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+ backtrace:
+ [<00000000e50a75c4>] __kmalloc+0x26c/0x4b4
+ [<00000000a7a0b504>] oal_mm_malloc+0x20/0x2c [pfeng]
+ [<0000000068a3f3a4>] pfe_hw_feature_init_all+0x38/0x10c [pfeng]
+ [<00000000c51e4ebb>] pfe_feature_mgr_init+0x74/0x80 [pfeng]
+ [<0000000034f499ac>] pfe_platform_init+0x90/0x3b4 [pfeng]
+ [<00000000b1486760>] pfeng_drv_pm_resume+0x17c/0x270 [pfeng]
+ [<00000000de69ba9a>] platform_pm_resume+0x38/0x74
+ [<00000000ad3fd7fa>] dpm_run_callback+0x5c/0xb0
+ [<0000000019503256>] device_resume+0xa0/0x1f4
+ [<00000000d78d3b88>] dpm_resume+0x120/0x280
+ [<000000006f137b0f>] dpm_resume_end+0x24/0x40
+ [<000000008b25bcc0>] suspend_devices_and_enter+0x1a4/0x200
+ [<00000000c49bc0a0>] enter_state+0xe4/0x138
+ [<0000000074a7c478>] pm_suspend+0x64/0xf0
+ [<00000000f15b1bac>] state_store+0x3c/0x84
+ [<0000000028c6798b>] kobj_attr_store+0x1c/0x30
+
+This issue is caused due to the unfreed hardware feature related memory
+when suspend, so free them when suspend to fix the issue.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ sw/pfe_platform/src/pfe_feature_mgr.c | 16 ++++++++++++++++
+ sw/pfe_platform/src/pfe_hw_feature.c  |  3 +++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/sw/pfe_platform/src/pfe_feature_mgr.c b/sw/pfe_platform/src/pfe_feature_mgr.c
+index 4936426..55fbf68 100644
+--- a/sw/pfe_platform/src/pfe_feature_mgr.c
++++ b/sw/pfe_platform/src/pfe_feature_mgr.c
+@@ -77,6 +77,11 @@ errno_t pfe_feature_mgr_init(uint32_t *cbus_base)
+ 			feature_mgr->cbus_base = cbus_base;
+ 
+ 			ret = pfe_hw_feature_init_all(cbus_base, &feature_mgr->hw_features, &feature_mgr->hw_features_count);
++			if (EOK != ret)
++			{
++				oal_mm_free(feature_mgr);
++				feature_mgr = NULL;
++			}
+ 		}
+ 		else
+ 		{
+@@ -137,6 +142,17 @@ errno_t pfe_feature_mgr_fini(void)
+ 	}
+ 	else
+ 	{
++		// free the internal memory allocated previously
++		if (NULL != feature_mgr->hw_features)
++		{
++			if (NULL != feature_mgr->hw_features[0])
++			{
++				oal_mm_free(feature_mgr->hw_features[0]);
++			}
++
++			oal_mm_free(feature_mgr->hw_features);
++		}
++
+ 		oal_mm_free(feature_mgr);
+ 		feature_mgr = NULL;
+ 		ret = EOK;
+diff --git a/sw/pfe_platform/src/pfe_hw_feature.c b/sw/pfe_platform/src/pfe_hw_feature.c
+index b09c810..9ab3a54 100644
+--- a/sw/pfe_platform/src/pfe_hw_feature.c
++++ b/sw/pfe_platform/src/pfe_hw_feature.c
+@@ -97,6 +97,9 @@ errno_t pfe_hw_feature_init_all(uint32_t *cbus_base, pfe_hw_feature_t ***hw_feat
+ 	}
+ 	else
+ 	{
++		oal_mm_free(hw_features_arr);
++		hw_features_arr = NULL;
++
+ 		return ENOMEM;
+ 	}
+ 
+-- 
+2.25.1
+

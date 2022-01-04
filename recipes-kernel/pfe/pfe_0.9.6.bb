@@ -16,6 +16,8 @@ FW_INSTALL_UTIL_NAME ?= "s32g_pfe_util.fw"
 
 SRC_URI = "git://source.codeaurora.org/external/autobsps32/extra/pfeng;protocol=https;branch=master \
 	file://0001-pfe_compiler-add-GCC-version-10.2.0-support.patch \
+	file://0001-fix-hwts-kmemleak.patch \
+        file://0002-fix-hardware-feature-kmemleak.patch \
 	file://${PFE_LOCAL_FIRMWARE_DIR} \
 	${@bb.utils.contains('PREFERRED_PROVIDER_virtual/kernel', 'linux-yocto-rt', 'file://0001-pfe-pfeng-bman-enable-preempt-when-hif-channle-fill-.patch', '', d)} \
 	${@bb.utils.contains('PREFERRED_PROVIDER_virtual/kernel', 'linux-yocto-rt', 'file://0002-pfe-sw-move-mutex-lock-below-of-destroy-the-workqueu.patch', '', d)} \
