@@ -28,17 +28,17 @@ do_make_nxp_s32g2xx_wic() {
 
 addtask make_nxp_s32g2xx_wic after do_image_complete before do_build
 
-BOOTFS_EXTRA_CMD ?= "cp ustart.img ustart-evb.img; \
-    dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274aevb of=ustart-evb.img conv=notrunc bs=256 count=1 seek=0; \
-    dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274aevb of=ustart-evb.img conv=notrunc bs=512 seek=1 skip=1; \
+BOOTFS_EXTRA_CMD ?= "cp ustart.img evb.ustart.img; \
+    dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274aevb of=evb.ustart.img conv=notrunc bs=256 count=1 seek=0; \
+    dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274aevb of=evb.ustart.img conv=notrunc bs=512 seek=1 skip=1; \
     if [ -e ${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274ardb2 ]; then \
-        cp ustart.img ustart-rdb2.img; \
+        cp ustart.img rdb2.ustart.img; \
         if [ -n "${ATF_S32G_ENABLE}" ]; then \
-            dd if=${ATF_IMAGE_FILE} of=ustart-rdb2.img conv=notrunc bs=256 count=1 seek=0; \
-            dd if=${ATF_IMAGE_FILE} of=ustart-rdb2.img conv=notrunc bs=512 seek=1 skip=1; \
+            dd if=${ATF_IMAGE_FILE} of=rdb2.ustart.img conv=notrunc bs=256 count=1 seek=0; \
+            dd if=${ATF_IMAGE_FILE} of=rdb2.ustart.img conv=notrunc bs=512 seek=1 skip=1; \
         else \
-            dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274ardb2 of=ustart-rdb2.img conv=notrunc bs=256 count=1 seek=0; \
-            dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274ardb2 of=ustart-rdb2.img conv=notrunc bs=512 seek=1 skip=1; \
+            dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274ardb2 of=rdb2.ustart.img conv=notrunc bs=256 count=1 seek=0; \
+            dd if=${DEPLOY_DIR_IMAGE}/u-boot.s32-s32g274ardb2 of=rdb2.ustart.img conv=notrunc bs=512 seek=1 skip=1; \
         fi; \
         rm -f ustart.img; \
     fi \
