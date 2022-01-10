@@ -1,0 +1,53 @@
+From c5d2d01983d8ca46f8ed39a0ced6f25896c0e46e Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Wed, 17 Nov 2021 14:30:19 +0200
+Subject: [PATCH 4/9] env: Allow overriding no-1-8-v property in fdt before
+ booting kernel
+
+Allow removing the 'no-1-8-v' property from the 'usdhc' node of the
+kernel device tree by setting the 'fdt_override_no_1_8_v' environment
+variable to "yes".
+
+This allows enabling and disabling HS400/HS400 Enhanced Strobe in linux
+without having to re-build and re-deploy the .dtb.
+
+Issue: ALB-7616
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 26448932d5..c10ebf6e44 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -292,6 +292,12 @@
+ #endif
+ #endif
+ 
++#define FDT_ENABLE_HS400ES \
++	"fdt_enable_hs400es=" \
++		"fdt addr ${fdt_addr}; " \
++		"fdt rm /usdhc no-1-8-v; " \
++		"fdt resize; \0" \
++
+ #define CONFIG_FLASHBOOT_RAMDISK " ${ramdisk_addr} "
+ 
+ #ifdef CONFIG_XEN_SUPPORT
+@@ -373,7 +379,9 @@
+ 		"source\0" \
+ 	"loadimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${image}\0" \
+ 	"loadramdisk=fatload mmc ${mmcdev}:${mmcpart} ${ramdisk_addr} ${ramdisk}\0" \
+-	"loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr} ${fdt_file};\0" \
++	FDT_ENABLE_HS400ES \
++	"loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr} ${fdt_file}; " \
++		 "${fdt_override}\0" \
+ 	"jtagboot=echo Booting using jtag...; " \
+ 		"${boot_mtd} ${loadaddr} ${ramdisk_addr} ${fdt_addr}\0" \
+ 	"jtagsdboot=echo Booting loading Linux with ramdisk from SD...; " \
+-- 
+2.17.1
+

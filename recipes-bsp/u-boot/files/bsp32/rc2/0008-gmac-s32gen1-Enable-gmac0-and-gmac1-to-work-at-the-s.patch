@@ -1,0 +1,704 @@
+From 5883f71651b56377ed17f9f2841bb791e912bc7f Mon Sep 17 00:00:00 2001
+From: Dorin Ionita <dorin.ionita@nxp.com>
+Date: Thu, 9 Dec 2021 15:56:52 +0200
+Subject: [PATCH 8/9] gmac: s32gen1: Enable gmac0 and gmac1 to work at the same
+ time.
+
+Issue: ALB-8098
+Upstream-Status: Pending 
+
+Signed-off-by: Dorin Ionita <dorin.ionita@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/board_common.h   |   2 +-
+ board/freescale/s32-gen1/eth.c            |  52 +++--
+ configs/s32r45evb_defconfig               |   2 +
+ drivers/net/dwc_eth_qos.h                 |   5 +
+ drivers/net/dwc_eth_qos_core.c            |  33 ++-
+ drivers/net/dwc_eth_qos_s32cc.c           | 254 ++++++++++++++--------
+ include/configs/s32.h                     |  12 +-
+ include/dm/platform_data/dwc_eth_qos_dm.h |   7 +-
+ 8 files changed, 241 insertions(+), 126 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/board_common.h b/board/freescale/s32-gen1/board_common.h
+index a109659e84..e061a17d94 100644
+--- a/board/freescale/s32-gen1/board_common.h
++++ b/board/freescale/s32-gen1/board_common.h
+@@ -26,7 +26,7 @@ void setup_iomux_uart1_pb09_pb10(void);
+ 
+ #if CONFIG_IS_ENABLED(NETDEVICES)
+ void ft_enet_fixup(void *fdt);
+-u32 s32ccgmac_cfg_get_mode(void);
++u32 s32ccgmac_cfg_get_mode(int cardnum);
+ #endif
+ 
+ #if defined(CONFIG_SAF1508BET_USB_PHY)
+diff --git a/board/freescale/s32-gen1/eth.c b/board/freescale/s32-gen1/eth.c
+index cc14a6fa11..21bfc3b6d7 100644
+--- a/board/freescale/s32-gen1/eth.c
++++ b/board/freescale/s32-gen1/eth.c
+@@ -28,7 +28,7 @@
+ #include <dm/pinctrl.h>
+ #include <hwconfig.h>
+ 
+-#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC) || CONFIG_IS_ENABLED(FSL_PFENG)
++#if CONFIG_IS_ENABLED(FSL_PFENG)
+ static void ft_update_eth_addr_by_name(const char *name, const u8 idx,
+ 				       void *fdt, int nodeoff)
+ {
+@@ -41,7 +41,6 @@ static void ft_update_eth_addr_by_name(const char *name, const u8 idx,
+ }
+ #endif
+ 
+-#if CONFIG_IS_ENABLED(FSL_PFENG)
+ __maybe_unused static bool intf_is_xmii(u32 intf)
+ {
+ 	return intf == PHY_INTERFACE_MODE_MII ||
+@@ -49,6 +48,7 @@ __maybe_unused static bool intf_is_xmii(u32 intf)
+ 		intf == PHY_INTERFACE_MODE_RGMII;
+ }
+ 
++#if CONFIG_IS_ENABLED(FSL_PFENG)
+ #ifdef CONFIG_TARGET_S32G274ARDB
+ static int get_phy_handle(const void *fdt, int nodeoffset)
+ {
+@@ -195,31 +195,43 @@ void ft_enet_fixup(void *fdt)
+ 
+ 	/* GMAC */
+ #if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
+-	nodeoff = fdt_node_offset_by_compatible(fdt, 0, "fsl,s32cc-dwmac");
+-	if (nodeoff >= 0) {
++	bool gmac0_ena = true;
+ 
+-		if (s32ccgmac_cfg_get_mode() == S32CCGMAC_MODE_DISABLE) {
+-			ena = false;
+ #if CONFIG_IS_ENABLED(FSL_PFENG)
+-		} else if (intf_is_xmii(s32ccgmac_cfg_get_interface()) &&
+-			   intf_is_xmii(pfeng_cfg_emac_get_interface(1)) &&
+-			   pfeng_drv_status_active()) {
+-			ena = false;
++	if (intf_is_xmii(s32ccgmac_cfg_get_interface(0)) &&
++	    intf_is_xmii(pfeng_cfg_emac_get_interface(1)) &&
++	    pfeng_drv_status_active())
++		gmac0_ena = false;
+ #endif /* CONFIG_IS_ENABLED(FSL_PFENG) */
+-		} else
+-			ena = true;
++
++	nodeoff = 0;
++	bool seek = true;
++
++	while (seek) {
++		bool ena;
++		int idx = -1;
++
++		nodeoff = fdt_node_offset_by_compatible(fdt, nodeoff,
++							"fsl,s32cc-dwmac");
++		if (nodeoff < 0)
++			return;
++
++		if (fdtdec_get_alias_seq(fdt, "gmac", nodeoff, &idx)) {
++			/* No alias = single gmac */
++			seek = false;
++			idx = 0;
++		}
++
++		ena = (idx == 0) ? gmac0_ena : true;
++
++		if (s32ccgmac_cfg_get_mode(idx) == S32CCGMAC_MODE_DISABLE)
++			ena = false;
+ 
+ 		if (!ena) {
+-			printf("DT: Disabling GMAC\n");
++			printf("DT: Disabling GMAC%d\n", idx);
+ 			fdt_status_disabled(fdt, nodeoff);
+-		} else {
+-			printf("DT: Enabling GMAC\n");
+-			fdt_status_okay(fdt, nodeoff);
+-
+-			/* sync MAC HW addr to DT [local-mac-address] */
+-			ft_update_eth_addr_by_name("eth", 0, fdt, nodeoff);
+ 		}
+-	}
++	} /* while */
+ #endif /* CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC) */
+ }
+ 
+diff --git a/configs/s32r45evb_defconfig b/configs/s32r45evb_defconfig
+index 82d92cac3f..2d612a4259 100644
+--- a/configs/s32r45evb_defconfig
++++ b/configs/s32r45evb_defconfig
+@@ -56,3 +56,5 @@ CONFIG_DM_SPI=y
+ CONFIG_FSL_DSPI=y
+ CONFIG_FSL_QSPI=y
+ # CONFIG_EFI_LOADER is not set
++CONFIG_PHY_FIXED=y
++CONFIG_PHY_AQUANTIA=y
+diff --git a/drivers/net/dwc_eth_qos.h b/drivers/net/dwc_eth_qos.h
+index da16b69a37..2feb074672 100644
+--- a/drivers/net/dwc_eth_qos.h
++++ b/drivers/net/dwc_eth_qos.h
+@@ -308,6 +308,7 @@ struct eqos_priv {
+ 	void *rx_pkt;
+ 	bool started;
+ 	bool reg_access_ok;
++	void *priv;
+ };
+ 
+ /* Generic caching code */
+@@ -317,4 +318,8 @@ void eqos_flush_desc_generic(void *desc);
+ void eqos_inval_buffer_generic(void *buf, size_t size);
+ void eqos_flush_buffer_generic(void *buf, size_t size);
+ 
++/* Helper functions */
++void eqos_name(char *str, u32 cardnum);
++int eqos_num(struct udevice *dev);
++
+ #endif /* DWC_ETH_QOS_H */
+diff --git a/drivers/net/dwc_eth_qos_core.c b/drivers/net/dwc_eth_qos_core.c
+index 372e126725..ba5ccc7087 100644
+--- a/drivers/net/dwc_eth_qos_core.c
++++ b/drivers/net/dwc_eth_qos_core.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (c) 2016, NVIDIA CORPORATION.
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  *
+  * Portions based on U-Boot's rtl8169.c.
+  */
+@@ -179,7 +179,7 @@ static int eqos_mdio_read(struct mii_dev *bus, int mdio_addr, int mdio_devad,
+ 			 EQOS_MAC_MDIO_ADDRESS_GOC_SHIFT) |
+ 			EQOS_MAC_MDIO_ADDRESS_GB;
+ 	} else {
+-		/* Clause 45 */	
++		/* Clause 45 */
+ 		writel(mdio_reg << EQOS_MAC_MDIO_DATA_RA_SHIFT, &eqos->mac_regs->mdio_data);
+ 		val = readl(&eqos->mac_regs->mdio_address);
+ 
+@@ -1148,8 +1148,12 @@ static int eqos_probe(struct udevice *dev)
+ 	}
+ 
+ 	/* Try to sync ethaddr to environment */
+-	if (!env_get("ethaddr") && is_valid_ethaddr(pdata->eth.enetaddr))
+-		eth_env_set_enetaddr("ethaddr", pdata->eth.enetaddr);
++	int idx = eqos_num(dev);
++	u8 enetaddr[6];
++
++	if (!eth_env_get_enetaddr_by_index("eth", idx, enetaddr) &&
++	    is_valid_ethaddr(pdata->eth.enetaddr))
++		eth_env_set_enetaddr_by_index("eth", idx, pdata->eth.enetaddr);
+ 
+ 	debug("%s: OK\n", __func__);
+ 	return 0;
+@@ -1181,15 +1185,32 @@ static int eqos_remove(struct udevice *dev)
+ 	return 0;
+ }
+ 
+-static void eqos_name(char *str, u32 cardnum)
++void eqos_name(char *str, u32 cardnum)
+ {
+ 	if (cardnum)
+ 		sprintf(str, "eth_eqos%i", cardnum);
+ 	else
+-		/* backcompatibility name for instance 0 */
++		/* backwards compatibility name for instance 0 */
+ 		strcpy(str, "eth_eqos");
+ }
+ 
++int eqos_num(struct udevice *dev)
++{
++	int n = dev->req_seq;
++
++	if (n < 0) {
++		/* No alias */
++		if (dev->seq != 0) {
++			pr_err("Multiple instances requires aliases ");
++			pr_err("eth0, eth1... in DT\n");
++			debug("dev->seq=%d", dev->seq);
++		}
++		/* backwards compatibility for single instance and no alias */
++		return 0;
++	}
++	return n;
++}
++
+ static int eqos_bind(struct udevice *dev)
+ {
+ 	char name[20];
+diff --git a/drivers/net/dwc_eth_qos_s32cc.c b/drivers/net/dwc_eth_qos_s32cc.c
+index 5924c854c0..1f0bc9d3d9 100644
+--- a/drivers/net/dwc_eth_qos_s32cc.c
++++ b/drivers/net/dwc_eth_qos_s32cc.c
+@@ -27,6 +27,7 @@
+ #include <asm/arch/soc.h>
+ #include <asm/io.h>
+ 
++#include "board_common.h"
+ #include "serdes_regs.h"
+ #include "serdes_xpcs_regs.h"
+ 
+@@ -37,45 +38,100 @@
+ #include <s32gen1_gmac_utils.h>
+ #include <dm/device.h>
+ 
+-#define S32CCGMAC_ENV_VAR_MODE_NAME "s32cc_gmac_mode"
+-
+ /* S32 SRC register for phyif selection */
+ #define PHY_INTF_SEL_SGMII	0x01
+ #define PHY_INTF_SEL_RGMII	0x02
+ #define PHY_INTF_SEL_RMII	0x08
+ #define PHY_INTF_SEL_MII	0x00
+ #define S32CC_GMAC_0_CTRL_STS		0x4007C004
++#define S32CC_GMAC_1_CTRL_STS		0x4007CA00
+ 
+-static u32 mac_intf = PHY_INTERFACE_MODE_NONE;
+-static u32 s32ccgmac_mode = S32CCGMAC_MODE_UNINITED;
++struct s32cc_priv {
++	u32 mac_intf;
++	u32 gmac_mode;
++};
+ 
+ static bool s32ccgmac_set_interface(struct udevice *dev, u32 mode);
+ 
+-u32 s32ccgmac_cfg_get_mode(void)
++static struct s32cc_priv *s32ccgmac_get_priv(struct udevice *dev)
++{
++	struct eqos_priv *eqos = dev_get_priv(dev);
++
++	return eqos->priv;
++}
++
++static struct udevice *s32ccgmac_get_dev_by_idx(int cardnum)
++{
++	char devname[20];
++	struct udevice *dev = NULL;
++
++	eqos_name(devname, cardnum);
++	uclass_get_device_by_name(UCLASS_ETH, devname, &dev);
++	return dev;
++}
++
++static void s32ccgmac_alloc_priv(struct udevice *dev)
++{
++	struct eqos_priv *eqos = dev_get_priv(dev);
++
++	eqos->priv = malloc(sizeof(struct s32cc_priv));
++
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++
++	s32cc->mac_intf = PHY_INTERFACE_MODE_NONE;
++	s32cc->gmac_mode = S32CCGMAC_MODE_UNINITED;
++}
++
++static const char *env_var_mode_name(struct udevice *dev)
++{
++	static char *prefix = "s32cc_gmac";
++	static char *postfix = "_mode";
++	static char name[sizeof(prefix) + sizeof(postfix) + 4];
++
++	int cardnum = eqos_num(dev);
++
++	if (cardnum > 0)
++		sprintf(name, "%s%d%s",	prefix, cardnum, postfix);
++	else
++		sprintf(name, "%s%s", prefix, postfix);
++
++	return name;
++}
++
++u32 s32ccgmac_cfg_get_mode(int cardnum)
+ {
+-	return s32ccgmac_mode;
++	struct s32cc_priv *s32cc;
++	struct udevice *dev = s32ccgmac_get_dev_by_idx(cardnum);
++
++	s32cc = s32ccgmac_get_priv(dev);
++	return s32cc->gmac_mode;
+ }
+ 
+ static int s32ccgmac_cfg_set_mode(struct udevice *dev, u32 mode)
+ {
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++	const char *env_var = env_var_mode_name(dev);
+ 	int ret;
+ 
+-	if (s32ccgmac_mode == mode)
++	if (s32cc->gmac_mode == mode)
+ 		/* already in the same mode */
+ 		return 0;
+ 
+ 	switch (mode) {
+ 	case S32CCGMAC_MODE_DISABLE:
+ 		/* TODO: GMAC IP: stop the driver, stop clocks and power down */
+-		env_set(S32CCGMAC_ENV_VAR_MODE_NAME, "disable");
++		env_set(env_var, "disable");
+ 		ret = 0;
+ 		break;
+ 	case S32CCGMAC_MODE_ENABLE:
+-		ret = s32ccgmac_set_interface(dev, mac_intf) ? 0 : -EINVAL;
++		if (s32ccgmac_set_interface(dev, s32cc->mac_intf))
++			ret = 0;
++		else
++			ret = -EINVAL;
+ 		if (ret)
+ 			goto err;
+ 
+-		env_set(S32CCGMAC_ENV_VAR_MODE_NAME, "enable");
++		env_set(env_var, "enable");
+ 		break;
+ 	default:
+ 		/* invalid mode */
+@@ -83,7 +139,7 @@ static int s32ccgmac_cfg_set_mode(struct udevice *dev, u32 mode)
+ 		goto err;
+ 	}
+ 
+-	s32ccgmac_mode = mode;
++	s32cc->gmac_mode = mode;
+ 
+ err:
+ 	return ret;
+@@ -91,6 +147,8 @@ err:
+ 
+ static bool s32ccgmac_cfg_set_interface(struct udevice *dev, u32 mode)
+ {
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++
+ 	if (mode != PHY_INTERFACE_MODE_NONE &&
+ 	    mode != PHY_INTERFACE_MODE_SGMII &&
+ 	    mode != PHY_INTERFACE_MODE_RGMII &&
+@@ -103,35 +161,44 @@ static bool s32ccgmac_cfg_set_interface(struct udevice *dev, u32 mode)
+ 	if (!s32ccgmac_set_interface(dev, mode))
+ 		return false;
+ 
+-	mac_intf = mode;
++	s32cc->mac_intf = mode;
+ 
+ 	return true;
+ }
+ 
+-static const char *s32ccgmac_cfg_get_interface_mode_str(void)
++static const char *
++s32ccgmac_cfg_get_interface_mode_str(struct s32cc_priv *s32cc)
+ {
++	u32 mac_intf = s32cc->mac_intf;
++
+ 	return strlen(phy_string_for_interface(mac_intf)) ?
+ 		phy_string_for_interface(mac_intf) : "none";
+ }
+ 
+ static bool s32ccgmac_set_interface(struct udevice *dev, u32 mode)
+ {
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++
+ 	setup_iomux_enet_gmac(dev, mode);
+ 	setup_clocks_enet_gmac(mode, dev);
+-
+-	mac_intf = mode;
++	s32cc->mac_intf = mode;
+ 
+ 	return true;
+ }
+ 
+-phy_interface_t s32ccgmac_cfg_get_interface(void)
++phy_interface_t s32ccgmac_cfg_get_interface(int cardnum)
+ {
+-	return mac_intf;
++	struct udevice *dev = s32ccgmac_get_dev_by_idx(cardnum);
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++
++	return s32cc->mac_intf;
+ }
+ 
+ phy_interface_t eqos_get_interface_s32cc(struct udevice *dev)
+ {
+-	return s32ccgmac_cfg_get_interface();
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++
++	return s32cc->mac_intf;
+ }
+ 
+ static int eqos_start_clks_s32cc(struct udevice *dev)
+@@ -152,6 +219,7 @@ static void eqos_stop_clks_s32cc(struct udevice *dev)
+ static int eqos_start_resets_s32cc(struct udevice *dev)
+ {
+ 	struct eqos_priv *eqos = dev_get_priv(dev);
++	int gmac_no = eqos_num(dev);
+ 	u32 mode;
+ 
+ 	/* set the interface mode */
+@@ -186,7 +254,10 @@ static int eqos_start_resets_s32cc(struct udevice *dev)
+ 		return -1;
+ 	}
+ 
+-	writel(mode, S32CC_GMAC_0_CTRL_STS);
++	if (gmac_no == 0)
++		writel(mode, S32CC_GMAC_0_CTRL_STS);
++	else
++		writel(mode, S32CC_GMAC_1_CTRL_STS);
+ 
+ 	/* reset DMA to reread phyif config */
+ 	writel(EQOS_DMA_MODE_SWR, &eqos->dma_regs->mode);
+@@ -280,8 +351,8 @@ static int check_sgmii_cfg(int gmac_no)
+ 	mode = s32_get_xpcs_mode(serdes, 0);
+ 
+ 	if (mode != desired_mode1 && mode != desired_mode2) {
+-		printf("Invalid SGMII configuration for GMAC%d", gmac_no);
+-		printf("Check hwconfig env. var.\n");
++		pr_err("Invalid SGMII configuration for GMAC%d\n", gmac_no);
++		pr_err("Check hwconfig env. var.\n");
+ 		return -EINVAL;
+ 	}
+ 
+@@ -293,37 +364,35 @@ static int check_sgmii_cfg(int gmac_no)
+ static int eqos_probe_resources_s32cc(struct udevice *dev)
+ {
+ 	struct eqos_pdata *pdata = dev_get_platdata(dev);
+-	char *env_mode = env_get(S32CCGMAC_ENV_VAR_MODE_NAME);
+-
+-	debug("%s(dev=%p):\n", __func__, dev);
++	const char *env_var = env_var_mode_name(dev);
++	char *env_mode = env_get(env_var);
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++	int gmac_no = eqos_num(dev);
+ 
+-	mac_intf = pdata->eth.phy_interface;
++	s32cc->mac_intf = pdata->eth.phy_interface;
+ 
+-	if (mac_intf == PHY_INTERFACE_MODE_NONE) {
++	if (s32cc->mac_intf == PHY_INTERFACE_MODE_NONE) {
+ 		pr_err("Invalid PHY interface\n");
+ 		return -EINVAL;
+ 	}
+ 
+-	if (!s32ccgmac_cfg_set_interface(dev, mac_intf)) {
++	if (!s32ccgmac_cfg_set_interface(dev, s32cc->mac_intf)) {
+ 		pr_err("HW setting error\n");
+ 		return -EINVAL;
+ 	}
+ 
+ 	if (env_mode && !strcmp(env_mode, "disable")) {
+ 		return s32ccgmac_cfg_set_mode(dev, S32CCGMAC_MODE_DISABLE);
+-	} else {
+-		if (eqos_get_interface_s32cc(dev) == PHY_INTERFACE_MODE_SGMII) {
+-			int ret = check_sgmii_cfg(0);
++	}
+ 
+-			if (ret)
+-				return ret;
+-		}
++	if (eqos_get_interface_s32cc(dev) == PHY_INTERFACE_MODE_SGMII) {
++		int ret = check_sgmii_cfg(gmac_no);
+ 
+-		return s32ccgmac_cfg_set_mode(dev, S32CCGMAC_MODE_ENABLE);
++		if (ret)
++			return ret;
+ 	}
+ 
+-	debug("%s: OK\n", __func__);
+-	return 0;
++	return s32ccgmac_cfg_set_mode(dev, S32CCGMAC_MODE_ENABLE);
+ }
+ 
+ static int eqos_remove_resources_s32cc(struct udevice *dev)
+@@ -333,8 +402,10 @@ static int eqos_remove_resources_s32cc(struct udevice *dev)
+ 
+ static int eqos_pre_init_s32cc(struct udevice *dev)
+ {
+-	char *env_mode = env_get(S32CCGMAC_ENV_VAR_MODE_NAME);
++	const char *env_var = env_var_mode_name(dev);
++	char *env_mode = env_get(env_var);
+ 
++	s32ccgmac_alloc_priv(dev);
+ 	if (env_mode && !strcmp(env_mode, "disable"))
+ 		return s32ccgmac_cfg_set_mode(dev, S32CCGMAC_MODE_DISABLE);
+ 	else
+@@ -371,72 +442,67 @@ struct eqos_config eqos_s32cc_config = {
+ 	.ops = &eqos_s32cc_ops
+ };
+ 
+-static struct udevice *get_fake_gmac_dev(void)
+-{
+-	static struct udevice gmac_dev;
+-	ofnode node;
+-
+-	if (gmac_dev.node.np)
+-		return &gmac_dev;
+-
+-	node = ofnode_by_compatible(ofnode_null(), "fsl,s32cc-dwmac");
+-	if (!node.np) {
+-		pr_err("Could not find 'fsl,s32cc-dwmac' node\n");
+-		return NULL;
+-	}
+-
+-	gmac_dev.node = node;
+-	return &gmac_dev;
+-}
+-
+ /* command line */
+ static int do_s32ccgmac_cmd(cmd_tbl_t *cmdtp, int flag,
+ 			    int argc, char * const argv[])
+ {
+-	struct udevice *gmac_dev = get_fake_gmac_dev();
++	unsigned long devnum;
++	int coffs;
++	/* check if device index was entered */
++	devnum = simple_strtoul(argv[1], NULL, 10);
++	if (strict_strtoul(argv[1], 10, &devnum)) {
++		devnum = 0;
++		coffs = 0;
++	} else {
++		coffs = 1;
++	}
++
++	struct udevice *dev = s32ccgmac_get_dev_by_idx(devnum);
++	struct s32cc_priv *s32cc = s32ccgmac_get_priv(dev);
++
++	if (!dev) {
++		pr_err("ERROR: device instance %lu does't exist\n", devnum);
++		return CMD_RET_FAILURE;
++	}
+ 
+ 	/* process command */
+-	if (!strcmp(argv[1], "info")) {
+-		printf("GMAC mode: %s\n",
+-		       s32ccgmac_cfg_get_mode() == S32CCGMAC_MODE_DISABLE
++	if (!strcmp(argv[1 + coffs], "info")) {
++		printf("GMAC%lu mode: %s\n", devnum,
++		       s32ccgmac_cfg_get_mode(devnum) == S32CCGMAC_MODE_DISABLE
+ 		       ? "disabled" : "enabled");
+ 		printf("interface: %s\n",
+-		       s32ccgmac_cfg_get_interface_mode_str());
+-		return 0;
+-	} else if (!strcmp(argv[1], "disable")) {
+-		s32ccgmac_cfg_set_mode(gmac_dev, S32CCGMAC_MODE_DISABLE);
++		       s32ccgmac_cfg_get_interface_mode_str(s32cc));
+ 		return 0;
+-	} else if (!strcmp(argv[1], "enable")) {
+-		s32ccgmac_cfg_set_mode(gmac_dev, S32CCGMAC_MODE_ENABLE);
++	} else if (!strcmp(argv[1 + coffs], "enable")) {
++		s32ccgmac_cfg_set_mode(dev, S32CCGMAC_MODE_ENABLE);
++	} else if (!strcmp(argv[1 + coffs], "disable")) {
++		s32ccgmac_cfg_set_mode(dev, S32CCGMAC_MODE_DISABLE);
+ 		return 0;
+-	} else if (!strcmp(argv[1], "emac")) {
++	} else if (!strcmp(argv[1 + coffs], "emac")) {
+ 		if (argc < 3) {
+-			printf("interface: %s%s\n",
+-			       s32ccgmac_cfg_get_interface_mode_str(),
+-			       s32ccgmac_cfg_get_mode() == S32CCGMAC_MODE_DISABLE
+-			       ? "/disabled" : "");
++			printf("interface: %s\n",
++			       s32ccgmac_cfg_get_interface_mode_str(s32cc));
++	} else {
++		int new_intf = -1;
++
++		if (!strcmp(argv[2 + coffs], "sgmii")) {
++			new_intf = PHY_INTERFACE_MODE_SGMII;
++		} else if (!strcmp(argv[2 + coffs], "rgmii")) {
++			new_intf = PHY_INTERFACE_MODE_RGMII;
++		} else if (!strcmp(argv[2 + coffs], "rmii")) {
++			new_intf = PHY_INTERFACE_MODE_RMII;
++		} else if (!strcmp(argv[2 + coffs], "mii")) {
++			new_intf = PHY_INTERFACE_MODE_MII;
++		} else if (!strcmp(argv[2 + coffs], "none")) {
++			new_intf = PHY_INTERFACE_MODE_NONE;
+ 		} else {
+-			int new_intf = -1;
+-
+-			if (!strcmp(argv[2], "sgmii")) {
+-				new_intf = PHY_INTERFACE_MODE_SGMII;
+-			} else if (!strcmp(argv[2], "rgmii")) {
+-				new_intf = PHY_INTERFACE_MODE_RGMII;
+-			} else if (!strcmp(argv[2], "rmii")) {
+-				new_intf = PHY_INTERFACE_MODE_RMII;
+-			} else if (!strcmp(argv[2], "mii")) {
+-				new_intf = PHY_INTERFACE_MODE_MII;
+-			} else if (!strcmp(argv[2], "none")) {
+-				new_intf = PHY_INTERFACE_MODE_NONE;
+-			} else {
+-				pr_err("Invalid PHY interface type '%s'\n",
+-				       argv[2]);
+-				return CMD_RET_USAGE;
+-			}
+-			if (new_intf > -1)
+-				s32ccgmac_cfg_set_interface(gmac_dev, new_intf);
++			pr_err("Invalid PHY interface type '%s'\n",
++			       argv[2 + coffs]);
++			return CMD_RET_USAGE;
+ 		}
+-		return 0;
++		if (new_intf > -1)
++			s32ccgmac_cfg_set_interface(dev, new_intf);
++	}
+ 	}
+ 
+ 	return CMD_RET_USAGE;
+@@ -445,8 +511,8 @@ static int do_s32ccgmac_cmd(cmd_tbl_t *cmdtp, int flag,
+ U_BOOT_CMD(
+ 	   s32ccgmac, 3, 0, do_s32ccgmac_cmd,
+ 	   "NXP S32cc GMAC controller info",
+-	   /*      */"info               - important hw info\n"
+-	   "s32ccgmac [disable|enable]   - disable/enable gmac/eqos subsystem\n"
+-	   "s32ccgmac emac [<inf-mode>]  - read or set MAC interface mode\n"
+-	   "eqos help                    - additional gmac commands"
++	   /*      */"[idx] info			  - important hw info\n"
++	   "s32ccgmac [idx] [disable|enable]  - disable/enable gmac/eqos subsystem\n"
++	   "s32ccgmac [idx] emac [<inf-mode>] - read or set MAC interface mode\n"
++	   "s32ccgmac help					  - additional gmac commands"
+ );
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index c10ebf6e44..d110d7e907 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -236,12 +236,20 @@
+ #define NFSRAMFS_TFTP_CMD ""
+ #endif
+ 
++#ifdef CONFIG_TARGET_S32R45EVB
++#define GMAC1_ENABLE_VAR_VALUE \
++	"s32cc_gmac1_mode=enable\0"
++#else
++#define GMAC1_ENABLE_VAR_VALUE ""
++#endif /* CONFIG_TARGET_S32R45EVB */
++
+ #ifdef CONFIG_DWC_ETH_QOS_S32CC
+ #define GMAC_EXTRA_ENV_SETTINGS \
+-	"s32cc_gmac_mode=enable\0"
++	"s32cc_gmac_mode=enable\0"\
++	GMAC1_ENABLE_VAR_VALUE
+ #else
+ #define GMAC_EXTRA_ENV_SETTINGS ""
+-#endif
++#endif /* CONFIG_DWC_ETH_QOS_S32CC */
+ 
+ #ifdef CONFIG_FSL_PFENG
+ #define PFENG_EXTRA_BOOT_ARGS " nohz=off coherent_pool=64M "
+diff --git a/include/dm/platform_data/dwc_eth_qos_dm.h b/include/dm/platform_data/dwc_eth_qos_dm.h
+index 5f0959c587..78afb5466e 100644
+--- a/include/dm/platform_data/dwc_eth_qos_dm.h
++++ b/include/dm/platform_data/dwc_eth_qos_dm.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2021 NXP
+  */
+ 
+ #ifndef DWC_ETH_QOS_DM_H
+@@ -32,8 +32,9 @@ enum {
+ 	S32CCGMAC_MODE_ENABLE,
+ };
+ 
+-u32 s32ccgmac_cfg_get_mode(void);
+-phy_interface_t s32ccgmac_cfg_get_interface(void);
++u32 s32ccgmac_cfg_get_mode(int cardnum);
++phy_interface_t s32ccgmac_cfg_get_interface(int cardnum);
++const char *s32ccgmac_cfg_get_ifmode_str_by_num(int cardum);
+ #endif
+ 
+ /* Supported implementations */
+-- 
+2.17.1
+

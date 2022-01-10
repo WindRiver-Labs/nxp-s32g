@@ -40,9 +40,15 @@ SRC_URI += " \
     file://bsp32/rc1/0015-Remove-S32V2-Kconfig-options.patch \
     file://bsp32/rc1/0016-Remove-S32V2-drivers.patch \
     file://bsp32/rc1/0017-s32gen1-Add-AHB-buffer-to-MMU-tables-when-needed-onl.patch \
-    file://bsp32/rc1/0018-s32g-sramc-Don-t-subtract-SRAM-base-from-an-SRAM-off.patch \
-    file://bsp32/rc1/0019-s32gen1-sramc-Adjust-SRAMC-range-to-delete-only-the-.patch \
-    file://bsp32/rc1/0020-s32gen1-sram-Report-the-size-of-the-cleared-SRAM.patch \
+    file://bsp32/rc2/0001-s32g-sramc-Don-t-subtract-SRAM-base-from-an-SRAM-off.patch \
+    file://bsp32/rc2/0002-s32gen1-sramc-Adjust-SRAMC-range-to-delete-only-the-.patch \
+    file://bsp32/rc2/0003-s32gen1-sram-Report-the-size-of-the-cleared-SRAM.patch \
+    file://bsp32/rc2/0004-env-Allow-overriding-no-1-8-v-property-in-fdt-before.patch \
+    file://bsp32/rc2/0005-s32gen1-cmu-Renamed-Expected-column-to-Expected-rang.patch \
+    file://bsp32/rc2/0006-gmac1-s32gen1-Add-device-tree-bindings-for-gmac1.patch \
+    file://bsp32/rc2/0007-gmac1-s32gen1-Introduce-gmac1-clocks-into-the-clockf.patch \
+    file://bsp32/rc2/0008-gmac-s32gen1-Enable-gmac0-and-gmac1-to-work-at-the-s.patch \
+    file://bsp32/rc2/0009-gmac-s32gen1-Fixed-unchecked-NULL-returns-error-code.patch \
 "
 
 SRCREV = "6286902c946f15b2b2ab66904a26d6e0e8748802"
