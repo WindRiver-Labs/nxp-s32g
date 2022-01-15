@@ -29,11 +29,12 @@ SRC_URI += " \
     file://bsp32/rc1/0007-s32g-clk-Remove-unused-function.patch \
     file://bsp32/rc1/0008-plat-s32g-Reduce-fip-size-to-account-for-M7-bootload.patch \
     file://bsp32/rc1/0009-s32g-Add-AHB-buffer-to-MMU-tables-when-needed-only.patch \
-    file://bsp32/rc1/0010-s32gen1-sramc-Adjust-SRAMC-range-to-delete-only-the-.patch \
-    file://bsp32/rc1/0011-s32g-sramc-Don-t-substract-SRAM-base-from-an-SRAM-of.patch \
-    file://bsp32/rc1/0012-drivers-s32g-pmic-Fix-uninitialized-usage-warning.patch \
-    file://bsp32/rc1/0013-drivers-mmc-Fix-uninitialized-variable-warning.patch \
-    file://bsp32/rc1/0014-plat-s32g-Use-Os-optimization-level-on-release-build.patch \
+    file://bsp32/rc2/0001-s32gen1-sramc-Adjust-SRAMC-range-to-delete-only-the-.patch \
+    file://bsp32/rc2/0002-s32g-sramc-Don-t-substract-SRAM-base-from-an-SRAM-of.patch \
+    file://bsp32/rc2/0003-drivers-s32g-pmic-Fix-uninitialized-usage-warning.patch \
+    file://bsp32/rc2/0004-drivers-mmc-Fix-uninitialized-variable-warning.patch \
+    file://bsp32/rc2/0005-plat-s32g-Use-Os-optimization-level-on-release-build.patch \
+    file://bsp32/rc2/0006-wkpu-remove-GPIO166-external-wake-up-source.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g2"
