@@ -1,0 +1,1535 @@
+From 595c01547f8dd3e8941fe7286427860cf51a2f23 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 6 Jan 2022 11:17:08 +0200
+Subject: [PATCH 09/25] mkimage: s32gen1: Use -n argument for a configuration
+ file
+
+Issue: ALB-8303
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/mach-s32/.gitignore                  |   1 +
+ arch/arm/mach-s32/Makefile                    |  57 +-
+ arch/arm/mach-s32/tools/s32gen1_qspiparam.c   | 104 +++
+ .../tools}/s32gen1image_qspi_macronix.c       |   6 +-
+ .../tools}/s32gen1image_qspi_micron.c         |   6 +-
+ board/freescale/s32-gen1/Kconfig              |   4 +
+ board/freescale/s32-gen1/s32gen1.cfg          |  96 +++
+ doc/README.s32gen1image                       | 119 ++++
+ tools/Makefile                                |  10 +-
+ tools/imagetool.h                             |   1 +
+ tools/mkimage.c                               |   9 +
+ tools/s32_common.c                            |  90 ---
+ tools/s32_common.h                            |  55 --
+ tools/s32gen1image.c                          | 614 +++++++++++++++---
+ tools/s32gen1image.h                          |  26 +-
+ 15 files changed, 932 insertions(+), 266 deletions(-)
+ create mode 100644 arch/arm/mach-s32/.gitignore
+ create mode 100644 arch/arm/mach-s32/tools/s32gen1_qspiparam.c
+ rename {tools => arch/arm/mach-s32/tools}/s32gen1image_qspi_macronix.c (89%)
+ rename {tools => arch/arm/mach-s32/tools}/s32gen1image_qspi_micron.c (89%)
+ create mode 100644 board/freescale/s32-gen1/s32gen1.cfg
+ create mode 100644 doc/README.s32gen1image
+ delete mode 100644 tools/s32_common.c
+ delete mode 100644 tools/s32_common.h
+
+diff --git a/arch/arm/mach-s32/.gitignore b/arch/arm/mach-s32/.gitignore
+new file mode 100644
+index 0000000000..dcfafb0f68
+--- /dev/null
++++ b/arch/arm/mach-s32/.gitignore
+@@ -0,0 +1 @@
++/s32gen1_qspiparam
+diff --git a/arch/arm/mach-s32/Makefile b/arch/arm/mach-s32/Makefile
+index f0df56b4c7..157bd185ae 100644
+--- a/arch/arm/mach-s32/Makefile
++++ b/arch/arm/mach-s32/Makefile
+@@ -3,25 +3,64 @@
+ # (C) Copyright 2000-2006
+ # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
+ # (C) Copyright 2011 Freescale Semiconductor, Inc.
+-# Copyright 2019-2020 NXP
++# Copyright 2019-2020,2022 NXP
++
++ifdef CONFIG_SPI_FLASH_MACRONIX
++QSPI_MEMORY = MX25UW51245G
++endif
++
++ifdef CONFIG_SPI_FLASH_STMICRO
++QSPI_MEMORY = MT35XU512ABA
++endif
++
++QSPI_PARAMS_FILE ?= qspi_params_$(QSPI_MEMORY).bin
++
++s32gen1_qspiparam-objs := tools/s32gen1image_qspi_micron.o \
++	tools/s32gen1image_qspi_macronix.o \
++	tools/s32gen1_qspiparam.o
++HOSTCFLAGS_s32gen1image_qspi_macronix.o += -Itools/
++HOSTCFLAGS_s32gen1image_qspi_micron.o += -Itools/
++HOSTCFLAGS_s32gen1_qspiparam.o += -Itools/
++hostprogs-y += s32gen1_qspiparam
++always := $(hostprogs-y)
++
++quiet_cmd_cpp_cfg = CFGS    $@
++      cmd_cpp_cfg = $(CPP) $(cpp_flags) -x c -o $@ $<
++
++S32GEN1_CONFIG_FILE = $(CONFIG_S32GEN1_CONFIG_FILE:"%"=%)
++
++ifdef CONFIG_FLASH_BOOT
++$(QSPI_PARAMS_FILE): arch/arm/mach-s32/s32gen1_qspiparam FORCE
++	$(Q)$(objtree)/arch/arm/mach-s32/s32gen1_qspiparam \
++		-m $(QSPI_MEMORY) \
++		-o $(QSPI_PARAMS_FILE)
++else
++$(QSPI_PARAMS_FILE):
++endif
++
++%.cfgout: $(S32GEN1_CONFIG_FILE) FORCE
++	$(Q)mkdir -p $(dir $@)
++	$(call if_changed_dep,cpp_cfg)
++
++MKIMAGEFLAGS_u-boot.s32 = -T $(CONFIG_MKIMAGE_T) \
++	-n u-boot.cfgout \
++	-a $(CONFIG_DTB_SRAM_ADDR) \
++	-e $(CONFIG_SYS_TEXT_BASE)
+ 
+-MKIMAGEFLAGS_u-boot.s32 = -T $(CONFIG_MKIMAGE_T)
+ u-boot.s32: MKIMAGEOUTPUT = u-boot.s32.log
+-u-boot.s32: u-boot.bin FORCE
+-ifeq ($(CONFIG_S32_GEN1),y)
++u-boot.s32: u-boot.bin u-boot.cfgout $(QSPI_PARAMS_FILE) FORCE
+ 	$(eval DTB_RSRVD_SIZE = $(shell \
+ 		echo $$((${CONFIG_SYS_TEXT_BASE} - ${CONFIG_DTB_SRAM_ADDR}))))
+ 	$(eval DTB_SIZE = $(shell stat --printf="%s" u-boot.dtb))
+ 
+-	@if [ ${DTB_SIZE} -gt ${DTB_RSRVD_SIZE} ]; then \
++	$(Q)if [ ${DTB_SIZE} -gt ${DTB_RSRVD_SIZE} ]; then \
+ 		echo "DTB exceeds the reserved space of" \
+ 		"${DTB_RSRVD_SIZE} bytes between CONFIG_SYS_TEXT_BASE" \
+ 		"and CONFIG_DTB_SRAM_ADDR"; \
+ 		false; \
+ 	fi
+ 
+-	@dd if=u-boot.dtb of=u-boot-with-dtb.bin bs=${DTB_RSRVD_SIZE} count=1
+-	@dd if=u-boot.bin of=u-boot-with-dtb.bin bs=${DTB_RSRVD_SIZE} seek=1
+-	@mv u-boot-with-dtb.bin u-boot.bin
+-endif
++	$(Q)dd if=u-boot.dtb of=u-boot-with-dtb.bin bs=${DTB_RSRVD_SIZE} count=1 2>/dev/null
++	$(Q)dd if=u-boot.bin of=u-boot-with-dtb.bin bs=${DTB_RSRVD_SIZE} seek=1 2>/dev/null
++	$(Q)mv u-boot-with-dtb.bin u-boot.bin
+ 	$(call if_changed,mkimage)
+diff --git a/arch/arm/mach-s32/tools/s32gen1_qspiparam.c b/arch/arm/mach-s32/tools/s32gen1_qspiparam.c
+new file mode 100644
+index 0000000000..9723af5ef9
+--- /dev/null
++++ b/arch/arm/mach-s32/tools/s32gen1_qspiparam.c
+@@ -0,0 +1,104 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Copyright 2022 NXP */
++
++#include <s32gen1image.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++#define xstr(s) str(s)
++#define str(s) #s
++#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
++
++enum qspi_memory {
++	MX25UW51245G,
++	MT35XU512ABA,
++	INVALID_QSPI_MEM,
++};
++
++const char *mem_names[] = {
++	[MX25UW51245G] = str(MX25UW51245G),
++	[MT35XU512ABA] = str(MT35XU512ABA),
++};
++
++static void show_usage(char *arg)
++{
++	fprintf(stderr, "This tool is used to generate QSPI parameters ");
++	fprintf(stderr, "binary for S32GEN1 platforms.\n");
++	fprintf(stderr,
++		"The resulted binary will be added to IVT by mkimage tool.\n\n");
++	fprintf(stderr, "Usage: %s -m MEMORY -o FILE\n\n", arg);
++	fprintf(stderr, "\t-m\t\tSelects the QSPI memory. ");
++	fprintf(stderr,
++		"Available memories:\n\t\t\tMX25UW51245G and MT35XU512ABA\n");
++}
++
++static enum qspi_memory get_memory(const char *mem_name)
++{
++	size_t i;
++
++	for (i = 0u; i < ARRAY_SIZE(mem_names); i++) {
++		if (!strcmp(mem_name, mem_names[i]))
++			return (enum qspi_memory)i;
++	}
++
++	return INVALID_QSPI_MEM;
++}
++
++int main(int argc, char **argv)
++{
++	int opt;
++	enum qspi_memory memory = INVALID_QSPI_MEM;
++	struct qspi_params *params;
++	char *output = NULL;
++	FILE *ofile;
++
++	while ((opt = getopt(argc, argv, "hm:o:")) > 0) {
++		switch (opt) {
++		case 'm':
++			memory = get_memory(optarg);
++			if (memory == INVALID_QSPI_MEM) {
++				fprintf(stderr, "Invalid memory: %s\n",
++					optarg);
++				exit(EXIT_FAILURE);
++			}
++			break;
++		case 'o':
++			output = optarg;
++			break;
++		default:
++			show_usage(argv[0]);
++			exit(EXIT_FAILURE);
++		}
++	}
++
++	switch (memory) {
++	case MX25UW51245G:
++		params = get_macronix_qspi_conf();
++		break;
++	case MT35XU512ABA:
++		params = get_micron_qspi_conf();
++		break;
++	default:
++		fprintf(stderr,
++			"-m argument is incorrect or is missing\n");
++		exit(EXIT_FAILURE);
++	}
++
++	if (!output) {
++		fprintf(stderr, "-o argument is mandatory\n");
++		exit(EXIT_FAILURE);
++	}
++
++	ofile = fopen(output, "wb");
++	if (!ofile) {
++		perror("Output file error");
++		exit(EXIT_FAILURE);
++	}
++
++	fwrite(params, sizeof(*params), 1, ofile);
++	fclose(ofile);
++
++	return EXIT_SUCCESS;
++}
+diff --git a/tools/s32gen1image_qspi_macronix.c b/arch/arm/mach-s32/tools/s32gen1image_qspi_macronix.c
+similarity index 89%
+rename from tools/s32gen1image_qspi_macronix.c
+rename to arch/arm/mach-s32/tools/s32gen1image_qspi_macronix.c
+index 41f8b849c9..cdce5700dc 100644
+--- a/tools/s32gen1image_qspi_macronix.c
++++ b/arch/arm/mach-s32/tools/s32gen1image_qspi_macronix.c
+@@ -1,11 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /* Copyright 2019-2022 NXP */
+ 
+-#include <generated/autoconf.h>
+-#include "s32_common.h"
+ #include "s32gen1image.h"
+ 
+-#ifdef CONFIG_QSPI_BOOT
+ static struct qspi_params s32g2xx_qspi_conf = {
+ 	.header   = 0x5a5a5a5a,
+ 	.mcr      = 0x030f00cc,
+@@ -62,8 +59,7 @@ static struct qspi_params s32g2xx_qspi_conf = {
+ 	},
+ };
+ 
+-struct qspi_params *get_s32g2xx_qspi_conf(void)
++struct qspi_params *get_macronix_qspi_conf(void)
+ {
+ 	return &s32g2xx_qspi_conf;
+ }
+-#endif
+diff --git a/tools/s32gen1image_qspi_micron.c b/arch/arm/mach-s32/tools/s32gen1image_qspi_micron.c
+similarity index 89%
+rename from tools/s32gen1image_qspi_micron.c
+rename to arch/arm/mach-s32/tools/s32gen1image_qspi_micron.c
+index 09787483df..618b554da8 100644
+--- a/tools/s32gen1image_qspi_micron.c
++++ b/arch/arm/mach-s32/tools/s32gen1image_qspi_micron.c
+@@ -1,11 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /* Copyright 2019-2022 NXP */
+ 
+-#include <generated/autoconf.h>
+-#include "s32_common.h"
+ #include "s32gen1image.h"
+ 
+-#ifdef CONFIG_QSPI_BOOT
+ static struct qspi_params s32g2xx_qspi_conf = {
+ 	.header   = 0x5a5a5a5a,
+ 	.mcr      = 0x010f00cc,
+@@ -62,8 +59,7 @@ static struct qspi_params s32g2xx_qspi_conf = {
+ 	},
+ };
+ 
+-struct qspi_params *get_s32g2xx_qspi_conf(void)
++struct qspi_params *get_micron_qspi_conf(void)
+ {
+ 	return &s32g2xx_qspi_conf;
+ }
+-#endif
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index ba7f65b41d..87c8a37f82 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -175,3 +175,7 @@ config S32GEN1_HWCONFIG
+ 	  Available 'xpcs_mode' are depedent on platform:
+ 	  	s32g274a - supports '0','1','both' and '2G5'
+ 	  	s32r45   - supports '0' and '2G5'
++
++config S32GEN1_CONFIG_FILE
++	string
++	default "board/freescale/s32-gen1/s32gen1.cfg"
+diff --git a/board/freescale/s32-gen1/s32gen1.cfg b/board/freescale/s32-gen1/s32gen1.cfg
+new file mode 100644
+index 0000000000..edd15b7e48
+--- /dev/null
++++ b/board/freescale/s32-gen1/s32gen1.cfg
+@@ -0,0 +1,96 @@
++/*
++ * Copyright 2022 NXP
++ * SPDX-License-Identifier:	GPL-2.0+
++ *
++ * Refer doc/README.s32gen1image for more details about how-to configure
++ * and create an S32GEN1 boot image
++ *
++ */
++
++#define __ASSEMBLER__
++#define __ASSEMBLY__
++#include <config.h>
++
++#ifdef CONFIG_FLASH_BOOT
++#  define BOOT_STORAGE qspi
++#else
++#  define BOOT_STORAGE sd
++#endif
++
++#ifdef CONFIG_SPI_FLASH_MACRONIX
++#define PATH_QSPI_PARAMS_FILE qspi_params_MX25UW51245G.bin
++#endif
++
++#ifdef CONFIG_SPI_FLASH_STMICRO
++#define PATH_QSPI_PARAMS_FILE qspi_params_MT35XU512ABA.bin
++#endif
++
++/**
++ * Boot device: sd/qspi
++ */
++BOOT_FROM	BOOT_STORAGE
++
++/**
++ * Secure boot support
++ */
++#ifdef CONFIG_HSE_SECBOOT
++SECBOOT
++#endif
++
++/**
++ * Device Configuration Data (DCD)
++ */
++
++/**
++ * Write and checks
++ *
++ * Each entry must have the format:
++ * Command      Addr-type      Address      Value/Mask      [Count]
++ *
++ * where:
++ *	Command: WRITE, CLEAR_MASK, SET_MASK,
++ *	         CHECK_MASK_CLEAR, CHECK_MASK_SET, CHECK_NOT_MASK, CHECK_NOT_CLEAR,
++ *	         NOP
++ *	Addr-type Register length (1,2 or 4 bytes)
++ *	Address   Absolute address of the register
++ *	Value     Value to be stored in the register
++ *	Count     Optional poll count argument for CHECK_* commands.
++ *		  By default, all CHECK_* commands will poll indefinitely until
++ *		  the exit condition is met. For a finite value, 'Count' argument
++ *		  must be used.
++ *
++ * Commands interpretation:
++ *	WRITE:            *Address = Value
++ *	CLEAR_MASK:       *Address &= ~Value
++ *	SET_MASK:         *Address |= Value
++ *	CHECK_MASK_CLEAR: *Address & Mask == 0
++ *	CHECK_MASK_SET:   *Address & Mask == Mask
++ *	CHECK_NOT_MASK:   *Address & Mask != Mask
++ *	CHECK_NOT_CLEAR:  *Address & Mask != 0
++ *
++ * Examples:
++ *	DCD WRITE 0x4 0x45235400 0x40
++ *	DCD CLEAR_MASK 0x4 0x45165400 0x3
++ *	DCD SET_MASK 0x4 0x45165400 0x3
++ *	DCD CHECK_NOT_MASK 0x4 0x45165400 0x3 0x200
++ *	DCD CHECK_NOT_MASK 0x4 0x45165400 0x3
++ *
++ */
++
++#ifdef CONFIG_S32G274ARDB2
++/**
++ * Enable VDD_EFUSE, so that HSE can read SYS_IMG.
++ * VDD_EFUSE is disabled by default on s32g274ardb2
++ */
++DCD WRITE 0x4 0x4009c2a4 0x21c000
++DCD WRITE 0x1 0x4009d31a 0x1
++#endif
++
++/**
++ * Include QSPI configuration.
++ *
++ * It will be used by BootROM to load Bootloader's images.
++ */
++#if defined(CONFIG_FLASH_BOOT) && !defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR)
++QSPI_PARAMS_FILE	PATH_QSPI_PARAMS_FILE
++#endif
+diff --git a/doc/README.s32gen1image b/doc/README.s32gen1image
+new file mode 100644
+index 0000000000..8778729d5b
+--- /dev/null
++++ b/doc/README.s32gen1image
+@@ -0,0 +1,119 @@
++---------------------------------------------
++S32GEN1 Boot Image generation using mkimage
++---------------------------------------------
++
++This document describes the U-Boot feature as it
++is implemented for the NXP S32GEN1 family of SoCs.
++
++The S32GEN1 SoC's can boot directly from QSPI, EMMC and SD
++using its internal BootROM support.
++
++For more details refer chapter 'Boot' from SoC's Reference Manual.
++
++Command syntax:
++--------------
++./tools/mkimage -T "s32gen1image" \
++		-n <board specific configuration file> \
++		-a <load address> \
++		-e <execution entrypoit> \
++		-d <binary path> <output image>
++
++Example:
++	./tools/mkimage -T "s32gen1image" \
++			-n u-boot.cfg \
++			-a 0x34090000 \
++			-e 0x340a0000 \
++			-d u-boot.bin u-boot.s32
++
++s32gen1image support available with mkimage utility will generate a S32GEN1 boot
++image that can be flashed on the board's QSPI, EMMC or SD. The make target which
++uses mkimage to produce such an image is "u-boot.s32".  For example:
++
++  export KBUILD_OUTPUT=/tmp/build
++  make distclean
++  make yourboard_config
++  make u-boot.s32
++
++Board specific configuration file specifications:
++------------------------------------------------
++1. This file must be specified using CONFIG_S32GEN1_CONFIG_FILE
++2. This file can have empty lines and lines starting with "#" as first
++   character to put comments
++3. This file can have configuration command lines as mentioned below,
++   any other information in this file is treated as invalid.
++
++Available commands
++------------------
++
++1. SECBOOT
++	This enables secure boot when added to configuration file.
++
++	Usage:
++		SECBOOT
++
++2. BOOT_FROM
++	Selects the boot storage.
++	It can accept the following arguments: qspi/sd/emmc
++
++	Usage:
++		BOOT_FROM qspi
++
++3. DCD
++	This will add device configuration data commands.
++
++	Each entry must have the format:
++	Command      Addr-type      Address      Value/Mask      [Count]
++
++	where:
++		Command:   WRITE, CLEAR_MASK, SET_MASK,
++			   CHECK_MASK_CLEAR, CHECK_MASK_SET, CHECK_NOT_MASK, CHECK_NOT_CLEAR
++		Addr-type: Register length (1,2 or 4 bytes)
++		Address:   Absolute address of the register
++		Value:     Value to be stored in the register
++		Count:     Optional poll count argument for CHECK_* commands.
++			   By default, all CHECK_* commands will poll indefinitely until
++			   the exit condition is met. For a finite value, 'Count' argument
++			   must be used.
++
++	Note: '0x[hex]' format must be used for 'Addr-type', 'Address', 'Value/Mask' and
++	      'Count' fields.
++
++	Commands interpretation:
++		WRITE:            *Address = Value
++		CLEAR_MASK:       *Address &= ~Value
++		SET_MASK:         *Address |= Value
++		CHECK_MASK_CLEAR: *Address & Mask == 0
++		CHECK_MASK_SET:   *Address & Mask == Mask
++		CHECK_NOT_MASK:   *Address & Mask != Mask
++		CHECK_NOT_CLEAR:  *Address & Mask != 0
++
++	Usage:
++		DCD WRITE 0x4 0x45235400 0x40
++		DCD CLEAR_MASK 0x4 0x45165400 0x3
++		DCD SET_MASK 0x4 0x45165400 0x3
++		DCD CHECK_NOT_MASK 0x4 0x45165400 0x3 0x200
++		DCD CHECK_NOT_MASK 0x4 0x45165400 0x3
++
++4. QSPI_PARAMS_FILE
++	Selects a file to be used as QSPI initialization parameters in IVT. The referenced file
++	must contain the QSPI configuration using the format described in subsection 'QuadSPI
++	configuration parameters' from SoC's Reference Manual. This file is usually generated
++	using 'arch/arm/mach-s32/s32gen1_qspiparam' tool.
++
++	Usage:
++		QSPI_PARAMS_FILE qspi_params_MX25UW51245G.bin
++
++Typical example of s32gen1.cfg file:
++-----------------------------------
++# Boot from QSPI
++BOOT_FROM qspi
++
++# Enable GPIO 25
++DCD WRITE 0x4 0x4009c2a4 0x21c000
++DCD WRITE 0x1 0x4009d31a 0x1
++
++# Use QSPI initialization parameters from qspi_params_MX25UW51245G.bin
++QSPI_PARAMS_FILE qspi_params_MX25UW51245G.bin
++
++------------------------------------------------
++Author: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+diff --git a/tools/Makefile b/tools/Makefile
+index c57fc2747a..37b86c8d33 100644
+--- a/tools/Makefile
++++ b/tools/Makefile
+@@ -61,13 +61,6 @@ FIT_OBJS-$(CONFIG_FIT) := fit_common.o fit_image.o image-host.o common/image-fit
+ FIT_SIG_OBJS-$(CONFIG_FIT_SIGNATURE) := common/image-sig.o
+ FIT_CIPHER_OBJS-$(CONFIG_FIT_CIPHER) := common/image-cipher.o
+ 
+-S32_COMMON-$(CONFIG_ARCH_S32) := s32_common.o
+-S32GEN1IMAGE-$(CONFIG_S32_GEN1) := s32gen1image.o
+-ifdef CONFIG_S32_GEN1
+-S32GEN1IMAGE-$(CONFIG_SPI_FLASH_MACRONIX) += s32gen1image_qspi_macronix.o
+-S32GEN1IMAGE-$(CONFIG_SPI_FLASH_STMICRO) += s32gen1image_qspi_micron.o
+-endif
+-
+ # The following files are synced with upstream DTC.
+ # Use synced versions from scripts/dtc/libfdt/.
+ LIBFDT_SRCS_SYNCED := fdt.c fdt_wip.c fdt_sw.c fdt_rw.c \
+@@ -102,8 +95,7 @@ dumpimage-mkimage-objs := aisimage.o \
+ 			common/image.o \
+ 			imagetool.o \
+ 			imximage.o \
+-			$(S32_COMMON-y) \
+-			$(S32GEN1IMAGE-y) \
++			s32gen1image.o \
+ 			imx8image.o \
+ 			imx8mimage.o \
+ 			kwbimage.o \
+diff --git a/tools/imagetool.h b/tools/imagetool.h
+index e1c778b0df..28b31728eb 100644
+--- a/tools/imagetool.h
++++ b/tools/imagetool.h
+@@ -254,6 +254,7 @@ int zynqmpbif_copy_image(int fd, struct image_tool_params *mparams);
+ int imx8image_copy_image(int fd, struct image_tool_params *mparams);
+ int imx8mimage_copy_image(int fd, struct image_tool_params *mparams);
+ int rockchip_copy_image(int fd, struct image_tool_params *mparams);
++int s32gen1_parse_config(int fd, struct image_tool_params *mparams);
+ 
+ #define ___cat(a, b) a ## b
+ #define __cat(a, b) ___cat(a, b)
+diff --git a/tools/mkimage.c b/tools/mkimage.c
+index 5f51d2cc89..5ab8a4fcdd 100644
+--- a/tools/mkimage.c
++++ b/tools/mkimage.c
+@@ -554,6 +554,15 @@ int main(int argc, char **argv)
+ 				return ret;
+ 		} else {
+ 			copy_file(ifd, params.datafile, pad_len);
++
++			if (params.type == IH_TYPE_S32GEN1IMAGE) {
++				/* S32GEN1 has special Image format */
++				int ret;
++
++				ret = s32gen1_parse_config(ifd, &params);
++				if (ret)
++					return ret;
++			}
+ 		}
+ 		if (params.type == IH_TYPE_FIRMWARE_IVT) {
+ 			/* Add alignment and IVT */
+diff --git a/tools/s32_common.c b/tools/s32_common.c
+deleted file mode 100644
+index 0b8bc937e7..0000000000
+--- a/tools/s32_common.c
++++ /dev/null
+@@ -1,90 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/* Copyright 2019-2020 NXP */
+-
+-#include <image.h>
+-#include <generated/autoconf.h>
+-#include <config.h>
+-#include "s32_common.h"
+-
+-#define S32_AUTO_OFFSET ((size_t)(-1))
+-
+-int image_parts_comp(const void *p1, const void *p2)
+-{
+-	const struct image_comp **part1 = (typeof(part1))p1;
+-	const struct image_comp **part2 = (typeof(part2))p2;
+-
+-	if (!*part1 && !*part2)
+-		return 0;
+-
+-	if (!*part1)
+-		return -1;
+-
+-	if (!*part2)
+-		return 1;
+-
+-	if ((*part2)->offset > (*part1)->offset)
+-		return -1;
+-
+-	if ((*part2)->offset < (*part1)->offset)
+-		return 1;
+-
+-	return 0;
+-}
+-
+-void check_overlap(struct image_comp *comp1,
+-		   struct image_comp *comp2)
+-{
+-	size_t end1 = comp1->offset + comp1->size;
+-	size_t end2 = comp2->offset + comp2->size;
+-
+-	if (end1 > comp2->offset && end2 > comp1->offset) {
+-		fprintf(stderr, "Detected overlap between 0x%zx@0x%zx and "
+-				"0x%zx@0x%zx\n",
+-				comp1->size, comp1->offset,
+-				comp2->size, comp2->offset);
+-		exit(EXIT_FAILURE);
+-	}
+-}
+-
+-void s32_compute_dyn_offsets(struct image_comp **parts, size_t n_parts)
+-{
+-	size_t i;
+-	size_t start_index = 0U;
+-
+-	/* Skip empty entries */
+-	while (!parts[start_index])
+-		start_index++;
+-
+-	for (i = start_index; i < n_parts; i++) {
+-		if (parts[i]->offset == S32_AUTO_OFFSET) {
+-			if (i == start_index) {
+-				parts[i]->offset = 0U;
+-				continue;
+-			}
+-
+-			parts[i]->offset = parts[i - 1]->offset +
+-			    parts[i - 1]->size;
+-		}
+-
+-		/* Apply alignment constraints */
+-		if (parts[i]->alignment != 0U)
+-			parts[i]->offset = ROUND(parts[i]->offset,
+-						 parts[i]->alignment);
+-
+-		if (i != start_index)
+-			check_overlap(parts[i - 1], parts[i]);
+-	}
+-}
+-
+-void s32_check_env_overlap(size_t image_size)
+-{
+-#ifdef CONFIG_ENV_OFFSET
+-	if (image_size > CONFIG_ENV_OFFSET) {
+-		fprintf(stderr, "This image of size 0x%x would be overwritten"
+-				" by environment at 0x%p\n",
+-			(unsigned int)(image_size),
+-			(void *)CONFIG_ENV_OFFSET);
+-		exit(EXIT_FAILURE);
+-	}
+-#endif
+-}
+diff --git a/tools/s32_common.h b/tools/s32_common.h
+deleted file mode 100644
+index 616cffc17e..0000000000
+--- a/tools/s32_common.h
++++ /dev/null
+@@ -1,55 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/* Copyright 2019-2020 NXP */
+-
+-#ifndef S32_COMMON_H
+-#define S32_COMMON_H
+-
+-#include <asm/types.h>
+-#include <generated/autoconf.h>
+-
+-#define S32_AUTO_OFFSET ((size_t)(-1))
+-
+-#define IVT_TAG				(0xd1)
+-#define DCD_MAXIMUM_SIZE		(8192)
+-#define DCD_HEADER_LENGTH_OFFSET	(1)
+-
+-#define DCD_COMMAND_HEADER(tag, len, params) ((tag) | \
+-					      (cpu_to_be16((len)) << 8) | \
+-					      (params) << 24)
+-#define DCD_WRITE_TAG	(0xcc)
+-#define DCD_CHECK_TAG	(0xcf)
+-#define DCD_NOP_TAG	(0xc0)
+-
+-#define PARAMS_DATA_SET		BIT(4)
+-#define PARAMS_DATA_MASK	BIT(3)
+-#define PARAMS_BYTES(x)		((x) & 0x7)
+-
+-#define DCD_WRITE_HEADER(n, params)	DCD_COMMAND_HEADER(DCD_WRITE_TAG, \
+-							   4 + (n) * 8, \
+-							   (params))
+-#define DCD_CHECK_HEADER(params)	DCD_COMMAND_HEADER(DCD_CHECK_TAG, \
+-							   16, \
+-							   (params))
+-#define DCD_CHECK_HEADER_NO_COUNT(params) \
+-					DCD_COMMAND_HEADER(DCD_CHECK_TAG, \
+-							   12, \
+-							   (params))
+-#define DCD_NOP_HEADER			DCD_COMMAND_HEADER(DCD_NOP_TAG, 4, 0)
+-
+-#define DCD_ADDR(x)	cpu_to_be32((x))
+-#define DCD_MASK(x)	cpu_to_be32((x))
+-#define DCD_COUNT(x)	cpu_to_be32((x))
+-
+-struct image_comp {
+-	size_t offset;
+-	size_t size;
+-	size_t alignment;
+-	uint8_t *data;
+-};
+-
+-int image_parts_comp(const void *p1, const void *p2);
+-void check_overlap(struct image_comp *comp1, struct image_comp *comp2);
+-void s32_compute_dyn_offsets(struct image_comp **parts, size_t n_parts);
+-void s32_check_env_overlap(size_t image_size);
+-
+-#endif /* S32_COMMON_H */
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index fe0b508575..c1ee6d71cd 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -1,14 +1,15 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /* Copyright 2019-2022 NXP */
+ 
++#include <ctype.h>
+ #include <image.h>
+-#include <generated/autoconf.h>
+-#include <config.h>
+-#include <asm/arch-s32/siul-s32-gen1.h>
+-#include <asm/arch-s32/s32-gen1/s32-gen1-regs.h>
+-#include "imagetool.h"
+-#include "s32_common.h"
+-#include "s32gen1image.h"
++#include <imagetool.h>
++#include <inttypes.h>
++#include <linux/kernel.h>
++#include <s32gen1image.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <unistd.h>
+ 
+ #define UNSPECIFIED	-1
+ 
+@@ -19,17 +20,110 @@
+ #define S32GEN1_IVT_OFFSET_0		0x0
+ #define S32GEN1_IVT_OFFSET_1000		0x1000
+ 
++#define S32_AUTO_OFFSET ((size_t)(-1))
++
++#define IVT_TAG				(0xd1)
++
++#define DCD_HEADER			(0x600000d2)
++#define DCD_MAXIMUM_SIZE		(8192)
++#define DCD_HEADER_LENGTH_OFFSET	(1)
++
++#define DCD_COMMAND_HEADER(tag, len, params) ((tag) | \
++					      (cpu_to_be16((len)) << 8) | \
++					      (params) << 24)
++#define DCD_WRITE_TAG	(0xcc)
++#define DCD_CHECK_TAG	(0xcf)
++#define DCD_NOP_TAG	(0xc0)
++
++#define DCD_PARAMS(SET, MASK, LEN) \
++	(((LEN) & 0x7) | \
++	((SET) ? (1 << 4) : 0x0) | \
++	((MASK) ? (1 << 3) : 0x0))
++
++#define DCD_WRITE_HEADER(n, params)	DCD_COMMAND_HEADER(DCD_WRITE_TAG, \
++							   4 + (n) * 8, \
++							   (params))
++#define DCD_CHECK_HEADER(params)	DCD_COMMAND_HEADER(DCD_CHECK_TAG, \
++							   16, \
++							   (params))
++#define DCD_CHECK_HEADER_NO_COUNT(params) \
++					DCD_COMMAND_HEADER(DCD_CHECK_TAG, \
++							   12, \
++							   (params))
++#define DCD_NOP_HEADER			DCD_COMMAND_HEADER(DCD_NOP_TAG, 4, 0)
++
++#define DCD_ADDR(x)	cpu_to_be32((x))
++#define DCD_MASK(x)	cpu_to_be32((x))
++#define DCD_COUNT(x)	cpu_to_be32((x))
++
++typedef int (*parser_handler_t)(char *);
++
+ struct image_config {
+ 	struct {
+-		uint32_t offset;
+-		uint32_t size;
+-	} env;
+-	uint32_t entrypoint;
+-	uint32_t dtb_addr;
++		uint32_t *data;
++		size_t size;
++		size_t allocated_size;
++	} dcd;
++	struct {
++		uint8_t *data;
++		size_t size;
++	} qspi_params;
+ 	bool flash_boot;
+ 	bool secboot;
+-	bool is_rdb2;
+-	bool is_emu;
++};
++
++struct fip_image_data {
++	__u32		toc_header_name;
++	__u32		dont_care1;
++	__u64		dont_care2;
++	__u8		uuid[16];
++	__u64		offset;
++	__u64		size;
++	__u8		dont_care3[0];
++};
++
++struct line_parser {
++	const char *tag;
++	parser_handler_t parse;
++};
++
++enum boot_type {
++	QSPI_BOOT,
++	SD_BOOT,
++	EMMC_BOOT,
++	INVALID_BOOT
++};
++
++enum dcd_cmd {
++	WRITE,
++	CLEAR_MASK,
++	SET_MASK,
++	CHECK_MASK_CLEAR,
++	CHECK_MASK_SET,
++	CHECK_NOT_MASK,
++	CHECK_NOT_CLEAR,
++	INVALID_DCD_CMD,
++};
++
++struct dcd_args {
++	enum dcd_cmd cmd;
++	uint32_t addr;
++	union {
++		uint32_t mask;
++		uint32_t value;
++	};
++	uint32_t nbytes;
++	uint32_t count;
++};
++
++static const char * const dcd_cmds[] = {
++	[WRITE] = "WRITE",
++	[CLEAR_MASK] = "CLEAR_MASK",
++	[SET_MASK] = "SET_MASK",
++	[CHECK_MASK_CLEAR] = "CHECK_MASK_CLEAR",
++	[CHECK_MASK_SET] = "CHECK_MASK_SET",
++	[CHECK_NOT_MASK] = "CHECK_NOT_MASK",
++	[CHECK_NOT_CLEAR] = "CHECK_NOT_CLEAR",
+ };
+ 
+ static struct image_config iconfig;
+@@ -69,7 +163,7 @@ static struct program_image image_layout = {
+ 	},
+ };
+ 
+-static uint32_t default_dcd_data[] = {
++static const uint32_t default_dcd_data[] = {
+ 	DCD_HEADER,
+ 	DCD_NOP_HEADER,
+ 	DCD_NOP_HEADER,
+@@ -77,23 +171,11 @@ static uint32_t default_dcd_data[] = {
+ 	DCD_NOP_HEADER,
+ };
+ 
+-static uint32_t s32g274ardb2_dcd_data[] = {
+-	DCD_HEADER,
+-	/*
+-	 * Enable VDD_EFUSE, so that HSE can read SYS_IMG.
+-	 * VDD_EFUSE is disabled by default on s32g274ardb2
+-	 */
+-	DCD_WRITE_HEADER(1, PARAMS_BYTES(4)),
+-	DCD_ADDR(SIUL2_0_MSCRn(25)), DCD_MASK(MSCR25_SET_GPIO25_SRC),
+-	DCD_WRITE_HEADER(1, PARAMS_BYTES(1)),
+-	DCD_ADDR(SIUL2_PDO_N(25)), DCD_MASK(GPDO25_HIGH),
+-};
+-
+-static uint32_t *get_dcd_data(size_t *size)
++static const uint32_t *get_dcd_data(size_t *size)
+ {
+-	if (iconfig.is_rdb2) {
+-		*size = sizeof(s32g274ardb2_dcd_data);
+-		return &s32g274ardb2_dcd_data[0];
++	if (iconfig.dcd.data) {
++		*size = iconfig.dcd.size;
++		return iconfig.dcd.data;
+ 	}
+ 
+ 	*size = sizeof(default_dcd_data);
+@@ -153,6 +235,74 @@ static void enforce_reserved_ranges(void *image_start, int image_length)
+ 		}
+ }
+ 
++static int image_parts_comp(const void *p1, const void *p2)
++{
++	const struct image_comp **part1 = (typeof(part1))p1;
++	const struct image_comp **part2 = (typeof(part2))p2;
++
++	if (!*part1 && !*part2)
++		return 0;
++
++	if (!*part1)
++		return -1;
++
++	if (!*part2)
++		return 1;
++
++	if ((*part2)->offset > (*part1)->offset)
++		return -1;
++
++	if ((*part2)->offset < (*part1)->offset)
++		return 1;
++
++	return 0;
++}
++
++static void check_overlap(struct image_comp *comp1,
++			  struct image_comp *comp2)
++{
++	size_t end1 = comp1->offset + comp1->size;
++	size_t end2 = comp2->offset + comp2->size;
++
++	if (end1 > comp2->offset && end2 > comp1->offset) {
++		fprintf(stderr,
++			"Detected overlap between 0x%zx@0x%zx and 0x%zx@0x%zx\n",
++			comp1->size, comp1->offset,
++			comp2->size, comp2->offset);
++		exit(EXIT_FAILURE);
++	}
++}
++
++static void s32_compute_dyn_offsets(struct image_comp **parts, size_t n_parts)
++{
++	size_t i;
++	size_t start_index = 0U;
++
++	/* Skip empty entries */
++	while (!parts[start_index])
++		start_index++;
++
++	for (i = start_index; i < n_parts; i++) {
++		if (parts[i]->offset == S32_AUTO_OFFSET) {
++			if (i == start_index) {
++				parts[i]->offset = 0U;
++				continue;
++			}
++
++			parts[i]->offset = parts[i - 1]->offset +
++			    parts[i - 1]->size;
++		}
++
++		/* Apply alignment constraints */
++		if (parts[i]->alignment != 0U)
++			parts[i]->offset = ROUND(parts[i]->offset,
++						 parts[i]->alignment);
++
++		if (i != start_index)
++			check_overlap(parts[i - 1], parts[i]);
++	}
++}
++
+ static struct qspi_params *get_qspi_params(struct program_image *image)
+ {
+ 	return (struct qspi_params *)image->qspi_params.data;
+@@ -160,9 +310,8 @@ static struct qspi_params *get_qspi_params(struct program_image *image)
+ 
+ static void s32gen1_set_qspi_params(struct qspi_params *qspi_params)
+ {
+-	struct qspi_params *s32g2xx_qspi_conf = get_s32g2xx_qspi_conf();
+-
+-	memcpy(qspi_params, s32g2xx_qspi_conf, sizeof(*qspi_params));
++	memcpy(qspi_params, iconfig.qspi_params.data,
++	       iconfig.qspi_params.size);
+ }
+ 
+ static void set_data_pointers(struct program_image *layout, void *header)
+@@ -225,7 +374,7 @@ static void s32gen1_set_header(void *header, struct stat *sbuf, int unused,
+ 	struct ivt *ivt_duplicate;
+ 	struct application_boot_code *app_code;
+ 	struct fip_image_data fip_data;
+-	uint32_t *dcd_data;
++	const uint32_t *dcd_data;
+ 
+ 	set_data_pointers(&image_layout, header);
+ 	dcd_data = get_dcd_data(&dcd_data_size);
+@@ -263,6 +412,13 @@ static void s32gen1_set_header(void *header, struct stat *sbuf, int unused,
+ 				- image_layout.app_code.offset
+ 				- image_layout.app_code.size;
+ 
++	if (tool_params->ep < tool_params->addr) {
++		fprintf(stderr,
++			"The entrypoint is higher than the load address (0x%x < 0x%x)\n",
++			tool_params->ep, tool_params->addr);
++		exit(1);
++	}
++
+ 	if (read_fip_image(tool_params, &fip_data)) {
+ 		code_length = sbuf->st_size
+ 				- image_layout.app_code.offset
+@@ -270,9 +426,9 @@ static void s32gen1_set_header(void *header, struct stat *sbuf, int unused,
+ 		code_length += pre_code_padding;
+ 		app_code->code_length = code_length;
+ 
+-		app_code->ram_start_pointer = iconfig.dtb_addr
++		app_code->ram_start_pointer = tool_params->addr
+ 							- pre_code_padding;
+-		app_code->ram_entry_pointer = iconfig.entrypoint;
++		app_code->ram_entry_pointer = tool_params->ep;
+ 	} else {
+ 		printf("mkimage: s32gen1image: %s is a FIP image\n",
+ 		       tool_params->datafile);
+@@ -295,13 +451,17 @@ static void s32gen1_set_header(void *header, struct stat *sbuf, int unused,
+ 					app_code->ram_start_pointer,
+ 					app_code->code_length);
+ 	} else {
+-		if (!iconfig.is_emu)
+-			s32gen1_set_qspi_params(get_qspi_params(&image_layout));
++		s32gen1_set_qspi_params(get_qspi_params(&image_layout));
+ 	}
+ 
+ 	image_layout.code.size = sbuf->st_size - image_layout.app_code.offset -
+ 		image_layout.app_code.size;
+-	s32_check_env_overlap(sbuf->st_size);
++
++	if (iconfig.dcd.data)
++		free(iconfig.dcd.data);
++
++	if (iconfig.qspi_params.data)
++		munmap(iconfig.qspi_params.data, iconfig.qspi_params.size);
+ }
+ 
+ static int s32gen1_check_image_type(uint8_t type)
+@@ -361,43 +521,12 @@ static int s32g2xx_build_layout(struct program_image *program_image,
+ 	return 0;
+ }
+ 
+-static void s32gen1_init_iconfig(void)
+-{
+-#ifdef CONFIG_FLASH_BOOT
+-	iconfig.flash_boot = true;
+-#endif
+-#ifdef CONFIG_HSE_SECBOOT
+-	iconfig.secboot = true;
+-#endif
+-#ifdef CONFIG_S32G274ARDB2
+-	iconfig.is_rdb2 = true;
+-#endif
+-#ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+-	iconfig.is_emu = true;
+-#endif
+-	iconfig.entrypoint = CONFIG_SYS_TEXT_BASE;
+-	iconfig.dtb_addr = CONFIG_DTB_SRAM_ADDR;
+-
+-	if (iconfig.entrypoint < iconfig.dtb_addr) {
+-		fprintf(stderr,
+-			"The entrypoint is higher than the DTB base (0x%x < 0x%x)\n",
+-			iconfig.entrypoint, iconfig.dtb_addr);
+-		exit(1);
+-	}
+-
+-#if defined(CONFIG_ENV_OFFSET) && defined(CONFIG_ENV_SIZE)
+-	iconfig.env.offset = CONFIG_ENV_OFFSET;
+-	iconfig.env.size = CONFIG_ENV_SIZE;
+-#endif
+-}
+-
+ static int s32gen1_vrec_header(struct image_tool_params *tool_params,
+ 			       struct image_type_params *type_params)
+ {
+ 	size_t header_size;
+ 	void *image = NULL;
+ 
+-	s32gen1_init_iconfig();
+ 	s32g2xx_build_layout(&image_layout, &header_size, &image);
+ 	type_params->header_size = header_size;
+ 	type_params->hdr = image;
+@@ -436,15 +565,346 @@ static void s32gen1_print_header(const void *header)
+ 		(unsigned int)image_layout.code.offset,
+ 		(unsigned int)image_layout.code.size);
+ 
+-	if (iconfig.env.offset && iconfig.env.size)
+-		fprintf(stderr,
+-			"U-Boot Environment:\tOffset: 0x%x\tSize: 0x%x\n",
+-			(unsigned int)iconfig.env.offset,
+-			(unsigned int)iconfig.env.size);
+-
+ 	fprintf(stderr, "\n");
+ }
+ 
++static char *ltrim(char *s)
++{
++	while (isspace((int)*s))
++		s++;
++
++	return s;
++}
++
++static int parse_boot_cmd(char *line)
++{
++	size_t i, len;
++	enum boot_type boot = INVALID_BOOT;
++	static const char * const bsources[] = {
++		[QSPI_BOOT] = "qspi",
++		[SD_BOOT] = "sd",
++		[EMMC_BOOT] = "emmc",
++	};
++
++	for (i = 0; i < ARRAY_SIZE(bsources); i++) {
++		len = strlen(bsources[i]);
++		if (strncmp(bsources[i], line, len))
++			continue;
++
++		boot = (enum boot_type)i;
++		break;
++	}
++
++	if (boot == INVALID_BOOT) {
++		fprintf(stderr, "Invalid boot type: %s", line);
++		return -EINVAL;
++	}
++
++	if (boot == QSPI_BOOT)
++		iconfig.flash_boot = true;
++
++	return 0;
++}
++
++static int parse_secboot_cmd(char *line)
++{
++	iconfig.secboot = true;
++
++	return 0;
++}
++
++static int get_dcd_cmd_args(char *line, struct dcd_args *dcd)
++{
++	int ret;
++	size_t i;
++	char cmd[sizeof(dcd_cmds) / 2];
++
++	/**
++	 * Info:
++	 * %[^ \t]  - Read everything up to space or tab character
++	 * %*[^0] - ignore everything up to character '0'
++	 */
++	ret = sscanf(line,
++		     "%[^ \t]%*[^0]0x%" PRIx32
++		     "%*[^0]0x%" PRIx32
++		     "%*[^0]0x%" PRIx32
++		     "%*[^0]0x%" PRIx32,
++		     cmd, &dcd->nbytes, &dcd->addr, &dcd->value, &dcd->count);
++	/* 4 or 5 tokens are expected */
++	if (ret < 4) {
++		fprintf(stderr, "Failed to interpret DCD line: %s\n", line);
++		return -EINVAL;
++	}
++
++	if (ret == 4)
++		dcd->count = 0;
++
++	dcd->cmd = INVALID_DCD_CMD;
++	for (i = 0; i < ARRAY_SIZE(dcd_cmds); i++) {
++		if (strcmp(cmd, dcd_cmds[i]))
++			continue;
++
++		dcd->cmd = (enum dcd_cmd)i;
++	}
++
++	if (dcd->cmd == INVALID_DCD_CMD) {
++		fprintf(stderr, "Invalid DCD command: %s\n", cmd);
++		return -EINVAL;
++	}
++
++	if (dcd->nbytes != 1 && dcd->nbytes != 2 && dcd->nbytes != 4) {
++		fprintf(stderr, "Unsupported DCD address length: 0x%x\n",
++			dcd->nbytes);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int push_to_dcd_array(uint32_t data)
++{
++	size_t elem;
++	size_t elem_size = sizeof(iconfig.dcd.data[0]);
++	void *backup;
++
++	if (iconfig.dcd.allocated_size <= iconfig.dcd.size + elem_size) {
++		if (!iconfig.dcd.allocated_size)
++			iconfig.dcd.allocated_size = 2 * elem_size;
++		else
++			iconfig.dcd.allocated_size *= 2;
++
++		backup = iconfig.dcd.data;
++		iconfig.dcd.data = realloc(backup, iconfig.dcd.allocated_size);
++		if (!iconfig.dcd.data) {
++			free(backup);
++			fprintf(stderr,
++				"Failed to allocate %zu bytes for DCD array\n",
++				iconfig.dcd.allocated_size);
++			iconfig.dcd.allocated_size = 0;
++			return -ENOMEM;
++		}
++	}
++
++	elem = iconfig.dcd.size / elem_size;
++	iconfig.dcd.data[elem] = data;
++
++	iconfig.dcd.size += elem_size;
++
++	return 0;
++}
++
++static int add_to_dcd(struct dcd_args *dcd_arg)
++{
++	int ret;
++	uint8_t set, mask;
++	bool write = false;
++	uint32_t params, header;
++
++	if (!iconfig.dcd.data) {
++		ret = push_to_dcd_array(DCD_HEADER);
++		if (ret)
++			return ret;
++	}
++
++	switch (dcd_arg->cmd) {
++	case WRITE:
++		write = true;
++	case CHECK_MASK_CLEAR:
++		mask = 0;
++		set = 0;
++		break;
++	case CHECK_MASK_SET:
++		mask = 0;
++		set = 1;
++		break;
++	case CLEAR_MASK:
++		write = true;
++	case CHECK_NOT_MASK:
++		mask = 1;
++		set = 0;
++		break;
++	case SET_MASK:
++		write = true;
++	case CHECK_NOT_CLEAR:
++		mask = 1;
++		set = 1;
++		break;
++	default:
++		fprintf(stderr, "%s: Received an invalid DCD command %d\n",
++			__func__, dcd_arg->cmd);
++		return -EINVAL;
++	}
++
++	params = DCD_PARAMS(set, mask, dcd_arg->nbytes);
++	if (write) {
++		header = DCD_WRITE_HEADER(1, params);
++	} else {
++		if (dcd_arg->count)
++			header = DCD_CHECK_HEADER(params);
++		else
++			header = DCD_CHECK_HEADER_NO_COUNT(params);
++	}
++
++	ret = push_to_dcd_array(header);
++	if (ret)
++		return ret;
++	ret = push_to_dcd_array(DCD_ADDR(dcd_arg->addr));
++	if (ret)
++		return ret;
++	ret = push_to_dcd_array(DCD_MASK(dcd_arg->value));
++	if (ret)
++		return ret;
++
++	if (!write && dcd_arg->count) {
++		ret = push_to_dcd_array(DCD_COUNT(dcd_arg->count));
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++static int parse_dcd_cmd(char *line)
++{
++	int ret;
++	struct dcd_args dcd;
++
++	ret = get_dcd_cmd_args(line, &dcd);
++	if (ret)
++		return ret;
++
++	ret = add_to_dcd(&dcd);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static int parse_qspi_cmd(char *line)
++{
++	int fd, ret;
++	struct stat stat;
++	char *path = line;
++	uint8_t *data;
++	size_t len;
++
++	fd = open(path, O_RDONLY);
++	if (fd < 0) {
++		fprintf(stderr, "Failed to open '%s'\n", path);
++		perror("open error");
++		return -errno;
++	}
++
++	ret = fstat(fd, &stat);
++	if (ret) {
++		close(fd);
++		fprintf(stderr, "Failed to stat '%s'\n", path);
++		perror("stat error");
++		return -errno;
++	}
++
++	len = stat.st_size;
++
++	data = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
++	close(fd);
++	if (data == MAP_FAILED) {
++		fprintf(stderr, "Failed to map '%s'\n", path);
++		perror("mmap error");
++		return -errno;
++	}
++
++	iconfig.qspi_params.data = data;
++	iconfig.qspi_params.size = len;
++
++	return 0;
++}
++
++static const struct line_parser parsers[] = {
++	{
++		.tag = "BOOT_FROM",
++		.parse = parse_boot_cmd,
++	},
++	{
++		.tag = "SECBOOT",
++		.parse = parse_secboot_cmd,
++	},
++	{
++		.tag = "DCD",
++		.parse = parse_dcd_cmd,
++	},
++	{
++		.tag = "QSPI_PARAMS_FILE",
++		.parse = parse_qspi_cmd,
++	},
++};
++
++static int parse_config_line(char *line)
++{
++	size_t i, len;
++	const struct line_parser *parser;
++
++	for (i = 0; i < ARRAY_SIZE(parsers); i++) {
++		parser = &parsers[i];
++
++		len = strlen(parser->tag);
++		if (strncmp(parser->tag, line, len))
++			continue;
++
++		return parser->parse(ltrim(line + len));
++	}
++
++	fprintf(stderr, "Failed to parse line: %s", line);
++	return -EINVAL;
++}
++
++static int build_conf(FILE *fconf)
++{
++	int ret;
++	char *line;
++	char buffer[256];
++	size_t len;
++
++	while (!feof(fconf)) {
++		memset(buffer, 0, sizeof(buffer));
++		line = fgets(buffer, sizeof(buffer), fconf);
++		if (!line)
++			break;
++
++		line = ltrim(line);
++		len = strlen(line);
++
++		if (line[0] == '#' || !line[0])
++			continue;
++
++		if (line[len - 1] == '\n')
++			line[len - 1] = 0;
++
++		ret = parse_config_line(line);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++int s32gen1_parse_config(int outfd, struct image_tool_params *mparams)
++{
++	FILE *fconf;
++	int ret;
++
++	fconf = fopen(mparams->imagename, "r");
++	if (!fconf) {
++		fprintf(stderr, "Could not open input file %s\n",
++			mparams->imagename);
++		exit(EXIT_FAILURE);
++	}
++
++	ret = build_conf(fconf);
++
++	fclose(fconf);
++	return ret;
++}
++
+ U_BOOT_IMAGE_TYPE(
+ 	s32gen1_image,
+ 	"NXP S32GEN1 Boot Image",
+diff --git a/tools/s32gen1image.h b/tools/s32gen1image.h
+index 520fa86990..c1c0d7a613 100644
+--- a/tools/s32gen1image.h
++++ b/tools/s32gen1image.h
+@@ -5,7 +5,7 @@
+ #define S32GEN1IMAGE_H
+ 
+ #include <asm/types.h>
+-#include <generated/autoconf.h>
++#include <stddef.h>
+ 
+ #define FIP_TOC_HEADER_NAME		(0xaa640001)
+ #define FIP_BL2_UUID			{0x5f, 0xf9, 0xec, 0x0b, \
+@@ -14,16 +14,6 @@
+ 					0x81, 0xc7, 0x3f, 0x0a}
+ #define FIP_BL2_OFFSET			(0x200)
+ 
+-struct fip_image_data {
+-	__u32		toc_header_name;
+-	__u32		dont_care1;
+-	__u64		dont_care2;
+-	__u8		uuid[16];
+-	__u64		offset;
+-	__u64		size;
+-	__u8		dont_care3[0];
+-};
+-
+ #define BCW_BOOT_SEQ			(1 << 3)
+ #define BCW_SWT				(1 << 2)
+ #define BCW_BOOT_TARGET_M7_0		(0)
+@@ -32,10 +22,6 @@ struct fip_image_data {
+ #define LCCW_IN_FIELD			(1 << 1)
+ #define LCCW_OEM_PROD			(1 << 0)
+ 
+-#define DCD_HEADER            (0x600000d2)
+-#define MSCR25_SET_GPIO25_SRC (0x21c000)
+-#define GPDO25_HIGH           (0x1)
+-
+ #define IVT_VERSION			(0x60)
+ #define APPLICATION_BOOT_CODE_TAG	(0xd5)
+ #define APPLICATION_BOOT_CODE_VERSION	(0x60)
+@@ -118,6 +104,13 @@ struct qspi_params {
+ 	struct flash_write writes[10];
+ };
+ 
++struct image_comp {
++	size_t offset;
++	size_t size;
++	size_t alignment;
++	__u8 *data;
++};
++
+ struct program_image {
+ 	struct image_comp ivt;
+ 	struct image_comp qspi_params;
+@@ -129,6 +122,7 @@ struct program_image {
+ 	__u8 *header;
+ };
+ 
+-struct qspi_params *get_s32g2xx_qspi_conf(void);
++struct qspi_params *get_macronix_qspi_conf(void);
++struct qspi_params *get_micron_qspi_conf(void);
+ 
+ #endif /* S32GEN1IMAGE_H */
+-- 
+2.17.1
+

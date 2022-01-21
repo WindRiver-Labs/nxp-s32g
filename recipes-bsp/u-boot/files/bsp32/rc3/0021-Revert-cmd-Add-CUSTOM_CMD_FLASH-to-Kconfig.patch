@@ -1,0 +1,36 @@
+From 62cfe4a1aa9304c6f6ac9de5bc28576039fa567e Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Sat, 15 Jan 2022 02:48:08 +0200
+Subject: [PATCH 21/25] Revert "cmd: Add CUSTOM_CMD_FLASH to Kconfig"
+
+This reverts commit 5e3bf5adf7f0bd0c087e92caa5ef79f95f416f88.
+
+Issue: ALB-8332
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ cmd/Kconfig | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/cmd/Kconfig b/cmd/Kconfig
+index b47a3b465e..6403bc45a5 100644
+--- a/cmd/Kconfig
++++ b/cmd/Kconfig
+@@ -876,12 +876,7 @@ config CMD_FASTBOOT
+ 
+ 	  See doc/android/fastboot.rst for more information.
+ 
+-config CUSTOM_CMD_FLASH
+-	bool
+-	default n
+-
+ config CMD_FLASH
+-	depends on !CUSTOM_CMD_FLASH
+ 	bool "flinfo, erase, protect"
+ 	default y
+ 	depends on MTD || FLASH_CFI_DRIVER || MTD_NOR_FLASH
+-- 
+2.17.1
+

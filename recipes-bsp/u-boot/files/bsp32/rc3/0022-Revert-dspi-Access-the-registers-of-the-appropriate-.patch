@@ -1,0 +1,63 @@
+From 99c47273a6fbeb19d53377d0d20388f73018b45c Mon Sep 17 00:00:00 2001
+From: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Date: Fri, 14 Jan 2022 12:34:14 +0200
+Subject: [PATCH 22/25] Revert "dspi: Access the registers of the appropriate
+ bus"
+
+This reverts commit a3215881d9d0bdcc0fbe2eb0e6666ed506a3c881.
+We set CONFIG_DM_SPI. Hence this commit introduced dead code.
+
+Issue: ALB-8340
+Upstream-Status: Pending 
+
+Signed-off-by: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/spi/fsl_dspi.c | 14 ++------------
+ 1 file changed, 2 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/spi/fsl_dspi.c b/drivers/spi/fsl_dspi.c
+index 4d95cb32de..1cb912bbef 100644
+--- a/drivers/spi/fsl_dspi.c
++++ b/drivers/spi/fsl_dspi.c
+@@ -7,7 +7,7 @@
+  * TsiChung Liew (Tsi-Chung.Liew@freescale.com)
+  * Chao Fu (B44548@freescale.com)
+  * Haikun Wang (B53464@freescale.com)
+- * Copyright 2017, 2019-2021 NXP
++ * Copyright 2017, 2019-2022 NXP
+  */
+ 
+ #include <common.h>
+@@ -494,19 +494,9 @@ struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs,
+ 				  unsigned int max_hz, unsigned int mode)
+ {
+ 	struct fsl_dspi *dspi;
+-	struct dspi *regs;
+ 	uint mcr_cfg_val;
+ 	int i;
+ 
+-#ifdef CONFIG_ARCH_S32
+-	if (mmap_dspi(bus, &regs) < 0) {
+-		debug("Invalid SPI bus!\n");
+-		return NULL;
+-	}
+-#else
+-	regs = (struct dspi *)MMAP_DSPI;
+-#endif
+-
+ 	dspi = spi_alloc_slave(struct fsl_dspi, bus, cs);
+ 	if (!dspi)
+ 		return NULL;
+@@ -517,7 +507,7 @@ struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs,
+ 	dspi->priv.flags |= DSPI_FLAG_REGMAP_ENDIAN_BIG;
+ #endif
+ 
+-	dspi->priv.regs = regs;
++	dspi->priv.regs = (struct dspi *)MMAP_DSPI;
+ 
+ #ifdef CONFIG_M68K
+ 	dspi->priv.bus_clk = gd->bus_clk;
+-- 
+2.17.1
+

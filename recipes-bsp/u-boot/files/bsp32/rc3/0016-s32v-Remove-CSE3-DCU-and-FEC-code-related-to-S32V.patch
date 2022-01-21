@@ -1,0 +1,689 @@
+From b0caeaa77d6b725aa245da536d7473abe6329481 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Fri, 14 Jan 2022 22:19:19 +0200
+Subject: [PATCH 16/25] s32v: Remove CSE3, DCU and FEC code related to S32V
+
+Remove legacy code that was specific for S32V board.
+
+Issue: ALB-8332
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/Kconfig                      |  1 -
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c |  1 -
+ arch/arm/include/asm/arch-s32/cse.h   | 51 ---------------
+ arch/arm/include/asm/arch-s32/soc.h   |  8 ---
+ arch/arm/include/asm/system.h         |  4 --
+ arch/m68k/include/asm/coldfire/dspi.h |  4 +-
+ common/image-sig.c                    | 14 ----
+ drivers/crypto/fsl/Kconfig            |  5 --
+ drivers/net/fec_mxc.c                 | 18 ++----
+ drivers/net/fec_mxc.h                 | 18 ++----
+ drivers/video/fsl_dcu_fb.c            | 44 ++++---------
+ include/configs/s32.h                 | 23 -------
+ include/fsl_dcu_fb.h                  |  7 --
+ include/u-boot/cmac.h                 | 93 ---------------------------
+ lib/Makefile                          |  1 -
+ lib/cmac.c                            | 58 -----------------
+ scripts/config_whitelist.txt          |  2 -
+ 17 files changed, 27 insertions(+), 325 deletions(-)
+ delete mode 100644 arch/arm/include/asm/arch-s32/cse.h
+ delete mode 100644 include/u-boot/cmac.h
+ delete mode 100644 lib/cmac.c
+
+diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
+index 1f352f2191..92a6e33b42 100644
+--- a/arch/arm/Kconfig
++++ b/arch/arm/Kconfig
+@@ -1107,7 +1107,6 @@ config ARCH_ZYNQMP
+ config ARCH_S32
+ 	bool "Support S32 SOCs"
+ 	select ARM64
+-	select CUSTOM_CMD_FLASH
+ 	select ARMV8_MULTIENTRY
+ 	select ARMV8_SPIN_TABLE
+ 
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 448d5e8f6b..f64cfec8b0 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -10,7 +10,6 @@
+ #include <div64.h>
+ #include <errno.h>
+ #include <hang.h>
+-#include <asm/arch/cse.h>
+ #include <asm/arch/cpu.h>
+ #include <asm/arch/s32-gen1/a53_cluster_gpr.h>
+ #include <asm/arch/s32-gen1/mc_me_regs.h>
+diff --git a/arch/arm/include/asm/arch-s32/cse.h b/arch/arm/include/asm/arch-s32/cse.h
+deleted file mode 100644
+index 8972bfc4fc..0000000000
+--- a/arch/arm/include/asm/arch-s32/cse.h
++++ /dev/null
+@@ -1,51 +0,0 @@
+-/*
+- * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017 NXP
+- *
+- * SPDX-License-Idenfifier:	GPL-2.0+
+- */
+-
+-#ifndef __ASM_ARCH_CSE_H
+-#define __ASM_ARCH_CSE_H
+-
+-#define CSE_KEYID_AVK		(0x100UL)
+-#define CSE_CMD_GENERATE_MAC	(0x5UL)
+-#define CSE_CMD_VERIFY_MAC	(0x6UL)
+-#define CSE_CMD_CANCEL		(0x11UL)
+-#define CSE_CMD_SECURE_BOOT	(0xDUL)
+-#define CSE_CMD_INIT_CSE	(0x15UL)
+-#define CSE_CMD_INIT_RNG	(0x0AUL)
+-#define CSE_CMD_OPEN_SEC_RAM	(0x19UL)
+-
+-#define CSE_SR_BSY		(0x1UL)
+-#define CSE_SR_BOK		(0x10UL)
+-
+-#define CSE_BASE_ADDR	(0x40001000UL)
+-#define CSE_SR		(CSE_BASE_ADDR + 0x04UL)
+-#define CSE_ECR		(CSE_BASE_ADDR + 0x0CUL)
+-#define CSE_CMD		(CSE_BASE_ADDR + 0x20UL)
+-#define CSE_P1		(CSE_BASE_ADDR + 0x24UL)
+-#define CSE_P2		(CSE_BASE_ADDR + 0x28UL)
+-#define CSE_P3		(CSE_BASE_ADDR + 0x2CUL)
+-#define CSE_P4		(CSE_BASE_ADDR + 0x30UL)
+-#define CSE_P5		(CSE_BASE_ADDR + 0x34UL)
+-#define CSE_KIA0	(CSE_BASE_ADDR + 0x50UL)
+-#define CSE_KIA1	(CSE_BASE_ADDR + 0x54UL)
+-
+-#define MAC_LEN		16
+-#define CSE_SEQ_ERR	(0x02)
+-
+-#define OCOTP_BASE_ADDR			(0x4005F000UL)
+-#define OCOTP_CFG3			(OCOTP_BASE_ADDR + 0x440UL)
+-#define OCOTP_CFG5			(OCOTP_BASE_ADDR + 0x460UL)
+-#define OCOTP_CFG5_SEC_BOOT_MODE	(0xC0UL)
+-#define OCOTP_CFG3_EXPORT_CONTROL	(0x1UL)
+-
+-#define KRAM_ADDR	(0x7C01A000UL)
+-
+-#if defined CONFIG_FSL_CSE3
+-int cse_init(void);
+-#endif /* CONFIG_FSL_CSE3 */
+-
+-#endif /* __ASM_ARCH_CSE_H */
+-
+diff --git a/arch/arm/include/asm/arch-s32/soc.h b/arch/arm/include/asm/arch-s32/soc.h
+index 8acbade9b6..07b1c2f8bc 100644
+--- a/arch/arm/include/asm/arch-s32/soc.h
++++ b/arch/arm/include/asm/arch-s32/soc.h
+@@ -14,12 +14,6 @@
+ #include <asm/arch/mc_rgm_regs.h>
+ #include <asm/arch/mmdc.h>
+ 
+-void setup_iomux_enet(void);
+-
+-#ifdef CONFIG_DCU_QOS_FIX
+-int board_dcu_qos(void);
+-#endif
+-
+ u32 get_sram_size(void);
+ 
+ static inline bool is_addr_in_sram(uintptr_t addr)
+@@ -27,6 +21,4 @@ static inline bool is_addr_in_sram(uintptr_t addr)
+ 	return addr >= S32_SRAM_BASE && addr < S32_SRAM_BASE + get_sram_size();
+ }
+ 
+-void cpu_pci_clock_init(const int clockexternal);
+-
+ #endif /* __ARCH_S32_SOC_H */
+diff --git a/arch/arm/include/asm/system.h b/arch/arm/include/asm/system.h
+index 791e4f5f80..81ccead112 100644
+--- a/arch/arm/include/asm/system.h
++++ b/arch/arm/include/asm/system.h
+@@ -1,7 +1,3 @@
+-/*
+- * Copyright 2018 NXP
+- */
+-
+ #ifndef __ASM_ARM_SYSTEM_H
+ #define __ASM_ARM_SYSTEM_H
+ 
+diff --git a/arch/m68k/include/asm/coldfire/dspi.h b/arch/m68k/include/asm/coldfire/dspi.h
+index 4f8a77e08f..ddd8f33805 100644
+--- a/arch/m68k/include/asm/coldfire/dspi.h
++++ b/arch/m68k/include/asm/coldfire/dspi.h
+@@ -4,8 +4,6 @@
+  *
+  * Copyright (C) 2004-2007 Freescale Semiconductor, Inc.
+  * TsiChung Liew (Tsi-Chung.Liew@freescale.com)
+- *
+- * (C) Copyright 2017 NXP
+  */
+ 
+ #ifndef __DSPI_H__
+@@ -66,7 +64,7 @@ typedef struct dspi {
+ #define DSPI_CTAR_CPHA			(0x02000000)
+ #define DSPI_CTAR_LSBFE			(0x01000000)
+ #define DSPI_CTAR_PCSSCK(x)		(((x)&0x03)<<22)
+-#define DSPI_CTAR_PCSSCK_7CLK		(0x00C00000)
++#define DSPI_CTAR_PCSSCK_7CLK		(0x00A00000)
+ #define DSPI_CTAR_PCSSCK_5CLK		(0x00800000)
+ #define DSPI_CTAR_PCSSCK_3CLK		(0x00400000)
+ #define DSPI_CTAR_PCSSCK_1CLK		(0x00000000)
+diff --git a/common/image-sig.c b/common/image-sig.c
+index 8c7e454b85..6563effcf3 100644
+--- a/common/image-sig.c
++++ b/common/image-sig.c
+@@ -15,10 +15,6 @@ DECLARE_GLOBAL_DATA_PTR;
+ #include <u-boot/rsa.h>
+ #include <u-boot/rsa-checksum.h>
+ 
+-#ifdef CONFIG_FSL_CSE3
+-#include <u-boot/cmac.h>
+-#endif
+-
+ #define IMAGE_MAX_HASHED_NODES		100
+ 
+ #ifdef USE_HOSTCC
+@@ -33,7 +29,6 @@ void *image_get_host_blob(void)
+ }
+ #endif
+ 
+-
+ struct checksum_algo checksum_algos[] = {
+ 	{
+ 		.name = "sha1",
+@@ -72,16 +67,7 @@ struct crypto_algo crypto_algos[] = {
+ 		.sign = rsa_sign,
+ 		.add_verify_data = rsa_add_verify_data,
+ 		.verify = rsa_verify,
+-	},
+-#ifdef CONFIG_FSL_CSE3
+-	{
+-		.name = "cmac",
+-		.key_len = CMAC_DIGEST_SIZE,
+-		.sign = cmac_sign,
+-		.add_verify_data = cmac_add_verify_data,
+-		.verify = cmac_verify,
+ 	}
+-#endif
+ 
+ };
+ 
+diff --git a/drivers/crypto/fsl/Kconfig b/drivers/crypto/fsl/Kconfig
+index 651b96458d..b6d34f3d27 100644
+--- a/drivers/crypto/fsl/Kconfig
++++ b/drivers/crypto/fsl/Kconfig
+@@ -7,11 +7,6 @@ config FSL_CAAM
+ 	  Module (CAAM), also known as the SEC version 4 (SEC4). The driver uses
+ 	  Job Ring as interface to communicate with CAAM.
+ 
+-config FSL_CSE3
+-	bool "Freescale CSE3 Crypto Engine support"
+-	help
+-	  Enables Freescale's Cryptographic Services Engine (CSE3).
+-
+ config SYS_FSL_HAS_SEC
+ 	bool
+ 	help
+diff --git a/drivers/net/fec_mxc.c b/drivers/net/fec_mxc.c
+index 30d12c181d..bc5b63d788 100644
+--- a/drivers/net/fec_mxc.c
++++ b/drivers/net/fec_mxc.c
+@@ -1,6 +1,5 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * (C) Copyright 2018,2020-2021 NXP
+  * (C) Copyright 2009 Ilya Yanok, Emcraft Systems Ltd <yanok@emcraft.com>
+  * (C) Copyright 2008,2009 Eric Jarrige <eric.jarrige@armadeus.org>
+  * (C) Copyright 2008 Armadeus Systems nc
+@@ -583,11 +582,8 @@ static int fec_init(struct eth_device *dev, bd_t *bd)
+ #else
+ 	struct fec_priv *fec = (struct fec_priv *)dev->priv;
+ #endif
+-	u32 *mib_ptr_start1 = (u32 *)&fec->eth->rmon_t_drop;
+-	u32 *mib_ptr_end1 = (u32 *)&fec->eth->res13;
+-	u32 *mib_ptr_start2 = (u32 *)&fec->eth->rmon_r_packets;
+-	u32 *mib_ptr_end2 = (u32 *)&fec->eth->res14;
+-	u32 *i;
++	u8 *mib_ptr = (uint8_t *)&fec->eth->rmon_t_drop;
++	u8 *i;
+ 	ulong addr;
+ 
+ 	/* Initialize MAC address */
+@@ -618,13 +614,10 @@ static int fec_init(struct eth_device *dev, bd_t *bd)
+ 
+ 	/* Do not access reserved register */
+ 	if (!is_mx6ul() && !is_mx6ull() && !is_imx8() && !is_imx8m()) {
+-		/* clear MIB RAM: avoid the reserved
+-		 * space from FEC memory map.
+-		 */
+-		for (i = mib_ptr_start1; i < mib_ptr_end1; i++)
+-			writel(0, i);
+-		for (i = mib_ptr_start2; i < mib_ptr_end2; i++)
++		/* clear MIB RAM */
++		for (i = mib_ptr; i <= mib_ptr + 0xfc; i += 4)
+ 			writel(0, i);
++
+ 		/* FIFO receive start register */
+ 		writel(0x520, &fec->eth->r_fstart);
+ 	}
+@@ -1181,7 +1174,6 @@ static int fec_probe(bd_t *bd, int dev_id, uint32_t base_addr,
+ 		if (!env_get(mac))
+ 			eth_env_set_enetaddr(mac, ethaddr);
+ 	}
+-
+ 	return ret;
+ err4:
+ 	fec_free_descs(fec);
+diff --git a/drivers/net/fec_mxc.h b/drivers/net/fec_mxc.h
+index d68980f8a5..159aec8967 100644
+--- a/drivers/net/fec_mxc.h
++++ b/drivers/net/fec_mxc.h
+@@ -96,6 +96,7 @@ struct ethernet_regs {
+ 	uint32_t ieee_t_sqe;		/* MBAR_ETH + 0x26C */
+ 	uint32_t t_fdxfc;		/* MBAR_ETH + 0x270 */
+ 	uint32_t ieee_t_octets_ok;	/* MBAR_ETH + 0x274 */
++
+ 	uint32_t res13[2];		/* MBAR_ETH + 0x278-27C */
+ 	uint32_t rmon_r_drop;		/* MBAR_ETH + 0x280 */
+ 	uint32_t rmon_r_packets;	/* MBAR_ETH + 0x284 */
+@@ -213,18 +214,15 @@ struct ethernet_regs {
+ #define MIIGSK_ENR_EN			(1 << 1)
+ #endif
+ 
+-typedef uintptr_t __attribute__((__may_alias__)) uintptr_t_a;
+-
+ /**
+  * @brief Receive & Transmit Buffer Descriptor definitions
+  *
+  * Note: The first BD must be aligned (see DB_ALIGNMENT)
+  */
+-struct __attribute__((__may_alias__)) fec_bd
+-{
+-	volatile uint16_t data_length;		/* payload's length in bytes */
+-	volatile uint16_t status;			/* BD's staus (see datasheet) */
+-	volatile uint32_t data_pointer;		/* payload's buffer address */
++struct fec_bd {
++	uint16_t data_length;		/* payload's length in bytes */
++	uint16_t status;		/* BD's staus (see datasheet) */
++	uint32_t data_pointer;		/* payload's buffer address */
+ };
+ 
+ /* Supported phy types on this platform */
+@@ -236,10 +234,8 @@ enum xceiver_type {
+ 	RGMII,		/* RGMII */
+ };
+ 
+-/**
+- * @brief i.MX27-FEC private structure
+- */
+-struct __attribute__((__may_alias__)) fec_priv {
++/* @brief i.MX27-FEC private structure */
++struct fec_priv {
+ 	struct ethernet_regs *eth;	/* pointer to register'S base */
+ 	enum xceiver_type xcv_type;	/* transceiver type */
+ 	struct fec_bd *rbd_base;	/* RBD ring */
+diff --git a/drivers/video/fsl_dcu_fb.c b/drivers/video/fsl_dcu_fb.c
+index 6eaf34a90a..076e9ea019 100644
+--- a/drivers/video/fsl_dcu_fb.c
++++ b/drivers/video/fsl_dcu_fb.c
+@@ -1,7 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * Copyright 2014 Freescale Semiconductor, Inc.
+- * (C) Copyright 2017-2018 NXP
+  * Copyright 2019 Toradex AG
+  *
+  * FSL DCU Framebuffer driver
+@@ -84,16 +83,12 @@
+ #define BPP_24_RGB888			5
+ #define BPP_32_ARGB8888			6
+ 
+-#ifndef DCU_CTRL_DESC_LAYER_NUM
+-#define DCU_CTRL_DESC_LAYER_NUM         11
+-#endif
+-
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ /*
+  * This setting is used for the TWR_LCD_RGB card
+  */
+-__weak struct fb_videomode fsl_dcu_mode_480_272 = {
++static struct fb_videomode fsl_dcu_mode_480_272 = {
+ 	.name		= "480x272-60",
+ 	.refresh	= 60,
+ 	.xres		= 480,
+@@ -112,7 +107,7 @@ __weak struct fb_videomode fsl_dcu_mode_480_272 = {
+ /*
+  * This setting is used for Siliconimage SiI9022A HDMI
+  */
+-__weak struct fb_videomode fsl_dcu_cea_mode_640_480 = {
++static struct fb_videomode fsl_dcu_cea_mode_640_480 = {
+ 	.name		= "640x480-60",
+ 	.refresh	= 60,
+ 	.xres		= 640,
+@@ -128,22 +123,6 @@ __weak struct fb_videomode fsl_dcu_cea_mode_640_480 = {
+ 	.vmode		= FB_VMODE_NONINTERLACED,
+ };
+ 
+-__weak struct fb_videomode fsl_dcu_mode_1920_1080 = {
+-	.name		= "1920x1080-60",
+-	.refresh	= 60,
+-	.xres		= 1920,
+-	.yres		= 1080,
+-	.pixclock	= 148500, /* HDMI */
+-	.left_margin	= 30,
+-	.right_margin	= 60,
+-	.upper_margin	= 30,
+-	.lower_margin	= 3,
+-	.hsync_len	= 60,
+-	.vsync_len	= 3,
+-	.sync		= 0,
+-	.vmode		= FB_VMODE_NONINTERLACED,
+-};
+-
+ static struct fb_videomode fsl_dcu_mode_640_480 = {
+ 	.name		= "640x480-60",
+ 	.refresh	= 60,
+@@ -246,12 +225,20 @@ struct dcu_reg {
+ static void reset_total_layers(void)
+ {
+ 	struct dcu_reg *regs = (struct dcu_reg *)CONFIG_SYS_DCU_ADDR;
+-	int i, j;
++	int i;
+ 
+ 	for (i = 0; i < DCU_LAYER_MAX_NUM; i++) {
+-		for (j = 0; j < DCU_CTRL_DESC_LAYER_NUM; j++) {
+-			dcu_write32(&regs->ctrldescl[i][j], 0);
+-		}
++		dcu_write32(&regs->ctrldescl[i][0], 0);
++		dcu_write32(&regs->ctrldescl[i][1], 0);
++		dcu_write32(&regs->ctrldescl[i][2], 0);
++		dcu_write32(&regs->ctrldescl[i][3], 0);
++		dcu_write32(&regs->ctrldescl[i][4], 0);
++		dcu_write32(&regs->ctrldescl[i][5], 0);
++		dcu_write32(&regs->ctrldescl[i][6], 0);
++		dcu_write32(&regs->ctrldescl[i][7], 0);
++		dcu_write32(&regs->ctrldescl[i][8], 0);
++		dcu_write32(&regs->ctrldescl[i][9], 0);
++		dcu_write32(&regs->ctrldescl[i][10], 0);
+ 	}
+ }
+ 
+@@ -423,9 +410,6 @@ int fsl_probe_common(struct fb_info *fbinfo, unsigned int *win_x,
+ 	case RESOLUTION(1024, 600):
+ 		fsl_dcu_mode_db = &fsl_dcu_mode_1024_600;
+ 		break;
+-	case RESOLUTION(1920, 1080):
+-		fsl_dcu_mode_db = &fsl_dcu_mode_1920_1080;
+-		break;
+ 	default:
+ 		printf("unsupported resolution %ux%u\n",
+ 		       *win_x, *win_y);
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index a953132c03..c09594dbb9 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -32,28 +32,6 @@
+ 
+ #define CONFIG_LOADADDR		LOADADDR
+ 
+-/* Init CSE3 from u-boot */
+-#ifdef CONFIG_FSL_CSE3
+-
+-#define CONFIG_ARCH_MISC_INIT
+-#define KIA_BASE		(S32_SRAM_BASE + 0x5000UL)
+-/* Secure Boot */
+-#ifdef CONFIG_SECURE_BOOT
+-#define SECURE_BOOT_KEY_ID	0x4UL
+-#endif
+-/* start address and size of firmware+keyimage binary blob */
+-#define CSE_BLOB_BASE		(S32_SRAM_BASE + 0x1000UL)
+-#define CSE_BLOB_SIZE		0x00004500UL
+-
+-#define CONFIG_FSL_CSE3_SETTINGS \
+-	"cse_addr=" __stringify(CSE_BLOB_BASE) "\0" \
+-	"cse_file=cse.bin\0" \
+-	"sec_boot_key_id=" __stringify(SECURE_BOOT_KEY_ID) "\0" \
+-
+-#else
+-#define CONFIG_FSL_CSE3_SETTINGS
+-#endif /* CONFIG_FSL_CSE3 */
+-
+ #define CONFIG_SKIP_LOWLEVEL_INIT
+ 
+ /* Enable passing of ATAGs */
+@@ -350,7 +328,6 @@
+ 	"mmcdev=" __stringify(CONFIG_SYS_MMC_ENV_DEV) "\0" \
+ 	"mmcpart=" __stringify(CONFIG_MMC_PART) "\0" \
+ 	"mmcroot=/dev/mmcblk0p2 rootwait rw\0" \
+-	CONFIG_FSL_CSE3_SETTINGS \
+ 	"update_sd_firmware_filename=u-boot.s32\0" \
+ 	"update_sd_firmware=" \
+ 		"if test ${ip_dyn} = yes; then " \
+diff --git a/include/fsl_dcu_fb.h b/include/fsl_dcu_fb.h
+index 0dce8fa903..7a5347a924 100644
+--- a/include/fsl_dcu_fb.h
++++ b/include/fsl_dcu_fb.h
+@@ -1,14 +1,9 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+  * Copyright 2014 Freescale Semiconductor, Inc.
+- * Copyright 2018 NXP
+  *
+  * FSL DCU Framebuffer driver
+  */
+-
+-#ifndef __FSL_DCU_FB_H
+-#define __FSL_DCU_FB_H
+-
+ #include <linux/fb.h>
+ 
+ int fsl_dcu_init(struct fb_info *fbinfo,
+@@ -25,5 +20,3 @@ int platform_dcu_init(struct fb_info *fbinfo,
+ 		      const char *port,
+ 		      struct fb_videomode *dcu_fb_videomode);
+ unsigned int dcu_set_pixel_clock(unsigned int pixclock);
+-
+-#endif /* __FSL_DCU_FB_H */
+diff --git a/include/u-boot/cmac.h b/include/u-boot/cmac.h
+deleted file mode 100644
+index 20257cfbd9..0000000000
+--- a/include/u-boot/cmac.h
++++ /dev/null
+@@ -1,93 +0,0 @@
+-/*
+- * (C) Copyright 2016 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Idenfifier:	GPL-2.0+
+- */
+-
+-#ifndef _CMAC_H
+-#define _CMAC_H
+-
+-#if defined(CONFIG_FIT)
+-
+-#include <errno.h>
+-#include <image.h>
+-
+-#define CMAC_DIGEST_SIZE 16
+-
+-#if IMAGE_ENABLE_SIGN && !defined (USE_HOSTCC)
+-/**
+- * sign() - calculate and return signature for given input data
+- *
+- * @info:	Specifies key and FIT information
+- * @data:	Pointer to the input data
+- * @data_len:	Data length
+- * @sigp:	Set to an allocated buffer holding the signature
+- * @sig_len:	Set to length of the calculated hash
+- *
+- * This computes input data signature according to selected algorithm.
+- * Resulting signature value is placed in an allocated buffer, the
+- * pointer is returned as *sigp. The length of the calculated
+- * signature is returned via the sig_len pointer argument. The caller
+- * should free *sigp.
+- *
+- * @return: 0, on success, -ve on error
+- */
+-int cmac_sign(struct image_sign_info *info,
+-	     const struct image_region region[],
+-	     int region_count, uint8_t **sigp, uint *sig_len);
+-
+-/**
+- * add_verify_data() - Add verification information to FDT
+- *
+- * Add public key information to the FDT node, suitable for
+- * verification at run-time. The information added depends on the
+- * algorithm being used.
+- *
+- * @info:	Specifies key and FIT information
+- * @keydest:	Destination FDT blob for public key data
+- * @return: 0, on success, -ENOSPC if the keydest FDT blob ran out of space,
+-		other -ve value on error
+-*/
+-int cmac_add_verify_data(struct image_sign_info *info, void *keydest);
+-#else
+-static inline int cmac_sign(struct image_sign_info *info,
+-		const struct image_region region[], int region_count,
+-		uint8_t **sigp, uint *sig_len)
+-{
+-	return -ENXIO;
+-}
+-
+-static inline int cmac_add_verify_data(struct image_sign_info *info,
+-				      void *keydest)
+-{
+-	return -ENXIO;
+-}
+-#endif
+-
+-#if IMAGE_ENABLE_VERIFY && !defined (USE_HOSTCC)
+-/**
+- * rsa_verify() - Verify a signature against some data
+- *
+- * Verify a RSA PKCS1.5 signature against an expected hash.
+- *
+- * @info:	Specifies key and FIT information
+- * @data:	Pointer to the input data
+- * @data_len:	Data length
+- * @sig:	Signature
+- * @sig_len:	Number of bytes in signature
+- * @return 0 if verified, -ve on error
+- */
+-int cmac_verify(struct image_sign_info *info,
+-	       const struct image_region region[], int region_count,
+-	       uint8_t *sig, uint sig_len);
+-#else
+-static inline int cmac_verify(struct image_sign_info *info,
+-		const struct image_region region[], int region_count,
+-		uint8_t *sig, uint sig_len)
+-{
+-	return -ENXIO;
+-}
+-#endif
+-
+-#endif
+-#endif /* defined(CONFIG_FIT) */
+diff --git a/lib/Makefile b/lib/Makefile
+index cb31633609..15259d0473 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -49,7 +49,6 @@ obj-$(CONFIG_SUPPORT_EMMC_RPMB) += sha256.o
+ obj-$(CONFIG_RBTREE)	+= rbtree.o
+ obj-$(CONFIG_BITREVERSE) += bitrev.o
+ obj-y += list_sort.o
+-obj-$(CONFIG_FSL_CSE3) += cmac.o
+ endif
+ 
+ obj-$(CONFIG_$(SPL_TPL_)TPM) += tpm-common.o
+diff --git a/lib/cmac.c b/lib/cmac.c
+deleted file mode 100644
+index 80eb981a4c..0000000000
+--- a/lib/cmac.c
++++ /dev/null
+@@ -1,58 +0,0 @@
+-/*
+- * (C) Copyright 2016 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Idenfifier:	GPL-2.0+
+- */
+-
+-#ifndef USE_HOSTCC
+-#include <common.h>
+-#include <asm/arch/cse.h>
+-#include <image.h>
+-#include <u-boot/cmac.h>
+-
+-
+-#if IMAGE_ENABLE_SIGN
+-int cse_genmac(ulong start_addr, unsigned long len, unsigned long key_id,
+-		uint8_t mac[]);
+-
+-int cmac_sign(struct image_sign_info *info,
+-	     const struct image_region region[],
+-	     int region_count, uint8_t **sigp, uint *sig_len)
+-{
+-	if (region_count != 1) {
+-		printf("CMAC cannot be used with multiple memory regions.\n");
+-		return -EINVAL;
+-	}
+-
+-	*sig_len = CMAC_DIGEST_SIZE;
+-	*sigp = malloc(*sig_len);
+-	if (!(*sigp))
+-		return -ENOMEM;
+-
+-	return cse_genmac((ulong)region[0].data, region[0].size,
+-			SECURE_BOOT_KEY_ID, *sigp);
+-}
+-#endif
+-
+-
+-#if IMAGE_ENABLE_VERIFY
+-int cse_auth(ulong start_addr, unsigned long len, int key_id,
+-					uint8_t *exp_mac);
+-
+-int cmac_verify(struct image_sign_info *info,
+-		const struct image_region region[], int region_count,
+-		uint8_t *sig, uint sig_len)
+-{
+-	/* CSE cannot manage multiple memory regions */
+-	if (region_count != 1) {
+-		printf("CMAC cannot be used with multiple memory regions.\n");
+-		return -EINVAL;
+-	}
+-
+-	return cse_auth((ulong)region[0].data, region[0].size,
+-		SECURE_BOOT_KEY_ID, sig);
+-}
+-
+-#endif
+-
+-#endif /* USE_HOSTCC */
+diff --git a/scripts/config_whitelist.txt b/scripts/config_whitelist.txt
+index fb73d6c2d3..9b8caf0456 100644
+--- a/scripts/config_whitelist.txt
++++ b/scripts/config_whitelist.txt
+@@ -281,7 +281,6 @@ CONFIG_DCACHE
+ CONFIG_DCACHE_OFF
+ CONFIG_DCFG_ADDR
+ CONFIG_DCU_EXTRA_ENV_SETTINGS
+-CONFIG_DCU_QOS_FIX
+ CONFIG_DDR3
+ CONFIG_DDR_
+ CONFIG_DDR_2HCLK
+@@ -569,7 +568,6 @@ CONFIG_FPGA_STRATIX_V
+ CONFIG_FSL_CADMUS
+ CONFIG_FSL_CORENET
+ CONFIG_FSL_CPLD
+-CONFIG_FSL_CSE3_SETTINGS
+ CONFIG_FSL_DCU_SII9022A
+ CONFIG_FSL_DEEP_SLEEP
+ CONFIG_FSL_DEVICE_DISABLE
+-- 
+2.17.1
+

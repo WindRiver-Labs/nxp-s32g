@@ -49,6 +49,29 @@ SRC_URI += " \
     file://bsp32/rc2/0007-gmac1-s32gen1-Introduce-gmac1-clocks-into-the-clockf.patch \
     file://bsp32/rc2/0008-gmac-s32gen1-Enable-gmac0-and-gmac1-to-work-at-the-s.patch \
     file://bsp32/rc2/0009-gmac-s32gen1-Fixed-unchecked-NULL-returns-error-code.patch \
+    file://bsp32/rc3/0001-s32-qspi-Use-QSPI_BOOT-instead-of-FLASH_BOOT.patch \
+    file://bsp32/rc3/0002-soc-s32g3-Print-SoC-Revision.patch \
+    file://bsp32/rc3/0003-Revert-s32gen1-Add-fdt_pcie_spis_fixup-in-env.patch \
+    file://bsp32/rc3/0004-Kconfigs-s32-Use-a-convenient-default-value-for-SYS_.patch \
+    file://bsp32/rc3/0005-s32-Remove-IMX-occurrences-from-S32-support.patch \
+    file://bsp32/rc3/0006-mmc-fsl_esdhc_imx-Guard-the-access-to-scr-register.patch \
+    file://bsp32/rc3/0007-s32-gen1-fccu-Guard-clear-of-SWT-non-critical-faults.patch \
+    file://bsp32/rc3/0010-s32-gen1-clocks-Enable-CLK_PER-clock-for-SARADC.patch \
+    file://bsp32/rc3/0011-s32-gen1-saradc-Add-DM-driver-for-SAR-ADC.patch \
+    file://bsp32/rc3/0012-s32g274a-rdb-adc-identify-revision-of-32G-RDB-and-up.patch \
+    file://bsp32/rc3/0013-arch-fsl-lsch2-Remove-unmaintained-fsl-lsch2.patch \
+    file://bsp32/rc3/0014-sac58r-Remove-code-for-obsolete-sac58r-board.patch \
+    file://bsp32/rc3/0015-mac57d5xx-Remove-code-for-obsolete-mac57d5xx-board.patch \
+    file://bsp32/rc3/0016-s32v-Remove-CSE3-DCU-and-FEC-code-related-to-S32V.patch \
+    file://bsp32/rc3/0017-imx-Remove-IMX-DMA-Channel-MUX-framework.patch \
+    file://bsp32/rc3/0018-s32-remove-edma-controller-macros.patch \
+    file://bsp32/rc3/0019-vf610-remove-changes-related-to-vf610.patch \
+    file://bsp32/rc3/0020-Revert-efi_loader-Make-sure-copy_fdt-will-use-valid-.patch \
+    file://bsp32/rc3/0021-Revert-cmd-Add-CUSTOM_CMD_FLASH-to-Kconfig.patch \
+    file://bsp32/rc3/0022-Revert-dspi-Access-the-registers-of-the-appropriate-.patch \
+    file://bsp32/rc3/0023-s32-gen1-fsl_dspi-Remove-non-DM_SPI-code-logic.patch \
+    file://bsp32/rc3/0024-s32-pinctrl-move-MSCR-definitions-to-a-single-place.patch \
+    file://bsp32/rc3/0025-ddr-Update-configuration-for-increasing-r-w-bandwidt.patch \
 "
 
 SRCREV = "6286902c946f15b2b2ab66904a26d6e0e8748802"

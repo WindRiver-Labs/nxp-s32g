@@ -1,0 +1,48 @@
+From 3ce09ace883cb76c6801ef666911b9f20206a7f4 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Wed, 12 Jan 2022 07:36:43 +0200
+Subject: [PATCH 04/25] Kconfigs: s32: Use a convenient default value for
+ SYS_MALLOC_F_LEN
+
+The default value of CONFIG_SYS_MALLOC_F_LEN (0x400)
+leaves U-Boot with not enough memory to load clocks driver
+before relocate, causing it to hang.
+
+Issue: ALB-8337
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Kconfig                 | 2 +-
+ board/freescale/Kconfig | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/Kconfig b/Kconfig
+index 14309612f3..66480dfa51 100644
+--- a/Kconfig
++++ b/Kconfig
+@@ -152,7 +152,7 @@ config SYS_MALLOC_F_LEN
+ 	default 0x2000 if (ARCH_IMX8 || ARCH_IMX8M || ARCH_MX7 || \
+ 			   ARCH_MX7ULP || ARCH_MX6 || ARCH_MX5 || \
+ 			   ARCH_LS1012A || ARCH_LS1021A || ARCH_LS1043A || \
+-			   ARCH_LS1046A)
++			   ARCH_LS1046A || ARCH_S32)
+ 	default 0x400
+ 	help
+ 	  Before relocation, memory is very limited on many platforms. Still,
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index b740936b7e..7d7aa4cb30 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -22,6 +22,7 @@ config S32_GEN1
+ 	select MMC_HS400_SUPPORT if !TARGET_TYPE_S32GEN1_EMULATOR
+ 	select MMC_HS400_ES_SUPPORT if !TARGET_TYPE_S32GEN1_EMULATOR
+ 	select ARM_ERRATA_855873 if S32_STANDALONE_BOOT_FLOW
++	select SYS_MALLOC_F
+ 	help
+ 	  Platform Selection
+ 
+-- 
+2.17.1
+

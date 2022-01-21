@@ -1,0 +1,238 @@
+From 790705dadbcd5211799fd7bf196880ae79847185 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 10 Jan 2022 10:33:14 +0200
+Subject: [PATCH 05/25] s32: Remove IMX occurrences from S32 support
+
+Issue: ALB-4149
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/include/cmu.h | 3 ++-
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c         | 2 --
+ arch/arm/cpu/armv8/s32/timer.c                | 3 ++-
+ arch/arm/include/asm/arch-s32/siul.h          | 4 ++--
+ arch/arm/include/asm/arch-s32/soc.h           | 4 ++--
+ board/freescale/s32-gen1/board_common.h       | 3 ++-
+ board/freescale/s32-gen1/common.c             | 3 +--
+ drivers/mmc/fsl_esdhc_imx.c                   | 2 +-
+ drivers/net/dwc_eth_qos_s32cc.c               | 3 +--
+ drivers/net/pfeng/pfeng_cmd.c                 | 3 +--
+ include/configs/s32.h                         | 1 -
+ tools/s32gen1image.c                          | 1 +
+ 12 files changed, 15 insertions(+), 17 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/include/cmu.h b/arch/arm/cpu/armv8/s32/s32-gen1/include/cmu.h
+index f7949022e7..0b4b6418bb 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/include/cmu.h
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/include/cmu.h
+@@ -1,12 +1,13 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  */
+ 
+ #ifndef __S32_CMU_H
+ #define __S32_CMU_H
+ 
+ #include <common.h>
++#include "s32-gen1-regs.h"
+ 
+ #ifndef __STR
+ #define __STR(x) #x
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 0335649196..233047a135 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -6,13 +6,11 @@
+ #include <common.h>
+ #include <asm/io.h>
+ #include <asm/arch/soc.h>
+-#include <fsl_esdhc_imx.h>
+ #include <mmc.h>
+ #include <div64.h>
+ #include <errno.h>
+ #include <hang.h>
+ #include <asm/arch/cse.h>
+-#include <asm/arch/imx-regs.h>
+ #include <asm/arch/cpu.h>
+ #include <asm/arch/s32-gen1/a53_cluster_gpr.h>
+ #include <asm/arch/s32-gen1/mc_me_regs.h>
+diff --git a/arch/arm/cpu/armv8/s32/timer.c b/arch/arm/cpu/armv8/s32/timer.c
+index 48592c29c2..9f39fbf9d7 100644
+--- a/arch/arm/cpu/armv8/s32/timer.c
++++ b/arch/arm/cpu/armv8/s32/timer.c
+@@ -1,12 +1,13 @@
+ // SPDX-License-Identifier:     GPL-2.0+
+ /*
+  * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
++ * Copyright 2022 NXP
+  */
+ 
+ #include <common.h>
+ #include <asm/io.h>
+ #include <div64.h>
+-#include <asm/arch/imx-regs.h>
++#include "s32-gen1/s32-gen1-regs.h"
+ #include <asm/arch/clock.h>
+ 
+ static struct pit_reg *cur_pit = (struct pit_reg *)PIT0_BASE_ADDR;
+diff --git a/arch/arm/include/asm/arch-s32/siul.h b/arch/arm/include/asm/arch-s32/siul.h
+index 02e1518278..913551de2f 100644
+--- a/arch/arm/include/asm/arch-s32/siul.h
++++ b/arch/arm/include/asm/arch-s32/siul.h
+@@ -2,15 +2,15 @@
+ /*
+  * (C) Copyright 2015-2016 Freescale Semiconductor, Inc.
+  * (C) Copyright 2017 MicroSys Electronics GmbH
+- * Copyright 2017-2021 NXP
++ * Copyright 2017-2022 NXP
+  *
+  */
+ 
+ #ifndef __ARCH_ARM_MACH_S32_SIUL_H__
+ #define __ARCH_ARM_MACH_S32_SIUL_H__
+ 
++#include "s32-gen1/s32-gen1-regs.h"
+ #include <asm/io.h>
+-#include <asm/arch/imx-regs.h>
+ #include <linux/bitops.h>
+ 
+ #if !defined(CONFIG_TARGET_TYPE_S32GEN1_SIMULATOR)
+diff --git a/arch/arm/include/asm/arch-s32/soc.h b/arch/arm/include/asm/arch-s32/soc.h
+index 3a88c2a99f..8acbade9b6 100644
+--- a/arch/arm/include/asm/arch-s32/soc.h
++++ b/arch/arm/include/asm/arch-s32/soc.h
+@@ -1,12 +1,12 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+  * Copyright 2015 Freescale Semiconductor
+- * (C) Copyright 2017-2018,2020-2021 NXP
++ * Copyright 2017-2018,2020-2022 NXP
+  */
+ #ifndef __ARCH_S32_SOC_H
+ #define __ARCH_S32_SOC_H
+ 
+-#include <asm/arch/imx-regs.h>
++#include "s32-gen1/s32-gen1-regs.h"
+ #include <asm/arch/siul.h>
+ #include <asm/arch/clock.h>
+ #include <asm/arch/mc_cgm_regs.h>
+diff --git a/board/freescale/s32-gen1/board_common.h b/board/freescale/s32-gen1/board_common.h
+index e061a17d94..09e7d4209d 100644
+--- a/board/freescale/s32-gen1/board_common.h
++++ b/board/freescale/s32-gen1/board_common.h
+@@ -1,12 +1,13 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2018-2021 NXP
++ * Copyright 2018-2022 NXP
+  */
+ 
+ #ifndef __S32_GEN1_BOARD_COMMON_H__
+ #define __S32_GEN1_BOARD_COMMON_H__
+ 
+ #include <config.h>
++#include <asm/types.h>
+ 
+ void setup_iomux_i2c(void);
+ void setup_iomux_sdhc(void);
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index 260f582a64..3efb99fd2c 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -1,11 +1,10 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2017-2021 NXP
++ * Copyright 2017-2022 NXP
+  */
+ 
+ #include <common.h>
+ #include <asm/io.h>
+-#include <asm/arch/imx-regs.h>
+ #include <asm/arch/clock.h>
+ #include <asm/arch/soc.h>
+ #include <fdt_support.h>
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index 90608186a8..03ec00dc5c 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * Copyright 2007, 2010-2011 Freescale Semiconductor, Inc
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  * Andy Fleming
+  * Yangbo Lu <yangbo.lu@nxp.com>
+  *
+diff --git a/drivers/net/dwc_eth_qos_s32cc.c b/drivers/net/dwc_eth_qos_s32cc.c
+index 391ab083b8..9a1bca5684 100644
+--- a/drivers/net/dwc_eth_qos_s32cc.c
++++ b/drivers/net/dwc_eth_qos_s32cc.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  */
+ 
+@@ -22,7 +22,6 @@
+ #include <phy.h>
+ #include <reset.h>
+ #include <wait_bit.h>
+-#include <asm/arch/imx-regs.h>
+ #include <asm/arch/clock.h>
+ #include <asm/arch/soc.h>
+ #include <asm/io.h>
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index 5e004f96d6..38b75ea9b1 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -1,14 +1,13 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (c) 2020 Imagination Technologies Limited
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  */
+ 
+ #include <common.h>
+ #include <command.h>
+ #include <phy.h>
+-#include <asm/arch/imx-regs.h>
+ #include <asm/arch/clock.h>
+ #include <asm/arch/soc.h>
+ #include <asm/io.h>
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index c34f3b393f..a953132c03 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -12,7 +12,6 @@
+ 
+ #define CONFIG_S32
+ 
+-#include <asm/arch-s32/imx-regs.h>
+ #include <generated/autoconf.h>
+ 
+ #undef CONFIG_RUN_FROM_IRAM_ONLY
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index d02a399fc3..a5537d60e7 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -5,6 +5,7 @@
+ #include <generated/autoconf.h>
+ #include <config.h>
+ #include <asm/arch-s32/siul-s32-gen1.h>
++#include <asm/arch-s32/s32-gen1/s32-gen1-regs.h>
+ #include "imagetool.h"
+ #include "s32_common.h"
+ #include "s32gen1image.h"
+-- 
+2.17.1
+

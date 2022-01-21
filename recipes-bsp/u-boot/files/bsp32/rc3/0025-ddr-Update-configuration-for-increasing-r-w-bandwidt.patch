@@ -1,0 +1,107 @@
+From 03bb50c733bbea7386a6f907febc24a398a36126 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Wed, 12 Jan 2022 15:32:20 +0200
+Subject: [PATCH 25/25] ddr: Update configuration for increasing r/w bandwidth
+
+Updated the DDR Configuration registers to enable the
+maximum read/write speed performance, as suggested by
+the Validation team.
+
+These changes fix the reported performance degradation issues
+that occurred starting with BSP30.0.
+
+Issue: ALB-7781
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/s32g274a/ddrc_cfg.c | 8 ++++----
+ board/freescale/s32-gen1/s32g3/ddrc_cfg.c    | 8 ++++----
+ board/freescale/s32-gen1/s32r45/ddrc_cfg.c   | 8 ++++----
+ 3 files changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/s32g274a/ddrc_cfg.c b/board/freescale/s32-gen1/s32g274a/ddrc_cfg.c
+index 9be320e1b8..433d8ce98d 100644
+--- a/board/freescale/s32-gen1/s32g274a/ddrc_cfg.c
++++ b/board/freescale/s32-gen1/s32g274a/ddrc_cfg.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -134,11 +134,11 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c022c, 0x00000000U},
+ 	{0x403c0240, 0x04000400U},
+ 	{0x403c0244, 0x00000000U},
+-	{0x403c0250, 0x29001f05U},
++	{0x403c0250, 0x00001f01U},
+ 	{0x403c0254, 0x00000000U},
+ 	{0x403c025c, 0x10002200U},
+-	{0x403c0264, 0x1f002100U},
+-	{0x403c026c, 0x1f002100U},
++	{0x403c0264, 0x90000096U},
++	{0x403c026c, 0x1000012cU},
+ 	{0x403c0300, 0x00000000U},
+ 	{0x403c0304, 0x00000000U},
+ 	{0x403c030c, 0x00000000U},
+diff --git a/board/freescale/s32-gen1/s32g3/ddrc_cfg.c b/board/freescale/s32-gen1/s32g3/ddrc_cfg.c
+index 1d2a213b40..73efe39f21 100644
+--- a/board/freescale/s32-gen1/s32g3/ddrc_cfg.c
++++ b/board/freescale/s32-gen1/s32g3/ddrc_cfg.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -128,11 +128,11 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c022c, 0x00000000U},
+ 	{0x403c0240, 0x04000400U},
+ 	{0x403c0244, 0x00000000U},
+-	{0x403c0250, 0x29001f05U},
++	{0x403c0250, 0x00001f01U},
+ 	{0x403c0254, 0x00000000U},
+ 	{0x403c025c, 0x10002200U},
+-	{0x403c0264, 0x1f002100U},
+-	{0x403c026c, 0x1f002100U},
++	{0x403c0264, 0x90000096U},
++	{0x403c026c, 0x1000012cU},
+ 	{0x403c0300, 0x00000000U},
+ 	{0x403c0304, 0x00000000U},
+ 	{0x403c030c, 0x00000000U},
+diff --git a/board/freescale/s32-gen1/s32r45/ddrc_cfg.c b/board/freescale/s32-gen1/s32r45/ddrc_cfg.c
+index 9be320e1b8..433d8ce98d 100644
+--- a/board/freescale/s32-gen1/s32r45/ddrc_cfg.c
++++ b/board/freescale/s32-gen1/s32r45/ddrc_cfg.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -134,11 +134,11 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c022c, 0x00000000U},
+ 	{0x403c0240, 0x04000400U},
+ 	{0x403c0244, 0x00000000U},
+-	{0x403c0250, 0x29001f05U},
++	{0x403c0250, 0x00001f01U},
+ 	{0x403c0254, 0x00000000U},
+ 	{0x403c025c, 0x10002200U},
+-	{0x403c0264, 0x1f002100U},
+-	{0x403c026c, 0x1f002100U},
++	{0x403c0264, 0x90000096U},
++	{0x403c026c, 0x1000012cU},
+ 	{0x403c0300, 0x00000000U},
+ 	{0x403c0304, 0x00000000U},
+ 	{0x403c030c, 0x00000000U},
+-- 
+2.17.1
+

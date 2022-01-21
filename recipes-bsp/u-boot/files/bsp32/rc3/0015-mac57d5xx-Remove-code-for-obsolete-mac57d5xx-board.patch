@@ -1,0 +1,2707 @@
+From 7d0ab2999340c14b1f6e94c4808aad96627152b6 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Fri, 14 Jan 2022 21:54:06 +0200
+Subject: [PATCH 15/25] mac57d5xx: Remove code for obsolete mac57d5xx board
+
+Removed code for mac57d5xx obsolete board. This is part of the
+upstreaming process of u-boot.
+
+Issue: ALB-8332
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Makefile                                      |   2 +-
+ arch/arm/cpu/armv7/mac57d5xh/Makefile         |   9 -
+ arch/arm/cpu/armv7/mac57d5xh/generic.c        | 365 --------------
+ arch/arm/cpu/armv7/mac57d5xh/timer.c          |  90 ----
+ arch/arm/include/asm/arch-mac57d5xh/clock.h   |  41 --
+ .../arm/include/asm/arch-mac57d5xh/imx-regs.h | 378 --------------
+ .../include/asm/arch-mac57d5xh/mc_cgm_regs.h  | 197 --------
+ .../include/asm/arch-mac57d5xh/mc_me_regs.h   | 227 ---------
+ arch/arm/include/asm/arch-mac57d5xh/siul.h    | 105 ----
+ arch/arm/include/asm/mach-imx/iomux-v3.h      |   3 +-
+ board/freescale/mac57d5xhevb/Makefile         |  10 -
+ board/freescale/mac57d5xhevb/comp.h           |  56 ---
+ board/freescale/mac57d5xhevb/mac57d5xhevb.c   | 473 ------------------
+ board/freescale/mac57d5xhevb/mac57d5xhevb.cfg |  30 --
+ board/freescale/mac57d5xhevb/mmu.c            | 108 ----
+ board/freescale/mac57d5xhevb/mmu.h            | 178 -------
+ drivers/i2c/mxc_i2c.c                         |   1 -
+ include/configs/mac57d5xhevb.h                | 259 ----------
+ 18 files changed, 2 insertions(+), 2530 deletions(-)
+ delete mode 100644 arch/arm/cpu/armv7/mac57d5xh/Makefile
+ delete mode 100644 arch/arm/cpu/armv7/mac57d5xh/generic.c
+ delete mode 100644 arch/arm/cpu/armv7/mac57d5xh/timer.c
+ delete mode 100644 arch/arm/include/asm/arch-mac57d5xh/clock.h
+ delete mode 100644 arch/arm/include/asm/arch-mac57d5xh/imx-regs.h
+ delete mode 100644 arch/arm/include/asm/arch-mac57d5xh/mc_cgm_regs.h
+ delete mode 100644 arch/arm/include/asm/arch-mac57d5xh/mc_me_regs.h
+ delete mode 100644 arch/arm/include/asm/arch-mac57d5xh/siul.h
+ delete mode 100644 board/freescale/mac57d5xhevb/Makefile
+ delete mode 100644 board/freescale/mac57d5xhevb/comp.h
+ delete mode 100644 board/freescale/mac57d5xhevb/mac57d5xhevb.c
+ delete mode 100644 board/freescale/mac57d5xhevb/mac57d5xhevb.cfg
+ delete mode 100644 board/freescale/mac57d5xhevb/mmu.c
+ delete mode 100644 board/freescale/mac57d5xhevb/mmu.h
+ delete mode 100644 include/configs/mac57d5xhevb.h
+
+diff --git a/Makefile b/Makefile
+index fb58fa3cb0..048519bd89 100644
+--- a/Makefile
++++ b/Makefile
+@@ -771,7 +771,7 @@ libs-$(CONFIG_UT_ENV) += test/env/
+ libs-$(CONFIG_UT_OPTEE) += test/optee/
+ libs-$(CONFIG_UT_OVERLAY) += test/overlay/
+ 
+-ifneq (,$(filter $(SOC), mx25 mx27 mx5 mx6 mx31 mx35 mxs vf610 mac57d5xh))
++ifneq (,$(filter $(SOC), mx25 mx27 mx5 mx6 mx31 mx35 mxs vf610))
+ libs-y += arch/$(ARCH)/mach-imx/
+ endif
+ 
+diff --git a/arch/arm/cpu/armv7/mac57d5xh/Makefile b/arch/arm/cpu/armv7/mac57d5xh/Makefile
+deleted file mode 100644
+index 9d4f301934..0000000000
+--- a/arch/arm/cpu/armv7/mac57d5xh/Makefile
++++ /dev/null
+@@ -1,9 +0,0 @@
+-#
+-# (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+-#
+-# SPDX-License-Identifier:	GPL-2.0+
+-#
+-
+-obj-y   += generic.o
+-obj-y   += timer.o
+-
+diff --git a/arch/arm/cpu/armv7/mac57d5xh/generic.c b/arch/arm/cpu/armv7/mac57d5xh/generic.c
+deleted file mode 100644
+index 8085283990..0000000000
+--- a/arch/arm/cpu/armv7/mac57d5xh/generic.c
++++ /dev/null
+@@ -1,365 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#include <common.h>
+-#include <asm/io.h>
+-#include <asm/arch/imx-regs.h>
+-#include <asm/arch/clock.h>
+-#include <asm/arch/mc_cgm_regs.h>
+-#include <asm/arch/mc_me_regs.h>
+-#include <netdev.h>
+-#include <div64.h>
+-#include <errno.h>
+-static u32 get_plldv_rfdphi_div( u32 plldv )
+-{
+-    u32 plldv_rfdphi = (plldv & PLLDIG_PLLDV_RFDPHI_MASK) >> PLLDIG_PLLDV_RFDPHI_OFFSET;
+-
+-    if( plldv_rfdphi & ~PLLDIG_PLLDV_RFDPHI_MAXVALUE )
+-    {
+-        printf("Error: plldv_rfdphi with value %d is incorrect set \n", plldv_rfdphi);
+-        return -1;
+-    }
+-
+-    if( (plldv_rfdphi & PLLDIG_PLLDV_RFDPHIBY_32)  )
+-    {
+-        plldv_rfdphi = PLLDIG_PLLDV_RFDPHIBY_32 + 1;
+-    }
+-    return 1 << (plldv_rfdphi+1);
+-}
+-
+-static u32 get_pllfreq( u32 pll, u32 infreq, u32 pllcal3, u32 plldv, u32 pllfd )
+-{
+-    u32 vco = 0, plldv_prediv = 0, plldv_mfd = 0, pllcal3_mfen = 0, pllfd_mfn = 0, plldv_rfdphi_div = 0;
+-    plldv_prediv = (plldv & PLLDIG_PLLDV_PREDIV_MASK) >> PLLDIG_PLLDV_PREDIV_OFFSET;
+-    plldv_mfd = (plldv & PLLDIG_PLLDV_MFD_MASK);
+-
+-    pllcal3_mfen = (pllcal3 & PLLDIG_PLLCAL3_MFDEN_MASK) >> PLLDIG_PLLCAL3_MFDEN_OFFSET;
+-
+-    pllfd_mfn = (pllfd & PLLDIG_PLLFD_MFN_MASK);
+-
+-    switch(plldv_prediv){
+-        case 0:
+-            plldv_prediv = 1;
+-            break;
+-        case 7:
+-            printf("plldv_prediv value is not supported:%d for PLL%d\n", plldv_prediv, pll);
+-            return -1;
+-    }
+-
+-    vco  = infreq / plldv_prediv * (plldv_mfd + pllfd_mfn/(pllcal3_mfen + 1));
+-
+-    plldv_rfdphi_div =  get_plldv_rfdphi_div(plldv);
+-    if( plldv_rfdphi_div == -1)
+-    {
+-        return -1;
+-    }
+-
+-    return vco / plldv_rfdphi_div;
+-
+-}
+-/* Only works for PLL0, PLL1, PLL2, PLL3 */
+-/* PLL5 not implemented                                  */
+-static u32 decode_pll(enum clocks pll, u32 infreq)
+-{
+-    u32 pllcal3, plldv , pllfd;
+-
+-    volatile struct mc_cgm_reg * mc_cgm = (struct mc_cgm_reg *)MC_CGM0_BASE_ADDR;
+-
+-    switch (pll) {
+-    case PLL0:
+-        pllcal3 = readl(&mc_cgm->pll0_pllcal3);
+-        plldv = readl(&mc_cgm->pll0_plldv);
+-        pllfd = readl(&mc_cgm->pll0_pllfd);
+-        break;
+-    case PLL1:
+-    case PLL2:
+-        case PLL3:
+-
+-    default:
+-        printf("not able to decode the PLL frequency - PLL ID doesn't exist\n");
+-        return -1;
+-    } /* switch(pll) */
+-
+-    return get_pllfreq( pll, infreq, pllcal3, plldv, pllfd );
+-}
+-
+-
+-
+-static u32 get_mcu_main_clk(void)
+-{
+-
+-    volatile struct mc_cgm_reg * mc_cgm = (struct mc_cgm_reg *)MC_CGM0_BASE_ADDR;
+-    u32 armclk_div;
+-    u32 sysclk_sel;
+-    u32 freq = 0;
+-
+-    sysclk_sel = readl(&mc_cgm->mc_cgm_sc_ss) & MC_CGM_SC_SEL_MASK;
+-    sysclk_sel >>= MC_CGM_SC_SEL_OFFSET;
+-
+-    armclk_div = readl(&mc_cgm->mc_cgm_sc_dc1) & MC_CGM_SC_DCn_PREDIV_MASK;
+-    armclk_div >>= MC_CGM_SC_DCn_PREDIV_OFFSET;
+-    armclk_div += 1;
+-
+-    switch (sysclk_sel) {
+-    case FIRC:
+-        freq = FIRC_CLK_FREQ*1000;
+-        break;
+-    case FXOSC:
+-        freq = FXOSC_CLK_FREQ*1000;
+-        break;
+-    case PLL0:
+-    case PLL1:
+-        case PLL2:
+-        case PLL3:
+-        /* PLLx has as source FXOSC */
+-        freq = decode_pll(sysclk_sel, FXOSC_CLK_FREQ)*1000;
+-        break;
+-    default:
+-        printf("unsupported system clock select\n");
+-    }
+-
+-    return freq / armclk_div;
+-
+-}
+-
+-static u32 get_peripherals_clk(void)
+-{
+-
+-    volatile struct mc_cgm_reg * mc_cgm = (struct mc_cgm_reg *)MC_CGM0_BASE_ADDR;
+-    u32 perclk_div;
+-
+-    perclk_div =  readl(&mc_cgm->mc_cgm_sc_dc3) & MC_CGM_SC_DCn_PREDIV_MASK;
+-    perclk_div >>= MC_CGM_SC_DCn_PREDIV_OFFSET;
+-    perclk_div += 1;
+-
+-    return get_mcu_main_clk() / perclk_div;
+-}
+-
+-static u32 get_uart_clk(void)
+-{
+-    volatile struct mc_cgm_reg * mc_cgm = (struct mc_cgm_reg *)MC_CGM0_BASE_ADDR;
+-    u32 linflexclk_div;
+-    u32 auxclk_sel2;
+-    u32 freq = 0;
+-
+-    auxclk_sel2 = readl(&mc_cgm->mc_cgm_ac2_ss) & MC_CGM_ACn_SEL_MASK;
+-    auxclk_sel2 >>= MC_CGM_ACn_SEL_OFFSET;
+-
+-    linflexclk_div = readl(&mc_cgm->mc_cgm_ac2_dc1) & MC_CGM_SC_DCn_PREDIV_MASK;
+-    linflexclk_div >>= MC_CGM_ACn_DCn_PREDIV_OFFSET;
+-    linflexclk_div += 1;
+-
+-    switch (auxclk_sel2) {
+-        case FIRC:
+-                freq = FIRC_CLK_FREQ*1000;
+-                break;
+-        case FXOSC:
+-                freq = FXOSC_CLK_FREQ*1000;
+-                break;
+-        case PLL0:
+-        case PLL1:
+-        case PLL2:
+-        case PLL3:
+-                freq = decode_pll(PLL0, FXOSC_CLK_FREQ)*1000;
+-                break;
+-        default:
+-                printf("unsupported system clock select\n");
+-    }
+-
+-    return freq/linflexclk_div;
+-}
+-
+-u32 get_fec_clk(void)
+-{
+-    volatile struct mc_cgm_reg * mc_cgm = (struct mc_cgm_reg *)MC_CGM0_BASE_ADDR;
+-    u32 enetclk_div;
+-    u32 auxclk_sel10;
+-    u32 freq = 0;
+-
+-    auxclk_sel10 = readl(&mc_cgm->mc_cgm_ac10_ss) & MC_CGM_ACn_SEL_MASK;
+-    auxclk_sel10 >>= MC_CGM_ACn_SEL_OFFSET;
+-
+-    enetclk_div = readl(&mc_cgm->mc_cgm_ac10_dc0) & MC_CGM_SC_DCn_PREDIV_MASK;
+-    enetclk_div >>= MC_CGM_ACn_DCn_PREDIV_OFFSET;
+-    enetclk_div += 1;
+-
+-    switch (auxclk_sel10) {
+-    case FIRC:
+-            freq = FIRC_CLK_FREQ*1000;
+-            break;
+-    case FXOSC:
+-            freq = FXOSC_CLK_FREQ*1000;
+-            break;
+-    case PLL0:
+-    case PLL1:
+-    case PLL2:
+-    case PLL3:
+-            freq = decode_pll(auxclk_sel10, FXOSC_CLK_FREQ)*1000;
+-            break;
+-    default:
+-            printf("unsupported system clock select\n");
+-    }
+-
+-    return freq/enetclk_div;
+-}
+-
+-static u32 get_i2c_clk(void)
+-{
+-    return get_peripherals_clk();
+-}
+-
+-/* return clocks in Hz */
+-unsigned int mxc_get_clock(enum mxc_clock clk)
+-{
+-    switch (clk) {
+-    case MXC_ARM_CLK:
+-        return get_mcu_main_clk();
+-    case MXC_PERIPHERALS_CLK:
+-        return get_peripherals_clk();
+-    case MXC_UART_CLK:
+-        return get_uart_clk();
+-    case MXC_FEC_CLK:
+-        return get_fec_clk();
+-    case MXC_I2C_CLK:
+-        return get_i2c_clk();
+-    default:
+-        break;
+-    }
+-    return -1;
+-}
+-
+-/* Dump some core clocks */
+-int do_mac57d5xh_showclocks(cmd_tbl_t *cmdtp, int flag, int argc,
+-             char * const argv[])
+-{
+-    printf("\n");
+-    printf("-------------------------------------------------------------------------------------------------------\n");
+-    printf("DPLLs settings:\n");
+-    printf("PLL1 main:%5d MHz - PFD1:%5d MHz - PFD2:%5d MHz - PFD3:%5d MHz - PFD4:%5d MHz\n",decode_pll(PLL1,24000)/1000,
+-        decode_pll(PLL0,24000)/1000, decode_pll(PLL1,24000)/1000, decode_pll(PLL1,24000)/1000, decode_pll(PLL1,24000)/1000);
+-#if 0
+-    printf("PLL2 main:%5d MHz - PFD1:%5d MHz - PFD2:%5d MHz - PFD3:%5d MHz - PFD4:%5d MHz\n",decode_pll(PLL2,24000,0)/1000,
+-        decode_pll(PLL2,24000,1)/1000, decode_pll(PLL2,24000,2)/1000, decode_pll(PLL2,24000,3)/1000, decode_pll(PLL2,24000,4)/1000);
+-    printf("PLL3 main:%5d MHz - PFD1:%5d MHz - PFD2:%5d MHz - PFD3:%5d MHz - PFD4:%5d MHz\n",decode_pll(PLL3,24000,0)/1000,
+-        decode_pll(PLL3,24000,1)/1000, decode_pll(PLL3,24000,2)/1000, decode_pll(PLL3,24000,3)/1000, decode_pll(PLL3,24000,4)/1000);
+-    printf("PLL4 main:%5d MHz\n",decode_pll(PLL4,24000,0)/1000);
+-    printf("PLL6 main:%5d MHz\n",decode_pll(PLL6,24000,0)/1000);
+-    printf("--------------------------------------------------------------------------------------------------------\n");
+-    printf("Root clocks:\n");
+-    printf("CPU CA5 clock: %5d MHz\n", mxc_get_clock(MXC_ARM_CLK) / 1000000);
+-    printf("BUS clock:     %5d MHz\n", mxc_get_clock(MXC_BUS_CLK) / 1000000);
+-    printf("IPG clock:     %5d MHz\n", mxc_get_clock(MXC_IPG_CLK) / 1000000);
+-    printf("eSDHC1 clock:  %5d MHz\n", mxc_get_clock(MXC_ESDHC_CLK) / 1000000);
+-    printf("FEC clock:     %5d MHz\n", mxc_get_clock(MXC_FEC_CLK) / 1000000);
+-    printf("UART clock:    %5d MHz\n", mxc_get_clock(MXC_UART_CLK) / 1000000);
+-    printf("NFC clock:     %5d MHz\n", mxc_get_clock(MXC_NFC_CLK) / 1000000);
+-#endif
+-
+-    return 0;
+-}
+-
+-U_BOOT_CMD(
+-    clocks, CONFIG_SYS_MAXARGS, 1, do_mac57d5xh_showclocks,
+-    "display clocks",
+-    ""
+-);
+-
+-#ifdef CONFIG_FEC_MXC
+-void imx_get_mac_from_fuse(int dev_id, unsigned char *mac)
+-{
+-#if 0 /* This feature will be enabled when the enet muxing and clock will 
+-	be implemented */
+-    struct ocotp_regs *ocotp = (struct ocotp_regs *)OCOTP_BASE_ADDR;
+-    struct fuse_bank *bank = &ocotp->bank[4];
+-    struct fuse_bank4_regs *fuse =
+-        (struct fuse_bank4_regs *)bank->fuse_regs;
+-
+-    u32 value = readl(&fuse->mac_addr0);
+-    mac[0] = (value >> 8);
+-    mac[1] = value;
+-
+-    value = readl(&fuse->mac_addr1);
+-    mac[2] = value >> 24;
+-    mac[3] = value >> 16;
+-    mac[4] = value >> 8;
+-    mac[5] = value;
+-#endif
+-}
+-#endif
+-
+-#if defined(CONFIG_DISPLAY_CPUINFO)
+-static char *get_reset_cause(void)
+-{
+-    u32 cause;
+-#if 0 /* SRC IP is not available on Halo. This platform has
+-	RGM ip.
+-	 */
+-    struct src *src_regs = (struct src *)SRC_BASE_ADDR;
+-
+-    cause = readl(&src_regs->srsr);
+-    writel(cause, &src_regs->srsr);
+-    cause &= 0xff;
+-#endif
+-
+-    switch (cause) {
+-    case 0x08:
+-        return "WDOG";
+-    case 0x20:
+-        return "JTAG HIGH-Z";
+-    case 0x80:
+-        return "EXTERNAL RESET";
+-    case 0xfd:
+-        return "POR";
+-    default:
+-        return "unknown reset";
+-    }
+-}
+-
+-
+-
+-void reset_cpu(ulong addr)
+-{
+-#if 0 /* This feature will be enabled when the enet muxing and clock will
+-        be implemented */
+-
+-	#define SRC_SCR_SW_RST                  (1<<12)
+-    struct src *src_regs = (struct src *)SRC_BASE_ADDR;
+-
+-    /* Generate a SW reset from SRC SCR register */
+-    writel(SRC_SCR_SW_RST, &src_regs->scr);
+-
+-    /* If we get there, we are not in good shape */
+-    mdelay(1000);
+-    printf("FATAL: Reset Failed!\n");
+-    hang();
+-#endif
+-};
+-
+-int print_cpuinfo(void)
+-{
+-    printf("CPU:   Freescale Halo MAC57D5XH at %d MHz\n",
+-        mxc_get_clock(MXC_ARM_CLK) / 1000000);
+-    printf("Reset cause: %s\n", get_reset_cause());
+-
+-    return 0;
+-}
+-#endif
+-
+-int cpu_eth_init(bd_t *bis)
+-{
+-    int rc = -ENODEV;
+-
+-#if defined(CONFIG_FEC_MXC)
+-    rc = fecmxc_initialize(bis);
+-#endif
+-
+-    return rc;
+-}
+-
+-int get_clocks(void)
+-{
+-    return 0;
+-}
+diff --git a/arch/arm/cpu/armv7/mac57d5xh/timer.c b/arch/arm/cpu/armv7/mac57d5xh/timer.c
+deleted file mode 100644
+index eb59eb3560..0000000000
+--- a/arch/arm/cpu/armv7/mac57d5xh/timer.c
++++ /dev/null
+@@ -1,90 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#include <common.h>
+-#include <asm/io.h>
+-#include <div64.h>
+-#include <asm/arch/imx-regs.h>
+-#include <asm/arch/clock.h>
+-
+-static struct pit_reg *cur_pit = (struct pit_reg *)PIT_BASE_ADDR;
+-
+-DECLARE_GLOBAL_DATA_PTR;
+-
+-#define TIMER_LOAD_VAL    0xffffffff
+-
+-static inline unsigned long long tick_to_time(unsigned long long tick)
+-{
+-    tick *= CONFIG_SYS_HZ;
+-    do_div(tick, mxc_get_clock(MXC_PERIPHERALS_CLK));
+-
+-    return tick;
+-}
+-
+-static inline unsigned long long us_to_tick(unsigned long long usec)
+-{
+-    usec = usec * mxc_get_clock(MXC_PERIPHERALS_CLK)  + 999999;
+-    do_div(usec, 1000000);
+-
+-    return usec;
+-}
+-
+-int timer_init(void)
+-{
+-    __raw_writel(0, &cur_pit->mcr);
+-
+-    __raw_writel(TIMER_LOAD_VAL, &cur_pit->ldval1);
+-    __raw_writel(0, &cur_pit->tctrl1);
+-    __raw_writel(1, &cur_pit->tctrl1);
+-
+-    gd->arch.tbl = 0;
+-    gd->arch.tbu = 0;
+-
+-    return 0;
+-}
+-
+-unsigned long long get_ticks(void)
+-{
+-    ulong now = TIMER_LOAD_VAL - __raw_readl(&cur_pit->cval1);
+-
+-    /* increment tbu if tbl has rolled over */
+-    if (now < gd->arch.tbl)
+-        gd->arch.tbu++;
+-    gd->arch.tbl = now;
+-
+-    return (((unsigned long long)gd->arch.tbu) << 32) | gd->arch.tbl;
+-}
+-
+-ulong get_timer_masked(void)
+-{
+-    return tick_to_time(get_ticks());
+-}
+-
+-ulong get_timer(ulong base)
+-{
+-    return get_timer_masked() - base;
+-}
+-
+-/* delay x useconds AND preserve advance timstamp value */
+-void __udelay(unsigned long usec)
+-{
+-    unsigned long long start;
+-    ulong tmo;
+-
+-    start = get_ticks();            /* get current timestamp */
+-    tmo = us_to_tick(usec);            /* convert usecs to ticks */
+-    while ((get_ticks() - start) < tmo)
+-        ;                /* loop till time has passed */
+-}
+-
+-/*
+- * This function is derived from PowerPC code (timebase clock frequency).
+- * On ARM it returns the number of timer ticks per second.
+- */
+-ulong get_tbclk(void)
+-{
+-    return mxc_get_clock(MXC_PERIPHERALS_CLK);
+-}
+diff --git a/arch/arm/include/asm/arch-mac57d5xh/clock.h b/arch/arm/include/asm/arch-mac57d5xh/clock.h
+deleted file mode 100644
+index c0e3707062..0000000000
+--- a/arch/arm/include/asm/arch-mac57d5xh/clock.h
++++ /dev/null
+@@ -1,41 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#ifndef __ASM_ARCH_CLOCK_H
+-#define __ASM_ARCH_CLOCK_H
+-
+-#include <common.h>
+-
+-enum mxc_clock {
+-	MXC_ARM_CLK = 0,
+-	MXC_BUS_CLK,
+-	MXC_PERIPHERALS_CLK,
+-	MXC_UART_CLK,
+-	MXC_FEC_CLK,
+-	MXC_I2C_CLK,
+-};
+-
+-/* PLL0 => PLL_SYS; PLL_LINFLEX; PLL_DDR; PLL_ENET */
+-/* PLL1 => NOT USED YET */
+-/* PLL2 => NOT USED YET */
+-/* PLL3 => NOT USED YET */
+-
+-enum clocks {
+-	FIRC = 0,
+-	FXOSC,
+-	RESERVED1,
+-	RESERVED2,
+-	PLL0,
+-	PLL1,
+-	PLL2,
+-	PLL3,
+-};
+-
+-unsigned int mxc_get_clock(enum mxc_clock clk);
+-
+-#define imx_get_fecclk() mxc_get_clock(MXC_FEC_CLK)
+-
+-#endif /* __ASM_ARCH_CLOCK_H */
+diff --git a/arch/arm/include/asm/arch-mac57d5xh/imx-regs.h b/arch/arm/include/asm/arch-mac57d5xh/imx-regs.h
+deleted file mode 100644
+index d47c081147..0000000000
+--- a/arch/arm/include/asm/arch-mac57d5xh/imx-regs.h
++++ /dev/null
+@@ -1,378 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#ifndef __ASM_ARCH_IMX_REGS_H__
+-#define __ASM_ARCH_IMX_REGS_H__
+-
+-#define ARCH_MXC
+-
+-#define IRAM_BASE_ADDR          0x3F000000	/* internal ram */
+-#define IRAM_SIZE               0x00080000	/* 512 KB */
+-
+-#define AIPS0_BASE_ADDR         0x40000000
+-#define AIPS1_BASE_ADDR         0x40080000
+-
+-/* AIPS 0 */
+-#define EIM_BASE_ADDR           (AIPS0_BASE_ADDR + 0x00005000)
+-#define ERM_BASE_ADDR           (AIPS0_BASE_ADDR + 0x00006000)
+-#define DAP_ROM_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00007000)
+-#define CA5_DBG_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00008000)
+-#define CA5_PMU_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00009000)
+-#define CA5_ETM_BASE_ADDR       (AIPS0_BASE_ADDR + 0x0000A000)
+-#define CA5_ROM_BASE_ADDR       (AIPS0_BASE_ADDR + 0x0000C000)
+-#define CA5_CTI_BASE_ADDR       (AIPS0_BASE_ADDR + 0x0000E000)
+-#define HTM_ETB_BASE_ADDR       (AIPS0_BASE_ADDR + 0x0000F000)
+-#define CA5_ITM_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00010000)
+-#define CA5_ETB_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00011000)
+-#define CA5_FUNNEL_BASE_ADDR    (AIPS0_BASE_ADDR + 0x00012000)
+-#define PTC_BASE_ADDR           (AIPS0_BASE_ADDR + 0x00013000)
+-#define TPIU_BASE_ADDR          (AIPS0_BASE_ADDR + 0x00014000)
+-#define MAIN_FUNNEL_BASE_ADDR   (AIPS0_BASE_ADDR + 0x00015000)
+-#define SWO_BASE_ADDR           (AIPS0_BASE_ADDR + 0x00016000)
+-#define HTM_BASE_ADDR           (AIPS0_BASE_ADDR + 0x00017000)
+-#define QUADSPI_0_BASE_ADDR     (AIPS0_BASE_ADDR + 0x00020000)
+-#define QUADSPI_1_BASE_ADDR     (AIPS0_BASE_ADDR + 0x00021000)
+-#define MDDRC_BASE_ADDR         (AIPS0_BASE_ADDR + 0x00024000)
+-#define TCON_01_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00050000)
+-#define TCON_02_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00052000)
+-#define TCON_03_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00053000)
+-#define TCON_11_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00054000)
+-#define TCON_12_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00056000)
+-#define TCON_13_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00057000)
+-#define RLE_DEC_BASE_ADDR       (AIPS0_BASE_ADDR + 0x00058000)
+-#define SGM_BASE_ADDR           (AIPS0_BASE_ADDR + 0x0005C000)
+-#define ENET_BASE_ADDR          (AIPS0_BASE_ADDR + 0x00064000)
+-#define LDB_BASE_ADDR           (AIPS0_BASE_ADDR + 0x00068000)
+-#define MLB50_BASE_ADDR         (AIPS0_BASE_ADDR + 0x0006C000)
+-
+-/* AIPS 1 */
+-#define SEMA42_BASE_ADDR        (AIPS1_BASE_ADDR + 0x00003000)
+-#define MSCM_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00005000)
+-#define SWT0_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00008000)
+-#define SWT1_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00009000)
+-#define SWT2_BASE_ADDR          (AIPS1_BASE_ADDR + 0x0000A000)
+-#define STM0_BASE_ADDR          (AIPS1_BASE_ADDR + 0x0000C000)
+-#define STM1_BASE_ADDR          (AIPS1_BASE_ADDR + 0x0000D000)
+-#define DMA0_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00010000)
+-#define DMA0_TCD_BASE_ADDR      (AIPS1_BASE_ADDR + 0x00011000)
+-#define DMA1_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00012000)
+-#define DMA1_TCD_BASE_ADDR      (AIPS1_BASE_ADDR + 0x00013000)
+-#define XRDC_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00014000)
+-#define CSE_BASE_ADDR           (AIPS1_BASE_ADDR + 0x00018000)
+-#define DMA_MUX0_BASE_ADDR      (AIPS1_BASE_ADDR + 0x00021000)
+-#define I2C0_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00022000)
+-#define I2C1_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00023000)
+-#define FTM0_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00024000)
+-#define FTM1_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00025000)
+-#define FTM2_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00026000)
+-#define FTM3_BASE_ADDR          (AIPS1_BASE_ADDR + 0x00027000)
+-#define DSPI0_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00033000)
+-#define DSPI1_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00034000)
+-#define DSPI2_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00035000)
+-#define DSPI3_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00036000)
+-#define DSPI4_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00037000)
+-#define UART0_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00038000)
+-#define UART1_BASE_ADDR         (AIPS1_BASE_ADDR + 0x00039000)
+-#define UART2_BASE_ADDR         (AIPS1_BASE_ADDR + 0x0003A000)
+-#define FLEXCAN1_BASE_ADDR      (AIPS1_BASE_ADDR + 0x0003C000)
+-#define FLEXCAN2_BASE_ADDR      (AIPS1_BASE_ADDR + 0x0003D000)
+-#define ADC_BASE_ADDR           (AIPS1_BASE_ADDR + 0x0003E000)
+-#define PIT_BASE_ADDR           (AIPS1_BASE_ADDR + 0x00044000)
+-#define MC_RGM0_BASE_ADDR       (AIPS1_BASE_ADDR + 0x00050000)
+-#define MC_RGM1_BASE_ADDR       (AIPS1_BASE_ADDR + 0x00052000)
+-#define MC_RGM2_BASE_ADDR       (AIPS1_BASE_ADDR + 0x00053000)
+-#define MC_CGM0_BASE_ADDR       (AIPS1_BASE_ADDR + 0x00054000)
+-#define MC_CGM1_BASE_ADDR       (AIPS1_BASE_ADDR + 0x00056000)
+-#define MC_CGM2_BASE_ADDR       (AIPS1_BASE_ADDR + 0x00057000)
+-#define MC_ME0_BASE_ADDR        (AIPS1_BASE_ADDR + 0x00058000)
+-#define MC_ME1_BASE_ADDR        (AIPS1_BASE_ADDR + 0x0005A000)
+-#define MC_ME2_BASE_ADDR        (AIPS1_BASE_ADDR + 0x0005B000)
+-#define SIUL2_BASE_ADDR         (AIPS1_BASE_ADDR + 0x0005C000)
+-#define SSCM0_BASE_ADDR         (AIPS1_BASE_ADDR + 0x0006C000)
+-#define SSCM1_BASE_ADDR         (AIPS1_BASE_ADDR + 0x0006D000)
+-#define SSCM2_BASE_ADDR         (AIPS1_BASE_ADDR + 0x0006E000)
+-#define FLEXCAN0_BASE_ADDR      (AIPS1_BASE_ADDR + 0x0007F000)
+-
+-/* TODO Remove this after the IOMUX framework is implemented */
+-#define IOMUXC_BASE_ADDR SIUL2_BASE_ADDR
+-
+-/* MUX mode and PAD ctrl are in one register */
+-#define CONFIG_IOMUX_SHARE_CONF_REG
+-
+-#define FEC_QUIRK_ENET_MAC
+-#define I2C_QUIRK_REG
+-
+-/* MSCM interrupt rounter */
+-#define MSCM_IRSPRC_CP0_EN      1
+-#define MSCM_IRSPRC_NUM         112
+-
+-/* DDRMC */
+-#define DDRMC_PHY_DQ_TIMING     0x00002613
+-#define DDRMC_PHY_DQS_TIMING    0x00002615
+-#define DDRMC_PHY_CTRL          0x01210080
+-#define DDRMC_PHY_MASTER_CTRL   0x0001012a
+-#define DDRMC_PHY_SLAVE_CTRL    0x00012020
+-
+-#define DDRMC_PHY50_DDR3_MODE   (1 << 12)
+-#define DDRMC_PHY50_EN_SW_HALF_CYCLE    (1 << 8)
+-
+-#define DDRMC_CR00_DRAM_CLASS_DDR3      (0x6 << 8)
+-#define DDRMC_CR00_DRAM_CLASS_LPDDR2    (0x5 << 8)
+-#define DDRMC_CR00_START                1
+-#define DDRMC_CR02_DRAM_TINIT(v)        ((v) & 0xffffff)
+-#define DDRMC_CR10_TRST_PWRON(v)        (v)
+-#define DDRMC_CR11_CKE_INACTIVE(v)      (v)
+-#define DDRMC_CR12_WRLAT(v)             (((v) & 0x1f) << 8)
+-#define DDRMC_CR12_CASLAT_LIN(v)        ((v) & 0x3f)
+-#define DDRMC_CR13_TRC(v)               (((v) & 0xff) << 24)
+-#define DDRMC_CR13_TRRD(v)              (((v) & 0xff) << 16)
+-#define DDRMC_CR13_TCCD(v)              (((v) & 0x1f) << 8)
+-#define DDRMC_CR13_TBST_INT_INTERVAL(v) ((v) & 0x7)
+-#define DDRMC_CR14_TFAW(v)              (((v) & 0x3f) << 24)
+-#define DDRMC_CR14_TRP(v)               (((v) & 0x1f) << 16)
+-#define DDRMC_CR14_TWTR(v)              (((v) & 0xf) << 8)
+-#define DDRMC_CR14_TRAS_MIN(v)          ((v) & 0xff)
+-#define DDRMC_CR16_TMRD(v)              (((v) & 0x1f) << 24)
+-#define DDRMC_CR16_TRTP(v)              (((v) & 0xf) << 16)
+-#define DDRMC_CR17_TRAS_MAX(v)          (((v) & 0x1ffff) << 8)
+-#define DDRMC_CR17_TMOD(v)              ((v) & 0xff)
+-#define DDRMC_CR18_TCKESR(v)            (((v) & 0x1f) << 8)
+-#define DDRMC_CR18_TCKE(v)              ((v) & 0x7)
+-#define DDRMC_CR20_AP_EN                (1 << 24)
+-#define DDRMC_CR21_TRCD_INT(v)          (((v) & 0xff) << 16)
+-#define DDRMC_CR21_TRAS_LOCKOUT         (1 << 8)
+-#define DDRMC_CR21_CCMAP_EN             1
+-#define DDRMC_CR22_TDAL(v)              (((v) & 0x3f) << 16)
+-#define DDRMC_CR23_BSTLEN(v)            (((v) & 0x7) << 24)
+-#define DDRMC_CR23_TDLL(v)              ((v) & 0xff)
+-#define DDRMC_CR24_TRP_AB(v)            ((v) & 0x1f)
+-#define DDRMC_CR25_TREF_EN              (1 << 16)
+-#define DDRMC_CR26_TREF(v)              (((v) & 0xffff) << 16)
+-#define DDRMC_CR26_TRFC(v)              ((v) & 0x3ff)
+-#define DDRMC_CR28_TREF_INT(v)          ((v) & 0xffff)
+-#define DDRMC_CR29_TPDEX(v)             ((v) & 0xffff)
+-#define DDRMC_CR30_TXPDLL(v)            ((v) & 0xffff)
+-#define DDRMC_CR31_TXSNR(v)             (((v) & 0xffff) << 16)
+-#define DDRMC_CR31_TXSR(v)              ((v) & 0xffff)
+-#define DDRMC_CR33_EN_QK_SREF           (1 << 16)
+-#define DDRMC_CR34_CKSRX(v)             (((v) & 0xf) << 16)
+-#define DDRMC_CR34_CKSRE(v)             (((v) & 0xf) << 8)
+-#define DDRMC_CR38_FREQ_CHG_EN          (1 << 8)
+-#define DDRMC_CR39_PHY_INI_COM(v)       (((v) & 0xffff) << 16)
+-#define DDRMC_CR39_PHY_INI_STA(v)       (((v) & 0xff) << 8)
+-#define DDRMC_CR39_FRQ_CH_DLLOFF(v)     ((v) & 0x3)
+-#define DDRMC_CR41_PHY_INI_STRT_INI_DIS 1
+-#define DDRMC_CR48_MR1_DA_0(v)          (((v) & 0xffff) << 16)
+-#define DDRMC_CR48_MR0_DA_0(v)          ((v) & 0xffff)
+-#define DDRMC_CR66_ZQCL(v)              (((v) & 0xfff) << 16)
+-#define DDRMC_CR66_ZQINIT(v)            ((v) & 0xfff)
+-#define DDRMC_CR67_ZQCS(v)              ((v) & 0xfff)
+-#define DDRMC_CR69_ZQ_ON_SREF_EX(v)     (((v) & 0xf) << 8)
+-#define DDRMC_CR70_REF_PER_ZQ(v)        (v)
+-#define DDRMC_CR72_ZQCS_ROTATE          (1 << 24)
+-#define DDRMC_CR73_APREBIT(v)           (((v) & 0xf) << 24)
+-#define DDRMC_CR73_COL_DIFF(v)          (((v) & 0x7) << 16)
+-#define DDRMC_CR73_ROW_DIFF(v)          (((v) & 0x3) << 8)
+-#define DDRMC_CR74_BANKSPLT_EN          (1 << 24)
+-#define DDRMC_CR74_ADDR_CMP_EN          (1 << 16)
+-#define DDRMC_CR74_CMD_AGE_CNT(v)       (((v) & 0xff) << 8)
+-#define DDRMC_CR74_AGE_CNT(v)           ((v) & 0xff)
+-#define DDRMC_CR75_RW_PG_EN             (1 << 24)
+-#define DDRMC_CR75_RW_EN                (1 << 16)
+-#define DDRMC_CR75_PRI_EN               (1 << 8)
+-#define DDRMC_CR75_PLEN                 1
+-#define DDRMC_CR76_NQENT_ACTDIS(v)      (((v) & 0x7) << 24)
+-#define DDRMC_CR76_D_RW_G_BKCN(v)       (((v) & 0x3) << 16)
+-#define DDRMC_CR76_W2R_SPLT_EN          (1 << 8)
+-#define DDRMC_CR76_CS_EN                1
+-#define DDRMC_CR77_CS_MAP               (1 << 24)
+-#define DDRMC_CR77_DI_RD_INTLEAVE       (1 << 8)
+-#define DDRMC_CR77_SWAP_EN              1
+-#define DDRMC_CR78_BUR_ON_FLY_BIT(v)    ((v) & 0xf)
+-#define DDRMC_CR79_CTLUPD_AREF          (1 << 24)
+-#define DDRMC_CR82_INT_MASK             0x1fffffff
+-#define DDRMC_CR87_ODT_WR_MAPCS0        (1 << 24)
+-#define DDRMC_CR87_ODT_RD_MAPCS0        (1 << 16)
+-#define DDRMC_CR88_TODTL_CMD(v)         (((v) & 0x1f) << 16)
+-#define DDRMC_CR89_AODT_RWSMCS(v)       ((v) & 0xf)
+-#define DDRMC_CR91_R2W_SMCSDL(v)        (((v) & 0x7) << 16)
+-#define DDRMC_CR96_WLMRD(v)             (((v) & 0x3f) << 8)
+-#define DDRMC_CR96_WLDQSEN(v)           ((v) & 0x3f)
+-#define DDRMC_CR105_RDLVL_DL_0(v)       (((v) & 0xff) << 8)
+-#define DDRMC_CR110_RDLVL_DL_1(v)       ((v) & 0xff)
+-#define DDRMC_CR114_RDLVL_GTDL_2(v)     (((v) & 0xffff) << 8)
+-#define DDRMC_CR117_AXI0_W_PRI(v)       (((v) & 0x3) << 8)
+-#define DDRMC_CR117_AXI0_R_PRI(v)       ((v) & 0x3)
+-#define DDRMC_CR118_AXI1_W_PRI(v)       (((v) & 0x3) << 24)
+-#define DDRMC_CR118_AXI1_R_PRI(v)       (((v) & 0x3) << 16)
+-#define DDRMC_CR120_AXI0_PRI1_RPRI(v)   (((v) & 0xf) << 24)
+-#define DDRMC_CR120_AXI0_PRI0_RPRI(v)   (((v) & 0xf) << 16)
+-#define DDRMC_CR121_AXI0_PRI3_RPRI(v)   (((v) & 0xf) << 8)
+-#define DDRMC_CR121_AXI0_PRI2_RPRI(v)   ((v) & 0xf)
+-#define DDRMC_CR122_AXI1_PRI1_RPRI(v)   (((v) & 0xf) << 24)
+-#define DDRMC_CR122_AXI1_PRI0_RPRI(v)   (((v) & 0xf) << 16)
+-#define DDRMC_CR122_AXI0_PRIRLX(v)      ((v) & 0x3ff)
+-#define DDRMC_CR123_AXI1_PRI3_RPRI(v)   (((v) & 0xf) << 8)
+-#define DDRMC_CR123_AXI1_PRI2_RPRI(v)   ((v) & 0xf)
+-#define DDRMC_CR124_AXI1_PRIRLX(v)      ((v) & 0x3ff)
+-#define DDRMC_CR126_PHY_RDLAT(v)        (((v) & 0x3f) << 8)
+-#define DDRMC_CR132_WRLAT_ADJ(v)        (((v) & 0x1f) << 8)
+-#define DDRMC_CR132_RDLAT_ADJ(v)        ((v) & 0x3f)
+-#define DDRMC_CR139_PHY_WRLV_RESPLAT(v) (((v) & 0xff) << 24)
+-#define DDRMC_CR139_PHY_WRLV_LOAD(v)    (((v) & 0xff) << 16)
+-#define DDRMC_CR139_PHY_WRLV_DLL(v)     (((v) & 0xff) << 8)
+-#define DDRMC_CR139_PHY_WRLV_EN(v)      ((v) & 0xff)
+-#define DDRMC_CR154_PAD_ZQ_EARLY_CMP_EN_TIMER(v)    (((v) & 0x1f) << 27)
+-#define DDRMC_CR154_PAD_ZQ_MODE(v)      (((v) & 0x3) << 21)
+-#define DDRMC_CR155_AXI0_AWCACHE        (1 << 10)
+-#define DDRMC_CR155_PAD_ODT_BYTE1(v)    ((v) & 0x7)
+-#define DDRMC_CR158_TWR(v)              ((v) & 0x3f)
+-
+-#if !(defined(__KERNEL_STRICT_NAMES) || defined(__ASSEMBLY__))
+-#include <asm/types.h>
+-
+-/* System Reset Controller (SRC) */
+-struct src {
+-    u32 scr;
+-    u32 sbmr1;
+-    u32 srsr;
+-    u32 secr;
+-    u32 gpsr;
+-    u32 sicr;
+-    u32 simr;
+-    u32 sbmr2;
+-    u32 gpr0;
+-    u32 gpr1;
+-    u32 gpr2;
+-    u32 gpr3;
+-    u32 gpr4;
+-    u32 hab0;
+-    u32 hab1;
+-    u32 hab2;
+-    u32 hab3;
+-    u32 hab4;
+-    u32 hab5;
+-    u32 misc0;
+-    u32 misc1;
+-    u32 misc2;
+-    u32 misc3;
+-};
+-
+-/* Periodic Interrupt Timer (PIT) */
+-struct pit_reg {
+-    u32 mcr;
+-    u32 recv0[55];
+-    u32 ltmr64h;
+-    u32 ltmr64l;
+-    u32 recv1[6];
+-    u32 ldval0;
+-    u32 cval0;
+-    u32 tctrl0;
+-    u32 tflg0;
+-    u32 ldval1;
+-    u32 cval1;
+-    u32 tctrl1;
+-    u32 tflg1;
+-    u32 ldval2;
+-    u32 cval2;
+-    u32 tctrl2;
+-    u32 tflg2;
+-    u32 ldval3;
+-    u32 cval3;
+-    u32 tctrl3;
+-    u32 tflg3;
+-    u32 ldval4;
+-    u32 cval4;
+-    u32 tctrl4;
+-    u32 tflg4;
+-    u32 ldval5;
+-    u32 cval5;
+-    u32 tctrl5;
+-    u32 tflg5;
+-    u32 ldval6;
+-    u32 cval6;
+-    u32 tctrl6;
+-    u32 tflg6;
+-    u32 ldval7;
+-    u32 cval7;
+-    u32 tctrl7;
+-    u32 tflg7;
+-};
+-
+-/* Watchdog Timer (WDOG) */
+-struct wdog_regs {
+-    u16 wcr;
+-    u16 wsr;
+-    u16 wrsr;
+-    u16 wicr;
+-    u16 wmcr;
+-};
+-
+-/* LPDDR2/DDR3 SDRAM Memory Controller (DDRMC) */
+-struct ddrmr_regs {
+-    u32 cr[162];
+-    u32 rsvd[94];
+-    u32 phy[53];
+-};
+-
+-/* UART */
+-struct linflex_fsl {
+-    u32 lincr1;
+-    u32 linier;
+-    u32 linsr;
+-    u32 linesr;
+-    u32 uartcr;
+-    u32 uartsr;
+-    u32 lintcsr;
+-    u32 linocr;
+-    u32 lintocr;
+-    u32 linfbrr;
+-    u32 linibrr;
+-    u32 lincfr;
+-    u32 lincr2;
+-    u32 bidr;
+-    u32 bdrl;
+-    u32 bdrm;
+-    u32 ifer;
+-    u32 ifmi;
+-    u32 ifmr;
+-    u32 ifcr0;
+-    u32 ifcr1;
+-    u32 ifcr2;
+-    u32 ifcr3;
+-    u32 ifcr4;
+-    u32 ifcr5;
+-    u32 ifcr6;
+-    u32 ifcr7;
+-    u32 ifcr8;
+-    u32 ifcr9;
+-    u32 ifcr10;
+-    u32 ifcr11;
+-    u32 ifcr12;
+-    u32 ifcr13;
+-    u32 ifcr14;
+-    u32 ifcr15;
+-    u32 gcr;
+-    u32 uartpto;
+-    u32 uartcto;
+-    u32 dmatxe;
+-    u32 dmarxe;
+-};
+-
+-/* MSCM Interrupt Router */
+-struct mscm_ir {
+-    u32 ircp0ir;
+-    u32 ircp1ir;
+-    u32 rsvd1[6];
+-    u32 ircpgir;
+-    u32 rsvd2[23];
+-    u16 irsprc[112];
+-    u16 rsvd3[848];
+-};
+-
+-#endif    /* __ASSEMBLER__*/
+-
+-#endif    /* __ASM_ARCH_IMX_REGS_H__ */
+diff --git a/arch/arm/include/asm/arch-mac57d5xh/mc_cgm_regs.h b/arch/arm/include/asm/arch-mac57d5xh/mc_cgm_regs.h
+deleted file mode 100644
+index 0d294464f4..0000000000
+--- a/arch/arm/include/asm/arch-mac57d5xh/mc_cgm_regs.h
++++ /dev/null
+@@ -1,197 +0,0 @@
+-/*
+- * (C) Copyright 2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#ifndef __ARCH_ARM_MACH_MAC57D5XH_MCCGM_REGS_H__
+-#define __ARCH_ARM_MACH_MAC57D5XH_MCCGM_REGS_H__
+-
+-#ifndef __ASSEMBLY__
+-
+-/* Clock Generation Module (CGM) */
+-struct mc_cgm_reg {
+-    u32 reserved_0x0[6];
+-    u32 pll0_pllcal3;       /* PLL Calibration Register 3                       */
+-    u32 reserved_0x1c[1];
+-    u32 pll0_pllcr;         /* PLLDIG PLL Control Register                      */
+-    u32 pll0_pllsr;         /* PLLDIG PLL Status Register                       */
+-    u32 pll0_plldv;         /* PLLDIG PLL Divider Register                      */
+-    u32 pll0_pllfm;         /* PLLDIG PLL Frequency Modulation Register         */
+-    u32 pll0_pllfd;         /* PLLDIG PLL Fractional Divide Register            */
+-    u32 reserved_0x34[243];
+-    u32 mc_cgm_sc_dc6;      /* System Clock Divider 6 Configuration Register    */
+-    u32 reserved_0x404[191];
+-    u8  reserved_0x700[3];
+-    u8  mc_cgm_pcs_sdur;    /* PCS Switch Duration Register                        */
+-    u32 mc_cgm_pcs_divc1;   /* PCS Divider Change Register 1                       */
+-    u32 mc_cgm_pcs_dive1;   /* PCS Divider End Register 1                          */
+-    u32 mc_cgm_pcs_divs1;   /* PCS Divider Start Register 1                        */
+-    u32 reserved_0x710[6];
+-    u32 mc_cgm_pcs_divc4;   /* PCS Divider Change Register 4                       */
+-    u32 mc_cgm_pcs_dive4;   /* PCS Divider End Register 4                          */
+-    u32 mc_cgm_pcs_divs4;   /* PCS Divider Start Register 4                        */
+-    u32 mc_cgm_pcs_divc5;   /* PCS Divider Change Register 5                       */
+-    u32 mc_cgm_pcs_dive5;   /* PCS Divider End Register 5                          */
+-    u32 mc_cgm_pcs_divs5;   /* PCS Divider Start Register 5                        */
+-    u32 reserved_0x740[36];
+-    u32 mc_cgm_sc_div_rc;    /* System Clock Divider Ratio Change Register          */
+-    u32 mc_cgm_div_upd_type; /* Divider Update Type                                 */
+-    u32 mc_cgm_div_upd_trig; /* Divider Update Trigger                              */
+-    u32 mc_cgm_div_upd_stat; /* Divider Update Status                               */
+-    u32 reserved_0x7e0[1];
+-    u32 mc_cgm_sc_ss;        /* System Clock Select Status Register                 */
+-    u32 mc_cgm_sc_dc0;       /* System Clock Divider 0 Configuration Register       */
+-    u32 mc_cgm_sc_dc1;       /* System Clock Divider 1 Configuration Register       */
+-    u32 mc_cgm_sc_dc2;       /* System Clock Divider 2 Configuration Register       */
+-    u32 mc_cgm_sc_dc3;       /* System Clock Divider 3 Configuration Register       */
+-    u32 mc_cgm_sc_dc4;       /* System Clock Divider 4 Configuration Register       */
+-    u32 mc_cgm_sc_dc5;       /* System Clock Divider 5 Configuration Register       */
+-    u32 mc_cgm_ac0_sc;       /* Auxiliary Clock 0 Select Control Register           */
+-    u32 mc_cgm_ac0_ss;       /* Auxiliary Clock 0 Select Status Register            */
+-    u32 reserved_0x808[6];
+-    u32 mc_cgm_ac1_sc;       /* Auxiliary Clock 1 Select Control Register           */
+-    u32 mc_cgm_ac1_ss;       /* Auxiliary Clock 1 Select Status Register            */
+-    u32 mc_cgm_ac1_dc0;      /* Auxiliary Clock 1 Divider 0 Configuration Register  */
+-    u32 reserved_0x82c[5];
+-    u32 mc_cgm_ac2_sc;       /* Auxiliary Clock 2 Select Control Register           */
+-    u32 mc_cgm_ac2_ss;       /* Auxiliary Clock 2 Select Status Register            */
+-    u32 mc_cgm_ac2_dc0;      /* Auxiliary Clock 2 Divider 0 Configuration Register  */
+-    u32 mc_cgm_ac2_dc1;      /* Auxiliary Clock 2 Divider 1 Configuration Register  */
+-    u32 reserved_0x850[4];
+-    u32 mc_cgm_ac3_sc;       /* Auxiliary Clock 3 Select Control Register           */
+-    u32 mc_cgm_ac3_ss;       /* Auxiliary Clock 3 Select Status Register            */
+-    u32 mc_cgm_ac3_dc0;      /* Auxiliary Clock 3 Divider 0 Configuration Register  */
+-    u32 reserved_0x86c[5];
+-    u32 mc_cgm_ac4_sc;       /* Auxiliary Clock 4 Select Control Register           */
+-    u32 mc_cgm_ac4_ss;       /* Auxiliary Clock 4 Select Status Register            */
+-    u32 mc_cgm_ac4_dc0;      /* Auxiliary Clock 4 Divider 0 Configuration Register  */
+-    u32 reserved_0x88C[5];
+-    u32 mc_cgm_ac5_sc;       /* Auxiliary Clock 5 Select Control Register           */
+-    u32 mc_cgm_ac5_ss;       /* Auxiliary Clock 5 Select Status Register            */
+-    u32 mc_cgm_ac5_dc0;      /* Auxiliary Clock 5 Divider 0 Configuration Register  */
+-    u32 mc_cgm_ac5_dc1;      /* Auxiliary Clock 5 Divider 1 Configuration Register  */
+-    u32 reserved_0x8b0[4];
+-    u32 mc_cgm_ac6_sc;       /* Auxiliary Clock 6 Select Control Register           */
+-    u32 mc_cgm_ac6_ss;       /* Auxiliary Clock 6 Select Status Register            */
+-    u32 mc_cgm_ac6_dc0;      /* Auxiliary Clock 6 Divider 0 Configuration Register  */
+-    u32 mc_cgm_ac6_dc1;      /* Auxiliary Clock 6 Divider 1 Configuration Register  */
+-    u32 reserved_0x8d0[4];
+-    u32 mc_cgm_ac7_sc;       /* Auxiliary Clock 7 Select Control Register           */
+-    u32 mc_cgm_ac7_ss;       /* Auxiliary Clock 7 Select Status Register            */
+-    u32 mc_cgm_ac7_dc0;      /* Auxiliary Clock 7 Divider 0 Configuration Register  */
+-    u32 mc_cgm_ac7_dc1;      /* Auxiliary Clock 7 Divider 1 Configuration Register  */
+-    u32 reserved_0x8f0[4];
+-    u32 mc_cgm_ac8_sc;       /* Auxiliary Clock 8 Select Control Register           */
+-    u32 mc_cgm_ac8_ss;       /* Auxiliary Clock 8 Select Status Register            */
+-    u32 mc_cgm_ac8_dc0;      /* Auxiliary Clock 8 Divider 0 Configuration Register  */
+-    u32 reserved_0x90c[5];
+-    u32 mc_cgm_ac9_sc;       /* Auxiliary Clock 9 Select Control Register           */
+-    u32 mc_cgm_ac9_ss;       /* Auxiliary Clock 9 Select Status Register            */
+-    u32 mc_cgm_ac9_dc0;      /* Auxiliary Clock 9 Divider 0 Configuration Register  */
+-    u32 reserved_0x92c[5];
+-    u32 mc_cgm_ac10_sc;      /* Auxiliary Clock 10 Select Control Register          */
+-    u32 mc_cgm_ac10_ss;      /* Auxiliary Clock 10 Select Status Register           */
+-    u32 mc_cgm_ac10_dc0;     /* Auxiliary Clock 10 Divider 0 Configuration Register */
+-    u32 reserved_0x94c[5];
+-    u32 mc_cgm_ac11_sc;      /* Auxiliary Clock 11 Select Control Register          */
+-    u32 mc_cgm_ac11_ss;      /* Auxiliary Clock 11 Select Status Register           */
+-    u32 mc_cgm_ac11_dc0;     /* Auxiliary Clock 11 Divider 0 Configuration Register */
+-    u32 reserved_0x96c[5];
+-    u32 mc_cgm_ac12_sc;      /* Auxiliary Clock 12 Select Control Register          */
+-    u32 mc_cgm_ac12_ss;      /* Auxiliary Clock 12 Select Status Register           */
+-    u32 mc_cgm_ac12_dc0;     /* Auxiliary Clock 12 Divider 0 Configuration Register */
+-    u32 reserved_0x98c[5];
+-    u32 mc_cgm_ac13_sc;      /* Auxiliary Clock 13 Select Control Register          */
+-    u32 mc_cgm_ac13_ss;      /* Auxiliary Clock 13 Select Status Register           */
+-    u32 mc_cgm_ac13_dc0;     /* Auxiliary Clock 13 Divider 0 Configuration Register */
+-    u32 reserved_0x9ac[5];
+-    u32 mc_cgm_ac14_sc;      /* Auxiliary Clock 14 Select Control Register          */
+-    u32 mc_cgm_ac14_ss;      /* Auxiliary Clock 14 Select Status Register           */
+-    u32 mc_cgm_ac14_dc0;     /* Auxiliary Clock 14 Divider 0 Configuration Register */
+-    u32 reserved_0x9cc[5];
+-    u32 mc_cgm_ac15_sc;      /* Auxiliary Clock 15 Select Control Register          */
+-    u32 mc_cgm_ac15_ss;      /* Auxiliary Clock 14 Select Status Register           */
+-    u32 mc_cgm_ac15_dc0;     /* Auxiliary Clock 15 Divider 0 Configuration Register */
+-    u32 mc_cgm_ac15_dc1;     /* Auxiliary Clock 15 Divider 1 Configuration Register */
+-};
+-
+-/* MC_CGM registers definitions */
+-
+-/* MC_CGM_SC_DCm */
+-#define MC_CGM_SC_DCn_PREDIV(val)   (MC_CGM_SC_DCn_PREDIV_MASK & ((val) << 16))
+-#define MC_CGM_SC_DCn_PREDIV_MASK   (0x001F0000)
+-#define MC_CGM_SC_DCn_PREDIV_OFFSET (16)
+-#define MC_CGM_SC_DCn_DE            (1 << 31)
+-#define MC_CGM_SC_SEL_MASK          (0x07000000)
+-#define MC_CGM_SC_SEL_OFFSET        (24)
+-
+-
+-/* MC_CGM_ACn_DCn */
+-#define MC_CGM_ACn_DCn_PREDIV(val)    (MC_CGM_ACn_DCn_PREDIV_MASK & ((val) << MC_CGM_ACn_DCn_PREDIV_OFFSET))
+-
+-/*
+- * MC_CGM_ACn_DCn_PREDIV_MASK is on 5 bits because practical test has shown
+- * that the 5th bit is always ignored during writes if the current
+- * MC_CGM_ACn_DCn_PREDIV field has only 4 bits
+- *
+- * The manual states only selectors 1, 5 and 15 have DC0_PREDIV on 5 bits
+- *
+- * This should be changed if any problems occur.
+- */
+-#define MC_CGM_ACn_DCn_PREDIV_MASK      (0x001F0000)
+-#define MC_CGM_ACn_DCn_PREDIV_OFFSET    (16)
+-#define MC_CGM_ACn_DCn_DE               (1 << 31)
+-
+-/*
+- *  MC_CGM_ACn_SC/MC_CGM_ACn_SS
+-*/
+-#define MC_CGM_ACn_SEL_MASK             (0x07000000)
+-#define MC_CGM_ACn_SEL_SET(source)      (MC_CGM_ACn_SEL_MASK & (((source) & 0x7) << MC_CGM_ACn_SEL_OFFSET))
+-#define MC_CGM_ACn_SEL_OFFSET           (24)
+-#define MC_CGM_ACn_SEL_FIRC             (0x0)
+-#define MC_CGM_ACn_SEL_FXOSC            (0x1)
+-#define MC_CGM_ACn_SEL_SIRC             (0x2)
+-#define MC_CGM_ACn_SEL_PLL0             (0x4)
+-#define MC_CGM_ACn_SEL_PLL1             (0x5)
+-#define MC_CGM_ACn_SEL_PLL2             (0x6)
+-#define MC_CGM_ACn_SEL_PLL3             (0x7)
+-#define MC_CGM_ACn_SEL_SYSCLK           (0x8)
+-
+-/* PLLDIG PLL Divider Register (PLLDIG_PLLDV) */
+-#define PLLDIG_PLLDV_MFD(div)           (0x000000FF & (div))
+-
+-/*  PLLDIG_PLLDV_RFDPHIB has a different format for /32 according to 
+-    the reference manual. This other value respect the formula 2^[RFDPHIBY+1]
+-*/
+-#define PLLDIG_PLLDV_RFDPHIBY_32        (0x4)
+-#define PLLDIG_PLLDV_RFDPHI_SET(val)    (PLLDIG_PLLDV_RFDPHI_MASK & (((val) & PLLDIG_PLLDV_RFDPHI_MAXVALUE) << PLLDIG_PLLDV_RFDPHI_OFFSET))
+-#define PLLDIG_PLLDV_RFDPHI_MASK        (0x003F0000)
+-#define PLLDIG_PLLDV_RFDPHI_MAXVALUE    (0x7)
+-#define PLLDIG_PLLDV_RFDPHI_OFFSET      (16)
+-
+-
+-#define PLLDIG_PLLDV_MFD_MASK           (0x000000FF)
+-
+-#define PLLDIG_PLLDV_PREDIV_SET(val)    (PLLDIG_PLLDV_PREDIV_MASK & (((val) & PLLDIG_PLLDV_PREDIV_MAXVALUE) << PLLDIG_PLLDV_PREDIV_OFFSET))
+-#define PLLDIG_PLLDV_PREDIV_MASK        (0x00007000)
+-#define PLLDIG_PLLDV_PREDIV_MAXVALUE    (0x7)
+-#define PLLDIG_PLLDV_PREDIV_OFFSET      (12)
+-
+-
+-/* PLLDIG PLL Fractional  Divide Register (PLLDIG_PLLFD) */
+-#define PLLDIG_PLLFD_MFN_SET(val)       (PLLDIG_PLLFD_MFN_MASK & (val))
+-#define PLLDIG_PLLFD_MFN_MASK           (0x00007FFF)
+-
+-
+-/* PLL Calibration Register 3 (PLLDIG_PLLCAL3) */
+-#define PLLDIG_PLLCAL3_MFDEN_SET(val)   (PLLDIG_PLLCAL3_MFDEN_MASK & ((val) << PLLDIG_PLLCAL3_MFDEN_OFFSET))
+-#define PLLDIG_PLLCAL3_MFDEN_OFFSET     (14)
+-#define PLLDIG_PLLCAL3_MFDEN_MASK       (0x3FFFFC000)
+-
+-#endif
+-/* Frequencies are in MHz */
+-#define FIRC_CLK_FREQ                   16000
+-#define FXOSC_CLK_FREQ                  40000
+-
+-#endif /*__ARCH_ARM_MACH_MAC57D5XH_MCCGM_REGS_H__ */
+diff --git a/arch/arm/include/asm/arch-mac57d5xh/mc_me_regs.h b/arch/arm/include/asm/arch-mac57d5xh/mc_me_regs.h
+deleted file mode 100644
+index 47b17cbe39..0000000000
+--- a/arch/arm/include/asm/arch-mac57d5xh/mc_me_regs.h
++++ /dev/null
+@@ -1,227 +0,0 @@
+-/*
+- * (C) Copyright 2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#ifndef __ARCH_ARM_MACH_MAC57D5XH_MCME_REGS_H__
+-#define __ARCH_ARM_MACH_MAC57D5XH_MCME_REGS_H__
+-
+-#ifndef __ASSEMBLY__
+-
+-/* Mode Entry Module (MC_ME) */
+-struct mc_me_reg {
+-    u32 mc_me_gs;           /* Global Status Register                       */
+-    u32 mc_me_mctl;         /* Mode Control Register                        */
+-    u32 mc_me_me;           /* Mode Enable Register                         */
+-    u32 mc_me_is;           /* Interrupt Status Register                    */
+-    u32 mc_me_im;           /* Interrupt Mask Register                      */
+-    u32 mc_me_imts;         /* Invalid Mode Transition Status Register      */
+-    u32 mc_me_dmts;         /* Debug Mode Transition Status Register        */
+-    u32 reserved_0x1c[1];
+-    u32 mc_me_reset_mc;     /* RESET Mode Configuration Register            */
+-    u32 reserved_0x24[1];
+-    u32 mc_me_safe_mc;      /* SAFE Mode Configuration Register             */
+-    u32 mc_me_drun_mc;      /* DRUN Mode Configuration Register             */
+-    u32 mc_me_run_mc0;      /* RUN Mode Configuration Register              */
+-    u32 mc_me_run_mc1;      /* RUN Mode Configuration Register              */
+-    u32 mc_me_run_mc2;      /* RUN Mode Configuration Register              */
+-    u32 mc_me_run_mc3;      /* RUN Mode Configuration Register              */
+-    u32 reserved_0x40[2];
+-    u32 mc_me_stop0_mc;     /* STOP0 Mode Configuration Register            */
+-    u32 reserved_0x4c[2];
+-    u32 mc_me_standby0_mc;  /* STANDBY0 Mode Configuration                  */
+-    u32 reserved_0x58[2];
+-    u32 mc_me_ps0;          /* Peripheral Status Register 0                 */
+-    u32 mc_me_ps1;          /* Peripheral Status Register 1                 */
+-    u32 mc_me_ps2;          /* Peripheral Status Register 2                 */
+-    u32 reserved_0x6c[1];
+-    u32 mc_me_ps4;          /* Peripheral Status Register 4                 */
+-    u32 mc_me_ps5;          /* Peripheral Status Register 5                 */
+-    u32 mc_me_ps6;          /* Peripheral Status Register 6                 */
+-    u32 reserved_0x7c[1];
+-    u32 mc_me_run_pc0;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc1;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc2;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc3;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc4;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc5;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc6;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_run_pc7;      /* Run Peripheral Configuration Register        */
+-    u32 mc_me_lp_pc0;       /* Low-Power Peripheral Configuration Register  */
+-    u32 mc_me_lp_pc1;       /* Low-Power Peripheral Configuration Register  */
+-    u32 mc_me_lp_pc2;       /* Low-Power Peripheral Configuration Register  */
+-    u32 mc_me_lp_pc3;       /* Low-Power Peripheral Configuration Register  */
+-    u32 mc_me_lp_pc4;       /* Low-Power Peripheral Configuration Register  */
+-    u32 mc_me_lp_pc5;       /* Low-Power Peripheral Configuration Register  */
+-    u32 mc_me_lp_pc6;       /* Low -Power Peripheral Configuration Register */
+-    u32 mc_me_lp_pc7;       /* Low-Power Peripheral Configuration Register  */
+-    u8  mc_me_pctl3;        /* I2C_1 Peripheral Control Register            */
+-    u8  mc_me_pctl2;        /* I2C_0 Peripheral Control Register            */
+-    u8  mc_me_pctl1;        /* DMA_CH_MUX_0 Peripheral Control Register     */
+-    u8  reserved_0xc3[1];
+-    u8  mc_me_pctl7;        /* FLEXTIMER_3 Peripheral Control Register      */
+-    u8  mc_me_pctl6;        /* FLEXTIMER_2 Peripheral Control Register      */
+-    u8  mc_me_pctl5;        /* FLEXTIMER_1 Peripheral Control               */
+-    u8  mc_me_pctl4;        /* FLEXTIMER_0 Peripheral Control               */
+-    u8  mc_me_pctl11;       /* SMC Peripheral Control Register              */
+-    u8  mc_me_pctl10;       /* CMP_1 Peripheral Control                     */
+-    u8  mc_me_pctl9;        /* CMP_0 Peripheral Control                     */
+-    u8  reserved_0xcb[1];
+-    u8  mc_me_pctl15;       /* SSD_3 Peripheral Control Register            */
+-    u8  mc_me_pctl14;       /* SSD_2 Peripheral Control Register            */
+-    u8  mc_me_pctl13;       /* SSD_1 Peripheral Control                     */
+-    u8  mc_me_pctl12;       /* SSD_0 Peripheral Control                     */
+-    u8  mc_me_pctl19;       /* SPI_0 Peripheral Control                     */
+-    u8  mc_me_pctl18;       /* MPR Peripheral Control                       */
+-    u8  mc_me_pctl17;       /* SSD_5 Peripheral Control                     */
+-    u8  mc_me_pctl16;       /* SSD_4 Peripheral Control                     */
+-    u8  mc_me_pctl23;       /* SPI_4 Peripheral Control                     */
+-    u8  mc_me_pctl22;       /* SPI_3 Peripheral Control                     */
+-    u8  mc_me_pctl21;       /* SPI_2 Peripheral Control Register            */
+-    u8  mc_me_pctl20;       /* SPI_1 Peripheral Control                     */
+-    u8  mc_me_pctl27;       /* LCD Peripheral Control Register              */
+-    u8  mc_me_pctl26;       /* LINFLEX_2 Peripheral Control                 */
+-    u8  mc_me_pctl25;       /* LINFLEX_1 Peripheral Control Register        */
+-    u8  mc_me_pctl24;       /* LINFLEX_0 Peripheral Control Register        */
+-    u8  reserved_0xdc[1];
+-    u8  mc_me_pctl30;       /* ADC Peripheral Control Register              */
+-    u8  mc_me_pctl29;       /* FlexCAN_2 Peripheral Control Register        */
+-    u8  mc_me_pctl28;       /* FlexCAN_1 Peripheral Control Register        */
+-    u8  reserved_0xe0[1];
+-    u8  mc_me_pctl34;       /* CRC Peripheral Control Register              */
+-    u8  reserved_0xe2[5];
+-    u8  mc_me_pctl36;       /* PIT Peripheral Control Register              */
+-    u8  reserved_0xe8[23];
+-    u8  mc_me_pctl60;       /* SIUL Peripheral Control Register             */
+-    u8  reserved_0x100[23];
+-    u8  mc_me_pctl84;       /* RTC_API Peripheral Control Register          */
+-    u8  reserved_0x118[3];
+-    u8  mc_me_pctl88;       /* FLEXCAN_0 Peripheral Control                 */
+-    u8  reserved_0x11c[38];
+-    u8  mc_me_pctl129;      /* QuadSPI_1 Peripheral Control Register        */
+-    u8  mc_me_pctl128;      /* QuadSPI_0 Peripheral Control Register        */
+-    u8  reserved_0x144[3];
+-    u8  mc_me_pctl132;      /* DRAM_CTRLR Peripheral Control                */
+-    u8  reserved_0x148[3];
+-    u8  mc_me_pctl136;      /* 2D-ACE 0 (DCU_0) Peripheral Control Register */
+-    u8  reserved_0x14c[15];
+-    u8  mc_me_pctl152;      /* 2D-ACE 1 (DCU_1) Peripheral Control          */
+-    u8  reserved_0x15c[15];
+-    u8  mc_me_pctl168;      /* VIU Peripheral Control                       */
+-    u8  reserved_0x16c[3];
+-    u8  mc_me_pctl172;      /* GC355 Peripheral Control Register            */
+-    u8  reserved_0x170[3];
+-    u8  mc_me_pctl176;      /* TCON Peripheral Control Register             */
+-    u8  reserved_0x174[3];
+-    u8  mc_me_pctl180;      /* TCON_LITE Peripheral Control                 */
+-    u8  reserved_0x178[3];
+-    u8  mc_me_pctl184;      /* RLE Peripheral Control                       */
+-    u8  reserved_0x17c[3];
+-    u8  mc_me_pctl188;      /* SGM Peripheral Control Register              */
+-    u8  reserved_0x180[2];
+-    u8  mc_me_pctl193;      /* DMA_1 Peripheral Control Register            */
+-    u8  reserved_0x183[4];
+-    u8  mc_me_pctl196;      /* ENET Peripheral Control Register             */
+-    u8  reserved_0x188[3];
+-    u8  mc_me_pctl200;      /* LDB Peripheral Control Register              */
+-    u8  reserved_0x184[3];
+-    u8  mc_me_pctl204;      /* MLB Peripheral Control Register              */
+-    u8  reserved_0x190[48];
+-    u32 mc_me_cs;           /* Core Status Register                         */
+-    u16 mc_me_cctl1;        /* CORE1 Control Register                       */
+-    u16 mc_me_cctl0;        /* CORE0 Control Register                       */
+-    u16 reserved_0x1c7[1];
+-    u16 mc_me_cctl2;        /* CORE2 Control Register                       */
+-    u32 reserved_0x1cc[5];
+-    u32 mc_me_caddr0;       /* CORE0 Address Register                       */
+-    u32 mc_me_caddr1;       /* CORE1 Address Register                       */
+-    u32 mc_me_caddr2;       /* CORE2 Address Register                       */
+-};
+-
+-/* MC_ME registers definitions */
+-
+-/* MC_ME_ME */
+-#define MC_ME_ME_RESET_FUNC             (1 << 0)
+-#define MC_ME_ME_SAFE                   (1 << 2)
+-#define MC_ME_ME_DRUN                   (1 << 3)
+-#define MC_ME_ME_RUN0                   (1 << 4)
+-#define MC_ME_ME_RUN1                   (1 << 5)
+-#define MC_ME_ME_RUN2                   (1 << 6)
+-#define MC_ME_ME_RUN3                   (1 << 7)
+-#define MC_ME_ME_STOP0                  (1 << 10)
+-#define MC_ME_ME_STANDBY0               (1 << 13)
+-#define MC_ME_ME_RESET_DEST             (1 << 15)
+-
+-/* MC_ME_RUN_PCn */
+-#define MC_ME_RUN_PCn_RESET             (1 << 0)
+-#define MC_ME_RUN_PCn_SAFE              (1 << 2)
+-#define MC_ME_RUN_PCn_DRUN              (1 << 3)
+-#define MC_ME_RUN_PCn_RUN0              (1 << 4)
+-#define MC_ME_RUN_PCn_RUN1              (1 << 5)
+-#define MC_ME_RUN_PCn_RUN2              (1 << 6)
+-#define MC_ME_RUN_PCn_RUN3              (1 << 7)
+-
+-/*
+- * MC_ME_DRUN_MC/ MC_ME_RUN0_MC/ MC_ME_RUN1_MC
+- * MC_ME_RUN2_MC/ MC_ME_RUN3_MC
+- * MC_ME_STANDBY0_MC/MC_ME_STOP0_MC
+- */
+-#define MC_ME_RUNMODE_MC_SYSCLK(val)    (0x0000000F & (val))
+-#define MC_ME_RUNMODE_MC_RCON           (1 << 4)
+-#define MC_ME_RUNMODE_MC_FXOSCON        (1 << 5)
+-#define MC_ME_RUNMODE_MC_SIRCON         (1 << 6)
+-#define MC_ME_RUNMODE_MC_SXOSCON        (1 << 7)
+-#define MC_ME_RUNMODE_MC_PLL0ON         (1 << 8)
+-#define MC_ME_RUNMODE_MC_PLL1ON         (1 << 9)
+-#define MC_ME_RUNMODE_MC_PLL2ON         (1 << 10)
+-#define MC_ME_RUNMODE_MC_PLL3ON         (1 << 11)
+-#define MC_ME_RUNMODE_MC_FLAON(val)     (0x00030000 & ((val) << 16))
+-#define MC_ME_RUNMODE_MC_MVRON          (1 << 20)
+-#define MC_ME_RUNMODE_MC_PDO            (1 << 23)
+-#define MC_ME_RUNMODE_MC_PWRLVL0        (1 << 28)
+-#define MC_ME_RUNMODE_MC_PWRLVL1        (1 << 29)
+-#define MC_ME_RUNMODE_MC_PWRLVL2        (1 << 30)
+-
+-/* MC_ME_MCTL */
+-#define MC_ME_MCTL_KEY                  (0x00005AF0)
+-#define MC_ME_MCTL_INVERTEDKEY          (0x0000A50F)
+-#define MC_ME_MCTL_RESET                (0x0 << 28)
+-#define MC_ME_MCTL_SAFE                 (0x2 << 28)
+-#define MC_ME_MCTL_DRUN                 (0x3 << 28)
+-#define MC_ME_MCTL_RUN0                 (0x4 << 28)
+-#define MC_ME_MCTL_RUN1                 (0x5 << 28)
+-#define MC_ME_MCTL_RUN2                 (0x6 << 28)
+-#define MC_ME_MCTL_RUN3                 (0x7 << 28)
+-#define MC_ME_MCTL_STOP0                (0x10 << 28)
+-#define MC_ME_MCTL_STANDBY0             (0x13 << 28)
+-
+-/* MC_ME_GS */
+-#define MC_ME_GS_S_SYSCLK_IRC           (0x0 << 0)
+-#define MC_ME_GS_S_SYSCLK_FXOSC         (0x1 << 0)
+-#define MC_ME_GS_S_SYSCLK_PLL0          (0x4 << 0)
+-#define MC_ME_GS_S_SYSCLK_PLL1          (0x5 << 0)
+-#define MC_ME_GS_S_STSCLK_DISABLE       (0xF << 0)
+-#define MC_ME_GS_S_RC                   (1 << 4)
+-#define MC_ME_GS_S_FXOSC                (1 << 5)
+-#define MC_ME_GS_S_SIRC                 (1 << 6)
+-#define MC_ME_GS_S_SXOSC                (1 << 7)
+-#define MC_ME_GS_S_PLL0                 (1 << 8)
+-#define MC_ME_GS_S_PLL1                 (1 << 9)
+-#define MC_ME_GS_S_PLL2                 (1 << 10)
+-#define MC_ME_GS_S_PLL3                 (1 << 11)
+-#define MC_ME_GS_S_FLA0                 (1 << 16)
+-#define MC_ME_GS_S_FLA1                 (1 << 17)
+-#define MC_ME_GS_S_PDO                  (1 << 23)
+-#define MC_ME_GS_S_MTRANS               (1 << 27)
+-#define MC_ME_GS_S_CRT_MODE_RESET       (0x0 << 28)
+-#define MC_ME_GS_S_CRT_MODE_SAFE        (0x2 << 28)
+-#define MC_ME_GS_S_CRT_MODE_DRUN        (0x3 << 28)
+-#define MC_ME_GS_S_CRT_MODE_RUN0        (0x4 << 28)
+-#define MC_ME_GS_S_CRT_MODE_RUN1        (0x5 << 28)
+-#define MC_ME_GS_S_CRT_MODE_RUN2        (0x6 << 28)
+-#define MC_ME_GS_S_CRT_MODE_RUN3        (0x7 << 28)
+-
+-#endif
+-
+-#endif /*__ARCH_ARM_MACH_MAC57D5XH_MCME_REGS_H__ */
+diff --git a/arch/arm/include/asm/arch-mac57d5xh/siul.h b/arch/arm/include/asm/arch-mac57d5xh/siul.h
+deleted file mode 100644
+index 9dce40e3a5..0000000000
+--- a/arch/arm/include/asm/arch-mac57d5xh/siul.h
++++ /dev/null
+@@ -1,105 +0,0 @@
+-/*
+- * (C) Copyright 2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-
+-#ifndef __ARCH_ARM_MACH_MAC57D5XH_SIUL_H__
+-#define __ARCH_ARM_MACH_MAC57D5XH_SIUL_H__
+-
+-#define SIUL2_MIDR1					(SIUL2_BASE_ADDR + 0x00000004)
+-#define SIUL2_MIDR2					(SIUL2_BASE_ADDR + 0x00000008)
+-#define SIUL2_DISR0					(SIUL2_BASE_ADDR + 0x00000010)
+-#define SIUL2_DIRER0				(SIUL2_BASE_ADDR + 0x00000018)
+-#define SIUL2_DIRSR0				(SIUL2_BASE_ADDR + 0x00000020)
+-#define SIUL2_IREER0				(SIUL2_BASE_ADDR + 0x00000028)
+-#define SIUL2_IFEER0				(SIUL2_BASE_ADDR + 0x00000030)
+-#define SIUL2_IFER0					(SIUL2_BASE_ADDR + 0x00000038)
+-
+-#define SIUL2_IFMCR_BASE			(SIUL2_BASE_ADDR + 0x00000040)
+-#define SIUL2_IFMCRn(i)				(SIUL2_IFMCR_BASE + 4 * (i))
+-
+-#define SIUL2_IFCPR					(SIUL2_BASE_ADDR + 0x000000C0)
+-
+-/* SIUL2_MSCR specifications as stated in Reference Manual:
+- * 0 - 359 Output Multiplexed Signal Configuration Registers
+- * 512- 1023 Input Multiplexed Signal Configuration Registers */
+-#define SIUL2_MSCR_BASE				(SIUL2_BASE_ADDR + 0x00000240)
+-#define SIUL2_MSCRn(i)				(SIUL2_MSCR_BASE + 4 * (i))
+-
+-#define SIUL2_GRP0					(SIUL2_BASE_ADDR + 0x00001240)
+-#define SIUL2_GPR1					(SIUL2_BASE_ADDR + 0x00001244)
+-#define SIUL2_GPR2					(SIUL2_BASE_ADDR + 0x00001248)
+-
+-#define SIUL2_GPDO_BASE				(SIUL2_BASE_ADDR + 0x00001300)
+-#define SIUL2_GPDOn(i)				(SIUL2_GPDO_BASE + 4 * (i))
+-
+-#define SIUL2_GPDI_BASE				(SIUL2_BASE_ADDR + 0x00001500)
+-#define SIUL2_GPDIn(i)				(SIUL2_GPDI_BASE + 4 * (i))
+-
+-#define SIUL2_PGPDO_BASE			(SIUL2_BASE_ADDR + 0x00001700)
+-#define SIUL2_PGPDOn(i)				(SIUL2_PGPDO_BASE +  2 * ((i) % 2 ? ((i) - 1) : ((i) + 1)))
+-
+-#define SIUL2_PGPDI_BASE			(SIUL2_BASE_ADDR + 0x00001740)
+-#define SIUL2_PGPDIn(i)				(SIUL2_PGPDI_BASE + 2 * ((i) % 2 ? ((i) - 1) : ((i) + 1)))
+-
+-#define SIUL2_MPGPDO_BASE			(SIUL2_BASE_ADDR + 0x00001780)
+-#define SIUL2_MPGPDOn(i)			(SIUL2_MPGPDO_BASE + 4 * (i))
+-
+-
+-/* SIUL2_MSCR masks */
+-#define SIUL2_MSCR_SRE(v)			((v) & 0x30000000)
+-
+-#define SIUL2_MSCR_OBE(v)			((v) & 0x02000000)
+-#define SIUL2_MSCR_OBE_EN			(1 << 25)
+-
+-#define SIUL2_MSCR_ODE(v)			((v) & 0x01000000)
+-#define SIUL2_MSCR_ODE_EN			(1 << 24)
+-
+-#define SIUL2_MSCR_SMCTL(v)			((v) & 0x00800000)
+-#define SIUL2_MSCR_APC(v)			((v) & 0x00400000)
+-#define SIUL2_MSCR_TTL(v)			((v) & 0x00100000)
+-
+-#define SIUL2_MSCR_IBE(v)			((v) & 0x00080000)
+-#define SIUL2_MSCR_IBE_EN			(1 << 19)
+-
+-#define SIUL2_MSCR_HYS(v)			((v) & 0x00400000)
+-#define SIUL2_MSCR_HYS_EN			(1 << 18)
+-
+-#define SIUL2_MSCR_PUS(v)			((v) & 0x00200000)
+-#define SIUL2_MSCR_PUS_UP			(1 << 17)
+-
+-#define SIUL2_MSCR_PUE(v)			((v) & 0x00100000)
+-#define SIUL2_MSCR_PUE_EN			(1 << 16)
+-
+-#define SIUL2_MSCR_SSS(v)			((v) & 0x0000000f)
+-
+-/* Configure SIUL2 for UART */
+-#define SIUL2_MSCR_SSS_UART			(0x3)
+-
+-/*
+- * See IO_Signal_Description_and_Multiplexing_Tables.xlsx document for
+- * UART2 configuration details:
+- * 714 - LinFlex2_Receive_Input PAD
+- * 173 - General Purpose I/O PAD
+- */
+-#define SIUL2_MSCR_UART_Rx_OUT_2		714
+-#define SIUL2_MSCR_UART_Rx_IN_2			173
+-
+-#define SIUL2_MSCR_UART_Tx_OUT_2		174
+-
+-#define SIUL2_MSCR_UART_Rx(N)												\
+-	writel(SIUL2_MSCR_SSS_UART, SIUL2_MSCRn(SIUL2_MSCR_UART_Rx_OUT_##N));	\
+-	writel(SIUL2_MSCR_IBE_EN, SIUL2_MSCRn(SIUL2_MSCR_UART_Rx_IN_##N))
+-
+-/* 174 - General Purpose I/O PAD */
+-#define SIUL2_MSCR_UART_Tx(N)\
+-	writel(SIUL2_MSCR_OBE_EN | SIUL2_MSCR_PUS_UP | SIUL2_MSCR_PUE_EN | SIUL2_MSCR_SSS_UART, SIUL2_MSCRn(SIUL2_MSCR_UART_Tx_OUT_##N))
+-
+-
+-#define SIUL2_MSCR_LINFLEX0_Rx		SIUL2_MSCRn(712)
+-
+-#define SIUL2_MSCR_LINFLEX1_Rx		SIUL2_MSCRn(713)
+-
+-#endif /*__ARCH_ARM_MACH_MAC57D5XH_SIUL_H__ */
+diff --git a/arch/arm/include/asm/mach-imx/iomux-v3.h b/arch/arm/include/asm/mach-imx/iomux-v3.h
+index d2f4db772e..06dbd8d943 100644
+--- a/arch/arm/include/asm/mach-imx/iomux-v3.h
++++ b/arch/arm/include/asm/mach-imx/iomux-v3.h
+@@ -182,8 +182,7 @@ typedef u64 iomux_v3_cfg_t;
+ /* i.MX6SLL */
+ #define PAD_CTL_IPD_BIT		(1 << 27)
+ 
+-#elif defined(CONFIG_VF610) || \
+-	defined(CONFIG_MAC57D5XH)
++#elif defined(CONFIG_VF610)
+ 
+ #define PAD_MUX_MODE_SHIFT	20
+ 
+diff --git a/board/freescale/mac57d5xhevb/Makefile b/board/freescale/mac57d5xhevb/Makefile
+deleted file mode 100644
+index 863e221d65..0000000000
+--- a/board/freescale/mac57d5xhevb/Makefile
++++ /dev/null
+@@ -1,10 +0,0 @@
+-#
+-# (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+-#
+-# SPDX-License-Identifier:	GPL-2.0+
+-#
+-
+-obj-y   := mmu.o
+-obj-y   += mac57d5xhevb.o
+-
+-#########################################################################
+diff --git a/board/freescale/mac57d5xhevb/comp.h b/board/freescale/mac57d5xhevb/comp.h
+deleted file mode 100644
+index 1b6b204247..0000000000
+--- a/board/freescale/mac57d5xhevb/comp.h
++++ /dev/null
+@@ -1,56 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#ifndef __comp_h__
+-#define __comp_h__ 1
+-
+-#ifdef __cplusplus
+-extern "C" {
+-#endif
+-
+-
+-#define _STRINGIFY(x) #x
+-
+-#define _ASM_NOP()    asm("nop")
+-#define _ASM_STOP(x)  asm("stop #(" _STRINGIFY(x) ")")
+-#define _ASM_WFI()    asm("wfi")
+-
+-#define MRC(coproc, opcode1, Rt, CRn, CRm, opcode2) \
+-asm volatile ("mrc " _STRINGIFY(p##coproc) " , " _STRINGIFY(opcode1) \
+-" , %[output] , " _STRINGIFY(c##CRn) " , " _STRINGIFY(c##CRm) " , " \
+-_STRINGIFY(opcode2) : [output] "=r" (Rt) : )
+-
+-#define MCR(coproc, opcode1, Rt, CRn, CRm, opcode2) \
+-asm volatile ("mcr " _STRINGIFY(p##coproc) " , " _STRINGIFY(opcode1) \
+-" , %[input] , " _STRINGIFY(c##CRn) " , " _STRINGIFY(c##CRm) " , " \
+-_STRINGIFY(opcode2) : : [input] "r" (Rt))
+-
+-#define DSB()   asm("dsb")
+-#define ISB()   asm("isb")
+-
+-#define _PSP_SYNC()     _ASM_NOP()
+-
+-#define _PSP_GET_CPSR(x)        (x = __get_CPSR())
+-
+-#define _PSP_SET_ENABLE_SR(x)   { ICCPMR = GIC_PMR_PRIORITY(x); }
+-#define _PSP_SET_DISABLE_SR(x)  _PSP_SET_ENABLE_SR(x)
+-
+-#define _WEAK_SYMBOL(x)     x __attribute__((weak))
+-#define _WEAK_FUNCTION(x)   __attribute__((weak)) x
+-
+-/* compiler dependent structure packing option */
+-#define PACKED_STRUCT_BEGIN
+-#define PACKED_STRUCT_END __attribute__((__packed__))
+-
+-/* compiler dependent union packing option */
+-#define PACKED_UNION_BEGIN
+-#define PACKED_UNION_END  __attribute__((__packed__))
+-
+-#ifdef __cplusplus
+-}
+-#endif
+-
+-#endif   /* __comp_h__ */
+diff --git a/board/freescale/mac57d5xhevb/mac57d5xhevb.c b/board/freescale/mac57d5xhevb/mac57d5xhevb.c
+deleted file mode 100644
+index 940f949cde..0000000000
+--- a/board/freescale/mac57d5xhevb/mac57d5xhevb.c
++++ /dev/null
+@@ -1,473 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#include <common.h>
+-#include <asm/io.h>
+-#include <asm/arch/imx-regs.h>
+-#include <asm/arch/mc_cgm_regs.h>
+-#include <asm/arch/mc_me_regs.h>
+-#include <asm/arch/clock.h>
+-#include <asm/arch/siul.h>
+-#include <mmc.h>
+-#include <fsl_esdhc.h>
+-#include <miiphy.h>
+-#include <netdev.h>
+-#include <i2c.h>
+-#include "mmu.h"
+-
+-DECLARE_GLOBAL_DATA_PTR;
+-
+-/*
+- * Current DDR setup is realised for cut 1 Halo chip ,
+- * which has the DDR unstable. On this chip DDR works only
+- * using a workaround realised in MMU that sets up the DDR
+- * as a noncacheable memory area.
+- * Taking into consideration the fact the cut2 Halo chip has
+- * been produced, the code remains written using magic numbers
+- * until the u-boot will be tested in the new cut.
+- */
+-
+-void setup_iomux_ddr(void)
+-{
+-	/* SIUL2 for DDR */
+-	writel( 0x22500000, 0x400DC680 );
+-	writel( 0x22500000, 0x400DC684 );
+-	writel( 0x22500000, 0x400DC688 );
+-	writel( 0x22500000, 0x400DC68C );
+-	writel( 0x22500000, 0x400DC690 );
+-	writel( 0x22500000, 0x400DC694 );
+-	writel( 0x22500000, 0x400DC698 );
+-	writel( 0x22500000, 0x400DC69C );
+-	writel( 0x22500000, 0x400DC6a0 );
+-	writel( 0x22500000, 0x400DC6a4 );
+-	writel( 0x22500000, 0x400DC6a8 );
+-	writel( 0x22500000, 0x400DC6ac );
+-	writel( 0x22500000, 0x400DC6b0 );
+-	writel( 0x22500000, 0x400DC6b4 );
+-	writel( 0x22500000, 0x400DC6b8 );
+-	writel( 0x22500000, 0x400DC6bc );
+-	writel( 0x22500000, 0x400DC6c0 );
+-	writel( 0x22500000, 0x400DC6c4 );
+-	writel( 0x22500000, 0x400DC6c8 );
+-	writel( 0x22500000, 0x400DC6cc );
+-	writel( 0x22500000, 0x400DC6d0 );
+-	writel( 0x22500000, 0x400DC6d4 );
+-	writel( 0x22500000, 0x400DC6d8 );
+-	writel( 0x22500000, 0x400DC6dc );
+-	writel( 0x22500000, 0x400DC6e0 );
+-	writel( 0x22500000, 0x400DC6e4 );
+-	writel( 0x22500000, 0x400DC6e8 );
+-	writel( 0x22500000, 0x400DC6ec );
+-	writel( 0x22500000, 0x400DC6f0 );
+-	writel( 0x22500000, 0x400DC6f4 );
+-	writel( 0x22500000, 0x400DC6f8 );
+-	writel( 0x22500000, 0x400DC6fc );
+-	writel( 0x22500000, 0x400DC700 );
+-	writel( 0x22000000, 0x400DC704 );
+-	writel( 0x22000000, 0x400DC708 );
+-	writel( 0x22000000, 0x400DC70c );
+-	writel( 0x22000000, 0x400DC710 );
+-	writel( 0x22000000, 0x400DC714 );
+-	writel( 0x22000000, 0x400DC718 );
+-	writel( 0x22000000, 0x400DC71c );
+-	writel( 0x22000000, 0x400DC720 );
+-	writel( 0x22000000, 0x400DC724 );
+-	writel( 0x22000000, 0x400DC728 );
+-	writel( 0x22000000, 0x400DC72c );
+-	writel( 0x22000000, 0x400DC730 );
+-	writel( 0x22000000, 0x400DC734 );
+-	writel( 0x22000000, 0x400DC738 );
+-	writel( 0x22000000, 0x400DC73c );
+-	writel( 0x22000000, 0x400DC740 );
+-	writel( 0x22000000, 0x400DC744 );
+-	writel( 0x22000000, 0x400DC748 );
+-	writel( 0x22000000, 0x400DC74c );
+-	writel( 0x22000000, 0x400DC750 );
+-	writel( 0x22000000, 0x400DC754 );
+-	writel( 0x22000000, 0x400DC758 );
+-	writel( 0x22500000, 0x400DC75C );
+-	writel( 0x22500000, 0x400DC760 );
+-	writel( 0x22500000, 0x400DC764 );
+-	writel( 0x22500000, 0x400DC768 );
+-	writel( 0x22000000, 0x400DC76C );
+-	writel( 0x22000000, 0x400DC770 );
+-	writel( 0x22000000, 0x400DC774 );
+-	writel( 0x22000000, 0x400DC778 );
+-	writel( 0x22000000, 0x400DC77c );
+-	writel( 0x22000000, 0x400DC784 );
+-	writel( 0x22000000, 0x400DC780 );
+-	writel( 0x22000000, 0x400DC788 );
+-	writel( 0x22080000, 0x400DC7d4 );
+-}
+-
+-void ddr_phy_init(void)
+-{
+-	writel( 0x4d494b45, 0x400EC000 );
+-	writel( 0x49534d45, 0x400EC000 );
+-	writel( 0x00000041, 0x400EC014 );
+-	writel( 0x00000004, 0x400EC040 );
+-	writel( 0x0000000B, 0x400EC048 );
+-	writel( 0x00000009, 0x400EC048 );
+-	writel( 0x20000000, 0x400EC044 );
+-	writel( 0x00000005, 0x400EC040 );
+-	writel( 0x00000004, 0x400EC040 );
+-	writel( 0x80030000, 0x400D4400 );
+-}
+-
+-void ddr_ctrl_init(void)
+-{
+-	writel( 0x01F4281E, 0x40024004 );
+-	writel( 0x56B9226F, 0x40024008 );
+-	writel( 0x58A10CA6, 0x4002400c );
+-
+-	writel( 0x00000000, 0x4002403c );
+-	writel( 0x00000000, 0x40024038 );
+-	writel( 0x33000000, 0x40024060 );
+-
+-	writel( 0xFA801CC0, 0x40024000 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-
+-	udelay(100);
+-
+-	writel( 0x00100400, 0x40024010 );
+-	writel( 0x00020000, 0x40024010 );
+-	writel( 0x00030000, 0x40024010 );
+-	writel( 0x00010404, 0x40024010 );
+-
+-	writel( 0x0952, 0x40024010 );
+-	writel( 0x00100400, 0x40024010 );
+-	writel( 0x00080000, 0x40024010 );
+-
+-	udelay(100);
+-
+-	writel( 0x00080000, 0x40024010 );
+-
+-	writel( 0x0852, 0x40024010 );
+-
+-	writel( 0x000107C4, 0x40024010 );
+-	writel( 0x00010444, 0x40024010 );
+-
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-	writel( 0x00380000, 0x40024010 );
+-
+-	writel( 0xFA801CC0, 0x40024000 );
+-
+-	writel( readl(0x40024000) & 0xEFFFFFFF, 0x40024000);
+-
+-}
+-
+-int dram_init(void)
+-{
+-	ddr_phy_init();
+-
+-	setup_iomux_ddr();
+-
+-	ddr_ctrl_init();
+-
+-	gd->ram_size = get_ram_size((void *)PHYS_SDRAM, PHYS_SDRAM_SIZE);
+-
+-	return 0;
+-}
+-
+-static void setup_iomux_uart(void)
+-{
+-	/* Muxing for linflex */
+-	SIUL2_MSCR_UART_Tx(2);
+-	SIUL2_MSCR_UART_Rx(2);
+-}
+-
+-
+-static void setup_iomux_enet(void)
+-{
+-#if 0 /* The below enet setting are for Vybrid and are
+-		not usable on Halo. */
+-	static const iomux_v3_cfg_t enet0_pads[] = {
+-		MAC57D5XH_PAD_PTA6__RMII0_CLKIN,
+-		MAC57D5XH_PAD_PTC1__RMII0_MDIO,
+-		MAC57D5XH_PAD_PTC0__RMII0_MDC,
+-		MAC57D5XH_PAD_PTC2__RMII0_CRS_DV,
+-		MAC57D5XH_PAD_PTC3__RMII0_RD1,
+-		MAC57D5XH_PAD_PTC4__RMII0_RD0,
+-		MAC57D5XH_PAD_PTC5__RMII0_RXER,
+-		MAC57D5XH_PAD_PTC6__RMII0_TD1,
+-		MAC57D5XH_PAD_PTC7__RMII0_TD0,
+-		MAC57D5XH_PAD_PTC8__RMII0_TXEN,
+-	};
+-
+-	imx_iomux_v3_setup_multiple_pads(enet0_pads, ARRAY_SIZE(enet0_pads));
+-#endif
+-}
+-
+-static void setup_iomux_i2c(void)
+-{
+-#if 0 /*  The below i2c setting are for Vybrid and are
+-		not usable on Halo. */
+-	static const iomux_v3_cfg_t i2c0_pads[] = {
+-		MAC57D5XH_PAD_PTB14__I2C0_SCL,
+-		MAC57D5XH_PAD_PTB15__I2C0_SDA,
+-	};
+-
+-	imx_iomux_v3_setup_multiple_pads(i2c0_pads, ARRAY_SIZE(i2c0_pads));
+-#endif
+-}
+-
+-#ifdef CONFIG_SYS_USE_NAND
+-void setup_iomux_nfc(void)
+-{
+-#if 0 /* The below enet setting are for Vybrid and are
+-		not usable on Halo. */
+-	static const iomux_v3_cfg_t nfc_pads[] = {
+-		MAC57D5XH_PAD_PTD31__NFC_IO15,
+-		MAC57D5XH_PAD_PTD30__NFC_IO14,
+-		MAC57D5XH_PAD_PTD29__NFC_IO13,
+-		MAC57D5XH_PAD_PTD28__NFC_IO12,
+-		MAC57D5XH_PAD_PTD27__NFC_IO11,
+-		MAC57D5XH_PAD_PTD26__NFC_IO10,
+-		MAC57D5XH_PAD_PTD25__NFC_IO9,
+-		MAC57D5XH_PAD_PTD24__NFC_IO8,
+-		MAC57D5XH_PAD_PTD23__NFC_IO7,
+-		MAC57D5XH_PAD_PTD22__NFC_IO6,
+-		MAC57D5XH_PAD_PTD21__NFC_IO5,
+-		MAC57D5XH_PAD_PTD20__NFC_IO4,
+-		MAC57D5XH_PAD_PTD19__NFC_IO3,
+-		MAC57D5XH_PAD_PTD18__NFC_IO2,
+-		MAC57D5XH_PAD_PTD17__NFC_IO1,
+-		MAC57D5XH_PAD_PTD16__NFC_IO0,
+-		MAC57D5XH_PAD_PTB24__NFC_WEB,
+-		MAC57D5XH_PAD_PTB25__NFC_CE0B,
+-		MAC57D5XH_PAD_PTB27__NFC_REB,
+-		MAC57D5XH_PAD_PTC26__NFC_RBB,
+-		MAC57D5XH_PAD_PTC27__NFC_ALE,
+-		MAC57D5XH_PAD_PTC28__NFC_CLE,
+-	};
+-	imx_iomux_v3_setup_multiple_pads(nfc_pads, ARRAY_SIZE(nfc_pads));
+-#endif /* b00450 */
+-}
+-#endif
+-
+-#ifdef CONFIG_FSL_ESDHC
+-#if 0 /* There are mmcs on HALO. */
+-struct fsl_esdhc_cfg esdhc_cfg[1] = {
+-	{ESDHC1_BASE_ADDR},
+-};
+-#endif
+-
+-int board_mmc_getcd(struct mmc *mmc)
+-{
+-	/* eSDHC1 is always present */
+-	return 1;
+-}
+-
+-int board_mmc_init(bd_t *bis)
+-{
+-#if 0 /* There are mmcs on HALO. These function should be kept
+-	until the configuration will be updated. */
+-	static const iomux_v3_cfg_t esdhc1_pads[] = {
+-		MAC57D5XH_PAD_PTA24__ESDHC1_CLK,
+-		MAC57D5XH_PAD_PTA25__ESDHC1_CMD,
+-		MAC57D5XH_PAD_PTA26__ESDHC1_DAT0,
+-		MAC57D5XH_PAD_PTA27__ESDHC1_DAT1,
+-		MAC57D5XH_PAD_PTA28__ESDHC1_DAT2,
+-		MAC57D5XH_PAD_PTA29__ESDHC1_DAT3,
+-	};
+-
+-	esdhc_cfg[0].sdhc_clk = mxc_get_clock(MXC_ESDHC_CLK);
+-
+-	imx_iomux_v3_setup_multiple_pads(
+-		esdhc1_pads, ARRAY_SIZE(esdhc1_pads));
+-
+-	return fsl_esdhc_initialize(bis, &esdhc_cfg[0]);
+-#endif
+-	return 0;
+-}
+-#endif
+-
+-static void clock_init(void)
+-{
+-	volatile struct mc_cgm_reg * mc_cgm = (struct mc_cgm_reg *)MC_CGM0_BASE_ADDR;
+-	volatile struct mc_me_reg * mc_me = (struct mc_me_reg *)MC_ME0_BASE_ADDR;
+-
+-	/* enable all modes, enable all peripherals */
+-	writel( MC_ME_ME_RUN3 | MC_ME_ME_RUN2 | MC_ME_ME_RUN1 | MC_ME_ME_RUN0, &mc_me->mc_me_me );
+-
+-	writel( MC_ME_RUN_PCn_DRUN | MC_ME_RUN_PCn_RUN0 | MC_ME_RUN_PCn_RUN1 |
+-			MC_ME_RUN_PCn_RUN2 | MC_ME_RUN_PCn_RUN3, &mc_me->mc_me_run_pc0 );
+-
+-
+-	/* turn on FXOSC, SRIC, SXOSC */
+-	writel( MC_ME_RUNMODE_MC_MVRON | MC_ME_RUNMODE_MC_FLAON(0x3) |
+-			MC_ME_RUNMODE_MC_FXOSCON | MC_ME_RUNMODE_MC_SIRCON |
+-			MC_ME_RUNMODE_MC_SXOSCON, &mc_me->mc_me_run_mc0 );
+-
+-	writel( MC_ME_MCTL_RUN0 | MC_ME_MCTL_KEY , &mc_me->mc_me_mctl);
+-	writel( MC_ME_MCTL_RUN0 | MC_ME_MCTL_INVERTEDKEY , &mc_me->mc_me_mctl);
+-
+-	while( (readl(&mc_me->mc_me_gs) & MC_ME_GS_S_MTRANS) != 0x00000000 );
+-
+-	/* Set PLL source to FXOSC for AUX CLK Selector 0 */
+-	writel( MC_CGM_ACn_SEL_SET(MC_CGM_ACn_SEL_FXOSC) , &mc_cgm->mc_cgm_ac0_sc);
+-
+-	while( (readl(&mc_cgm->mc_cgm_ac0_ss) & MC_CGM_ACn_SEL_MASK) != 0x01000000 );
+-
+-	/* activate the divisor 0 for DDR */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x1), &mc_cgm->mc_cgm_sc_dc0 );
+-
+-	/* activate the divisor 1 for System Clock (CA5 core) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x1), &mc_cgm->mc_cgm_sc_dc1 );
+-
+-	/* activate the divisor 1 for System Clock (CM4) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x3), &mc_cgm->mc_cgm_sc_dc2 );
+-
+-	/* activate the divisor 3 for System Clock (Peripherals: PIT) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x7), &mc_cgm->mc_cgm_sc_dc3 );
+-
+-	/* activate the divisor 5 for System Clock (IOP) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x7), &mc_cgm->mc_cgm_sc_dc4 );
+-
+-
+-	/* activate the divisor 5 for System Clock (2 x Platform Clock) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x1), &mc_cgm->mc_cgm_sc_dc5 );
+-
+-	/* activate the divisor 6 for System Clock (1 x DDR/SDR */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x1), &mc_cgm->mc_cgm_sc_dc6 );
+-
+-	/* Configure PLL0 Dividers - 640MHz from 40Mhx XOSC
+-	 PLL input = FXOSC = 40MHz
+-	 VCO range = 600-1280MHz
+-	 PREDIV = 1 =? /1
+-	 RFDPHI1= 2 => /8
+-	 RFDPHI = 0 => /2
+-	 MFD    = 32 => /32
+-	 VCO frequency = PLL input / PREDIV x MFD = 40/1 * 32 = 1280 MHz
+-	 PLL out = VCO / (2^RFDPHI*2) = 1280 / 2 = 640 MHz
+-	*/
+-
+-	writel( PLLDIG_PLLDV_RFDPHI_SET(0x0) | PLLDIG_PLLDV_PREDIV_SET(0x1) |
+-			PLLDIG_PLLDV_MFD(0x20),	 &mc_cgm->pll0_plldv );
+-
+-	writel( readl(&mc_cgm->pll0_pllfd) | PLLDIG_PLLFD_MFN_SET(0x0),	 &mc_cgm->pll0_pllfd );
+-
+-	writel( readl(&mc_cgm->pll0_pllcal3) | PLLDIG_PLLCAL3_MFDEN_SET(0x1), &mc_cgm->pll0_pllcal3 );
+-
+-	/* turn on FXOSC, SRIC, SXOSC */
+-	writel( MC_ME_RUNMODE_MC_MVRON | MC_ME_RUNMODE_MC_FLAON(0x3) |
+-			MC_ME_RUNMODE_MC_PLL0ON | MC_ME_RUNMODE_MC_FXOSCON | MC_ME_RUNMODE_MC_SIRCON |
+-			MC_ME_RUNMODE_MC_SXOSCON | MC_ME_RUNMODE_MC_SYSCLK(0x4), &mc_me->mc_me_run_mc0 );
+-
+-	writel( MC_ME_MCTL_RUN0 | MC_ME_MCTL_KEY , &mc_me->mc_me_mctl);
+-	writel( MC_ME_MCTL_RUN0 | MC_ME_MCTL_INVERTEDKEY , &mc_me->mc_me_mctl);
+-
+-	while( (readl(&mc_me->mc_me_gs) & MC_ME_GS_S_MTRANS) != 0x00000000 );
+-
+-	/* select PLL0 as source clock for AUXCLK Selector 2 (Linflex; SPI)*/
+-	writel( MC_CGM_ACn_SEL_SET(MC_CGM_ACn_SEL_PLL0), &mc_cgm->mc_cgm_ac2_sc );
+-
+-	/* activate the divisor 1 for AUXCLOCK Selector 2 (Linflex) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0x3), &mc_cgm->mc_cgm_ac2_dc1 );
+-
+-	/* select PLL0 as source clock for AUXCLK Selector 10 (ENET)*/
+-	writel( MC_CGM_ACn_SEL_SET(MC_CGM_ACn_SEL_PLL0), &mc_cgm->mc_cgm_ac10_sc );
+-
+-	/* activate the divisor 0 for AUXCLOCK Selector 10 (ENET) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0xF), &mc_cgm->mc_cgm_ac10_dc0 );
+-
+-	/* select PLL0 as source clock for AUXCLK Selector 11 (ENET_TIMER)*/
+-	writel( MC_CGM_ACn_SEL_SET(MC_CGM_ACn_SEL_PLL0), &mc_cgm->mc_cgm_ac10_sc );
+-
+-	/* activate the divisor 0 for AUXCLOCK Selector 10 (ENET_TIMER) */
+-	writel( MC_CGM_SC_DCn_DE | MC_CGM_SC_DCn_PREDIV(0xF), &mc_cgm->mc_cgm_ac10_dc0 );
+-
+-	/* turn on FXOSC, SRIC, SXOSC */
+-	writel( MC_ME_RUNMODE_MC_MVRON | MC_ME_RUNMODE_MC_FLAON(0x3) |
+-			MC_ME_RUNMODE_MC_PLL0ON | MC_ME_RUNMODE_MC_FXOSCON | MC_ME_RUNMODE_MC_SIRCON |
+-			MC_ME_RUNMODE_MC_SXOSCON | MC_ME_RUNMODE_MC_SYSCLK(0x4), &mc_me->mc_me_run_mc0 );
+-
+-	writel( MC_ME_MCTL_RUN0 | MC_ME_MCTL_KEY , &mc_me->mc_me_mctl);
+-	writel( MC_ME_MCTL_RUN0 | MC_ME_MCTL_INVERTEDKEY , &mc_me->mc_me_mctl);
+-
+-
+-	while( (readl(&mc_me->mc_me_gs) & MC_ME_GS_S_MTRANS) != 0x00000000 );
+-
+-	/* enable clock for Linflex(0,1,2) peripheral */
+-	writeb( 0x0, &mc_me->mc_me_pctl26 );
+-	writeb( 0x0, &mc_me->mc_me_pctl25 );
+-	writeb( 0x0, &mc_me->mc_me_pctl24 );
+-	/* PIT */
+-	writeb( 0x0, &mc_me->mc_me_pctl36 );
+-	/* SIUL */
+-	writeb( 0x0, &mc_me->mc_me_pctl60 );
+-	/* ENET */
+-	writeb( 0x0, &mc_me->mc_me_pctl196 );
+-
+-}
+-
+-static void mscm_init(void)
+-{
+-#if 0 /* The MSCM ip was not validated on Halo */
+-	struct mscm_ir *mscmir = (struct mscm_ir *)MSCM_IR_BASE_ADDR;
+-	int i;
+-
+-	for (i = 0; i < MSCM_IRSPRC_NUM; i++)
+-		writew(MSCM_IRSPRC_CP0_EN, &mscmir->irsprc[i]);
+-#endif
+-}
+-
+-int board_phy_config(struct phy_device *phydev)
+-{
+-	if (phydev->drv->config)
+-		phydev->drv->config(phydev);
+-
+-	return 0;
+-}
+-
+-int board_early_init_f(void)
+-{
+-#ifdef CONFIG_DDR_WORKAROUND
+-	enable_DDRWorkaround();
+-#endif
+-	clock_init();
+-	mscm_init();
+-
+-	setup_iomux_uart();
+-	setup_iomux_enet();
+-	setup_iomux_i2c();
+-#ifdef CONFIG_SYS_USE_NAND
+-	setup_iomux_nfc();
+-#endif
+-	return 0;
+-}
+-
+-int board_init(void)
+-{
+-	/* address of boot parameters */
+-	gd->bd->bi_boot_params = PHYS_SDRAM + 0x100;
+-
+-	return 0;
+-}
+-
+-int checkboard(void)
+-{
+-	puts("Board: mac57d5xhevb\n");
+-
+-	return 0;
+-}
+diff --git a/board/freescale/mac57d5xhevb/mac57d5xhevb.cfg b/board/freescale/mac57d5xhevb/mac57d5xhevb.cfg
+deleted file mode 100644
+index e9967ad7f1..0000000000
+--- a/board/freescale/mac57d5xhevb/mac57d5xhevb.cfg
++++ /dev/null
+@@ -1,30 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-/*
+- * Refer docs/README.imxmage for more details about how-to configure
+- * and create imximage boot image
+- *
+- * The syntax is taken as close as possible with the kwbimage
+- */
+-#include <asm/imx-common/imximage.cfg>
+-
+-/* image version */
+-IMAGE_VERSION	2
+-
+-/*
+- * Boot Device : one of spi, sd, eimnor, nand:
+- * spinor: flash_offset: 0x0400
+- * nand:   flash_offset: 0x0400
+- * sd/mmc: flash_offset: 0x0400
+- * eimnor: flash_offset: 0x1000
+- */
+-
+- BOOT_FROM	spi
+-
+-#ifdef CONFIG_SECURE_BOOT
+-SECURE_BOOT
+-#endif
+diff --git a/board/freescale/mac57d5xhevb/mmu.c b/board/freescale/mac57d5xhevb/mmu.c
+deleted file mode 100644
+index ee5ecf0ba3..0000000000
+--- a/board/freescale/mac57d5xhevb/mmu.c
++++ /dev/null
+@@ -1,108 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#include "mmu.h"
+-#include "comp.h"
+-
+-extern void enable_DDRWorkaround(void);
+-
+-unsigned int L1PageTable[4096] __attribute__ ((aligned(0x4000))); ;
+-
+-void init_mmu(void)
+-{
+-	int k;
+-	volatile unsigned long DACR  ;/*System Control Register */
+-	for (k=0; k<4096 ; k++) /* make 4096 sections @ 1MB*/
+-	{
+-		L1PageTable[k] =
+-			(( k  << MMU_SECTION_SECTION_BASE_ADDR_SHIFT  ) & MMU_SECTION_SECTION_BASE_ADDR_MASK  ) +
+-			(( 0  << MMU_SECTION_TABLE_ENTRY_TYPE_A_SHIFT ) & MMU_SECTION_TABLE_ENTRY_TYPE_A_MASK ) +
+-			/* Section entry */
+-			(( 0  << MMU_SECTION_NG_SHIFT                 ) & MMU_SECTION_NG_MASK                 ) +
+-			/* Page description is Global */
+-			(( 0  <<  MMU_SECTION_S_SHIFT                 ) &  MMU_SECTION_S_MASK                 ) +
+-			/*Page is Not-shared */
+-			(( 0  <<  MMU_SECTION_APX_SHIFT               ) &  MMU_SECTION_APX_MASK               ) +
+-			(( 3  <<  MMU_SECTION_AP_SHIFT                ) &  MMU_SECTION_AP_MASK                ) +
+-			/* Access Permissions are Full Access */
+-			(( 0  <<  MMU_SECTION_TEX_SHIFT               ) & MMU_SECTION_TEX_MASK                ) +
+-			/* Memory Attribute is Strongly Ordered */
+-			(( 15 <<  MMU_SECTION_DOMAIN_SHIFT            ) & MMU_SECTION_DOMAIN_MASK             ) +
+-			/* Page Domain is 15 */
+-			(( 0  <<  MMU_SECTION_XN_SHIFT                ) &  MMU_SECTION_XN_MASK                ) +
+-			/* Execute Never disabled - this would prevent erroneous execution of data if set */
+-			(( 0  <<  MMU_SECTION_C_SHIFT                 ) &   MMU_SECTION_C_MASK                ) +
+-			/* not cached */
+-			(( 0  <<  MMU_SECTION_B_SHIFT                 ) &   MMU_SECTION_B_MASK                ) +
+-			/* not buffered */
+-			(( 2  <<  MMU_SECTION_ENTRY_TYPE_SHIFT        ) &  MMU_SECTION_ENTRY_TYPE_MASK        );
+-			/* Section or SuperSection entry */
+-  }
+-
+-	/* write TTBR0 to be L1PageTable[0]*/
+-	MCR(15, 0, (unsigned long) L1PageTable, 2, 0, 0);
+-
+-	DACR = 0x55555555; /* set Client mode for all Domains */
+-
+-	/* write modified DACR*/
+-	MCR(15, 0, DACR, 3, 0, 0);
+-
+-}
+-
+- void enable_mmu(void){
+-
+-	volatile unsigned long SCTLR  ;/*System Control Register */
+-
+-	/* read SCTLR */
+-	MRC(15, 0, SCTLR, 1, 0, 0);
+-
+-	SCTLR = SCTLR | 0x1; /* set MMU enable bit */
+-
+-	/* write modified SCTLR*/
+-	MCR(15, 0, SCTLR, 1, 0, 0);
+-
+-}
+- void disable_mmu(void)
+- {
+-
+-	volatile unsigned long SCTLR  ;/*System Control Register */
+-
+-	/* read SCTLR */
+-	MRC(15, 0, SCTLR, 1, 0, 0);
+-	SCTLR &=~ 0x1; /* clear MMU enable bit */
+-	/* write modified SCTLR*/
+-	MCR(15, 0, SCTLR, 1, 0, 0);
+-}
+-
+-void invalidate_all_tlb(void)
+-{
+-	/*   MCR p15, 0, <Rd>, c8, c7, 0 -- Invalidate entire Unified TLB : TLBIALL*/
+-	MCR(15, 0, 0, 8, 7, 0);
+-}
+-void enable_DDRWorkaround(void)
+-{
+-	init_mmu();
+-
+-	/* enable cache, but set DRAM as non- cacheable */
+-	L1PageTable[2048] = 0x80001DE2;
+-	L1PageTable[2049] = 0x80101DE2;
+-	L1PageTable[2050] = 0x80201DE2;
+-	L1PageTable[2051] = 0x80301DE2;
+-	L1PageTable[2052] = 0x80401DE2;
+-	L1PageTable[2053] = 0x80501DE2;
+-	L1PageTable[2054] = 0x80601DE2;
+-	L1PageTable[2055] = 0x80701DE2;
+-	L1PageTable[2056] = 0x80801DE2;
+-	L1PageTable[2057] = 0x80901DE2;
+-	L1PageTable[2058] = 0x80a01DE2;
+-	L1PageTable[2059] = 0x80b01DE2;
+-	L1PageTable[2060] = 0x80c01DE2;
+-	L1PageTable[2061] = 0x80d01DE2;
+-	L1PageTable[2062] = 0x80e01DE2;
+-	L1PageTable[2063] = 0x80f01DE2;
+-
+-	enable_mmu();
+-}
+diff --git a/board/freescale/mac57d5xhevb/mmu.h b/board/freescale/mac57d5xhevb/mmu.h
+deleted file mode 100644
+index 2235cfc804..0000000000
+--- a/board/freescale/mac57d5xhevb/mmu.h
++++ /dev/null
+@@ -1,178 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-void init_mmu(void);
+-void enable_mmu(void);
+-void invalidate_all_tlb(void);
+-void enable_DDRWorkaround(void);
+-
+-#define MMU_PAGE_TABLE_LEVEL_2_DESC_BASE_ADDR_SHIFT		(10)
+-#define MMU_PAGE_TABLE_LEVEL_2_DESC_BASE_ADDR_MASK		((0x3fffff) << (MMU_PAGE_TABLE_LEVEL_2_DESC_BASE_ADDR_SHIFT))
+-
+-#define MMU_PAGE_TABLE_P_SHIFT							(9)
+-#define MMU_PAGE_TABLE_P_MASK							((0x1) << (MMU_PAGE_TABLE_P_SHIFT))
+-
+-#define MMU_PAGE_TABLE_DOMAIN_SHIFT						(5)
+-#define MMU_PAGE_TABLE_DOMAIN_MASK						((0xf) << (MMU_PAGE_TABLE_DOMAIN_SHIFT))
+-
+-#define MMU_PAGE_TABLE_ENTRY_TYPE_SHIFT					(0)
+-#define MMU_PAGE_TABLE_ENTRY_TYPE_MASK					((0x3) << (MMU_PAGE_TABLE_ENTRY_TYPE_SHIFT))
+-
+-#define MMU_SECTION_SECTION_BASE_ADDR_SHIFT				(20)
+-#define MMU_SECTION_SECTION_BASE_ADDR_MASK				((0xfff) << (MMU_SECTION_SECTION_BASE_ADDR_SHIFT))
+-
+-#define MMU_SECTION_TABLE_ENTRY_TYPE_A_SHIFT			(18)
+-#define MMU_SECTION_TABLE_ENTRY_TYPE_A_MASK				((0x1) << (MMU_SECTION_SECTION_BASE_ADDR_SHIFT))
+-
+-#define MMU_SECTION_NG_SHIFT							(17)
+-#define MMU_SECTION_NG_MASK								((0x1) << (MMU_SECTION_NG_SHIFT))
+-
+-#define MMU_SECTION_S_SHIFT								(16)
+-#define MMU_SECTION_S_MASK								((0x1) << (MMU_SECTION_S_SHIFT))
+-
+-#define MMU_SECTION_APX_SHIFT							(15)
+-#define MMU_SECTION_APX_MASK							((0x1) << (MMU_SECTION_APX_SHIFT))
+-
+-#define MMU_SECTION_TEX_SHIFT							(12)
+-#define MMU_SECTION_TEX_MASK							((0x7) << (MMU_SECTION_TEX_SHIFT))
+-
+-#define MMU_SECTION_AP_SHIFT							(10)
+-#define MMU_SECTION_AP_MASK								((0x3) << (MMU_SECTION_AP_SHIFT))
+-
+-#define MMU_SECTION_P_SHIFT								(9)
+-#define MMU_SECTION_P_MASK								((0x1) << (MMU_SECTION_P_SHIFT))
+-
+-#define MMU_SECTION_DOMAIN_SHIFT						(5)
+-#define MMU_SECTION_DOMAIN_MASK							((0xf) << (MMU_SECTION_DOMAIN_SHIFT))
+-
+-#define MMU_SECTION_XN_SHIFT							(4)
+-#define MMU_SECTION_XN_MASK								((0x1) << (MMU_SECTION_XN_SHIFT))
+-
+-#define MMU_SECTION_C_SHIFT								(3)
+-#define MMU_SECTION_C_MASK								((0x1) << (MMU_SECTION_C_SHIFT))
+-
+-#define MMU_SECTION_B_SHIFT								(2)
+-#define MMU_SECTION_B_MASK								((0x1) << (MMU_SECTION_B_SHIFT))
+-
+-#define MMU_SECTION_ENTRY_TYPE_SHIFT					(0)
+-#define MMU_SECTION_ENTRY_TYPE_MASK						((0x3) << (MMU_SECTION_ENTRY_TYPE_SHIFT))
+-
+-#define MMU_SUPER_SECTION_SUPER_SECTION_BASE_ADDR_SHIFT			(24)
+-#define MMU_SUPER_SECTION_SUPER_SECTION_BASE_ADDR_MASK			((0xff) << (MMU_SUPER_SECTION_SUPER_SECTION_BASE_ADDR_SHIFT))
+-
+-#define MMU_SUPER_SECTION_TABLE_ENTRY_TYPE_A_SHIFT				(18)
+-#define MMU_SUPER_SECTION_TABLE_ENTRY_TYPE_A_MASK				((0x1) << (MMU_SUPER_SECTION_SUPER_SECTION_BASE_ADDR_SHIFT))
+-
+-#define MMU_SUPER_SECTION_NG_SHIFT								(17)
+-#define MMU_SUPER_SECTION_NG_MASK								((0x1) << (MMU_SUPER_SECTION_NG_SHIFT))
+-
+-#define MMU_SUPER_SECTION_S_SHIFT								(16)
+-#define MMU_SUPER_SECTION_S_MASK								((0x1) << (MMU_SUPER_SECTION_S_SHIFT))
+-
+-#define MMU_SUPER_SECTION_APX_SHIFT								(15)
+-#define MMU_SUPER_SECTION_APX_MASK								((0x1) << (MMU_SUPER_SECTION_APX_SHIFT))
+-
+-#define MMU_SUPER_SECTION_TEX_SHIFT								(12)
+-#define MMU_SUPER_SECTION_TEX_MASK								((0x7) << (MMU_SUPER_SECTION_TEX_SHIFT))
+-
+-#define MMU_SUPER_SECTION_AP_SHIFT								(10)
+-#define MMU_SUPER_SECTION_AP_MASK								((0x3) << (MMU_SUPER_SECTION_AP_SHIFT))
+-
+-#define MMU_SUPER_SECTION_P_SHIFT								(9)
+-#define MMU_SUPER_SECTION_P_MASK								((0x1) << (MMU_SUPER_SECTION_P_SHIFT))
+-
+-#define MMU_SUPER_SECTION_DOMAIN_SHIFT							(5)
+-#define MMU_SUPER_SECTION_DOMAIN_MASK							((0xf) << (MMU_SUPER_SECTION_DOMAIN_SHIFT))
+-
+-#define MMU_SUPER_SECTION_XN_SHIFT								(4)
+-#define MMU_SUPER_SECTION_XN_MASK								((0x1) << (MMU_SUPER_SECTION_XN_SHIFT))
+-
+-#define MMU_SUPER_SECTION_C_SHIFT								(3)
+-#define MMU_SUPER_SECTION_C_MASK								((0x1) << (MMU_SUPER_SECTION_C_SHIFT))
+-
+-#define MMU_SUPER_SECTION_B_SHIFT								(2)
+-#define MMU_SUPER_SECTION_B_MASK								((0x1) << (MMU_SUPER_SECTION_B_SHIFT))
+-
+-#define MMU_SUPER_SECTION_ENTRY_TYPE_SHIFT						(0)
+-#define MMU_SUPER_SECTION_ENTRY_TYPE_MASK						((0x3) << (MMU_SUPER_SECTION_ENTRY_TYPE_SHIFT))
+-
+-#define MMU_LARGE_PAGE_LARGE_PAGE_BASE_ADDR_SHIFT				(16)
+-#define MMU_LARGE_PAGE_LARGE_PAGE_BASE_ADDR_MASK				((0xffff) << (MMU_LARGE_PAGE_LARGE_PAGE_BASE_ADDR_SHIFT))
+-
+-#define MMU_LARGE_PAGE_XN_SHIFT									(15)
+-#define MMU_LARGE_PAGE_XN_MASK									((0x1) << (MMU_LARGE_PAGE_XN_SHIFT))
+-
+-#define MMU_LARGE_PAGE_TEX_SHIFT								(12)
+-#define MMU_LARGE_PAGE_TEX_MASK									((0x7) << (MMU_LARGE_PAGE_TEX_SHIFT))
+-
+-#define MMU_LARGE_PAGE_NG_SHIFT									(11)
+-#define MMU_LARGE_PAGE_NG_MASK									((0x1) << (MMU_LARGE_PAGE_NG_SHIFT))
+-
+-#define MMU_LARGE_PAGE_S_SHIFT									(10)
+-#define MMU_LARGE_PAGE_S_MASK									((0x1) << (MMU_LARGE_PAGE_S_SHIFT))
+-
+-#define MMU_LARGE_PAGE_APX_SHIFT								(9)
+-#define MMU_LARGE_PAGE_APX_MASK									((0x1) << (MMU_LARGE_PAGE_APX_SHIFT))
+-
+-#define MMU_LARGE_PAGE_AP_SHIFT									(4)
+-#define MMU_LARGE_PAGE_AP_MASK									((0x3) << (MMU_LARGE_PAGE_AP_SHIFT))
+-
+-#define MMU_LARGE_PAGE_C_SHIFT									(3)
+-#define MMU_LARGE_PAGE_C_MASK									((0x1) << (MMU_LARGE_PAGE_C_SHIFT))
+-
+-#define MMU_LARGE_PAGE_B_SHIFT									(2)
+-#define MMU_LARGE_PAGE_B_MASK									((0x1) << (MMU_LARGE_PAGE_B_SHIFT))
+-
+-#define MMU_LARGE_PAGE_ENTRY_TYPE_SHIFT							(0)
+-#define MMU_LARGE_PAGE_ENTRY_TYPE_MASK							((0x3) << (MMU_LARGE_PAGE_ENTRY_TYPE_SHIFT))
+-
+-#define MMU_SMALL_PAGE_SMALL_PAGE_BASE_ADDR_SHIFT				(12)
+-#define MMU_SMALL_PAGE_SMALL_PAGE_BASE_ADDR_MASK				((0xfffff) << (MMU_SMALL_PAGE_SMALL_PAGE_BASE_ADDR_SHIFT))
+-
+-#define MMU_SMALL_PAGE_NG_SHIFT									(11)
+-#define MMU_SMALL_PAGE_NG_MASK									((0x1) << (MMU_SMALL_PAGE_NG_SHIFT))
+-
+-#define MMU_SMALL_PAGE_S_SHIFT									(10)
+-#define MMU_SMALL_PAGE_S_MASK									((0x1) << (MMU_SMALL_PAGE_S_SHIFT))
+-
+-#define MMU_SMALL_PAGE_APX_SHIFT								(9)
+-#define MMU_SMALL_PAGE_APX_MASK									((0x1) << (MMU_SMALL_PAGE_APX_SHIFT))
+-
+-#define MMU_SMALL_PAGE_TEX_SHIFT								(6)
+-#define MMU_SMALL_PAGE_TEX_MASK									((0x7) << (MMU_SMALL_PAGE_TEX_SHIFT))
+-
+-#define MMU_SMALL_PAGE_AP1_SHIFT								(5)
+-#define MMU_SMALL_PAGE_AP1_MASK									((0x1) << (MMU_SMALL_PAGE_AP1_SHIFT))
+-
+-#define MMU_SMALL_PAGE_AP0_SHIFT								(4)
+-#define MMU_SMALL_PAGE_AP0_MASK									((0x1) << (MMU_SMALL_PAGE_AP0_SHIFT))
+-
+-#define MMU_SMALL_PAGE_AP_SHIFT									(4)
+-#define MMU_SMALL_PAGE_AP_MASK									((0x3) << (MMU_SMALL_PAGE_AP_SHIFT))
+-
+-
+-#define MMU_SMALL_PAGE_C_SHIFT									(3)
+-#define MMU_SMALL_PAGE_C_MASK									((0x1) << (MMU_SMALL_PAGE_C_SHIFT))
+-
+-#define MMU_SMALL_PAGE_B_SHIFT									(2)
+-#define MMU_SMALL_PAGE_B_MASK									((0x1) << (MMU_SMALL_PAGE_B_SHIFT))
+-
+-#define MMU_SMALL_PAGE_ENTRY_TYPE_SHIFT							(1)
+-#define MMU_SMALL_PAGE_ENTRY_TYPE_MASK							((0x1) << (MMU_SMALL_PAGE_ENTRY_TYPE_SHIFT))
+-
+-#define MMU_SMALL_PAGE_XN_SHIFT									(0)
+-#define MMU_SMALL_PAGE_XN_MASK									((0x1) << (MMU_SMALL_PAGE_XN_SHIFT))
+-
+-/* define for APX/AP bit setting*/
+-#define MMU_AP_PERMISSION_FAULT									0
+-#define MMU_AP_PRIVILEGED_ACCESS_ONLY							1
+-#define MMU_AP_NO_USER_MODE_WRITE								2
+-#define MMU_AP_FULL_ACCESS										3
+-#define MMU_AP_RESERVED_1										4
+-#define MMU_AP_PRIVILEGED_READ_ONLY								5
+-#define MMU_AP_READ_ONLY										6
+-#define MMU_AP_RESERVED_2										7
+-
+diff --git a/drivers/i2c/mxc_i2c.c b/drivers/i2c/mxc_i2c.c
+index 4f67d66233..e185df1467 100644
+--- a/drivers/i2c/mxc_i2c.c
++++ b/drivers/i2c/mxc_i2c.c
+@@ -699,7 +699,6 @@ static int bus_i2c_write(struct mxc_i2c_bus *i2c_bus, u8 chip, u32 addr,
+ static struct mxc_i2c_bus mxc_i2c_buses[] = {
+ #if defined(CONFIG_LS1021A) || defined(CONFIG_VF610) || \
+ 	defined(CONFIG_FSL_LAYERSCAPE) || \
+-	defined(CONFIG_MAC57D5XH) || \
+ 	defined(CONFIG_S32_GEN1)
+ 	{ 0, I2C1_BASE_ADDR, I2C_QUIRK_FLAG },
+ 	{ 1, I2C2_BASE_ADDR, I2C_QUIRK_FLAG },
+diff --git a/include/configs/mac57d5xhevb.h b/include/configs/mac57d5xhevb.h
+deleted file mode 100644
+index dded15c101..0000000000
+--- a/include/configs/mac57d5xhevb.h
++++ /dev/null
+@@ -1,259 +0,0 @@
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- *
+- * SPDX-License-Identifier:	GPL-2.0+
+- */
+-
+-#ifndef __CONFIG_H
+-#define __CONFIG_H
+-
+-#include <asm/arch/imx-regs.h>
+-#include <config_cmd_default.h>
+-
+-#define CONFIG_MAC57D5XH
+-#define CONFIG_DISPLAY_CPUINFO
+-#define CONFIG_DISPLAY_BOARDINFO
+-
+-#define CONFIG_RUN_FROM_IRAM_ONLY
+-
+-#define CONFIG_MACH_TYPE		4146
+-
+-#define CONFIG_SKIP_LOWLEVEL_INIT
+-
+-/* Enable passing of ATAGs */
+-#define CONFIG_CMDLINE_TAG
+-
+-/* Size of malloc() pool */
+-#ifdef CONFIG_RUN_FROM_IRAM_ONLY
+-#define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + 1 * 1024 * 1024)
+-#else
+-#define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + 2 * 1024 * 1024)
+-#endif
+-#define CONFIG_BOARD_EARLY_INIT_F
+-
+-
+-#define CONFIG_FSL_LINFLEXUART
+-#define LINFLEXUART_BASE		UART2_BASE_ADDR
+-
+-/* Allow to overwrite serial and ethaddr */
+-#define CONFIG_ENV_OVERWRITE
+-#define CONFIG_SYS_UART_PORT		(1)
+-#define CONFIG_BAUDRATE			115200
+-
+-#undef CONFIG_CMD_IMLS
+-
+-#define CONFIG_MMC
+-#define CONFIG_FSL_ESDHC
+-#define CONFIG_SYS_FSL_ESDHC_ADDR	0
+-#define CONFIG_SYS_FSL_ESDHC_NUM	1
+-
+-#define CONFIG_SYS_FSL_ERRATUM_ESDHC111
+-
+-#define CONFIG_CMD_MMC
+-#define CONFIG_GENERIC_MMC
+-#define CONFIG_CMD_EXT2		/* EXT2 Support */
+-#define CONFIG_CMD_FAT		/* FAT support */
+-#define CONFIG_DOS_PARTITION
+-
+-/* Halo has only DMA_MUX0 */
+-#define CONFIG_LAST_DMA_MUX_IS_0
+-/* Ethernet config */
+-#define CONFIG_CMD_PING
+-#define CONFIG_CMD_DHCP
+-#define CONFIG_CMD_MII
+-#define CONFIG_CMD_NET
+-#define CONFIG_FEC_MXC
+-#define CONFIG_MII
+-#define IMX_FEC_BASE			ENET_BASE_ADDR
+-#define CONFIG_FEC_XCV_TYPE		RMII
+-#define CONFIG_FEC_MXC_PHYADDR	0
+-#define CONFIG_PHYLIB
+-#define CONFIG_PHY_MICREL
+-
+-#if 0 /* The support for I2C was not activated 
+-	and tested on Halo */
+-/* I2C Configs */
+-#define CONFIG_CMD_I2C
+-#define CONFIG_HARD_I2C
+-#define CONFIG_I2C_MXC
+-#define CONFIG_SYS_I2C_BASE		I2C0_BASE_ADDR
+-#define CONFIG_SYS_I2C_SPEED		100000
+-#endif
+-
+-#if 0 /* The support for NAND was not implemented on Halo */
+-#define CONFIG_SYS_USE_NAND
+-#endif
+-
+-/* 
+- * DDR workaround in order to allow multiple stores in memory from
+- * registers in a single instruction.
+- * Temporary disabled because the workaround does not work correctly.
+- */
+-/* #define CONFIG_DDR_WORKAROUND */
+-
+-#ifdef CONFIG_SYS_USE_NAND
+-/* Nand Flash Configs */
+-#define	CONFIG_CMD_NAND
+-#define CONFIG_JFFS2_NAND
+-#define MTD_NAND_FSL_NFC_SWECC 1
+-#define CONFIG_NAND_FSL_NFC
+-#define CONFIG_SYS_NAND_BASE		0x400E0000
+-#define CONFIG_SYS_MAX_NAND_DEVICE	1
+-#define NAND_MAX_CHIPS			CONFIG_SYS_MAX_NAND_DEVICE
+-#define CONFIG_SYS_NAND_SELECT_DEVICE
+-#define CONFIG_SYS_64BIT_VSPRINTF  /* needed for nand_util.c */
+-#endif
+-
+-#define CONFIG_BOOTDELAY		3
+-
+-#define CONFIG_LOADADDR			0x82000000
+-
+-#define CONFIG_EXTRA_ENV_SETTINGS \
+-	"script=boot.scr\0" \
+-	"uimage=uImage\0" \
+-	"console=ttyLP1\0" \
+-	"fdt_high=0xffffffff\0" \
+-	"initrd_high=0xffffffff\0" \
+-	"fdt_file=mac57d5xh-evb.dtb\0" \
+-	"fdt_addr=0x81000000\0" \
+-	"boot_fdt=try\0" \
+-	"ip_dyn=yes\0" \
+-	"mmcdev=" __stringify(CONFIG_SYS_MMC_ENV_DEV) "\0" \
+-	"mmcpart=1\0" \
+-	"mmcroot=/dev/mmcblk0p2 rootwait rw\0" \
+-	"update_sd_firmware_filename=u-boot.imx\0" \
+-	"update_sd_firmware=" \
+-		"if test ${ip_dyn} = yes; then " \
+-			"setenv get_cmd dhcp; " \
+-		"else " \
+-			"setenv get_cmd tftp; " \
+-		"fi; " \
+-		"if mmc dev ${mmcdev}; then "	\
+-			"if ${get_cmd} ${update_sd_firmware_filename}; then " \
+-				"setexpr fw_sz ${filesize} / 0x200; " \
+-				"setexpr fw_sz ${fw_sz} + 1; "	\
+-				"mmc write ${loadaddr} 0x2 ${fw_sz}; " \
+-			"fi; "	\
+-		"fi\0" \
+-	"mmcargs=setenv bootargs console=${console},${baudrate} " \
+-		"root=${mmcroot}\0" \
+-	"loadbootscript=" \
+-		"fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${script};\0" \
+-	"bootscript=echo Running bootscript from mmc ...; " \
+-		"source\0" \
+-	"loaduimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${uimage}\0" \
+-	"loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr} ${fdt_file}\0" \
+-	"mmcboot=echo Booting from mmc ...; " \
+-		"run mmcargs; " \
+-		"if test ${boot_fdt} = yes || test ${boot_fdt} = try; then " \
+-			"if run loadfdt; then " \
+-				"bootm ${loadaddr} - ${fdt_addr}; " \
+-			"else " \
+-				"if test ${boot_fdt} = try; then " \
+-					"bootm; " \
+-				"else " \
+-					"echo WARN: Cannot load the DT; " \
+-				"fi; " \
+-			"fi; " \
+-		"else " \
+-			"bootm; " \
+-		"fi;\0" \
+-	"netargs=setenv bootargs console=${console},${baudrate} " \
+-		"root=/dev/nfs " \
+-	"ip=dhcp nfsroot=${serverip}:${nfsroot},v3,tcp\0" \
+-		"netboot=echo Booting from net ...; " \
+-		"run netargs; " \
+-		"if test ${ip_dyn} = yes; then " \
+-			"setenv get_cmd dhcp; " \
+-		"else " \
+-			"setenv get_cmd tftp; " \
+-		"fi; " \
+-		"${get_cmd} ${uimage}; " \
+-		"if test ${boot_fdt} = yes || test ${boot_fdt} = try; then " \
+-			"if ${get_cmd} ${fdt_addr} ${fdt_file}; then " \
+-				"bootm ${loadaddr} - ${fdt_addr}; " \
+-			"else " \
+-				"if test ${boot_fdt} = try; then " \
+-					"bootm; " \
+-				"else " \
+-					"echo WARN: Cannot load the DT; " \
+-				"fi; " \
+-			"fi; " \
+-		"else " \
+-			"bootm; " \
+-		"fi;\0"
+-
+-#define CONFIG_BOOTCOMMAND \
+-	   "mmc dev ${mmcdev}; if mmc rescan; then " \
+-		   "if run loadbootscript; then " \
+-			   "run bootscript; " \
+-		   "else " \
+-			   "if run loaduimage; then " \
+-				   "run mmcboot; " \
+-			   "else run netboot; " \
+-			   "fi; " \
+-		   "fi; " \
+-	   "else run netboot; fi"
+-
+-/* Miscellaneous configurable options */
+-#define CONFIG_SYS_LONGHELP		/* undef to save memory */
+-#define CONFIG_SYS_HUSH_PARSER		/* use "hush" command parser */
+-#define CONFIG_SYS_PROMPT_HUSH_PS2	"> "
+-#define CONFIG_SYS_PROMPT		"=> "
+-#undef CONFIG_AUTO_COMPLETE
+-#define CONFIG_SYS_CBSIZE		256	/* Console I/O Buffer Size */
+-#define CONFIG_SYS_PBSIZE		\
+-			(CONFIG_SYS_CBSIZE + sizeof(CONFIG_SYS_PROMPT) + 16)
+-#define CONFIG_SYS_MAXARGS		16	/* max number of command args */
+-#define CONFIG_SYS_BARGSIZE		CONFIG_SYS_CBSIZE
+-#define CONFIG_CMDLINE_EDITING
+-
+-#define CONFIG_CMD_MEMTEST
+-#define CONFIG_SYS_MEMTEST_START	0x80000000
+-#define CONFIG_SYS_MEMTEST_END		0x87C00000
+-
+-#define CONFIG_SYS_LOAD_ADDR		CONFIG_LOADADDR
+-#define CONFIG_SYS_HZ			1000
+-
+-/* #define CONFIG_SYS_TEXT_BASE		0x3f008000 // OCRAM sys0 */
+-/* #define CONFIG_SYS_TEXT_BASE		0x3f048000 // OCRAM sys1 */
+-#define CONFIG_SYS_TEXT_BASE		0x3f008000 /* OCRAM gfx - 512KB */
+-#ifdef CONFIG_RUN_FROM_IRAM_ONLY
+-#define CONFIG_SYS_MALLOC_BASE		0x80000000
+-#endif
+-
+-/*
+- * Stack sizes
+- * The stack sizes are set up in start.S using the settings below
+- */
+-#define CONFIG_STACKSIZE		(128 * 1024)	/* regular stack */
+-
+-
+-
+-/* Physical memory map */
+-#define CONFIG_NR_DRAM_BANKS		1
+-#define PHYS_SDRAM			(0x80000000)
+-#define PHYS_SDRAM_SIZE			(16 * 1024 * 1024)
+-
+-#define CONFIG_SYS_SDRAM_BASE		PHYS_SDRAM
+-#define CONFIG_SYS_INIT_RAM_ADDR	IRAM_BASE_ADDR
+-#define CONFIG_SYS_INIT_RAM_SIZE	IRAM_SIZE
+-
+-#define CONFIG_SYS_INIT_SP_OFFSET \
+-	(CONFIG_SYS_INIT_RAM_SIZE - GENERATED_GBL_DATA_SIZE)
+-#define CONFIG_SYS_INIT_SP_ADDR \
+-	(CONFIG_SYS_INIT_RAM_ADDR + CONFIG_SYS_INIT_SP_OFFSET)
+-
+-/* FLASH and environment organization */
+-#define CONFIG_SYS_NO_FLASH
+-
+-#define CONFIG_ENV_SIZE			(8 * 1024)
+-#define CONFIG_ENV_IS_IN_MMC
+-
+-#define CONFIG_ENV_OFFSET		(12 * 64 * 1024)
+-#define CONFIG_SYS_MMC_ENV_DEV		0
+-
+-#define CONFIG_OF_LIBFDT
+-#define CONFIG_CMD_BOOTZ
+-
+-#endif
+-- 
+2.17.1
+
