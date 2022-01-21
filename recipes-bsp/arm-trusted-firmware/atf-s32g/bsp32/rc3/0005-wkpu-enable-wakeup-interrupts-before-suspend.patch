@@ -1,0 +1,188 @@
+From c27b0176044d527c5f3bc25fc20bcb15883427aa Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Fri, 14 Jan 2022 15:55:45 +0200
+Subject: [PATCH 5/6] wkpu: enable wakeup interrupts before suspend
+
+From S32G2_Rev3 and S32G3_Rev1 Reference Manuals:
+"Before enabling a wakeup using the Wakeup Request Enable Register (WRER)
+register, enable the input buffer (IBE) for the corresponding wakeup pin
+using SIUL*.MSCR[IBE] control field."
+
+"You need to configure Wakeup Request Enable Register (WRER) or
+Interrupt Request Enable Register (IRER) before you configure WIFEER or
+WIREER. Failure to do so may cause the module to trigger a false
+interrupt or wakeup event."
+
+Configure pinctrl for wakeup pins every time the board suspends to make
+sure that the right SIUL2 configuration is in place. Afterwards,
+enable the wakeup pins as described in the above paragraphs.
+
+Issue: ALB-8318
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/s32g_wkpu.c            | 53 ++++++++++++++++++-------
+ include/drivers/nxp/s32g/s32gen1-wkpu.h |  3 +-
+ plat/nxp/s32/s32g/s32g_psci.c           |  5 ++-
+ 3 files changed, 45 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/nxp/s32g/s32g_wkpu.c b/drivers/nxp/s32g/s32g_wkpu.c
+index d5b4f27bf..3159f694e 100644
+--- a/drivers/nxp/s32g/s32g_wkpu.c
++++ b/drivers/nxp/s32g/s32g_wkpu.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020, 2022 NXP
+  */
+ #include <common/debug.h>
+ #include <common/fdt_wrappers.h>
+@@ -10,6 +10,7 @@
+ #include <lib/utils_def.h>
+ #include <libfdt.h>
+ #include <s32g_bl_common.h>
++#include <s32g_pinctrl.h>
+ 
+ #include "s32g_dt.h"
+ #include "s32gen1-wkpu.h"
+@@ -31,6 +32,8 @@
+ #define WKPU_WIPDER		(0x34)
+ #define WKPU_WIPDER_MASK	(0x7FFFFFFF)
+ 
++#define WKPU_MAX_EXT_IRQ	22
++
+ struct s32gen1_wkpu {
+ 	struct dt_node_info dt_info;
+ 	uintptr_t gpr; /* WKPU GPR base address */
+@@ -52,15 +55,40 @@ void s32gen1_wkpu_reset(void)
+ {
+ 	/* Clear all interrupts */
+ 	mmio_write_32(gwkpu.dt_info.base + WKPU_WISR, WKPU_WISR_MASK);
++
++	/* SIUL2 takes control of pull-ups/pull-downs during run */
++	mmio_write_32(gwkpu.gpr, gwkpu.pullups);
+ }
+ 
+-static void init_wkpu(struct s32gen1_wkpu *wkpu)
++void s32gen1_wkpu_enable_irqs(void)
+ {
+-	uint32_t rising, falling;
++	uint32_t i, irqs, rising, falling;
++
++	irqs = gwkpu.irqs;
++	rising = gwkpu.edges & gwkpu.irqs;
++	falling = ~(gwkpu.edges) & gwkpu.irqs;
++
++	/* Configure each external wkup pin in SIUL2 */
++	for (i = 0; i <= WKPU_MAX_EXT_IRQ; i++) {
++		if (irqs & 1)
++			wkpu_config_pinctrl(i);
++		irqs >>= 1;
++	}
+ 
+-	rising = wkpu->edges & wkpu->irqs;
+-	falling = ~(wkpu->edges) & wkpu->irqs;
++	/* Enable interrupts */
++	mmio_write_32(gwkpu.dt_info.base + WKPU_IRER, gwkpu.irqs);
++	mmio_write_32(gwkpu.dt_info.base + WKPU_WRER, gwkpu.irqs);
+ 
++	/* IRQs edges */
++	mmio_write_32(gwkpu.dt_info.base + WKPU_WIREER, rising);
++	mmio_write_32(gwkpu.dt_info.base + WKPU_WIFEER, falling);
++
++	/* WKPU takes control of pull-ups/pull-downs during standby */
++	mmio_write_32(gwkpu.gpr, WKUP_PUS_PU_OVERRIDE | gwkpu.pullups);
++}
++
++static void init_wkpu(struct s32gen1_wkpu *wkpu)
++{
+ 	/* Disable interrupts */
+ 	mmio_write_32(wkpu->dt_info.base + WKPU_IRER, 0x0);
+ 	mmio_write_32(wkpu->dt_info.base + WKPU_WRER, 0x0);
+@@ -74,21 +102,12 @@ static void init_wkpu(struct s32gen1_wkpu *wkpu)
+ 	else
+ 		mmio_write_32(wkpu->dt_info.base + WKPU_WBMSR, 0xFFFFFFFFU);
+ 
+-	/* IRQs edges */
+-	mmio_write_32(wkpu->dt_info.base + WKPU_WIREER, rising);
+-	mmio_write_32(wkpu->dt_info.base + WKPU_WIFEER, falling);
+-
+ 	/* Enable filters for all external inputs */
+ 	mmio_write_32(wkpu->dt_info.base + WKPU_WIFER, WKPU_WIFER_MASK);
+ 
+ 	/* Enable pull-up/pull-down resistors */
+-	mmio_write_32(wkpu->gpr, WKUP_PUS_PU_OVERRIDE | wkpu->pullups);
+ 	mmio_write_32(wkpu->dt_info.base + WKPU_WIPDER,
+ 		      wkpu->pulls_en & WKPU_WIPDER_MASK);
+-
+-	/* Enable interrupts */
+-	mmio_write_32(wkpu->dt_info.base + WKPU_IRER, wkpu->irqs);
+-	mmio_write_32(wkpu->dt_info.base + WKPU_WRER, wkpu->irqs);
+ }
+ 
+ static int init_from_dt(void *fdt, int fdt_offset, struct s32gen1_wkpu *wkpu)
+@@ -138,6 +157,12 @@ static int init_from_dt(void *fdt, int fdt_offset, struct s32gen1_wkpu *wkpu)
+ 	irqs = len / sizeof(uint32_t) / 3;
+ 	for (i = 0; i < irqs; i++) {
+ 		irq_num = fdt32_to_cpu(irq_ptr[i * 3]);
++
++		if (irq_num != S32GEN1_WKPU_RTC_IRQ &&
++		    irq_num > WKPU_MAX_EXT_IRQ) {
++			ERROR("Invalid wake-up interrupt number\n");
++			return -EIO;
++		}
+ 		wkpu->irqs |= BIT(irq_num);
+ 
+ 		if (fdt32_to_cpu(irq_ptr[i * 3 + 1]) == S32GEN1_WKPU_IRQ_RISING)
+diff --git a/include/drivers/nxp/s32g/s32gen1-wkpu.h b/include/drivers/nxp/s32g/s32gen1-wkpu.h
+index 13fadac94..7fd1fc3e8 100644
+--- a/include/drivers/nxp/s32g/s32gen1-wkpu.h
++++ b/include/drivers/nxp/s32g/s32gen1-wkpu.h
+@@ -1,11 +1,12 @@
+ // SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020, 2022 NXP
+  */
+ #ifndef S32GEN1_WKPU_H
+ #define S32GEN1_WKPU_H
+ 
+ int s32gen1_wkpu_init(void *fdt, int fdt_offset);
+ void s32gen1_wkpu_reset(void);
++void s32gen1_wkpu_enable_irqs(void);
+ 
+ #endif
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32g/s32g_psci.c
+index 3f552c78d..785eaf58e 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32g/s32g_psci.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -13,6 +13,8 @@
+ #include "s32g_resume.h"
+ #include "s32g_bl_common.h"
+ #include "s32g_sramc.h"
++#include "s32gen1-wkpu.h"
++
+ 
+ #include <arch_helpers.h>
+ #include <assert.h>
+@@ -168,6 +170,7 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 	plat_gic_save();
+ 	set_warm_entry();
+ 	pmic_prepare_for_suspend();
++	s32gen1_wkpu_enable_irqs();
+ 
+ 	/* Shutting down cores */
+ 	/* M7 cores */
+-- 
+2.17.1
+

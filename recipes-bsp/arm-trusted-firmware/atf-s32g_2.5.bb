@@ -35,6 +35,12 @@ SRC_URI += " \
     file://bsp32/rc2/0004-drivers-mmc-Fix-uninitialized-variable-warning.patch \
     file://bsp32/rc2/0005-plat-s32g-Use-Os-optimization-level-on-release-build.patch \
     file://bsp32/rc2/0006-wkpu-remove-GPIO166-external-wake-up-source.patch \
+    file://bsp32/rc3/0001-s32-gen1-Clear-SWT-non-critical-faults.patch \
+    file://bsp32/rc3/0002-s32g-Correct-mkimage-parameters.patch \
+    file://bsp32/rc3/0003-plat-s32g-Report-the-cause-of-reset.patch \
+    file://bsp32/rc3/0004-pinctrl-add-support-for-WKPU-pads-enablement.patch \
+    file://bsp32/rc3/0005-wkpu-enable-wakeup-interrupts-before-suspend.patch \
+    file://bsp32/rc3/0006-ddr-Update-configuration-for-increasing-r-w-bandwidt.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g2"
