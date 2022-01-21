@@ -15,6 +15,9 @@ SRC_URI[sha256sum] = "1b8ebaafa247d8cc873d84c3fab70f1e3d05cdb20140910da2d7d6229f
 
 SRC_URI += " \
     file://0001-pkcs11-hse-Makefile-using-internal-compile-variables.patch \
+    file://bsp32/rc3/0001-pkcs-fix-unaligned-memcpy-for-ec-keys.patch \
+    file://bsp32/rc3/0002-pkcs-add-error-checks-on-calls-to-getattr_len.patch \
+    file://bsp32/rc3/0003-pkcs-fix-goto-labels-for-consistency.patch \
 "
 
 PATCHTOOL = "git"
