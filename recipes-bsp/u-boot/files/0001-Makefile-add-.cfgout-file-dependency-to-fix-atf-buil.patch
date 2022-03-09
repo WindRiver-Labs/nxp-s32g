@@ -1,0 +1,34 @@
+From 3ebd9fed346812d430a4000a583be18f8a43ca85 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Tue, 8 Mar 2022 18:53:33 +0800
+Subject: [PATCH] Makefile: add .cfgout file dependency to fix atf build error
+
+The uboot binary image name has been changed to u-boot-s32.bin, so as to
+u-boot-s32.cfgout, but u-boot-s32.cfgout is not built by default, but it
+is needed when atf compiling, so add u-boot-s32.cfgout dependency as previous
+to build the .cfgout file.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 0924462c41..a01d7ee254 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1178,7 +1178,7 @@ ifeq ($(CONFIG_S32_GEN1),y)
+ %.cfgout: FORCE
+ 	$(Q)$(MAKE) $(build)=arch/arm/mach-s32 $@
+ 
+-u-boot-s32.bin: u-boot.dtb u-boot-nodtb.bin
++u-boot-s32.bin: u-boot.dtb u-boot-nodtb.bin u-boot-s32.cfgout
+ 	$(call if_changed,binman)
+ endif
+ 
+-- 
+2.17.1
+

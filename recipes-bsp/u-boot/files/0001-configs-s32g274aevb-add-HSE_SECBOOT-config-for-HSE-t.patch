@@ -1,4 +1,4 @@
-From 4101155cc048f8ec8eedff5a43ab50976c493b92 Mon Sep 17 00:00:00 2001
+From 29d04e70a76d2486282becf5d307f72ca958b809 Mon Sep 17 00:00:00 2001
 From: Zhantao Tang <zhantao.tang@windriver.com>
 Date: Mon, 1 Mar 2021 16:48:47 +0800
 Subject: [PATCH] configs: s32g274aevb: add HSE_SECBOOT config for HSE test
@@ -9,17 +9,17 @@ Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
  1 file changed, 1 insertion(+)
 
 diff --git a/configs/s32g2xxaevb_defconfig b/configs/s32g2xxaevb_defconfig
-index 7554b55d77..ca170ce7b9 100644
+index b8a5490296..8974a9b701 100644
 --- a/configs/s32g2xxaevb_defconfig
 +++ b/configs/s32g2xxaevb_defconfig
-@@ -10,6 +10,7 @@ CONFIG_DISTRO_DEFAULTS=y
- CONFIG_TOOLS_DEBUG=y
+@@ -6,6 +6,7 @@ CONFIG_NR_DRAM_BANKS=2
+ CONFIG_TARGET_S32G2XXAEVB=y
  CONFIG_FIT=y
  CONFIG_SD_BOOT=y
 +CONFIG_HSE_SECBOOT=y
  CONFIG_USE_BOOTARGS=y
  CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
- CONFIG_ARCH_EARLY_INIT_R=y
+ CONFIG_CMD_CPU=y
 -- 
 2.17.1
 

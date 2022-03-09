@@ -143,7 +143,7 @@ do_compile() {
 	unset CFLAGS
 	unset CPPFLAGS
 
-	oe_runmake -C ${S} BL33="${DEPLOY_DIR_IMAGE}/u-boot.bin" MKIMAGE_CFG="${DEPLOY_DIR_IMAGE}/tools/u-boot.cfgout" all
+	oe_runmake -C ${S} BL33="${DEPLOY_DIR_IMAGE}/${PLATFORM}/u-boot-s32.bin" MKIMAGE_CFG="${DEPLOY_DIR_IMAGE}/${PLATFORM}/tools/u-boot-s32.cfgout" all
 }
 
 do_deploy() {

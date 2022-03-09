@@ -239,9 +239,10 @@ SRC_URI += " \
     file://bsp32/rc7/0051-s32-Replace-CONFIG_SYS_FSL-with-CONFIG_SYS_FLASH.patch \
     file://bsp32/rc8/0001-s32-gen1-env-Rename-u-boot-flashaddr-to-fip-flashadd.patch \
     file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
-    file://0001-secboot-add-key-store-status-check-point-after-sys_i.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
     file://0001-scripts-mailmapper-python2-python3.patch \
+    file://0001-Makefile-add-.cfgout-file-dependency-to-fix-atf-buil.patch \
+    file://0001-tools-s32gen1_secboot-replace-u-boot.s32-with-u-boot.patch \
 "
 
 SRCREV = "6286902c946f15b2b2ab66904a26d6e0e8748802"
@@ -255,10 +256,6 @@ UBOOT_INITIAL_ENV = ""
 USRC ?= ""
 S = '${@oe.utils.conditional("USRC", "", "${WORKDIR}/git", "${USRC}", d)}'
 
-# Enable Arm Trusted Firmware
-SRC_URI += " \
-    ${@bb.utils.contains('ATF_S32G_ENABLE', '1', 'file://0001-defconfig-add-support-of-ATF-for-rdb2-boards.patch', '', d)} \
-"
 
 # For now, only rdb2 boards support ATF, this function will be fixed when new ATF supported boards added.
 do_install_append() {
@@ -272,9 +269,10 @@ do_install_append() {
                 j=$(expr $j + 1)
                 if  [ $j -eq $i ]; then
                         if [ "$type" = "${ATF_SUPPORT_TYPE}" ]; then
-                            cp ${B}/${config}/u-boot.bin ${DEPLOY_DIR_IMAGE}/u-boot.bin
-                            install -d ${DEPLOY_DIR_IMAGE}/tools
-                            cp ${B}/${config}/tools/mkimage ${DEPLOY_DIR_IMAGE}/tools/mkimage
+                            install -d ${DEPLOY_DIR_IMAGE}/${type}/tools
+                            cp ${B}/${config}/u-boot-s32.bin ${DEPLOY_DIR_IMAGE}/${type}/u-boot-s32.bin
+                            cp ${B}/${config}/tools/mkimage ${DEPLOY_DIR_IMAGE}/${type}/tools/mkimage
+                            cp ${B}/${config}/u-boot-s32.cfgout ${DEPLOY_DIR_IMAGE}/${type}/tools/u-boot-s32.cfgout
                             break
                         fi
                 fi
@@ -298,7 +296,7 @@ do_compile_append() {
     unset i j
     for config in ${UBOOT_MACHINE}; do
 	cp ${B}/tools/s32gen1_secboot.sh ${B}/${config}/tools/s32gen1_secboot.sh
-        chmod +x ${B}/${config}/tools/s32gen1_secboot.sh
+	chmod +x ${B}/${config}/tools/s32gen1_secboot.sh
 
 	i=$(expr $i + 1);
 	for type in ${UBOOT_CONFIG}; do
@@ -308,13 +306,13 @@ do_compile_append() {
 			if [ "${config}" = "${S32G274AEVB_UBOOT_DEFCONFIG_NAME}" ]; then
 				if [ -n "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ]; then
 					${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_EVB_BIN}
-					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot.s32
+					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-s32.bin
 					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
 				fi
 			else
 				if [ -n "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ]; then
 					${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_RDB2_BIN}
-					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot.s32
+					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-s32.bin
 					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
 				fi
 			fi

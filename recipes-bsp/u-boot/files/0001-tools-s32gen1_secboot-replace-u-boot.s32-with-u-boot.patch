@@ -1,0 +1,56 @@
+From 58dbcea5dcd1187fe9e6832b8a21f0f19c6b5fc6 Mon Sep 17 00:00:00 2001
+From: Zhantao Tang <zhantao.tang@windriver.com>
+Date: Tue, 8 Mar 2022 21:59:02 +0800
+Subject: [PATCH] tools: s32gen1_secboot: replace u-boot.s32 with
+ u-boot-s32.bin to compatible with source codes
+
+The uboot binary image name has been changed to u-boot-s32.bin, so
+update s32gen1_secboot.sh script file too.
+
+Upstream-Status: Pending
+
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ tools/s32gen1_secboot.sh | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/tools/s32gen1_secboot.sh b/tools/s32gen1_secboot.sh
+index 6ec30516fd..7b348c7112 100755
+--- a/tools/s32gen1_secboot.sh
++++ b/tools/s32gen1_secboot.sh
+@@ -87,7 +87,7 @@ openssl rsa -in "$KEY_PATH"/private.pem -pubout > "$KEY_PATH"/public.pem
+ fi
+ 
+ # extract app code
+-dd if=u-boot.s32 of=u-boot-tosign.s32 bs=512 skip=1057
++dd if=u-boot-s32.bin of=u-boot-tosign.s32 bs=512 skip=1057
+ 
+ # find necessary padding for u-boot
+ PAD=$((UBOOT_MAX_SIZE - $(wc -c < u-boot-tosign.s32)))
+@@ -103,11 +103,11 @@ openssl dgst -sha1 -verify "$KEY_PATH"/public.pem \
+ 
+ # add everything to the sdcard
+ # write primary ivt and duplicate ivt
+-dd if=u-boot.s32 of="$DEV_PATH" bs=256 count=1 conv=notrunc,fsync
+-dd if=u-boot.s32 of="$DEV_PATH" bs=512 skip=8 seek=8 count=1 conv=notrunc,fsync
++dd if=u-boot-s32.bin of="$DEV_PATH" bs=256 count=1 conv=notrunc,fsync
++dd if=u-boot-s32.bin of="$DEV_PATH" bs=512 skip=8 seek=8 count=1 conv=notrunc,fsync
+ 
+ # write DCD
+-dd if=u-boot.s32 of="$DEV_PATH" bs=512 \
++dd if=u-boot-s32.bin of="$DEV_PATH" bs=512 \
+ skip=9 seek=9 count=16 conv=notrunc,fsync
+ 
+ # write hse fw
+@@ -117,7 +117,7 @@ dd if="$HSE_PATH" of="$DEV_PATH" bs=512 seek=32 conv=notrunc,fsync
+ dd if=u-boot.sign of="$DEV_PATH" bs=512 seek=1040 conv=notrunc,fsync
+ 
+ # write app header
+-dd if=u-boot.s32 of="$DEV_PATH" bs=512 \
++dd if=u-boot-s32.bin of="$DEV_PATH" bs=512 \
+ seek=1056 skip=1056 count=1 conv=notrunc,fsync
+ 
+ # write signed u-boot
+-- 
+2.17.1
+

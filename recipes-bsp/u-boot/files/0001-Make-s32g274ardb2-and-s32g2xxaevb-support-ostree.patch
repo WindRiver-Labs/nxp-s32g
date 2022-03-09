@@ -1,4 +1,4 @@
-From 6cb937aef5fbbbed11a801c32b304eb36b2d7690 Mon Sep 17 00:00:00 2001
+From da3b97704b15416ea41cb34d5644b0fdb3a8c6c1 Mon Sep 17 00:00:00 2001
 From: Robert Yang <liezhi.yang@windriver.com>
 Date: Thu, 1 Apr 2021 10:43:06 +0000
 Subject: [PATCH] Make s32g274ardb2 and s32g2xxaevb support ostree
@@ -15,24 +15,24 @@ Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
  3 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
-index 3270ada808..38ffe658e3 100644
+index 4f0cae576f..682eff5efc 100644
 --- a/configs/s32g274ardb2_defconfig
 +++ b/configs/s32g274ardb2_defconfig
-@@ -13,6 +13,9 @@ CONFIG_SD_BOOT=y
+@@ -8,6 +8,9 @@ CONFIG_SD_BOOT=y
  CONFIG_USE_BOOTARGS=y
  CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
  CONFIG_BOARD_LATE_INIT=y
 +CONFIG_FAT_WRITE=y
 +CONFIG_MENU=y
 +CONFIG_CMD_BOOTMENU=y
- CONFIG_ARCH_EARLY_INIT_R=y
- CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_CPU=y
  CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
 diff --git a/configs/s32g2xxaevb_defconfig b/configs/s32g2xxaevb_defconfig
-index ca170ce7b9..34975b49cc 100644
+index 52c1b2b33c..35e5234c86 100644
 --- a/configs/s32g2xxaevb_defconfig
 +++ b/configs/s32g2xxaevb_defconfig
-@@ -74,3 +74,6 @@ CONFIG_USB_EHCI_HCD=y
+@@ -41,3 +41,6 @@ CONFIG_RGMII=y
  CONFIG_USB_ULPI_VIEWPORT=y
  CONFIG_USB_ULPI=y
  # CONFIG_EFI_LOADER is not set
@@ -40,10 +40,10 @@ index ca170ce7b9..34975b49cc 100644
 +CONFIG_MENU=y
 +CONFIG_CMD_BOOTMENU=y
 diff --git a/include/configs/s32.h b/include/configs/s32.h
-index 330d6ba5c4..650265ed2f 100644
+index 13ff438403..50c854e73f 100644
 --- a/include/configs/s32.h
 +++ b/include/configs/s32.h
-@@ -514,7 +514,10 @@
+@@ -410,7 +410,10 @@
  #  define CONFIG_BOOTCOMMAND XEN_BOOTCMD
  #else
  #  define CONFIG_BOOTCOMMAND \
@@ -56,5 +56,5 @@ index 330d6ba5c4..650265ed2f 100644
  			   "run mmcboot; " \
  		   "else run netboot; " \
 -- 
-2.17.1
+2.25.1
 
