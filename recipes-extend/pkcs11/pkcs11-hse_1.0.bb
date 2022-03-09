@@ -18,6 +18,7 @@ SRC_URI += " \
     file://bsp32/rc3/0001-pkcs-fix-unaligned-memcpy-for-ec-keys.patch \
     file://bsp32/rc3/0002-pkcs-add-error-checks-on-calls-to-getattr_len.patch \
     file://bsp32/rc3/0003-pkcs-fix-goto-labels-for-consistency.patch \
+    file://bsp32/rc4/0001-examples-add-low-level-libhse-example.patch \
 "
 
 PATCHTOOL = "git"
@@ -25,12 +26,13 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 S = "${WORKDIR}/pkcs11-hse"
 
-COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
+EXTRA_OEMAKE += " \
+	CROSS_COMPILE=${TARGET_PREFIX} \
+"
 
 do_compile() {
-    sed -i 's/$(CROSS_COMPILE)gcc /$(CC) /' Makefile examples/Makefile
     oe_runmake HSE_FWDIR=${S}/hse-fw  CFLAGS="${CFLAGS} -shared -fPIC -Wall -fno-builtin"
-    oe_runmake -C examples LIBS="-L${STAGING_LIBDIR}/" INCLUDE="-I${STAGING_INCDIR}" LDFLAGS="${LDFLAGS} -lcrypto -lp11"
+    oe_runmake -C examples HSE_FWDIR=${S}/hse-fw LIBS="-L${STAGING_LIBDIR}/" INCLUDE="-I${STAGING_INCDIR}" LDFLAGS="${LDFLAGS} -lcrypto -lp11" "${HOST_CC_ARCH}${TOOLCHAIN_OPTIONS}"
 }
 
 do_install() {
@@ -51,3 +53,4 @@ do_install() {
 
 PACKAGES =+ "${PN}-examples "
 FILES_${PN}-examples += "${bindir}"
+COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
