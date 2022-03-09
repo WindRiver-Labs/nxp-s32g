@@ -117,7 +117,7 @@ SRC_URI += " \
 
 PLATFORM_nxp-s32g2xx = "s32g274ardb2"
 BUILD_TYPE = "release"
-
+ATF_S32G_ENABLE = "1"
 
 EXTRA_OEMAKE += " \
                 CROSS_COMPILE=${TARGET_PREFIX} \
