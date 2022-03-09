@@ -1,5 +1,5 @@
 ATF_S32G_ENABLE ??= ""
-S32G_PLAT_nxp-s32g2xx ??= "rdb2 evb"
+S32G_PLAT_nxp-s32g2xx ??= "rdb2 evb rdb3"
 do_make_nxp_s32g2xx_wic() {
 	cd ${DEPLOY_DIR_IMAGE}
 	for i in {1..10}
