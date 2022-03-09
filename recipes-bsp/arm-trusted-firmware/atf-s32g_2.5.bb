@@ -118,14 +118,11 @@ SRC_URI += " \
 PLATFORM_nxp-s32g2xx = "s32g274ardb2"
 BUILD_TYPE = "release"
 
-ATF_BINARIES = "${B}/${PLATFORM}/${BUILD_TYPE}"
-
 
 EXTRA_OEMAKE += " \
                 CROSS_COMPILE=${TARGET_PREFIX} \
                 ARCH=${TARGET_ARCH} \
                 BUILD_BASE=${B} \
-                PLAT=${PLATFORM} \
                 "
 
 # FIXME: Allow linking of 'tools' binaries with native libraries
@@ -143,12 +140,18 @@ do_compile() {
 	unset CFLAGS
 	unset CPPFLAGS
 
-	oe_runmake -C ${S} BL33="${DEPLOY_DIR_IMAGE}/${PLATFORM}/u-boot-s32.bin" MKIMAGE_CFG="${DEPLOY_DIR_IMAGE}/${PLATFORM}/tools/u-boot-s32.cfgout" all
+	for plat in ${PLATFORM}; do
+		ATF_BINARIES="${B}/${plat}/${BUILD_TYPE}"
+		oe_runmake -C ${S} PLAT=${plat} BL33="${DEPLOY_DIR_IMAGE}/${plat}/${UBOOT_BINARY}" MKIMAGE_CFG="${DEPLOY_DIR_IMAGE}/${plat}/tools/${UBOOT_CFGOUT}" all
+	done
 }
 
 do_deploy() {
 	install -d ${DEPLOY_DIR_IMAGE}
-	cp -v ${ATF_BINARIES}/fip.s32 ${DEPLOY_DIR_IMAGE}/${ATF_IMAGE_FILE}
+	for plat in ${PLATFORM}; do
+		ATF_BINARIES="${B}/${plat}/${BUILD_TYPE}"
+		cp -v ${ATF_BINARIES}/fip.s32 ${DEPLOY_DIR_IMAGE}/atf-${plat}.s32
+	done
 }
 
 addtask deploy after do_compile

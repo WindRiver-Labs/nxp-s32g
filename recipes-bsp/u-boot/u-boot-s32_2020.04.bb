@@ -260,27 +260,23 @@ S = '${@oe.utils.conditional("USRC", "", "${WORKDIR}/git", "${USRC}", d)}'
 # For now, only rdb2 boards support ATF, this function will be fixed when new ATF supported boards added.
 do_install_append() {
 
-    if [ -n "${ATF_S32G_ENABLE}" ]; then
-        unset i j
-        install -d ${DEPLOY_DIR_IMAGE}
-        for config in ${UBOOT_MACHINE}; do
-            i=$(expr $i + 1);
-            for type in ${UBOOT_CONFIG}; do
-                j=$(expr $j + 1)
-                if  [ $j -eq $i ]; then
-                        if [ "$type" = "${ATF_SUPPORT_TYPE}" ]; then
-                            install -d ${DEPLOY_DIR_IMAGE}/${type}/tools
-                            cp ${B}/${config}/u-boot-s32.bin ${DEPLOY_DIR_IMAGE}/${type}/u-boot-s32.bin
-                            cp ${B}/${config}/tools/mkimage ${DEPLOY_DIR_IMAGE}/${type}/tools/mkimage
-                            cp ${B}/${config}/u-boot-s32.cfgout ${DEPLOY_DIR_IMAGE}/${type}/tools/u-boot-s32.cfgout
-                            break
-                        fi
-                fi
-            done
-            unset j
+    unset i j
+    install -d ${DEPLOY_DIR_IMAGE}
+    for config in ${UBOOT_MACHINE}; do
+        i=$(expr $i + 1);
+        for type in ${UBOOT_CONFIG}; do
+            j=$(expr $j + 1)
+            if  [ $j -eq $i ]; then
+                install -d ${DEPLOY_DIR_IMAGE}/${type}/tools
+                cp ${B}/${config}/${UBOOT_BINARY} ${DEPLOY_DIR_IMAGE}/${type}/${UBOOT_BINARY}
+                cp ${B}/${config}/tools/mkimage ${DEPLOY_DIR_IMAGE}/${type}/tools/mkimage
+                cp ${B}/${config}/${UBOOT_CFGOUT} ${DEPLOY_DIR_IMAGE}/${type}/tools/${UBOOT_CFGOUT}
+            fi
         done
-        unset i
-    fi
+        unset j
+    done
+    unset i
+
 }
 
 # Modify the layout of u-boot to adding hse support using the following script.
@@ -293,34 +289,34 @@ HSE_LOCAL_FIRMWARE_RDB2_BIN ?= ""
 
 do_compile_append() {
 
-    unset i j
-    for config in ${UBOOT_MACHINE}; do
-	cp ${B}/tools/s32gen1_secboot.sh ${B}/${config}/tools/s32gen1_secboot.sh
-	chmod +x ${B}/${config}/tools/s32gen1_secboot.sh
+	unset i j
+	for config in ${UBOOT_MACHINE}; do
+		cp ${B}/tools/s32gen1_secboot.sh ${B}/${config}/tools/s32gen1_secboot.sh
+		chmod +x ${B}/${config}/tools/s32gen1_secboot.sh
 
-	i=$(expr $i + 1);
-	for type in ${UBOOT_CONFIG}; do
-		j=$(expr $j + 1)
-		if  [ $j -eq $i ]; then
+		i=$(expr $i + 1);
+		for type in ${UBOOT_CONFIG}; do
+			j=$(expr $j + 1)
+			if  [ $j -eq $i ]; then
 
-			if [ "${config}" = "${S32G274AEVB_UBOOT_DEFCONFIG_NAME}" ]; then
-				if [ -n "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ]; then
-					${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_EVB_BIN}
-					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-s32.bin
-					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
-				fi
-			else
-				if [ -n "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ]; then
-					${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_RDB2_BIN}
-					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-s32.bin
-					cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
+				if [ "${config}" = "${S32G274AEVB_UBOOT_DEFCONFIG_NAME}" ]; then
+					if [ -n "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_EVB_BIN}" ]; then
+						${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_EVB_BIN}
+						cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/${UBOOT_BINARY}
+						cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
+					fi
+				else
+					if [ -n "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ] && [ -e "${HSE_LOCAL_FIRMWARE_RDB2_BIN}" ]; then
+						${B}/${config}/tools/s32gen1_secboot.sh -k ./keys_hse -d ${B}/${config}/u-boot-hse-${type}.s32 --hse ${HSE_LOCAL_FIRMWARE_RDB2_BIN}
+						cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/${UBOOT_BINARY}
+						cp ${B}/${config}/u-boot-hse-${type}.s32 ${B}/${config}/u-boot-${type}.bin
+					fi
 				fi
 			fi
-		fi
+		done
+		unset j
 	done
-	unset j
-    done
-    unset i
+	unset i
 }
 
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
