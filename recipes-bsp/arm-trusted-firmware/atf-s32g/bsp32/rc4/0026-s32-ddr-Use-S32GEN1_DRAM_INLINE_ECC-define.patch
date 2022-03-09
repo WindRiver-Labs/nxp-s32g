@@ -1,0 +1,205 @@
+From 58d99acf29ee257ebe1a4b9dfcda0beb422b4d08 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 5 Jan 2022 13:52:00 +0200
+Subject: [PATCH 26/50] s32: ddr: Use S32GEN1_DRAM_INLINE_ECC define
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/ddr/ddrss_cfg.c      |  3 +--
+ drivers/nxp/s32/ddr/s32g2/ddrc_cfg.c | 10 +++++-----
+ drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c | 10 +++++-----
+ plat/nxp/s32/s32_common.mk           | 14 ++++++++++++++
+ plat/nxp/s32/s32g/s32g_common.mk     | 15 ---------------
+ 5 files changed, 25 insertions(+), 27 deletions(-)
+
+diff --git a/drivers/nxp/s32/ddr/ddrss_cfg.c b/drivers/nxp/s32/ddr/ddrss_cfg.c
+index f5e3ffad1..9e2531139 100644
+--- a/drivers/nxp/s32/ddr/ddrss_cfg.c
++++ b/drivers/nxp/s32/ddr/ddrss_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -29,7 +29,6 @@
+  */
+ 
+ #include <libc/string.h>
+-#include <s32g_pinctrl.h>
+ #include <ddr/ddr_init.h>
+ 
+ struct ddrss_config configs[] = {
+diff --git a/drivers/nxp/s32/ddr/s32g2/ddrc_cfg.c b/drivers/nxp/s32/ddr/s32g2/ddrc_cfg.c
+index 779c96497..32429c0bd 100644
+--- a/drivers/nxp/s32/ddr/s32g2/ddrc_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g2/ddrc_cfg.c
+@@ -32,7 +32,7 @@
+ 
+ struct regconf ddrc_cfg[] = {
+ 	{0x4007c604, 0x00000000U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x4007c608, 0x37ffffffU},
+ #else
+ 	{0x4007c608, 0x00000000U},
+@@ -52,7 +52,7 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0060, 0x00000000U},
+ 	{0x403c0064, 0x006100e0U},
+ 	{0x403c0068, 0x008c0000U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0070, 0x033f7f54U},
+ 	{0x403c0074, 0x00000780U},
+ #else
+@@ -105,7 +105,7 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c01b8, 0x00000000U},
+ 	{0x403c01c0, 0x00000001U},
+ 	{0x403c01c4, 0x00000001U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0200, 0x00000014U},
+ 	{0x403c0204, 0x00050505U},
+ #else
+@@ -113,13 +113,13 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0204, 0x00080808U},
+ #endif
+ 	{0x403c0208, 0x00000000U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c020c, 0x14141400U},
+ #else
+ 	{0x403c020c, 0x00000000U},
+ #endif
+ 	{0x403c0210, 0x00001f1fU},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0214, 0x04040404U},
+ 	{0x403c0218, 0x04040404U},
+ #else
+diff --git a/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c b/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c
+index f556165e6..164894c18 100644
+--- a/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c
+@@ -46,7 +46,7 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0060, 0x00000000U},
+ 	{0x403c0064, 0x006100e0U},
+ 	{0x403c0068, 0x008c0000U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0070, 0x033f7f54U},
+ 	{0x403c0074, 0x00000780U},
+ #else
+@@ -99,7 +99,7 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c01b8, 0x00000000U},
+ 	{0x403c01c0, 0x00000001U},
+ 	{0x403c01c4, 0x80000001U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0200, 0x00000014U},
+ 	{0x403c0204, 0x00050505U},
+ #else
+@@ -107,13 +107,13 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0204, 0x00080808U},
+ #endif
+ 	{0x403c0208, 0x00000000U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c020c, 0x14141400U},
+ #else
+ 	{0x403c020c, 0x00000000U},
+ #endif
+ 	{0x403c0210, 0x00001f1fU},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0214, 0x04040404U},
+ 	{0x403c0218, 0x04040404U},
+ #else
+@@ -170,7 +170,7 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0f24, 0x0000ff10U},
+ 	{0x403c0f2c, 0x00000000U},
+ 	{0x403c0f38, 0x00000000U},
+-#if (S32G_DRAM_INLINE_ECC == 1)
++#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0f40, 0x37ffffffU},
+ #else
+ 	{0x403c0f40, 0x00000000U},
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index 3b454bd03..9732655ee 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -22,6 +22,19 @@ SED ?= sed
+ S32G_EMU		?= 0
+ $(eval $(call add_define_val,S32G_EMU,$(S32G_EMU)))
+ 
++S32GEN1_DRAM_INLINE_ECC	?= 1
++$(eval $(call add_define_val,S32GEN1_DRAM_INLINE_ECC,$(S32GEN1_DRAM_INLINE_ECC)))
++
++DDR_DRV = drivers/nxp/s32/ddr
++
++DDR_DRV_SRCS += \
++	${DDR_DRV}/ddr_init.c \
++	${DDR_DRV}/ddr_utils_mmio.c \
++	${DDR_DRV}/ddr_lp_mmio.c \
++	${DDR_DRV}/ddr_lp_csr.c \
++	${DDR_DRV}/ddrss_cfg.c \
++	${DDR_DRV}/imem_cfg.c \
++
+ BL2_AT_EL3		:= 1
+ 
+ PLAT_INCLUDES 	+= \
+@@ -63,6 +76,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 
+ BL2_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
++			${DDR_DRV_SRCS} \
+ 			common/desc_image_load.c \
+ 			common/fdt_fixup.c \
+ 			drivers/io/io_fip.c \
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index 40e92c302..03afec5ec 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -6,26 +6,12 @@
+ 
+ include plat/nxp/s32/s32_common.mk
+ 
+-S32G_DRAM_INLINE_ECC	?= 1
+-$(eval $(call add_define_val,S32G_DRAM_INLINE_ECC,$(S32G_DRAM_INLINE_ECC)))
+-
+-DDR_DRV = drivers/nxp/s32/ddr
+-
+ ifeq ($(S32G_EMU),1)
+ DDR_DRV_SRCS := \
+ 	${DDR_DRV}/emu/ddrss_emu.c \
+ 	${DDR_DRV}/emu/ddrss_firmware_emu.c \
+ 	${DDR_DRV}/emu/ddrss_regconf_emu.c \
+ 
+-else
+-DDR_DRV_SRCS += \
+-	${DDR_DRV}/ddr_init.c \
+-	${DDR_DRV}/ddr_utils_mmio.c \
+-	${DDR_DRV}/ddr_lp_mmio.c \
+-	${DDR_DRV}/ddr_lp_csr.c \
+-	${DDR_DRV}/ddrss_cfg.c \
+-	${DDR_DRV}/imem_cfg.c \
+-
+ endif
+ 
+ ifeq ($(S32G_EMU),0)
+@@ -53,7 +39,6 @@ PLAT_BL_COMMON_SOURCES	+= \
+ BL2_SOURCES		+= \
+ 			   plat/nxp/s32/s32g/s32g_bl2_el3.c \
+ 			   ${BL31SSRAM_SRC_DUMP} \
+-			   ${DDR_DRV_SRCS} \
+ 			   lib/optee/optee_utils.c \
+ 
+ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+-- 
+2.17.1
+

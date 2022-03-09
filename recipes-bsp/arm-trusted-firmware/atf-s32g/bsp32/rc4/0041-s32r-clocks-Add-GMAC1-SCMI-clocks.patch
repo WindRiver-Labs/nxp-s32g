@@ -1,0 +1,311 @@
+From b86fc6423a910c639ca415f45741473a29dc99df Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Mon, 10 Jan 2022 09:58:38 +0200
+Subject: [PATCH 41/50] s32r: clocks: Add GMAC1 SCMI clocks
+
+GMAC1 clocks were added in U-Boot in commit
+af62b2d1c476177fd4a218a23c2a266eaa38c343.
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/clk/s32r_scmi_ids.c | 248 +++++++++++++++++++++++++++-
+ 1 file changed, 243 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/nxp/s32/clk/s32r_scmi_ids.c b/drivers/nxp/s32/clk/s32r_scmi_ids.c
+index 57729f9a2..45c204cbf 100644
+--- a/drivers/nxp/s32/clk/s32r_scmi_ids.c
++++ b/drivers/nxp/s32/clk/s32r_scmi_ids.c
+@@ -22,8 +22,60 @@ struct s32gen1_scmi_clk s32r45_scmi_clk[] = {
+ 		S32R45_CLK_ACCEL3, "spt_axi"),
+ 	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_SPT_MODULE,
+ 		S32R45_CLK_ACCEL3_DIV3, "spt_module"),
++	/* GMAC1 */
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_TS,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_ts"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_RX_SGMII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_rx_sgmii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_TX_SGMII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_tx_sgmii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_RX_RGMII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_rx_rgmii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_TX_RGMII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_tx_rgmii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_RX_RMII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_rx_rmii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_TX_RMII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_tx_rmii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_RX_MII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_rx_mii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_TX_MII,
++		S32GEN1_SCMI_COMPLEX_CLK, "gmac1_tx_mii"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_GMAC1_AXI,
++		S32GEN1_CLK_XBAR, "gmac1_axi"),
+ };
+ 
++static int s32r_compound2clkid(uint32_t scmi_clk_id, uint32_t *clk_id)
++{
++	switch (scmi_clk_id) {
++	case S32R45_SCMI_CLK_GMAC1_RX_SGMII:
++	case S32R45_SCMI_CLK_GMAC1_RX_RGMII:
++		if (clk_id)
++			*clk_id = S32R45_CLK_GMAC1_RX;
++		break;
++	case S32R45_SCMI_CLK_GMAC1_TX_SGMII:
++	case S32R45_SCMI_CLK_GMAC1_TX_RGMII:
++		if (clk_id)
++			*clk_id = S32R45_CLK_GMAC1_TX;
++		break;
++	case S32R45_SCMI_CLK_GMAC1_TS:
++		if (clk_id)
++			*clk_id = S32GEN1_CLK_GMAC0_TS;
++		break;
++	case S32R45_SCMI_CLK_GMAC1_RX_RMII:
++	case S32R45_SCMI_CLK_GMAC1_TX_RMII:
++	case S32R45_SCMI_CLK_GMAC1_RX_MII:
++	case S32R45_SCMI_CLK_GMAC1_TX_MII:
++		if (clk_id)
++			*clk_id = S32GEN1_SCMI_NOT_IMPLEMENTED_CLK;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
+ int plat_scmi_id2clk(uint32_t scmi_clk_id, uint32_t *clk_id)
+ {
+ 	if (!clk_id)
+@@ -43,27 +95,184 @@ int plat_scmi_id2clk(uint32_t scmi_clk_id, uint32_t *clk_id)
+ 
+ int plat_compound_clk_get(struct clk *clk)
+ {
+-	return -EINVAL;
++	uint32_t scmi_clk_id = clk->id;
++
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return -EINVAL;
++
++	if (s32r_compound2clkid(scmi_clk_id, NULL)) {
++		ERROR("Invalid S32R compound clock : %u\n", scmi_clk_id);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int set_gmac1_rx_parent(struct clk *clk)
++{
++	uint32_t rx_id;
++	uint32_t clk_id = clk->id;
++
++	if (clk_id == S32R45_SCMI_CLK_GMAC1_RX_SGMII) {
++		rx_id = S32R45_CLK_SERDES1_LANE0_CDR;
++	} else if (clk_id == S32R45_SCMI_CLK_GMAC1_RX_RGMII) {
++		rx_id = S32R45_CLK_GMAC1_EXT_RX;
++	} else {
++		ERROR("Invalid GMAC1 RX mode\n");
++		return -EINVAL;
++	}
++
++	return cc_set_mux_parent(clk, S32R45_CLK_MC_CGM2_MUX4, rx_id);
++}
++
++static int set_gmac1_tx_parent(struct clk *clk)
++{
++	uint32_t tx_id;
++	uint32_t clk_id = clk->id;
++
++	if (clk_id == S32R45_SCMI_CLK_GMAC1_TS) {
++		tx_id = S32GEN1_CLK_PERIPH_PLL_PHI5;
++	} else if (clk_id == S32R45_SCMI_CLK_GMAC1_TX_SGMII) {
++		tx_id = S32R45_CLK_SERDES1_LANE0_TX;
++	} else if (clk_id == S32R45_SCMI_CLK_GMAC1_TX_RGMII) {
++		tx_id = S32GEN1_CLK_PERIPH_PLL_PHI5;
++	} else {
++		ERROR("Invalid GMAC1 TX mode\n");
++		return -EINVAL;
++	}
++
++	return cc_set_mux_parent(clk, S32R45_CLK_MC_CGM2_MUX2, tx_id);
++}
++
++static int set_gmac_ts_parent(struct clk *clk)
++{
++	uint32_t ts_id;
++	uint32_t clk_id = clk->id;
++
++	if (clk_id == S32R45_SCMI_CLK_GMAC1_TS) {
++		ts_id = S32GEN1_CLK_PERIPH_PLL_PHI4;
++	} else {
++		ERROR("Invalid GMAC1 TS mode\n");
++		return -EINVAL;
++	}
++
++	return cc_set_mux_parent(clk, S32GEN1_CLK_MC_CGM0_MUX9, ts_id);
+ }
+ 
+ int plat_compound_clk_set_parents(struct clk *clk)
+ {
+-	return -EINVAL;
++	uint32_t clk_id = clk->id;
++	uint32_t id;
++
++	if (s32r_compound2clkid(clk_id, &id)) {
++		ERROR("Invalid compound clock : %u\n", clk_id);
++		return -EINVAL;
++	}
++
++	switch (id) {
++	case S32R45_CLK_GMAC1_RX:
++		return set_gmac1_rx_parent(clk);
++	case S32R45_CLK_GMAC1_TX:
++		return set_gmac1_tx_parent(clk);
++	case S32GEN1_CLK_GMAC0_TS:
++		return set_gmac_ts_parent(clk);
++	case S32GEN1_SCMI_NOT_IMPLEMENTED_CLK:
++		return 0;
++	default:
++		ERROR("%s: Invalid clock %d\n", __func__, id);
++		return -EINVAL;
++	}
+ }
+ 
+ int plat_compound_clk_enable(struct clk *clk, int enable)
+ {
+-	return -EINVAL;
++	struct clk sclock = *clk;
++	uint32_t clk_id = clk->id;
++	uint32_t id;
++	int ret;
++
++	if (s32r_compound2clkid(clk_id, &id)) {
++		ERROR("Invalid S32R compound clock : %u\n", clk_id);
++		return -EINVAL;
++	}
++
++	if (id == S32GEN1_SCMI_NOT_IMPLEMENTED_CLK) {
++		ERROR("Clock %s is not handled yet\n",
++			s32r45_scmi_clk[INDEX(clk_id)].name);
++		return -EINVAL;
++	}
++
++	ret = plat_compound_clk_set_parents(clk);
++	if (ret) {
++		ERROR("Failed to set parents for %u\n", clk_id);
++		return -EINVAL;
++	}
++
++	sclock.id = id;
++	ret = s32gen1_enable(&sclock, enable);
++	if (ret) {
++		ERROR("%s Failed to enable %u clock\n", __func__, clk_id);
++		return ret;
++	}
++
++	s32r45_scmi_clk[INDEX(clk_id)].enabled = enable;
++
++	return 0;
+ }
+ 
+ unsigned long plat_compound_clk_set_rate(struct clk *clk, unsigned long rate)
+ {
+-	return 0;
++	struct clk sclock = *clk;
++	uint32_t scmi_clk_id = clk->id;
++	uint32_t id;
++	int ret;
++
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return -EINVAL;
++
++	ret = plat_compound_clk_set_parents(clk);
++	if (ret) {
++		ERROR("Failed to set parents for %u\n", scmi_clk_id);
++		return -EINVAL;
++	}
++
++	if (s32r_compound2clkid(scmi_clk_id, &id)) {
++		ERROR("Invalid compound clock : %u\n", scmi_clk_id);
++		return -EINVAL;
++	}
++
++	if (id == S32GEN1_SCMI_NOT_IMPLEMENTED_CLK) {
++		ERROR("Clock %s is not handled yet\n",
++			s32r45_scmi_clk[INDEX(scmi_clk_id)].name);
++		return 0;
++	}
++
++	sclock.id = id;
++	return s32gen1_set_rate(&sclock, rate);
+ }
+ 
+ unsigned long plat_compound_clk_get_rate(struct clk *clk)
+ {
+-	return 0;
++	struct clk sclock = *clk;
++	uint32_t scmi_clk_id = clk->id;
++	uint32_t id;
++
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return 0;
++
++	if (s32r_compound2clkid(scmi_clk_id, &id)) {
++		ERROR("Invalid compound clock : %u\n", scmi_clk_id);
++		return 0;
++	}
++
++	if (id == S32GEN1_SCMI_NOT_IMPLEMENTED_CLK) {
++		ERROR("Clock %s is not handled yet\n",
++			s32r45_scmi_clk[INDEX(scmi_clk_id)].name);
++		return 0;
++	}
++
++	sclock.id = id;
++	return s32gen1_get_rate(&sclock);
+ }
+ 
+ uint32_t plat_get_nclocks(void)
+@@ -90,6 +299,35 @@ bool plat_scmi_clk_is_enabled(uint32_t scmi_clk_id)
+ int plat_scmi_clk_get_rates(struct clk *clk, unsigned long *rates,
+ 			    size_t *nrates)
+ {
++	struct clk sclock = *clk;
++	uint32_t scmi_clk_id = clk->id;
++	uint32_t id;
++	int ret;
++
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return -EINVAL;
++
++	ret = plat_compound_clk_set_parents(clk);
++	if (ret) {
++		ERROR("Failed to set parents for %u\n", scmi_clk_id);
++		return -EINVAL;
++	}
++
++	if (s32r_compound2clkid(scmi_clk_id, &id)) {
++		ERROR("Invalid compound clock : %u\n", scmi_clk_id);
++		return -EINVAL;
++	}
++
++	if (id == S32GEN1_SCMI_NOT_IMPLEMENTED_CLK) {
++		ERROR("Clock %s is not handled yet\n",
++			s32r45_scmi_clk[INDEX(scmi_clk_id)].name);
++		return -EINVAL;
++	}
++
++	sclock.id = id;
++	rates[0] = s32gen1_get_minrate(&sclock);
++	rates[1] = s32gen1_get_maxrate(&sclock);
++
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

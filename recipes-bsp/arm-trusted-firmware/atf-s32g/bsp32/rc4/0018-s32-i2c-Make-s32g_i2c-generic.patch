@@ -1,0 +1,784 @@
+From b9da6c05fb18bb5490248e7e8f7b4fe13313a23f Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Fri, 19 Nov 2021 18:03:57 +0200
+Subject: [PATCH 18/50] s32: i2c: Make s32g_i2c generic
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/i2c/{s32g_i2c.c => s32_i2c.c} | 93 +++++++++----------
+ drivers/nxp/s32/pmic/vr5510.c                 |  8 +-
+ .../nxp/s32/i2c/{s32g_i2c.h => s32_i2c.h}     | 20 ++--
+ include/drivers/nxp/s32/pmic/vr5510.h         |  4 +-
+ plat/nxp/s32/include/s32_bl_common.h          |  8 ++
+ plat/nxp/s32/include/s32_clocks.h             |  5 +
+ plat/nxp/s32/s32_bl_common.c                  | 43 +++++++++
+ plat/nxp/s32/s32_common.mk                    |  1 +
+ plat/nxp/s32/s32g/include/s32g_bl_common.h    |  7 --
+ plat/nxp/s32/s32g/include/s32g_clocks.h       |  1 -
+ plat/nxp/s32/s32g/include/s32g_platform_def.h |  1 +
+ plat/nxp/s32/s32g/s32g_bl_common.c            | 49 +---------
+ plat/nxp/s32/s32g/s32g_common.mk              |  1 -
+ plat/nxp/s32/s32g/s32g_storage.c              |  6 +-
+ 14 files changed, 128 insertions(+), 119 deletions(-)
+ rename drivers/nxp/s32/i2c/{s32g_i2c.c => s32_i2c.c} (75%)
+ rename include/drivers/nxp/s32/i2c/{s32g_i2c.h => s32_i2c.h} (52%)
+
+diff --git a/drivers/nxp/s32/i2c/s32g_i2c.c b/drivers/nxp/s32/i2c/s32_i2c.c
+similarity index 75%
+rename from drivers/nxp/s32/i2c/s32g_i2c.c
+rename to drivers/nxp/s32/i2c/s32_i2c.c
+index 2e0e08379..95a2912fb 100644
+--- a/drivers/nxp/s32/i2c/s32g_i2c.c
++++ b/drivers/nxp/s32/i2c/s32_i2c.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ 
+ #include <common/fdt_wrappers.h>
+@@ -8,9 +8,8 @@
+ #include <lib/mmio.h>
+ #include <libfdt.h>
+ #include <drivers/delay_timer.h>
+-#include <drivers/nxp/s32/i2c/s32g_i2c.h>
+-#include "s32g_clocks.h"
+-#include "s32_dt.h"
++#include <drivers/nxp/s32/i2c/s32_i2c.h>
++#include "s32_clocks.h"
+ 
+ /* Register index */
+ #define IBFD	1
+@@ -40,7 +39,7 @@
+ #define I2C_IDLE			0
+ #define I2C_TRANSMISSION_COMPLETE	2
+ 
+-static uint16_t s32g_clk_div[] = {
++static uint16_t s32_clk_div[] = {
+ 	20,   22,   24,   26,   28,   30,   34,   40,   28,   32,
+ 	36,   40,   44,   48,   58,   64,   48,   56,   64,   72,
+ 	80,   88,   104,  128,  80,   96,   112,  128,  144,  160,
+@@ -50,13 +49,13 @@ static uint16_t s32g_clk_div[] = {
+ 	2304, 2560, 3072, 3840
+ };
+ 
+-static inline void s32g_i2c_disable(struct s32g_i2c_bus *bus)
++static inline void s32_i2c_disable(struct s32_i2c_bus *bus)
+ {
+ 	mmio_write_8(bus->base + IBCR, IBCR_MDIS_DIS);
+ 	mmio_write_8(bus->base + IBSR, 0);
+ }
+ 
+-static inline void s32g_i2c_enable(struct s32g_i2c_bus *bus)
++static inline void s32_i2c_enable(struct s32_i2c_bus *bus)
+ {
+ 	mmio_write_8(bus->base + IBCR, IBCR_MDIS_EN);
+ 	/* Clear interrupt flag */
+@@ -66,29 +65,29 @@ static inline void s32g_i2c_enable(struct s32g_i2c_bus *bus)
+ /*
+  * Configure bus speed
+  */
+-static int s32g_i2c_set_bus_speed(struct s32g_i2c_bus *bus, int speed)
++static int s32_i2c_set_bus_speed(struct s32_i2c_bus *bus, int speed)
+ {
+ 	int i;
+ 
+ 	if (!bus || !bus->base)
+ 		return -EINVAL;
+ 
+-	for (i = 0; ARRAY_SIZE(s32g_clk_div) - 1; i++)
+-		if ((I2C_CLK_FREQ / s32g_clk_div[i]) <= speed)
++	for (i = 0; ARRAY_SIZE(s32_clk_div) - 1; i++)
++		if ((I2C_CLK_FREQ / s32_clk_div[i]) <= speed)
+ 			break;
+ 
+ 	/* Write divider value */
+ 	mmio_write_8(bus->base + IBFD, i);
+ 
+ 	/* Module reset */
+-	s32g_i2c_disable(bus);
++	s32_i2c_disable(bus);
+ 	return 0;
+ }
+ 
+ /*
+  * Wait until the bus enters a specified state or timeout occurs.
+  */
+-static uint8_t s32g_i2c_wait(struct s32g_i2c_bus *bus, unsigned int state)
++static uint8_t s32_i2c_wait(struct s32_i2c_bus *bus, unsigned int state)
+ {
+ 	uint8_t ibsr;
+ 	uint32_t wait_cnt = 1000;
+@@ -117,7 +116,7 @@ static uint8_t s32g_i2c_wait(struct s32g_i2c_bus *bus, unsigned int state)
+ 	return -ETIMEDOUT;
+ }
+ 
+-static uint8_t s32g_i2c_write_byte(struct s32g_i2c_bus *bus, uint8_t byte)
++static uint8_t s32_i2c_write_byte(struct s32_i2c_bus *bus, uint8_t byte)
+ {
+ 	uint8_t ibsr;
+ 	int ret;
+@@ -129,7 +128,7 @@ static uint8_t s32g_i2c_write_byte(struct s32g_i2c_bus *bus, uint8_t byte)
+ 	mmio_write_8(bus->base + IBDR, byte);
+ 
+ 	/* Wait for transfer complete */
+-	ret = s32g_i2c_wait(bus, I2C_TRANSMISSION_COMPLETE);
++	ret = s32_i2c_wait(bus, I2C_TRANSMISSION_COMPLETE);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -138,16 +137,16 @@ static uint8_t s32g_i2c_write_byte(struct s32g_i2c_bus *bus, uint8_t byte)
+ 	return ibsr & IBSR_RXAK ? -EIO : 0;
+ }
+ 
+-static uint8_t s32g_i2c_chip_setup(struct s32g_i2c_bus *bus,
++static uint8_t s32_i2c_chip_setup(struct s32_i2c_bus *bus,
+ 				   uint8_t chip, int mode)
+ {
+ 	/* The master transmits the seven-bit slave address.
+ 	 * The master transmits the R/W bit.
+ 	 */
+-	return s32g_i2c_write_byte(bus, (chip << 1) | mode);
++	return s32_i2c_write_byte(bus, (chip << 1) | mode);
+ }
+ 
+-static uint8_t s32g_i2c_address_setup(struct s32g_i2c_bus *bus,
++static uint8_t s32_i2c_address_setup(struct s32_i2c_bus *bus,
+ 				      uint32_t addr, int addr_len)
+ {
+ 	uint8_t reg;
+@@ -156,7 +155,7 @@ static uint8_t s32g_i2c_address_setup(struct s32g_i2c_bus *bus,
+ 	while (addr_len--) {
+ 		/* Write data to I2C Bus Data I/O Register (IBDR) */
+ 		reg = (addr >> (addr_len * 8)) & 0xff;
+-		ret = s32g_i2c_write_byte(bus, reg);
++		ret = s32_i2c_write_byte(bus, reg);
+ 		if (ret < 0)
+ 			return ret;
+ 	}
+@@ -167,7 +166,7 @@ static uint8_t s32g_i2c_address_setup(struct s32g_i2c_bus *bus,
+ /*
+  * Stop sequence
+  */
+-static uint8_t s32g_i2c_stop(struct s32g_i2c_bus *bus)
++static uint8_t s32_i2c_stop(struct s32_i2c_bus *bus)
+ {
+ 	uint8_t ibcr;
+ 	int ret;
+@@ -180,9 +179,9 @@ static uint8_t s32g_i2c_stop(struct s32g_i2c_bus *bus)
+ 	mmio_write_8(bus->base + IBCR, ibcr);
+ 
+ 	/* Wait for idle state */
+-	ret = s32g_i2c_wait(bus, I2C_IDLE);
++	ret = s32_i2c_wait(bus, I2C_IDLE);
+ 	if (ret == -ETIMEDOUT)
+-		s32g_i2c_disable(bus);
++		s32_i2c_disable(bus);
+ 	return ret;
+ }
+ 
+@@ -190,7 +189,7 @@ static uint8_t s32g_i2c_stop(struct s32g_i2c_bus *bus)
+  * Prepare the transfer by sending: start signal, chip and write
+  * register address
+  */
+-static uint8_t s32g_i2c_try_start(struct s32g_i2c_bus *bus,
++static uint8_t s32_i2c_try_start(struct s32_i2c_bus *bus,
+ 		uint8_t chip, uint32_t addr, int addr_len)
+ {
+ 	uint8_t reg, ret;
+@@ -199,11 +198,11 @@ static uint8_t s32g_i2c_try_start(struct s32g_i2c_bus *bus,
+ 		return -EINVAL;
+ 
+ 	/* Clear the MDIS field to enable the I2C interface system */
+-	s32g_i2c_disable(bus);
+-	s32g_i2c_enable(bus);
++	s32_i2c_disable(bus);
++	s32_i2c_enable(bus);
+ 
+ 	/* Wait in loop for IBB flag to clear. */
+-	ret = s32g_i2c_wait(bus, I2C_IDLE);
++	ret = s32_i2c_wait(bus, I2C_IDLE);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -216,11 +215,11 @@ static uint8_t s32g_i2c_try_start(struct s32g_i2c_bus *bus,
+ 	mmio_write_8(bus->base + IBCR, reg);
+ 
+ 	/* Send chip and address */
+-	ret = s32g_i2c_chip_setup(bus, chip, I2C_WRITE);
++	ret = s32_i2c_chip_setup(bus, chip, I2C_WRITE);
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	return s32g_i2c_address_setup(bus, addr, addr_len);
++	return s32_i2c_address_setup(bus, addr, addr_len);
+ 
+ 	return 0;
+ }
+@@ -228,7 +227,7 @@ static uint8_t s32g_i2c_try_start(struct s32g_i2c_bus *bus,
+ /*
+  * Start sequence
+  */
+-static uint8_t s32g_i2c_start(struct s32g_i2c_bus *bus, uint8_t chip,
++static uint8_t s32_i2c_start(struct s32_i2c_bus *bus, uint8_t chip,
+ 		uint32_t addr, int addr_len)
+ {
+ 	int counter = 0;
+@@ -241,18 +240,18 @@ static uint8_t s32g_i2c_start(struct s32g_i2c_bus *bus, uint8_t chip,
+ 		if (counter++ > 0)
+ 			udelay(100);
+ 
+-		ret = s32g_i2c_try_start(bus, chip, addr, addr_len);
++		ret = s32_i2c_try_start(bus, chip, addr, addr_len);
+ 		if (ret >= 0)
+ 			return 0;
+ 
+-		s32g_i2c_stop(bus);
++		s32_i2c_stop(bus);
+ 	} while ((ret == -EAGAIN) && (counter < I2C_MAX_RETRY_CNT));
+ 
+ 	INFO("%s: failed\n", __func__);
+ 	return ret;
+ }
+ 
+-static uint8_t s32g_i2c_read_buffer(struct s32g_i2c_bus *bus, unsigned char chip,
++static uint8_t s32_i2c_read_buffer(struct s32_i2c_bus *bus, unsigned char chip,
+ 		unsigned char *buf, int len)
+ {
+ 	int i;
+@@ -270,7 +269,7 @@ static uint8_t s32g_i2c_read_buffer(struct s32g_i2c_bus *bus, unsigned char chip
+ 	/* Read data */
+ 	for (i = 0; i < len; i++) {
+ 		/* Wait for transfer complete. */
+-		ret = s32g_i2c_wait(bus, I2C_TRANSMISSION_COMPLETE);
++		ret = s32_i2c_wait(bus, I2C_TRANSMISSION_COMPLETE);
+ 		if (ret < 0)
+ 			return ret;
+ 
+@@ -301,7 +300,7 @@ static uint8_t s32g_i2c_read_buffer(struct s32g_i2c_bus *bus, unsigned char chip
+  * @buffer:	buffer where data will be returned
+  * @len:	number of objects
+  */
+-uint8_t s32g_i2c_read(struct s32g_i2c_bus *bus, uint8_t chip,
++uint8_t s32_i2c_read(struct s32_i2c_bus *bus, uint8_t chip,
+ 		unsigned int addr, int addr_len, uint8_t *buffer,
+ 		int len)
+ {
+@@ -316,7 +315,7 @@ uint8_t s32g_i2c_read(struct s32g_i2c_bus *bus, uint8_t chip,
+ 		return -EINVAL;
+ 	}
+ 
+-	ret = s32g_i2c_start(bus, chip, addr, addr_len);
++	ret = s32_i2c_start(bus, chip, addr, addr_len);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -325,9 +324,9 @@ uint8_t s32g_i2c_read(struct s32g_i2c_bus *bus, uint8_t chip,
+ 	mmio_write_8(bus->base + IBCR, reg);
+ 
+ 	/* Setup in read mode. */
+-	ret = s32g_i2c_chip_setup(bus, chip, I2C_READ);
++	ret = s32_i2c_chip_setup(bus, chip, I2C_READ);
+ 	if (ret < 0) {
+-		s32g_i2c_stop(bus);
++		s32_i2c_stop(bus);
+ 		return ret;
+ 	}
+ 
+@@ -342,9 +341,9 @@ uint8_t s32g_i2c_read(struct s32g_i2c_bus *bus, uint8_t chip,
+ 
+ 	mmio_write_8(bus->base + IBCR, reg);
+ 
+-	ret = s32g_i2c_read_buffer(bus, chip, buffer, len);
++	ret = s32_i2c_read_buffer(bus, chip, buffer, len);
+ 
+-	s32g_i2c_stop(bus);
++	s32_i2c_stop(bus);
+ 	return ret;
+ }
+ 
+@@ -358,7 +357,7 @@ uint8_t s32g_i2c_read(struct s32g_i2c_bus *bus, uint8_t chip,
+  * @buffer:	buffer where data will be returned
+  * @len:	number of objects
+  */
+-uint8_t s32g_i2c_write(struct s32g_i2c_bus *bus, uint8_t chip,
++uint8_t s32_i2c_write(struct s32_i2c_bus *bus, uint8_t chip,
+ 		unsigned int addr, int addr_len, uint8_t *buffer,
+ 		int len)
+ {
+@@ -374,32 +373,32 @@ uint8_t s32g_i2c_write(struct s32g_i2c_bus *bus, uint8_t chip,
+ 		return -EINVAL;
+ 	}
+ 
+-	ret = s32g_i2c_start(bus, chip, addr, addr_len);
++	ret = s32_i2c_start(bus, chip, addr, addr_len);
+ 	if (ret < 0)
+ 		return ret;
+ 
+ 	/* Start the transfer */
+ 	for (i = 0; i < len; i++) {
+-		ret = s32g_i2c_write_byte(bus, buffer[i]);
++		ret = s32_i2c_write_byte(bus, buffer[i]);
+ 		if (ret < 0)
+ 			break;
+ 	}
+ 
+-	s32g_i2c_stop(bus);
++	s32_i2c_stop(bus);
+ 	return ret;
+ }
+ 
+ /*
+  * Init I2C Bus
+  */
+-int s32g_i2c_init(struct s32g_i2c_bus *bus)
++int s32_i2c_init(struct s32_i2c_bus *bus)
+ {
+ 	if (!bus) {
+ 		ERROR("%s: Invalid parameter\n", __func__);
+ 		return -EINVAL;
+ 	}
+ 
+-	return s32g_i2c_set_bus_speed(bus, bus->speed);
++	return s32_i2c_set_bus_speed(bus, bus->speed);
+ }
+ 
+ /*
+@@ -408,8 +407,8 @@ int s32g_i2c_init(struct s32g_i2c_bus *bus)
+  * @param  node: I2C node offset
+  * @param  bus: Ref to the initialization i2c_bus
+  */
+-void s32g_i2c_get_setup_from_fdt(void *fdt, int node,
+-				 struct s32g_i2c_bus *bus)
++void s32_i2c_get_setup_from_fdt(void *fdt, int node,
++				 struct s32_i2c_bus *bus)
+ {
+ 	const fdt32_t *cuint;
+ 	int ret;
+@@ -421,6 +420,6 @@ void s32g_i2c_get_setup_from_fdt(void *fdt, int node,
+ 	}
+ 
+ 	cuint = fdt_getprop(fdt, node, "clock-frequency", NULL);
+-	bus->speed = cuint == NULL ? S32G_DEFAULT_SPEED : fdt32_to_cpu(*cuint);
++	bus->speed = cuint == NULL ? S32_DEFAULT_SPEED : fdt32_to_cpu(*cuint);
+ }
+ 
+diff --git a/drivers/nxp/s32/pmic/vr5510.c b/drivers/nxp/s32/pmic/vr5510.c
+index 9f9f6adad..626c988cf 100644
+--- a/drivers/nxp/s32/pmic/vr5510.c
++++ b/drivers/nxp/s32/pmic/vr5510.c
+@@ -43,7 +43,7 @@
+ 
+ struct vr5510_inst {
+ 	struct dt_node_info dt_info;
+-	struct s32g_i2c_bus *bus;
++	struct s32_i2c_bus *bus;
+ 	char name[MAX_NAME_LEN];
+ 	int fdt_offset;
+ 	uint8_t chip;
+@@ -100,14 +100,14 @@ static void set_reg_addr(struct read_msg *m, uint8_t addr)
+ static int vr5510_i2c_read(struct vr5510_inst *dev, uint8_t reg,
+ 			   uint8_t *data, size_t len)
+ {
+-	return s32g_i2c_read(dev->bus, dev->chip, reg,
++	return s32_i2c_read(dev->bus, dev->chip, reg,
+ 			     VR5510_ADDRESS_LENGTH, data, len);
+ }
+ 
+ static int vr5510_i2c_write(struct vr5510_inst *dev, uint8_t reg,
+ 			    uint8_t *data, size_t len)
+ {
+-	return s32g_i2c_write(dev->bus, dev->chip, reg,
++	return s32_i2c_write(dev->bus, dev->chip, reg,
+ 			      VR5510_ADDRESS_LENGTH, data, len);
+ }
+ 
+@@ -196,7 +196,7 @@ int vr5510_get_inst(const char *name, vr5510_t *inst)
+ }
+ 
+ int vr5510_register_instance(void *fdt, int fdt_offset,
+-			     struct s32g_i2c_bus *bus)
++			     struct s32_i2c_bus *bus)
+ {
+ 	size_t i;
+ 	struct vr5510_inst *inst;
+diff --git a/include/drivers/nxp/s32/i2c/s32g_i2c.h b/include/drivers/nxp/s32/i2c/s32_i2c.h
+similarity index 52%
+rename from include/drivers/nxp/s32/i2c/s32g_i2c.h
+rename to include/drivers/nxp/s32/i2c/s32_i2c.h
+index 31c0a5535..4c0849f15 100644
+--- a/include/drivers/nxp/s32/i2c/s32g_i2c.h
++++ b/include/drivers/nxp/s32/i2c/s32_i2c.h
+@@ -1,10 +1,10 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  */
+ 
+-#ifndef S32G274A_I2C_H
+-#define S32G274A_I2C_H
++#ifndef S32_I2C_H
++#define S32_I2C_H
+ 
+ #include <stdint.h>
+ #include <stdbool.h>
+@@ -12,25 +12,25 @@
+ #include <common/debug.h>
+ #include <lib/utils_def.h>
+ 
+-#define S32G_DEFAULT_SPEED 100000
+-#define S32G_DEFAULT_SLAVE 0
++#define S32_DEFAULT_SPEED 100000
++#define S32_DEFAULT_SLAVE 0
+ 
+ /*
+  * I2C bus description
+  * @base: I2C bus controller address
+  * @speed: I2C bus speed
+  */
+-struct s32g_i2c_bus {
++struct s32_i2c_bus {
+ 	unsigned long	base;
+ 	int             speed;
+ };
+ 
+-void s32g_i2c_get_setup_from_fdt(void *fdt, int node, struct s32g_i2c_bus *bus);
+-int s32g_i2c_init(struct s32g_i2c_bus *bus);
+-uint8_t s32g_i2c_read(struct s32g_i2c_bus *bus, uint8_t chip,
++void s32_i2c_get_setup_from_fdt(void *fdt, int node, struct s32_i2c_bus *bus);
++int s32_i2c_init(struct s32_i2c_bus *bus);
++uint8_t s32_i2c_read(struct s32_i2c_bus *bus, uint8_t chip,
+ 		unsigned int addr, int addr_len, uint8_t *buffer,
+ 		int len);
+-uint8_t s32g_i2c_write(struct s32g_i2c_bus *bus, uint8_t chip,
++uint8_t s32_i2c_write(struct s32_i2c_bus *bus, uint8_t chip,
+ 		unsigned int addr, int addr_len, uint8_t *buffer,
+ 		int len);
+ 
+diff --git a/include/drivers/nxp/s32/pmic/vr5510.h b/include/drivers/nxp/s32/pmic/vr5510.h
+index 82969c109..362a4b188 100644
+--- a/include/drivers/nxp/s32/pmic/vr5510.h
++++ b/include/drivers/nxp/s32/pmic/vr5510.h
+@@ -6,7 +6,7 @@
+ #define VR5510_PMIC_H
+ 
+ #include <lib/utils_def.h>
+-#include "i2c/s32g_i2c.h"
++#include "i2c/s32_i2c.h"
+ 
+ #define VR5510_MU_NAME		"vr5510"
+ #define VR5510_FSU_NAME		"vr5510_fsu"
+@@ -149,7 +149,7 @@ struct vr5510_inst;
+ typedef struct vr5510_inst *vr5510_t;
+ 
+ int vr5510_register_instance(void *fdt, int fdt_offset,
+-			     struct s32g_i2c_bus *bus);
++			     struct s32_i2c_bus *bus);
+ 
+ int vr5510_get_inst(const char *name, vr5510_t *inst);
+ int vr5510_read(vr5510_t dev, uint8_t reg, uint8_t *buff, int len);
+diff --git a/plat/nxp/s32/include/s32_bl_common.h b/plat/nxp/s32/include/s32_bl_common.h
+index 13b5de315..f6ce03c14 100644
+--- a/plat/nxp/s32/include/s32_bl_common.h
++++ b/plat/nxp/s32/include/s32_bl_common.h
+@@ -6,6 +6,7 @@
+ #ifndef S32_BL_COMMON_H
+ #define S32_BL_COMMON_H
+ 
++#include <i2c/s32_i2c.h>
+ #include <stdbool.h>
+ #include <stdint.h>
+ #include <errno.h>
+@@ -23,8 +24,15 @@
+ 
+ #define UPTR(PTR)			((uintptr_t)(PTR))
+ 
++struct s32_i2c_driver {
++	struct s32_i2c_bus bus;
++	int fdt_node;
++};
++
+ bool is_lockstep_enabled(void);
+ 
+ void s32_early_plat_init(bool skip_ddr_clk);
+ 
++struct s32_i2c_driver *s32_add_i2c_module(void *fdt, int fdt_node);
++
+ #endif /* S32_BL_COMMON_H */
+diff --git a/plat/nxp/s32/include/s32_clocks.h b/plat/nxp/s32/include/s32_clocks.h
+index 069f1b959..1cce43413 100644
+--- a/plat/nxp/s32/include/s32_clocks.h
++++ b/plat/nxp/s32/include/s32_clocks.h
+@@ -113,6 +113,11 @@ enum s32g_mc_cgm {
+ #define MC_CGM5_BASE_ADDR		(0x40068000ul)
+ #endif
+ 
++/* This should be kept in sync with other defines in this file,
++ * as it cannot be determined at run-time.
++ */
++#define I2C_CLK_FREQ		(133 * 1000 * 1000)
++
+ int s32_plat_clock_init(bool skip_ddr_clk);
+ int s32_enable_ddr_clock(void);
+ int s32_enable_a53_clock(void);
+diff --git a/plat/nxp/s32/s32_bl_common.c b/plat/nxp/s32/s32_bl_common.c
+index 04eefc6d5..ffcbeccbe 100644
+--- a/plat/nxp/s32/s32_bl_common.c
++++ b/plat/nxp/s32/s32_bl_common.c
+@@ -5,12 +5,18 @@
+  */
+ #include <common/debug.h>
+ #include <drivers/generic_delay_timer.h>
++#include <libfdt.h>
+ #include <lib/mmio.h>
+ #include "platform_def.h"
++#include "s32_bl_common.h"
+ #include "s32_clocks.h"
++#include "s32_dt.h"
+ #include "s32_ncore.h"
+ #include "s32_pinctrl.h"
+ 
++struct s32_i2c_driver i2c_drivers[S32_MAX_I2C_MODULES];
++size_t i2c_fill_level;
++
+ bool is_lockstep_enabled(void)
+ {
+ 	if (mmio_read_32(GPR_BASE_ADDR + GPR06_OFF) & CA53_LOCKSTEP_EN)
+@@ -54,3 +60,40 @@ unsigned int plat_get_syscnt_freq2(void)
+ 	return COUNTER_FREQUENCY;
+ }
+ 
++struct s32_i2c_driver *s32_add_i2c_module(void *fdt, int fdt_node)
++{
++	struct s32_i2c_driver *driver;
++	struct dt_node_info i2c_info;
++	size_t i;
++	int ret;
++
++	ret = fdt_node_check_compatible(fdt, fdt_node, "fsl,vf610-i2c");
++	if (ret)
++		return NULL;
++
++	for (i = 0; i < i2c_fill_level; i++) {
++		if (i2c_drivers[i].fdt_node == fdt_node)
++			return &i2c_drivers[i];
++	}
++
++	if (i2c_fill_level >= ARRAY_SIZE(i2c_drivers)) {
++		INFO("Discovered too many instances of I2C\n");
++		return NULL;
++	}
++
++	driver = &i2c_drivers[i2c_fill_level];
++
++	dt_fill_device_info(&i2c_info, fdt_node);
++
++	if (i2c_info.base == 0U) {
++		INFO("ERROR i2c base\n");
++		return NULL;
++	}
++
++	driver->fdt_node = fdt_node;
++	s32_i2c_get_setup_from_fdt(fdt, fdt_node, &driver->bus);
++
++	i2c_fill_level++;
++	return driver;
++}
++
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index 1401fa00f..8a25f07f4 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -59,6 +59,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			drivers/nxp/s32/clk/plat_clk.c \
+ 			drivers/nxp/s32/clk/s32gen1_clk.c \
+ 			drivers/nxp/s32/clk/set_par_rate.c \
++			drivers/nxp/s32/i2c/s32_i2c.c \
+ 
+ BL2_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
+diff --git a/plat/nxp/s32/s32g/include/s32g_bl_common.h b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+index 8809cf83b..189d207e3 100644
+--- a/plat/nxp/s32/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+@@ -6,17 +6,11 @@
+ #ifndef S32G_BL_COMMON_H
+ #define S32G_BL_COMMON_H
+ 
+-#include <i2c/s32g_i2c.h>
+ #include <pmic/vr5510.h>
+ #include <stdbool.h>
+ #include <stdint.h>
+ #include "s32_bl_common.h"
+ 
+-struct s32g_i2c_driver {
+-	struct s32g_i2c_bus bus;
+-	int fdt_node;
+-};
+-
+ void s32g_gic_setup(void);
+ void plat_gic_save(void);
+ void plat_gic_restore(void);
+@@ -31,7 +25,6 @@ bool is_last_core(void);
+ bool is_cluster0_off(void);
+ bool is_cluster1_off(void);
+ 
+-struct s32g_i2c_driver *s32g_add_i2c_module(void *fdt, int fdt_node);
+ void s32g_reinit_i2c(void);
+ 
+ bool s32gen1_is_wkp_short_boot(void);
+diff --git a/plat/nxp/s32/s32g/include/s32g_clocks.h b/plat/nxp/s32/s32g/include/s32g_clocks.h
+index 90a743d6e..64098ff4c 100644
+--- a/plat/nxp/s32/s32g/include/s32g_clocks.h
++++ b/plat/nxp/s32/s32g/include/s32g_clocks.h
+@@ -160,7 +160,6 @@ s32g_periph_dfs_params[S32G_DFS_PORTS_NR][DFS_PARAMS_NR] = {
+  * as it cannot be determined at run-time.
+  */
+ #define SDHC_CLK_FREQ		(200 * 1000 * 1000)
+-#define I2C_CLK_FREQ		(133 * 1000 * 1000)
+ 
+ /* FXOSC registers */
+ #define FXOSC_CTRL		(S32_FXOSC_BASE_ADDR)
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index a9d112140..f2a83ee55 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -16,6 +16,7 @@
+ #include <s32_platform_def.h>
+ 
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
++#define S32_MAX_I2C_MODULES 5
+ 
+ /* GPR36 */
+ #define CA53_0_2_RVBARADDR_39_32_OFF	(0)
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index 0d9eb2d4c..06b7cfed2 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -19,47 +19,8 @@
+ #include "s32_dt.h"
+ #include "s32g_pinctrl.h"
+ 
+-#define S32G_MAX_I2C_MODULES 5
+-
+-static struct s32g_i2c_driver i2c_drivers[S32G_MAX_I2C_MODULES];
+-static size_t i2c_fill_level;
+-
+-struct s32g_i2c_driver *s32g_add_i2c_module(void *fdt, int fdt_node)
+-{
+-	struct s32g_i2c_driver *driver;
+-	struct dt_node_info i2c_info;
+-	size_t i;
+-	int ret;
+-
+-	ret = fdt_node_check_compatible(fdt, fdt_node, "fsl,vf610-i2c");
+-	if (ret)
+-		return NULL;
+-
+-	for (i = 0; i < i2c_fill_level; i++) {
+-		if (i2c_drivers[i].fdt_node == fdt_node)
+-			return &i2c_drivers[i];
+-	}
+-
+-	if (i2c_fill_level >= ARRAY_SIZE(i2c_drivers)) {
+-		INFO("Discovered too many instances of I2C\n");
+-		return NULL;
+-	}
+-
+-	driver = &i2c_drivers[i2c_fill_level];
+-
+-	dt_fill_device_info(&i2c_info, fdt_node);
+-
+-	if (i2c_info.base == 0U) {
+-		INFO("ERROR i2c base\n");
+-		return NULL;
+-	}
+-
+-	driver->fdt_node = fdt_node;
+-	s32g_i2c_get_setup_from_fdt(fdt, fdt_node, &driver->bus);
+-
+-	i2c_fill_level++;
+-	return driver;
+-}
++extern struct s32_i2c_driver i2c_drivers[];
++extern size_t i2c_fill_level;
+ 
+ void s32g_reinit_i2c(void)
+ {
+@@ -68,7 +29,7 @@ void s32g_reinit_i2c(void)
+ 	i2c_config_pinctrl();
+ 
+ 	for (i = 0; i < i2c_fill_level; i++)
+-		s32g_i2c_init(&i2c_drivers[i].bus);
++		s32_i2c_init(&i2c_drivers[i].bus);
+ }
+ 
+ void dt_init_pmic(void)
+@@ -76,7 +37,7 @@ void dt_init_pmic(void)
+ 	void *fdt = NULL;
+ 	int pmic_node;
+ 	int i2c_node;
+-	struct s32g_i2c_driver *i2c_driver;
++	struct s32_i2c_driver *i2c_driver;
+ 	int ret;
+ 
+ 	if (dt_open_and_check() < 0) {
+@@ -102,7 +63,7 @@ void dt_init_pmic(void)
+ 			return;
+ 		}
+ 
+-		i2c_driver = s32g_add_i2c_module(fdt, i2c_node);
++		i2c_driver = s32_add_i2c_module(fdt, i2c_node);
+ 		if (i2c_driver == NULL) {
+ 			INFO("PMIC isn't subnode of an I2C node\n");
+ 			return;
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index 7e64accdb..4bc7bc394 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -42,7 +42,6 @@ PLAT_BL_COMMON_SOURCES	+= \
+ 			   plat/nxp/s32/s32g/s32g_bl_common.c \
+ 			   plat/nxp/s32/s32g/s32g_pinctrl.c \
+ 			   plat/nxp/s32/s32g/s32g_clocks.c \
+-			   drivers/nxp/s32/i2c/s32g_i2c.c \
+ 			   drivers/nxp/s32/clk/s32g_clk.c \
+ 			   drivers/nxp/s32/rst/s32gen1_rst.c \
+ 			   drivers/nxp/s32/ocotp.c \
+diff --git a/plat/nxp/s32/s32g/s32g_storage.c b/plat/nxp/s32/s32g/s32g_storage.c
+index 04f0241b8..523773a0a 100644
+--- a/plat/nxp/s32/s32g/s32g_storage.c
++++ b/plat/nxp/s32/s32g/s32g_storage.c
+@@ -145,7 +145,7 @@ static uint8_t eeprom_boot_source(void)
+ 	void *fdt;
+ 	const char *path;
+ 	int i2c_node, ret;
+-	struct s32g_i2c_driver *driver;
++	struct s32_i2c_driver *driver;
+ 	uint8_t boot_source;
+ 
+ 	ret = dt_open_and_check();
+@@ -167,13 +167,13 @@ static uint8_t eeprom_boot_source(void)
+ 		goto eeprom_boot_src_err;
+ 	}
+ 
+-	driver = s32g_add_i2c_module(fdt, i2c_node);
++	driver = s32_add_i2c_module(fdt, i2c_node);
+ 	if (driver ==  NULL) {
+ 		NOTICE("Failed to register i2c0 instance!\n");
+ 		goto eeprom_boot_src_err;
+ 	}
+ 
+-	s32g_i2c_read(&driver->bus, EEPROM_CHIP_ADDR, EEPROM_BOOT_CFG_OFF,
++	s32_i2c_read(&driver->bus, EEPROM_CHIP_ADDR, EEPROM_BOOT_CFG_OFF,
+ 					EEPROM_ADDR_LEN, &boot_source, 1);
+ 	boot_source = boot_source >> BOOT_SOURCE_OFF;
+ 
+-- 
+2.17.1
+

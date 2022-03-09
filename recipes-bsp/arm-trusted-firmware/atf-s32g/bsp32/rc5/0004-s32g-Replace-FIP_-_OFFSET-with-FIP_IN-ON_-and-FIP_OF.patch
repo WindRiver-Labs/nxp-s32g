@@ -1,0 +1,675 @@
+From 453775938c9371f1422f13e3b3b0a05240eec7ff Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 31 Jan 2022 09:20:19 +0200
+Subject: [PATCH 04/11] s32g: Replace FIP_*_OFFSET with FIP_IN/ON_* and
+ FIP_OFFSET
+
+Replace FIP_MMC_OFFSET, FIP_QSPI_OFFSET and FIP_MEM_OFFSET
+with FIP_ON_SD, FIP_ON_EMMC, FIP_IN_QSPI, FIP_IN_MEMORY and
+FIP_OFFSET.
+
+This implementation will try to autodetect values for FIP_IN/ON_*
+variables and FIP_OFFSET based on mkimage settings. The
+default behaviour can be overwritten by setting the desired
+boot medium and FIP offset in it using command line parameters.
+
+E.g. make BL33=u-boot.bin PLAT=s32g2 FIP_ON_EMMC=1 FIP_OFFSET=0x2000
+will make FIP image to boot from eMMC and load itself from offset
+0x2000.
+
+Issue: ALB-8434, ALB-8435
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/clk/early_clocks.c    |  17 ++-
+ drivers/nxp/s32/mmc/s32_mmc.c         |  56 +++----
+ include/drivers/nxp/s32/mmc/s32_mmc.h |   6 +-
+ plat/nxp/s32/include/s32_bl_common.h  |   6 +
+ plat/nxp/s32/s32_common.mk            | 210 +++++++++++++++++++++-----
+ plat/nxp/s32/s32_storage.c            | 106 ++++++-------
+ 6 files changed, 268 insertions(+), 133 deletions(-)
+
+diff --git a/drivers/nxp/s32/clk/early_clocks.c b/drivers/nxp/s32/clk/early_clocks.c
+index 5090f1acd..e9ff530b9 100644
+--- a/drivers/nxp/s32/clk/early_clocks.c
++++ b/drivers/nxp/s32/clk/early_clocks.c
+@@ -6,6 +6,7 @@
+ #include <clk/s32gen1_clk_funcs.h>
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <dt-bindings/clock/s32gen1-clock.h>
++#include <s32_bl_common.h>
+ #include <s32_clocks.h>
+ #include <s32_pinctrl.h>
+ 
+@@ -269,13 +270,15 @@ int s32_plat_clock_init(bool skip_ddr_clk)
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = enable_sdhc_clock();
+-	if (ret)
+-		return ret;
+-
+-	ret = enable_qspi_clock();
+-	if (ret)
+-		return ret;
++	if (fip_sd_offset || fip_emmc_offset) {
++		ret = enable_sdhc_clock();
++		if (ret)
++			return ret;
++	} else if (fip_qspi_offset) {
++		ret = enable_qspi_clock();
++		if (ret)
++			return ret;
++	}
+ 
+ 	if (!skip_ddr_clk)
+ 		return s32_enable_ddr_clock();
+diff --git a/drivers/nxp/s32/mmc/s32_mmc.c b/drivers/nxp/s32/mmc/s32_mmc.c
+index 68c955130..ed9bcb973 100644
+--- a/drivers/nxp/s32/mmc/s32_mmc.c
++++ b/drivers/nxp/s32/mmc/s32_mmc.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -105,13 +105,13 @@
+  * is an application command, otherwise, it is a standard command.
+  */
+ 
+-#define MMC_CMD_ADTC_MASK(src)	(src == BOOT_SOURCE_SD ? \
++#define MMC_CMD_ADTC_MASK(EMMC)	(!(EMMC) ? \
+ 			(BIT(6) | BIT(18) | BIT(17)) : (BIT(18) | BIT(17)))
+ 
+ #define MMC_ACMD_ADTC_MASK		(BIT(51))
+-#define ADTC_MASK_FROM_CMD_XFR_TYP(r_0, r_1)	\
++#define ADTC_MASK_FROM_CMD_XFR_TYP(r_0, EMMC)	\
+ 			((CMDINX_FROM_CMD_XFR_TYP(r_0) == MMC_CMD(55)) ? \
+-			 MMC_ACMD_ADTC_MASK : MMC_CMD_ADTC_MASK(r_1))
++			 MMC_ACMD_ADTC_MASK : MMC_CMD_ADTC_MASK(EMMC))
+ 
+ #define IDENTIFICATION_MODE_FREQUENCY	(400 * 1000)
+ #define MMC_FULL_SPEED_MODE_FREQUENCY	(26 * 1000 * 1000)
+@@ -125,12 +125,12 @@ static struct mmc_device_info sd_device_info = {
+ 	.ocr_voltage = OCR_3_2_3_3 | OCR_3_3_3_4,
+ };
+ 
+-static uint32_t mmc_boot_source;
++static bool use_emmc;
+ 
+ static uint32_t prepare_ds_addr;
+ static uint32_t prepare_blk_att;
+ 
+-static void s32g274a_mmc_set_clk(uint64_t clk)
++static void s32_mmc_set_clk(uint64_t clk)
+ {
+ 	uint32_t regdata;
+ 	int prediv = 1;
+@@ -160,7 +160,7 @@ static void s32g274a_mmc_set_clk(uint64_t clk)
+ 		      VEND_SPEC_PER_CLKEN | VEND_SPEC_CARD_CLKEN);
+ }
+ 
+-static void s32g274a_mmc_init(void)
++static void s32_mmc_init(void)
+ {
+ 	uint32_t regdata;
+ 
+@@ -175,7 +175,7 @@ static void s32g274a_mmc_init(void)
+ 	mmio_write_32(USDHC_VEND_SPEC, VEND_SPEC_INIT);
+ 	mmio_write_32(USDHC_DLL_CTRL, 0);
+ 
+-	s32g274a_mmc_set_clk(IDENTIFICATION_MODE_FREQUENCY);
++	s32_mmc_set_clk(IDENTIFICATION_MODE_FREQUENCY);
+ 
+ 	regdata = 0xffffffff & ~(INT_STATUS_EN_BRRSEN | INT_STATUS_EN_BWRSEN);
+ 	mmio_write_32(USDHC_INT_STATUS_EN, regdata);
+@@ -188,7 +188,7 @@ static void s32g274a_mmc_init(void)
+ 	mmio_write_32(USDHC_SYS_CTRL, regdata);
+ }
+ 
+-static int s32g274a_mmc_send_cmd(struct mmc_cmd *cmd)
++static int s32_mmc_send_cmd(struct mmc_cmd *cmd)
+ {
+ 	int i;
+ 	uint32_t cmd_xfr_typ = 0;
+@@ -232,7 +232,7 @@ static int s32g274a_mmc_send_cmd(struct mmc_cmd *cmd)
+ 	}
+ 
+ 	adtc_mask = ADTC_MASK_FROM_CMD_XFR_TYP(mmio_read_32(USDHC_CMD_XFR_TYP),
+-					mmc_boot_source);
++					       use_emmc);
+ 	if (adtc_mask & (BIT(cmd->cmd_idx))) {
+ 		cmd_xfr_typ |= CMD_XFR_TYP_DPSEL;
+ 		mix_ctrl |= MIX_CTRL_DTDSEL;
+@@ -292,11 +292,11 @@ cmd_error:
+ 	return -EIO;
+ }
+ 
+-static int s32g274a_mmc_set_ios(unsigned int clk, unsigned int width)
++static int s32_mmc_set_ios(unsigned int clk, unsigned int width)
+ {
+ 	uint32_t regdata;
+ 
+-	s32g274a_mmc_set_clk(clk);
++	s32_mmc_set_clk(clk);
+ 
+ 	regdata = mmio_read_32(USDHC_PROT_CTRL);
+ 	regdata &= ~(PROT_CTRL_DTW_MASK);
+@@ -319,7 +319,7 @@ static int s32g274a_mmc_set_ios(unsigned int clk, unsigned int width)
+  * before executing the command that needs them to be set.
+  */
+ 
+-static int s32g274a_mmc_prepare(int lba, uintptr_t buf, size_t size)
++static int s32_mmc_prepare(int lba, uintptr_t buf, size_t size)
+ {
+ 	uint32_t block_size;
+ 
+@@ -335,36 +335,36 @@ static int s32g274a_mmc_prepare(int lba, uintptr_t buf, size_t size)
+ 	return 0;
+ }
+ 
+-static int s32g274a_mmc_read(int lba, uintptr_t buf, size_t size)
++static int s32_mmc_read(int lba, uintptr_t buf, size_t size)
+ {
+ 	return 0;
+ }
+ 
+-static int s32g274a_mmc_write(int lba, uintptr_t buf, size_t size)
++static int s32_mmc_write(int lba, uintptr_t buf, size_t size)
+ {
+ 	return 0;
+ }
+ 
+-static const struct mmc_ops s32g274a_mmc_ops = {
+-	.init		= s32g274a_mmc_init,
+-	.send_cmd	= s32g274a_mmc_send_cmd,
+-	.set_ios	= s32g274a_mmc_set_ios,
+-	.prepare	= s32g274a_mmc_prepare,
+-	.read		= s32g274a_mmc_read,
+-	.write		= s32g274a_mmc_write,
++static const struct mmc_ops s32_mmc_ops = {
++	.init		= s32_mmc_init,
++	.send_cmd	= s32_mmc_send_cmd,
++	.set_ios	= s32_mmc_set_ios,
++	.prepare	= s32_mmc_prepare,
++	.read		= s32_mmc_read,
++	.write		= s32_mmc_write,
+ };
+ 
+-int s32_mmc_register(uint32_t boot_source)
++int s32_mmc_register(bool emmc)
+ {
+ 	struct mmc_device_info *device_info;
+ 
+-	mmc_boot_source = boot_source;
++	use_emmc = emmc;
+ 
+-	if (boot_source == BOOT_SOURCE_SD)
+-		device_info = &sd_device_info;
+-	else
++	if (emmc)
+ 		device_info = &emmc_device_info;
++	else
++		device_info = &sd_device_info;
+ 
+-	return mmc_init(&s32g274a_mmc_ops, MMC_FULL_SPEED_MODE_FREQUENCY,
++	return mmc_init(&s32_mmc_ops, MMC_FULL_SPEED_MODE_FREQUENCY,
+ 			MMC_BUS_WIDTH_4, 0, device_info);
+ }
+diff --git a/include/drivers/nxp/s32/mmc/s32_mmc.h b/include/drivers/nxp/s32/mmc/s32_mmc.h
+index 5cbf59523..e23a338c5 100644
+--- a/include/drivers/nxp/s32/mmc/s32_mmc.h
++++ b/include/drivers/nxp/s32/mmc/s32_mmc.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -7,6 +7,8 @@
+ #ifndef S32_MMC_H
+ #define S32_MMC_H
+ 
+-int s32_mmc_register(uint32_t boot_source);
++#include <stdbool.h>
++
++int s32_mmc_register(bool emmc);
+ 
+ #endif /* S32_MMC_H */
+diff --git a/plat/nxp/s32/include/s32_bl_common.h b/plat/nxp/s32/include/s32_bl_common.h
+index a2c9769b2..c686fef88 100644
+--- a/plat/nxp/s32/include/s32_bl_common.h
++++ b/plat/nxp/s32/include/s32_bl_common.h
+@@ -29,6 +29,12 @@ struct s32_i2c_driver {
+ 	int fdt_node;
+ };
+ 
++/* From generated file */
++extern const unsigned long fip_sd_offset;
++extern const unsigned long fip_emmc_offset;
++extern const unsigned long fip_qspi_offset;
++extern const unsigned long fip_mem_offset;
++
+ bool is_lockstep_enabled(void);
+ 
+ void s32_early_plat_init(bool skip_ddr_clk);
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index 1e0904a67..c01d8cff7 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -76,6 +76,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			drivers/nxp/s32/rst/s32gen1_rst.c \
+ 			drivers/nxp/s32/clk/set_par_rate.c \
+ 			drivers/nxp/s32/i2c/s32_i2c.c \
++			${FIP_INFO_SRC} \
+ 
+ BL2_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
+@@ -181,38 +182,178 @@ $(eval $(call add_define,FIP_ROFFSET))
+ 
+ BL2_W_DTB		:= ${BUILD_PLAT}/bl2_w_dtb.bin
+ all: ${BL2_W_DTB}
++# WARNING: 1024 * 8 = DTB_SIZE. These two should be kept in sync
+ ${BL2_W_DTB}: bl2 dtbs
+ 	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
+ 	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
+ 
+-# User defined parameters, for example:
+-# 	make FIP_MMC_OFFSET=0x5240 <...other parameters>
+-# These defines update only BL2's view of FIP AppBootCode:Code position.
+-# IVT header updates (e.g. mkimage application code offset) should be updated
+-# independently
+-# These offsets must be aligned to the block size of 512 bytes
+-FIP_MMC_OFFSET		?= 0x1240
+-$(eval $(call add_define,FIP_MMC_OFFSET))
+-FIP_QSPI_OFFSET		?= 0x440
+-$(eval $(call add_define,FIP_QSPI_OFFSET))
+-
+-# If FIP_MEM_OFFSET is defined, the FIP is not read from boot source (QSPI/MMC)
+-# but from this defined memory address.
+-# The use case is that M7 bootloader loads the FIP from storage at this SRAM
+-# location and BL2 will read from it without accessing the storage.
+-ifdef FIP_MEM_OFFSET
+-$(eval $(call add_define,FIP_MEM_OFFSET))
++ifeq ($(MKIMAGE),)
++BL33DIR = $(shell dirname $(BL33))
++MKIMAGE = $(BL33DIR)/tools/mkimage
+ endif
++MKIMAGE_CFG ?= ${BL33DIR}/u-boot.cfgout
++
++DUMMY_STAGE := ${BUILD_PLAT}/dummy_fip_stage
++DUMMY_FIP := ${BUILD_PLAT}/dummy_fip
++FIP_HDR_SIZE_FILE := ${BUILD_PLAT}/fip_hdr_size
++FIP_INFO_SRC := ${BUILD_PLAT}/fip_info.c
++FIP_OFFSET_FILE = ${BUILD_PLAT}/fip_offset
++IVT_LOCATION_FILE = ${BUILD_PLAT}/ivt_location
++FIP_SD_OFFSET_FILE = ${BUILD_PLAT}/fip_sd_offset_flag
++FIP_EMMC_OFFSET_FILE = ${BUILD_PLAT}/fip_emmc_offset_flag
++FIP_QSPI_OFFSET_FILE = ${BUILD_PLAT}/fip_qspi_offset_flag
++FIP_MEMORY_OFFSET_FILE = ${BUILD_PLAT}/fip_mem_offset_flag
++DUMMY_FIP_S32 = ${BUILD_PLAT}/dummy_fip.s32
++MKIMAGE_FIP_CONF_FILE = ${BUILD_PLAT}/fip.cfgout
++BL2_W_DTB_SIZE_FILE = ${BUILD_PLAT}/bl2_w_dtb_size
++
++define hexbc
++echo "obase=16;ibase=16;$$(echo "$1 $2 $3 $4 $5" | tr 'a-x' 'A-X' | sed 's/0X//g')" | bc
++endef
++
++define update_fip
++${FIPTOOL} update --align ${FIP_ALIGN} --tb-fw $1 --soc-fw-config $2 $3
++endef
++
++define get_fip_hdr_size
++printf "0x%x" $$(${FIPTOOL} info $1 | awk -F'[=,]' '{print strtonum($$2)}' | sort -n | head -n1)
++endef
++
++define get_bl2_size
++${FIPTOOL} info $1 | grep BL2 | sed 's/.*size=\([^,]\+\).*/\1/g'
++endef
++
++# Execute mkimage
++# $1 - Entry point
++# $2 - Load address
++# $3 - Configuration file
++# $4 - Input file
++# $5 - Output file
++define run_mkimage
++cd ${BL33DIR} && \
++	${MKIMAGE} \
++	-e $1 -a $2 -T s32gen1image \
++	-n $3 -d $4 $5
++endef
++
++${DUMMY_STAGE}: | ${BUILD_PLAT}
++	${Q}${ECHO} "  TOUCH   $@"
++	${Q}touch $@
++
++# Replace all fiptool args with a dummy state except '--align' parameter
++${DUMMY_FIP}: fiptool ${DUMMY_STAGE} | ${BUILD_PLAT}
++	${Q}${ECHO} "  FIP     $@"
++	${Q}ARGS=$$(echo "${FIP_ARGS}" | sed "s#\(--[^ a]\+\)\s\+\([^ ]\+\)#\1 ${DUMMY_STAGE}#g"); \
++		${FIPTOOL} create $${ARGS} "$@_temp"
++	${Q}$(call update_fip, ${DUMMY_STAGE}, ${DUMMY_STAGE}, "$@_temp")
++	${Q}mv "$@_temp" $@
++
++${FIP_HDR_SIZE_FILE}: ${DUMMY_FIP} ${FIPTOOL}
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}$(call get_fip_hdr_size, ${DUMMY_FIP}) > $@
+ 
+-FIP_ALIGN := 512
++${DUMMY_FIP_S32}: ${DUMMY_FIP}
++	${Q}${ECHO} "  MKIMAGE $@"
++	${Q}$(call run_mkimage, ${BL2_BASE}, ${BL2_BASE}, ${MKIMAGE_CFG}, $<, $@) 2> /dev/null
++
++${IVT_LOCATION_FILE}: ${DUMMY_FIP_S32}
++	${Q}${ECHO} "  MKIMAGE $@"
++	${Q}${MKIMAGE} -l $< 2>&1 | grep 'IVT Location' | awk -F':' '{print $$2}' | xargs > $@
++
++FIP_OFFSET_DELTA ?= 0
++
++define save_fip_off
++	FIP_OFFSET=0x$$($(call hexbc, $1, +, ${FIP_OFFSET_DELTA})); \
++	echo "$${FIP_OFFSET}" > "$2"
++endef
++
++${FIP_OFFSET_FILE}: ${DUMMY_FIP_S32}
++	${Q}${ECHO} "  MKIMAGE $@"
++	${Q}OFF=$$(${MKIMAGE} -l $< 2>&1 | grep Application | awk '{print $$3}');\
++	$(call save_fip_off, $${OFF},$@)
++
++ifeq ($(FIP_SD_OFFSET)$(FIP_QSPI_OFFSET)$(FIP_MEMORY_OFFSET)$(FIP_EMMC_OFFSET),)
++${FIP_SD_OFFSET_FILE}: ${IVT_LOCATION_FILE} ${FIP_OFFSET_FILE}
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}[ "$$(cat "${IVT_LOCATION_FILE}")" = "QSPI" ] && echo "0" > "$@" || cat "${FIP_OFFSET_FILE}" > "$@"
++
++${FIP_QSPI_OFFSET_FILE}: ${IVT_LOCATION_FILE} ${FIP_OFFSET_FILE}
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}[ "$$(cat "${IVT_LOCATION_FILE}")" = "QSPI" ] && cat "${FIP_OFFSET_FILE}" > "$@" || echo "0" > "$@"
++
++# Cannot determine if it's an eMMC boot based on mkimage output
++${FIP_EMMC_OFFSET_FILE}: FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "0" > "$@"
++
++${FIP_MEMORY_OFFSET_FILE}: FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "0" > "$@"
++else
++ifdef FIP_SD_OFFSET
++STORAGE_LOCATIONS = 1
++endif
++ifdef FIP_EMMC_OFFSET
++STORAGE_LOCATIONS := $(STORAGE_LOCATIONS)1
++endif
++ifdef FIP_QSPI_OFFSET
++STORAGE_LOCATIONS := $(STORAGE_LOCATIONS)1
++endif
++ifdef FIP_MEMORY_OFFSET
++STORAGE_LOCATIONS := $(STORAGE_LOCATIONS)1
++endif
++
++ifneq ($(STORAGE_LOCATIONS),1)
++$(error "Multiple FIP storage locations were found.")
++endif
++
++FIP_SD_OFFSET ?= 0
++FIP_EMMC_OFFSET ?= 0
++FIP_QSPI_OFFSET ?= 0
++FIP_MEMORY_OFFSET ?= 0
++
++${FIP_SD_OFFSET_FILE}: FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "${FIP_SD_OFFSET}" > "$@"
++
++${FIP_EMMC_OFFSET_FILE}: FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "${FIP_EMMC_OFFSET}" > "$@"
++
++${FIP_QSPI_OFFSET_FILE}: FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "${FIP_QSPI_OFFSET}" > "$@"
++
++${FIP_MEMORY_OFFSET_FILE}: FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "${FIP_MEMORY_OFFSET}" > "$@"
++endif
++
++${FIP_INFO_SRC}: ${FIP_SD_OFFSET_FILE} ${FIP_EMMC_OFFSET_FILE} ${FIP_QSPI_OFFSET_FILE} ${FIP_MEMORY_OFFSET_FILE}
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}${ECHO} "const unsigned long fip_sd_offset = $$(cat ${FIP_SD_OFFSET_FILE});" > ${FIP_INFO_SRC}
++	${Q}${ECHO} "const unsigned long fip_emmc_offset = $$(cat ${FIP_EMMC_OFFSET_FILE});" >> ${FIP_INFO_SRC}
++	${Q}${ECHO} "const unsigned long fip_qspi_offset = $$(cat ${FIP_QSPI_OFFSET_FILE});" >> ${FIP_INFO_SRC}
++	${Q}${ECHO} "const unsigned long fip_mem_offset = $$(cat ${FIP_MEMORY_OFFSET_FILE});" >> ${FIP_INFO_SRC}
++
++${BL2_W_DTB_SIZE_FILE}: ${BL2_W_DTB}
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}printf "0x%x" $$(stat -c "%s" $<) > $@
++
++${MKIMAGE_FIP_CONF_FILE}: ${BL2_W_DTB_SIZE_FILE} ${FIP_HDR_SIZE_FILE} FORCE
++	${Q}${ECHO} "  CREATE  $@"
++	${Q}cp -f ${MKIMAGE_CFG} $@
++	${Q}BL2_W_DTB_SIZE=$$(cat ${BL2_W_DTB_SIZE_FILE}); \
++	HDR_SIZE=$$(cat ${FIP_HDR_SIZE_FILE}); \
++	T_SIZE=0x$$($(call hexbc, $${BL2_W_DTB_SIZE}, +, $${HDR_SIZE})); \
++	echo "DATA_FILE SIZE $$T_SIZE" >> $@
++
++FIP_ALIGN := 8
+ all: add_to_fip
+ add_to_fip: fip ${BL2_W_DTB}
+ 	$(eval FIP_MAXIMUM_SIZE_10 = $(shell printf "%d\n" ${FIP_MAXIMUM_SIZE}))
+-	${Q}${FIPTOOL} update ${FIP_ARGS} \
+-		--tb-fw ${BUILD_PLAT}/bl2_w_dtb.bin \
+-		--soc-fw-config ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} \
+-		${BUILD_PLAT}/${FIP_NAME}
+-	@echo "Added BL2 and DTB to ${BUILD_PLAT}/${FIP_NAME} successfully"
++	${Q}$(call update_fip, ${BUILD_PLAT}/bl2_w_dtb.bin, ${BUILD_PLAT}/fdts/${DTB_FILE_NAME}, ${BUILD_PLAT}/${FIP_NAME})
++	${Q}${ECHO} "Added BL2 and DTB to ${BUILD_PLAT}/${FIP_NAME} successfully"
+ 	${Q}${FIPTOOL} info ${BUILD_PLAT}/${FIP_NAME}
+ 	$(eval ACTUAL_FIP_SIZE = $(shell \
+ 				stat --printf="%s" ${BUILD_PLAT}/${FIP_NAME}))
+@@ -222,23 +363,20 @@ add_to_fip: fip ${BL2_W_DTB}
+ 		false; \
+ 	fi
+ 
+-DTB_BASE		:= 0x34300000
+-$(eval $(call add_define,DTB_BASE))
++DTB_SIZE		:= 0x2000
+ BL2_BASE		:= 0x34302000
+ $(eval $(call add_define,BL2_BASE))
+-MKIMAGE_CFG ?= u-boot.cfgout
++DTB_BASE		:= $(shell echo 0x$$( $(call hexbc, $(BL2_BASE), -, $(DTB_SIZE)) ) )
++$(eval $(call add_define,DTB_BASE))
+ 
+ all: call_mkimage
+-call_mkimage: add_to_fip
+-ifeq ($(MKIMAGE),)
+-	$(eval BL33DIR = $(shell dirname $(BL33)))
+-	$(eval MKIMAGE = $(BL33DIR)/tools/mkimage)
+-endif
+-	@cd ${BL33DIR} && \
+-		${MKIMAGE} -e ${BL2_BASE} -a ${DTB_BASE} -T s32gen1image \
+-		-n ${MKIMAGE_CFG} -d ${BUILD_PLAT}/${FIP_NAME} \
+-		${BUILD_PLAT}/fip.s32
+-	@echo "Generated ${BUILD_PLAT}/fip.s32 successfully"
++call_mkimage: add_to_fip ${MKIMAGE_FIP_CONF_FILE} ${FIP_HDR_SIZE_FILE} ${BL2_W_DTB_SIZE_FILE}
++	${Q}${ECHO} "  MKIMAGE ${BUILD_PLAT}/fip.s32"
++	${Q}FIP_HDR_SIZE=$$(cat ${FIP_HDR_SIZE_FILE}); \
++	BL2_W_DTB_SIZE=$$(cat ${BL2_W_DTB_SIZE_FILE}); \
++	LOAD_ADDRESS=0x$$($(call hexbc, ${BL2_BASE}, -, $${FIP_HDR_SIZE}, -, ${DTB_SIZE})); \
++	$(call run_mkimage, ${BL2_BASE}, $${LOAD_ADDRESS}, ${MKIMAGE_FIP_CONF_FILE}, ${BUILD_PLAT}/${FIP_NAME}, ${BUILD_PLAT}/fip.s32)
++	${Q}${ECHO} "Generated ${BUILD_PLAT}/fip.s32 successfully"
+ 
+ # If BL32_EXTRA1 option is present, include the binary it is pointing to
+ # in the FIP image
+diff --git a/plat/nxp/s32/s32_storage.c b/plat/nxp/s32/s32_storage.c
+index 5273bbdab..366117aa5 100644
+--- a/plat/nxp/s32/s32_storage.c
++++ b/plat/nxp/s32/s32_storage.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -48,33 +48,12 @@ static const io_block_spec_t fip_memmap_spec = {
+ struct image_storage_info {
+ 	uuid_t uuid;
+ 	unsigned int image_id;
+-	io_block_spec_t mmc_spec;
+-	io_block_spec_t qspi_spec;
+-#ifdef FIP_MEM_OFFSET
+-	io_block_spec_t mem_spec;
+-#endif
++	io_block_spec_t io_spec;
+ };
+ 
+ static struct image_storage_info images_info[] = {
+ 	{
+ 		.image_id = FIP_IMAGE_ID,
+-		/* The selection of mmc, qspi, or mem spec is done dynamically,
+-		 * based on the boot source and config (e.g. FIP_MEM_OFFSET)
+-		 * */
+-		.mmc_spec = {
+-			.offset = FIP_MMC_OFFSET,
+-			.length = FIP_HEADER_SIZE,
+-		},
+-		.qspi_spec = {
+-			.offset = FIP_QSPI_OFFSET,
+-			.length = FIP_HEADER_SIZE,
+-		},
+-#ifdef FIP_MEM_OFFSET
+-		.mem_spec = {
+-			.offset = FIP_MEM_OFFSET,
+-			.length = FIP_HEADER_SIZE,
+-		},
+-#endif
+ 	},
+ 	{
+ 		.image_id = BL31_IMAGE_ID,
+@@ -209,41 +188,36 @@ static uint8_t get_boot_source(void)
+ 	}
+ }
+ 
+-static bool is_mmc_boot_source()
++static bool is_mmc_boot_source(void)
+ {
+-	uint8_t boot_source = get_boot_source();
++	return !!fip_sd_offset || !!fip_emmc_offset;
++}
+ 
+-#ifdef FIP_MEM_OFFSET
+-	return false;
+-#endif
++static unsigned long get_fip_offset(void)
++{
++	if (fip_sd_offset)
++		return fip_sd_offset;
+ 
+-	if ((boot_source == BOOT_SOURCE_SD) ||
+-	    (boot_source == BOOT_SOURCE_MMC))
+-		return true;
++	if (fip_emmc_offset)
++		return fip_emmc_offset;
+ 
+-	return false;
++	if (fip_qspi_offset)
++		return fip_qspi_offset;
++
++	return fip_mem_offset;
+ }
+ 
+ static io_block_spec_t *get_image_spec_source(struct image_storage_info *info)
+ {
+-	uint8_t boot_source = get_boot_source();
+-
+ 	if (info == NULL)
+ 		return NULL;
+ 
+-#ifdef FIP_MEM_OFFSET
+-	return &info->mem_spec;
+-#endif
+-
+-	switch (boot_source) {
+-		case BOOT_SOURCE_QSPI:
+-			return &info->qspi_spec;
+-		case BOOT_SOURCE_SD:
+-		case BOOT_SOURCE_MMC:
+-			return &info->mmc_spec;
+-		default:
+-			return NULL;
++	if (info->image_id == FIP_IMAGE_ID) {
++		info->io_spec.offset = get_fip_offset();
++		info->io_spec.length = FIP_HEADER_SIZE;
+ 	}
++
++	return &info->io_spec;
+ }
+ 
+ static io_block_spec_t * get_image_spec_from_id(unsigned int image_id)
+@@ -358,6 +332,7 @@ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+ void s32_io_setup(void)
+ {
+ 	uint8_t boot_source;
++	bool emmc = false;
+ 
+ 	if (register_io_dev_memmap(&s32_memmap_io_conn))
+ 		goto err;
+@@ -368,24 +343,35 @@ void s32_io_setup(void)
+ 			(uintptr_t)FIP_BACKEND_MEMMAP_ID))
+ 		goto err;
+ 
+-	boot_source = get_boot_source();
+-	if (boot_source == INVALID_BOOT_SOURCE)
+-		goto err;
++	if (!fip_sd_offset && !fip_emmc_offset)
++		return;
+ 
+-	/* MMC/SD may not be inserted */
+-	if (boot_source != BOOT_SOURCE_QSPI) {
+-		if (s32_mmc_register(boot_source))
+-			goto err;
+-		if (register_io_dev_mmc(&s32_mmc_io_conn))
+-			goto err;
+-		if (io_dev_open(s32_mmc_io_conn,
+-				(uintptr_t)get_image_spec_from_id(FIP_IMAGE_ID),
+-				&s32_mmc_dev_handle))
+-			goto err;
+-		if (io_dev_init(s32_mmc_dev_handle, FIP_IMAGE_ID))
++	if (fip_emmc_offset)
++		emmc = true;
++
++	/**
++	 * When the build system was unable to determine
++	 * if it's a SD or eEMMC boot
++	 */
++	if (fip_sd_offset && !emmc) {
++		boot_source = get_boot_source();
++		if (boot_source == INVALID_BOOT_SOURCE)
+ 			goto err;
++
++		emmc = (boot_source == BOOT_SOURCE_MMC);
+ 	}
+ 
++	if (s32_mmc_register(emmc))
++		goto err;
++	if (register_io_dev_mmc(&s32_mmc_io_conn))
++		goto err;
++	if (io_dev_open(s32_mmc_io_conn,
++			(uintptr_t)get_image_spec_from_id(FIP_IMAGE_ID),
++			&s32_mmc_dev_handle))
++		goto err;
++	if (io_dev_init(s32_mmc_dev_handle, FIP_IMAGE_ID))
++		goto err;
++
+ 	return;
+ err:
+ 	ERROR("Error: %s failed\n", __func__);
+-- 
+2.17.1
+

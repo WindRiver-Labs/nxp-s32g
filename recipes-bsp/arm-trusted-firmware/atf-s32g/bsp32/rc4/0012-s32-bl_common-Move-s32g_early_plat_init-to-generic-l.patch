@@ -1,0 +1,210 @@
+From 752d7e76205930a6489911f9da2581a358231794 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Tue, 4 Jan 2022 19:53:40 +0200
+Subject: [PATCH 12/50] s32: bl_common: Move s32g_early_plat_init to generic
+ layer
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/include/s32_bl_common.h       |  4 ++-
+ plat/nxp/s32/s32_bl_common.c               | 38 ++++++++++++++++++++--
+ plat/nxp/s32/s32g/include/s32g_bl_common.h |  5 +--
+ plat/nxp/s32/s32g/s32g_bl2_el3.c           |  2 +-
+ plat/nxp/s32/s32g/s32g_bl_common.c         | 31 ------------------
+ plat/nxp/s32/s32g/s32g_resume.c            |  4 +--
+ 6 files changed, 45 insertions(+), 39 deletions(-)
+
+diff --git a/plat/nxp/s32/include/s32_bl_common.h b/plat/nxp/s32/include/s32_bl_common.h
+index 8de95d7d6..13b5de315 100644
+--- a/plat/nxp/s32/include/s32_bl_common.h
++++ b/plat/nxp/s32/include/s32_bl_common.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -25,4 +25,6 @@
+ 
+ bool is_lockstep_enabled(void);
+ 
++void s32_early_plat_init(bool skip_ddr_clk);
++
+ #endif /* S32_BL_COMMON_H */
+diff --git a/plat/nxp/s32/s32_bl_common.c b/plat/nxp/s32/s32_bl_common.c
+index b755cd10f..04eefc6d5 100644
+--- a/plat/nxp/s32/s32_bl_common.c
++++ b/plat/nxp/s32/s32_bl_common.c
+@@ -1,11 +1,15 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
++#include <common/debug.h>
++#include <drivers/generic_delay_timer.h>
+ #include <lib/mmio.h>
+-#include <platform_def.h>
++#include "platform_def.h"
++#include "s32_clocks.h"
+ #include "s32_ncore.h"
++#include "s32_pinctrl.h"
+ 
+ bool is_lockstep_enabled(void)
+ {
+@@ -15,6 +19,36 @@ bool is_lockstep_enabled(void)
+ 	return false;
+ }
+ 
++void s32_early_plat_init(bool skip_ddr_clk)
++{
++	uint32_t caiutc;
++
++	s32_plat_config_pinctrl();
++	s32_plat_clock_init(skip_ddr_clk);
++
++	/* Restore (clear) the CAIUTC[IsolEn] bit for the primay cluster, which
++	 * we have manually set during early BL2 boot.
++	 */
++	caiutc = mmio_read_32(S32_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF);
++	caiutc &= ~NCORE_CAIUTC_ISOLEN_MASK;
++	mmio_write_32(S32_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF, caiutc);
++
++	ncore_init();
++	ncore_caiu_online(A53_CLUSTER0_CAIU);
++
++	generic_delay_timer_init();
++}
++
++void plat_ea_handler(unsigned int ea_reason, uint64_t syndrome, void *cookie,
++		void *handle, uint64_t flags)
++{
++	ERROR("Unhandled External Abort received on 0x%lx at EL3!\n",
++	      read_mpidr_el1());
++	ERROR(" exception reason=%u syndrome=0x%llx\n", ea_reason, syndrome);
++
++	panic();
++}
++
+ unsigned int plat_get_syscnt_freq2(void)
+ {
+ 	return COUNTER_FREQUENCY;
+diff --git a/plat/nxp/s32/s32g/include/s32g_bl_common.h b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+index eafbec444..8809cf83b 100644
+--- a/plat/nxp/s32/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -11,6 +11,7 @@
+ #include <stdbool.h>
+ #include <stdint.h>
+ #include "s32_bl_common.h"
++
+ struct s32g_i2c_driver {
+ 	struct s32g_i2c_bus bus;
+ 	int fdt_node;
+@@ -19,7 +20,7 @@ struct s32g_i2c_driver {
+ void s32g_gic_setup(void);
+ void plat_gic_save(void);
+ void plat_gic_restore(void);
+-void s32g_early_plat_init(bool skip_ddr_clk);
++
+ int pmic_prepare_for_suspend(void);
+ void pmic_system_off(void);
+ int pmic_disable_wdg(vr5510_t fsu);
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index aff778b52..22c74090d 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -694,7 +694,7 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	}
+ #endif
+ 
+-	s32g_early_plat_init(false);
++	s32_early_plat_init(false);
+ 	console_s32_register();
+ 	s32g_io_setup();
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index 4f055ce61..0d9eb2d4c 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -7,7 +7,6 @@
+ #include <common/debug.h>
+ #include <lib/mmio.h>
+ #include <libfdt.h>
+-#include <drivers/generic_delay_timer.h>
+ #include <drivers/nxp/s32/pmic/vr5510.h>
+ #include <drivers/nxp/s32/ocotp.h>
+ #include <lib/utils_def.h>
+@@ -25,36 +24,6 @@
+ static struct s32g_i2c_driver i2c_drivers[S32G_MAX_I2C_MODULES];
+ static size_t i2c_fill_level;
+ 
+-void s32g_early_plat_init(bool skip_ddr_clk)
+-{
+-	uint32_t caiutc;
+-
+-	s32_plat_config_pinctrl();
+-	s32_plat_clock_init(skip_ddr_clk);
+-
+-	/* Restore (clear) the CAIUTC[IsolEn] bit for the primay cluster, which
+-	 * we have manually set during early BL2 boot.
+-	 */
+-	caiutc = mmio_read_32(S32_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF);
+-	caiutc &= ~NCORE_CAIUTC_ISOLEN_MASK;
+-	mmio_write_32(S32_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF, caiutc);
+-
+-	ncore_init();
+-	ncore_caiu_online(A53_CLUSTER0_CAIU);
+-
+-	generic_delay_timer_init();
+-}
+-
+-void plat_ea_handler(unsigned int ea_reason, uint64_t syndrome, void *cookie,
+-		void *handle, uint64_t flags)
+-{
+-	ERROR("Unhandled External Abort received on 0x%lx at EL3!\n",
+-	      read_mpidr_el1());
+-	ERROR(" exception reason=%u syndrome=0x%llx\n", ea_reason, syndrome);
+-
+-	panic();
+-}
+-
+ struct s32g_i2c_driver *s32g_add_i2c_module(void *fdt, int fdt_node)
+ {
+ 	struct s32g_i2c_driver *driver;
+diff --git a/plat/nxp/s32/s32g/s32g_resume.c b/plat/nxp/s32/s32g/s32g_resume.c
+index adb80f154..583083c7b 100644
+--- a/plat/nxp/s32/s32g/s32g_resume.c
++++ b/plat/nxp/s32/s32g/s32g_resume.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -36,7 +36,7 @@ void s32g_resume_entrypoint(void)
+ 	/* Prepare resume operation */
+ 	reset_registers_for_lockstep();
+ 	s32_ncore_isol_cluster0();
+-	s32g_early_plat_init(true);
++	s32_early_plat_init(true);
+ 
+ 	ret = pmic_setup();
+ 	if (ret)
+-- 
+2.17.1
+

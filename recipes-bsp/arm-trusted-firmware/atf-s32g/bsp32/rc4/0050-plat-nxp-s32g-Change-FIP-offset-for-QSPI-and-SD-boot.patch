@@ -1,0 +1,36 @@
+From 2d8e3e6295aa8fb04c87ee4958609748c01c412e Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 27 Jan 2022 11:40:51 +0200
+Subject: [PATCH 50/50] plat/nxp: s32g: Change FIP offset for QSPI and SD boot
+
+A new set of values for FIP_QSPI_OFFSET and FIP_MMC_OFFSET
+are needed after eliminating the gaps between image headers.
+
+Issue: ALB-8432
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32_common.mk | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index d08a59076..1e0904a67 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -191,9 +191,9 @@ ${BL2_W_DTB}: bl2 dtbs
+ # IVT header updates (e.g. mkimage application code offset) should be updated
+ # independently
+ # These offsets must be aligned to the block size of 512 bytes
+-FIP_MMC_OFFSET		?= 0x3240
++FIP_MMC_OFFSET		?= 0x1240
+ $(eval $(call add_define,FIP_MMC_OFFSET))
+-FIP_QSPI_OFFSET		?= 0x2240
++FIP_QSPI_OFFSET		?= 0x440
+ $(eval $(call add_define,FIP_QSPI_OFFSET))
+ 
+ # If FIP_MEM_OFFSET is defined, the FIP is not read from boot source (QSPI/MMC)
+-- 
+2.17.1
+

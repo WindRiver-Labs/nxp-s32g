@@ -1,0 +1,109 @@
+From 13c59ebbe0185f035f8323d60294696c9732cb0d Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Tue, 22 Feb 2022 11:59:01 +0200
+Subject: [PATCH 2/5] s32g2: disable vr5510 for s32g2xxaevb
+
+Issue: ALB-8443
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ fdts/fsl-s32g2xxa-evb.dts                     | 15 +++++++++++++-
+ .../s32/s32g/s32g2/s32g274ardb2/platform.mk   |  6 +++---
+ .../s32g274ardb2_vr5510.c => s32g2_vr5510.c}  |  0
+ .../s32/s32g/s32g2/s32g2xxaevb/platform.mk    |  4 ++--
+ .../s32g2/s32g2xxaevb/s32g2xxaevb_vr5510.c    | 20 -------------------
+ 5 files changed, 19 insertions(+), 26 deletions(-)
+ rename plat/nxp/s32/s32g/s32g2/{s32g274ardb2/s32g274ardb2_vr5510.c => s32g2_vr5510.c} (100%)
+ delete mode 100644 plat/nxp/s32/s32g/s32g2/s32g2xxaevb/s32g2xxaevb_vr5510.c
+
+diff --git a/fdts/fsl-s32g2xxa-evb.dts b/fdts/fsl-s32g2xxa-evb.dts
+index 7bbd970da..13852a2e9 100644
+--- a/fdts/fsl-s32g2xxa-evb.dts
++++ b/fdts/fsl-s32g2xxa-evb.dts
+@@ -11,5 +11,18 @@
+ };
+ 
+ &i2c4 {
+-	status = "disabled";
++	status = "okay";
++	clock-frequency=<100000>;
++
++	vr5510@20 {
++		compatible = "fsl,vr5510";
++		reg = <0x20>;
++		status = "okay";
++	};
++
++	vr5510_fsu@21 {
++		compatible = "fsl,vr5510";
++		reg = <0x21>;
++		status = "okay";
++	};
+ };
+diff --git a/plat/nxp/s32/s32g/s32g2/s32g274ardb2/platform.mk b/plat/nxp/s32/s32g/s32g2/s32g274ardb2/platform.mk
+index da8beca59..2891d4833 100644
+--- a/plat/nxp/s32/s32g/s32g2/s32g274ardb2/platform.mk
++++ b/plat/nxp/s32/s32g/s32g2/s32g274ardb2/platform.mk
+@@ -8,8 +8,8 @@ include plat/nxp/s32/s32g/s32g2/s32g2.mk
+ 
+ S32_BOARD_PATH		:= ${PLAT_SOC_PATH}/s32g274ardb2
+ 
+-PLAT_INCLUDES		+= -I${S32_BOARD_PATH}/include \
++PLAT_INCLUDES          += -I${S32_BOARD_PATH}/include \
+ 
+-PLAT_BL_COMMON_SOURCES	+=	${S32_BOARD_PATH}/s32g274ardb2_vr5510.c \
++PLAT_BL_COMMON_SOURCES +=      ${PLAT_SOC_PATH}/s32g2_vr5510.c \
+ 
+-DTB_FILE_NAME		?= fsl-s32g274a-rdb2.dtb
+\ No newline at end of file
++DTB_FILE_NAME		?= fsl-s32g274a-rdb2.dtb
+diff --git a/plat/nxp/s32/s32g/s32g2/s32g274ardb2/s32g274ardb2_vr5510.c b/plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c
+similarity index 100%
+rename from plat/nxp/s32/s32g/s32g2/s32g274ardb2/s32g274ardb2_vr5510.c
+rename to plat/nxp/s32/s32g/s32g2/s32g2_vr5510.c
+diff --git a/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/platform.mk b/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/platform.mk
+index 06733bd41..396eeed36 100644
+--- a/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/platform.mk
++++ b/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/platform.mk
+@@ -10,6 +10,6 @@ S32_BOARD_PATH		:= ${PLAT_SOC_PATH}/s32g2xxaevb
+ 
+ PLAT_INCLUDES		+= -I${S32_BOARD_PATH}/include \
+ 
+-PLAT_BL_COMMON_SOURCES	+= ${S32_BOARD_PATH}/s32g2xxaevb_vr5510.c \
++PLAT_BL_COMMON_SOURCES +=      ${PLAT_SOC_PATH}/s32g2_vr5510.c \
+ 
+-DTB_FILE_NAME		?= fsl-s32g2xxa-evb.dtb
+\ No newline at end of file
++DTB_FILE_NAME		?= fsl-s32g2xxa-evb.dtb
+diff --git a/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/s32g2xxaevb_vr5510.c b/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/s32g2xxaevb_vr5510.c
+deleted file mode 100644
+index 1e37d5c62..000000000
+--- a/plat/nxp/s32/s32g/s32g2/s32g2xxaevb/s32g2xxaevb_vr5510.c
++++ /dev/null
+@@ -1,20 +0,0 @@
+-/*
+- * Copyright 2022 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <s32g_vr5510.h>
+-
+-int pmic_prepare_for_suspend(void)
+-{
+-	return 0;
+-}
+-
+-void pmic_system_off(void)
+-{}
+-
+-int pmic_disable_wdg(vr5510_t fsu)
+-{
+-	return 0;
+-}
+-- 
+2.17.1
+

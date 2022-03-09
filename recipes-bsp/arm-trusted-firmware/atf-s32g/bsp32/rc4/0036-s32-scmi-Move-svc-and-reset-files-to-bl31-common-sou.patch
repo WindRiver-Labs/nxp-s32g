@@ -1,0 +1,163 @@
+From a54ea4ebb4715f932c0b360e32c08891e3733f7c Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 8 Dec 2021 12:19:29 +0200
+Subject: [PATCH 36/50] s32: scmi: Move svc and reset files to bl31 common
+ sources
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32_common.mk                    |  5 +++-
+ .../{s32g/s32g_scmi_rst.c => s32_scmi_rst.c}  |  0
+ plat/nxp/s32/{s32g/s32g_svc.c => s32_svc.c}   | 24 +++++++++++--------
+ plat/nxp/s32/s32g/s32g_common.mk              |  3 ---
+ 4 files changed, 18 insertions(+), 14 deletions(-)
+ rename plat/nxp/s32/{s32g/s32g_scmi_rst.c => s32_scmi_rst.c} (100%)
+ rename plat/nxp/s32/{s32g/s32g_svc.c => s32_svc.c} (87%)
+
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index cb0553f31..e7518001a 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -71,6 +71,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			drivers/nxp/s32/clk/get_rate.c \
+ 			drivers/nxp/s32/clk/plat_clk.c \
+ 			drivers/nxp/s32/clk/s32gen1_clk.c \
++			drivers/nxp/s32/rst/s32gen1_rst.c \
+ 			drivers/nxp/s32/clk/set_par_rate.c \
+ 			drivers/nxp/s32/i2c/s32_i2c.c \
+ 
+@@ -103,9 +104,11 @@ BL31_SOURCES += \
+ 			plat/common/plat_gicv3.c \
+ 			plat/common/plat_psci_common.c \
+ 			plat/nxp/s32/include/plat_macros.S \
+-			plat/nxp/s32/s32_scmi_clk.c \
+ 			plat/nxp/s32/s32_bl31.c \
+ 			plat/nxp/s32/s32_lowlevel_bl31.S \
++			plat/nxp/s32/s32_scmi_clk.c \
++			plat/nxp/s32/s32_scmi_rst.c \
++			plat/nxp/s32/s32_svc.c \
+ 
+ DTC_FLAGS		+= -Wno-unit_address_vs_reg
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_scmi_rst.c b/plat/nxp/s32/s32_scmi_rst.c
+similarity index 100%
+rename from plat/nxp/s32/s32g/s32g_scmi_rst.c
+rename to plat/nxp/s32/s32_scmi_rst.c
+diff --git a/plat/nxp/s32/s32g/s32g_svc.c b/plat/nxp/s32/s32_svc.c
+similarity index 87%
+rename from plat/nxp/s32/s32g/s32g_svc.c
+rename to plat/nxp/s32/s32_svc.c
+index 7292559d3..c8801a7b9 100644
+--- a/plat/nxp/s32/s32g/s32g_svc.c
++++ b/plat/nxp/s32/s32_svc.c
+@@ -9,7 +9,7 @@
+ #include <drivers/scmi.h>
+ #include <scmi-msg/common.h>
+ 
+-#define S32G_SCMI_ID			0xc20000feU
++#define S32_SCMI_ID			0xc20000feU
+ 
+ #define MSG_ID(m)			((m) & 0xffU)
+ #define MSG_TYPE(m)			(((m) >> 8) & 0x3U)
+@@ -35,7 +35,7 @@ struct response {
+ 	uint32_t data[0];
+ };
+ 
+-static const uint8_t s32g_protocols[] = {
++static const uint8_t s32_protocols[] = {
+ 	SCMI_PROTOCOL_ID_BASE,
+ 	SCMI_PROTOCOL_ID_CLOCK,
+ 	SCMI_PROTOCOL_ID_RESET_DOMAIN,
+@@ -48,12 +48,16 @@ const char *plat_scmi_vendor_name(void)
+ 
+ const char *plat_scmi_sub_vendor_name(void)
+ {
++#if defined(PLAT_s32g2)
+ 	return "S32G274A";
++#else
++	return "S32G399A";
++#endif
+ }
+ 
+ const uint8_t *plat_scmi_protocol_list(unsigned int agent_id)
+ {
+-	return s32g_protocols;
++	return s32_protocols;
+ }
+ 
+ int32_t plat_scmi_reset_agent(unsigned int agent_id)
+@@ -63,10 +67,10 @@ int32_t plat_scmi_reset_agent(unsigned int agent_id)
+ 
+ size_t plat_scmi_protocol_count(void)
+ {
+-	return sizeof(s32g_protocols);
++	return sizeof(s32_protocols);
+ }
+ 
+-static int32_t s32g_svc_smc_setup(void)
++static int32_t s32_svc_smc_setup(void)
+ {
+ 	struct scmi_shared_mem *mem = (void *)S32_SCMI_SHARED_MEM;
+ 
+@@ -98,7 +102,7 @@ static int scmi_handler(uint32_t smc_fid, u_register_t x1,
+ 	return 0;
+ }
+ 
+-uintptr_t s32g_svc_smc_handler(uint32_t smc_fid,
++uintptr_t s32_svc_smc_handler(uint32_t smc_fid,
+ 			       u_register_t x1,
+ 			       u_register_t x2,
+ 			       u_register_t x3,
+@@ -108,7 +112,7 @@ uintptr_t s32g_svc_smc_handler(uint32_t smc_fid,
+ 			       u_register_t flags)
+ {
+ 	switch (smc_fid) {
+-	case S32G_SCMI_ID:
++	case S32_SCMI_ID:
+ 		SMC_RET1(handle, scmi_handler(smc_fid, x1, x2, x3));
+ 		break;
+ 	default:
+@@ -118,12 +122,12 @@ uintptr_t s32g_svc_smc_handler(uint32_t smc_fid,
+ 	}
+ }
+ 
+-DECLARE_RT_SVC(s32g_svc,
++DECLARE_RT_SVC(s32_svc,
+ 	       OEN_SIP_START,
+ 	       OEN_SIP_END,
+ 	       SMC_TYPE_FAST,
+-	       s32g_svc_smc_setup,
+-	       s32g_svc_smc_handler
++	       s32_svc_smc_setup,
++	       s32_svc_smc_handler
+ );
+ 
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index 122f26c6e..fc3ed034b 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -29,7 +29,6 @@ PLAT_BL_COMMON_SOURCES	+= \
+ 			   plat/nxp/s32/s32g/s32g_pinctrl.c \
+ 			   plat/nxp/s32/s32g/s32g_clocks.c \
+ 			   drivers/nxp/s32/clk/s32g_clk.c \
+-			   drivers/nxp/s32/rst/s32gen1_rst.c \
+ 			   drivers/nxp/s32/ocotp.c \
+ 			   lib/utils/crc8.c \
+ 			   plat/nxp/s32/s32g/s32g_vr5510.c \
+@@ -44,8 +43,6 @@ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32/s32g/s32g_psci.c \
+ 			   plat/nxp/s32/s32g/s32g_resume.c \
+ 			   plat/nxp/s32/s32g/s32g_pm.c \
+-			   plat/nxp/s32/s32g/s32g_svc.c \
+-			   plat/nxp/s32/s32g/s32g_scmi_rst.c \
+ 			   drivers/nxp/s32/s32g_wkpu.c \
+ 			   drivers/nxp/s32/clk/s32g_scmi_ids.c \
+ 
+-- 
+2.17.1
+

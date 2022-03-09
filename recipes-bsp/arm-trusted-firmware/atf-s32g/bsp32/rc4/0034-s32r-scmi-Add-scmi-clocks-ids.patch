@@ -1,0 +1,132 @@
+From f7c3cef6d21023fe7af6497007ea1697d2dff397 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Mon, 10 Jan 2022 10:07:19 +0200
+Subject: [PATCH 34/50] s32r: scmi: Add scmi clocks ids
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/clk/s32r_scmi_ids.c | 95 +++++++++++++++++++++++++++++
+ plat/nxp/s32/s32r/platform.mk       |  1 +
+ 2 files changed, 96 insertions(+)
+ create mode 100644 drivers/nxp/s32/clk/s32r_scmi_ids.c
+
+diff --git a/drivers/nxp/s32/clk/s32r_scmi_ids.c b/drivers/nxp/s32/clk/s32r_scmi_ids.c
+new file mode 100644
+index 000000000..57729f9a2
+--- /dev/null
++++ b/drivers/nxp/s32/clk/s32r_scmi_ids.c
+@@ -0,0 +1,95 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2022 NXP
++ */
++#include <dt-bindings/clock/s32r45-clock.h>
++#include <dt-bindings/clock/s32r45-scmi-clock.h>
++#include <clk/s32gen1_clk_funcs.h>
++#include <clk/s32gen1_scmi_clk.h>
++#include <errno.h>
++#include <stdint.h>
++
++#define INDEX(X)	((X) - S32GEN1_SCMI_PLAT_CLK_BASE_ID)
++
++struct s32gen1_scmi_clk s32r45_scmi_clk[] = {
++    /* LAX */
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_LAX_MODULE,
++		S32R45_CLK_ACCEL4, "lax_module"),
++    /* SPT */
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_SPT_SPT,
++		S32R45_CLK_ACCEL3, "spt_spt"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_SPT_AXI,
++		S32R45_CLK_ACCEL3, "spt_axi"),
++	SCMI_ARRAY_ENTRY(S32R45_SCMI_CLK_SPT_MODULE,
++		S32R45_CLK_ACCEL3_DIV3, "spt_module"),
++};
++
++int plat_scmi_id2clk(uint32_t scmi_clk_id, uint32_t *clk_id)
++{
++	if (!clk_id)
++		return -EINVAL;
++
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return -EINVAL;
++
++	*clk_id = s32r45_scmi_clk[INDEX(scmi_clk_id)].plat_id;
++	if (!*clk_id) {
++		ERROR("Unhandled S32R clock: %u\n", scmi_clk_id);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++int plat_compound_clk_get(struct clk *clk)
++{
++	return -EINVAL;
++}
++
++int plat_compound_clk_set_parents(struct clk *clk)
++{
++	return -EINVAL;
++}
++
++int plat_compound_clk_enable(struct clk *clk, int enable)
++{
++	return -EINVAL;
++}
++
++unsigned long plat_compound_clk_set_rate(struct clk *clk, unsigned long rate)
++{
++	return 0;
++}
++
++unsigned long plat_compound_clk_get_rate(struct clk *clk)
++{
++	return 0;
++}
++
++uint32_t plat_get_nclocks(void)
++{
++	return S32GEN1_PLAT_SCMI_CLK(ARRAY_SIZE(s32r45_scmi_clk));
++}
++
++const char *plat_scmi_clk_get_name(uint32_t scmi_clk_id)
++{
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return NULL;
++
++	return s32r45_scmi_clk[INDEX(scmi_clk_id)].name;
++}
++
++bool plat_scmi_clk_is_enabled(uint32_t scmi_clk_id)
++{
++	if (INDEX(scmi_clk_id) >= ARRAY_SIZE(s32r45_scmi_clk))
++		return false;
++
++	return s32r45_scmi_clk[INDEX(scmi_clk_id)].enabled;
++}
++
++int plat_scmi_clk_get_rates(struct clk *clk, unsigned long *rates,
++			    size_t *nrates)
++{
++	return 0;
++}
++
+diff --git a/plat/nxp/s32/s32r/platform.mk b/plat/nxp/s32/s32r/platform.mk
+index 1ee1ddadd..97e311f01 100644
+--- a/plat/nxp/s32/s32r/platform.mk
++++ b/plat/nxp/s32/s32r/platform.mk
+@@ -26,6 +26,7 @@ BL2_SOURCES 	+=  \
+ 	plat/nxp/s32/s32r/s32r_bl2_el3.c \
+ 
+ BL31_SOURCES += \
++		   drivers/nxp/s32/clk/s32r_scmi_ids.c \
+ 	       plat/nxp/s32/s32r/s32r_bl31.c \
+ 		   plat/nxp/s32/s32r/s32r_psci.c \
+ 
+-- 
+2.17.1
+

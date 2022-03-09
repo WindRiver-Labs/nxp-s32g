@@ -1,0 +1,572 @@
+From 209c9f6bdee12995c98cc257d9b107e0d582eb02 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 17 Nov 2021 12:11:51 +0200
+Subject: [PATCH 08/50] s32: pinctrl: Move common pinctrl to s32 layer
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32g/clk/early_clocks.c           |   2 +-
+ drivers/nxp/s32g/clk/s32gen1_clk.c            |   2 +-
+ plat/nxp/s32/include/s32_pinctrl.h            | 128 ++++++++++++++++++
+ plat/nxp/s32/include/s32_platform_def.h       |   2 +
+ plat/nxp/s32/s32_common.mk                    |   1 +
+ plat/nxp/s32/s32_pinctrl.c                    |  94 +++++++++++++
+ plat/nxp/s32/s32g/include/s32g_pinctrl.h      | 116 +---------------
+ plat/nxp/s32/s32g/include/s32g_platform_def.h |   1 -
+ plat/nxp/s32/s32g/s32g_bl_common.c            |   2 +-
+ plat/nxp/s32/s32g/s32g_pinctrl.c              |  86 ------------
+ 10 files changed, 229 insertions(+), 205 deletions(-)
+ create mode 100644 plat/nxp/s32/include/s32_pinctrl.h
+ create mode 100644 plat/nxp/s32/s32_pinctrl.c
+
+diff --git a/drivers/nxp/s32g/clk/early_clocks.c b/drivers/nxp/s32g/clk/early_clocks.c
+index acfd83a0a..e41200c44 100644
+--- a/drivers/nxp/s32g/clk/early_clocks.c
++++ b/drivers/nxp/s32g/clk/early_clocks.c
+@@ -7,7 +7,7 @@
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <dt-bindings/clock/s32gen1-clock.h>
+ #include <s32g_clocks.h>
+-#include <s32g_pinctrl.h>
++#include <s32_pinctrl.h>
+ 
+ #define CLK_INIT(ID)          \
+ {                             \
+diff --git a/drivers/nxp/s32g/clk/s32gen1_clk.c b/drivers/nxp/s32g/clk/s32gen1_clk.c
+index d84ea8140..102123b42 100644
+--- a/drivers/nxp/s32g/clk/s32gen1_clk.c
++++ b/drivers/nxp/s32g/clk/s32gen1_clk.c
+@@ -6,7 +6,7 @@
+ #include <clk/s32gen1_clk_funcs.h>
+ #include <clk/s32gen1_clk_modules.h>
+ #include <clk/s32gen1_shared_clks.h>
+-#include <s32g_pinctrl.h>
++#include <s32_pinctrl.h>
+ 
+ /* Clock generation modules */
+ static struct s32gen1_osc fxosc =
+diff --git a/plat/nxp/s32/include/s32_pinctrl.h b/plat/nxp/s32/include/s32_pinctrl.h
+new file mode 100644
+index 000000000..596ac8e3c
+--- /dev/null
++++ b/plat/nxp/s32/include/s32_pinctrl.h
+@@ -0,0 +1,128 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef _S32_PINCTRL_H_
++#define _S32_PINCTRL_H_
++
++#include <lib/mmio.h>
++#include "platform_def.h"
++
++#define SIUL2_MIDR1			(SIUL2_0_BASE_ADDR + 0x00000004)
++#define SIUL2_MIDR2			(SIUL2_0_BASE_ADDR + 0x00000008)
++#define SIUL2_0_MSCR_BASE	(SIUL2_0_BASE_ADDR + 0x00000240)
++#define SIUL2_0_IMCR_BASE	(SIUL2_0_BASE_ADDR + 0x00000A40)
++/* redefine these for PLAT_s32r if SIUL2_1 is needed*/
++#define SIUL2_1_MSCR_BASE	(SIUL2_1_BASE_ADDR + 0x00000400)
++#define SIUL2_1_IMCR_BASE	(SIUL2_1_BASE_ADDR + 0x00000C1C)
++
++/* MSCR 0-101 */
++#define SIUL2_0_MSCRn(i)	(SIUL2_0_MSCR_BASE + 4 * (i))
++/* MSCR 112-190 */
++#define SIUL2_1_MSCRn(i)	(SIUL2_1_MSCR_BASE + 4 * (i - 112))
++/* IMCR 0-83 */
++#define SIUL2_0_IMCRn(i)	(SIUL2_0_IMCR_BASE +  4 * (i))
++/* IMCR 119-495 */
++#define SIUL2_1_IMCRn(i)	(SIUL2_1_IMCR_BASE +  4 * (i - 119))
++
++#define SIUL2_MSCR_S32_G1_SRC_100MHz            (5 << 14)
++#define SIUL2_MSCR_S32_G1_ODE_EN		BIT(20)
++#define SIUL2_MSCR_S32_G1_OBE_EN		BIT(21)
++#define SIUL2_MSCR_S32_G1_IBE_EN		BIT(19)
++#define SIUL2_MSCR_S32_G1_PUE_EN		BIT(13)
++#define SIUL2_MSCR_S32_G1_PUS_EN		BIT(12)
++#define SIUL2_MSCR_S32_G1_SMC_DIS		BIT(5)
++#define SIUL2_MSCR_MUX_MODE_ALT0		(0x0)
++#define SIUL2_MSCR_MUX_MODE_ALT1		(0x1)
++#define SIUL2_MSCR_MUX_MODE_ALT2		(0x2)
++#define SIUL2_MSCR_MUX_MODE_ALT3		(0x3)
++#define SIUL2_MSCR_MUX_MODE_ALT4		(0x4)
++#define SIUL2_MSCR_MUX_MODE_ALT5		(0x5)
++
++/*
++ * Pinctrl for LinFlexD-UART
++ */
++#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART0_TXD	\
++	(SIUL2_MSCR_S32_G1_SRC_100MHz |		\
++	 SIUL2_MSCR_S32_G1_OBE_EN |		\
++	 SIUL2_MSCR_MUX_MODE_ALT1)
++
++#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD	\
++	(SIUL2_MSCR_S32_G1_SRC_100MHz |		\
++	 SIUL2_MSCR_S32_G1_IBE_EN |		\
++	 SIUL2_MSCR_MUX_MODE_ALT0)
++
++#define SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad	\
++	(SIUL2_MSCR_MUX_MODE_ALT2)
++
++#if S32G_EMU == 1
++#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD	 \
++	(SIUL2_MSCR_S32_G1_SRC_100MHz |		 \
++	 SIUL2_MSCR_S32_G1_OBE_EN |		 \
++	 SIUL2_MSCR_MUX_MODE_ALT1)
++#else
++#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD	 \
++	(SIUL2_MSCR_S32_G1_SRC_100MHz |		 \
++	 SIUL2_MSCR_S32_G1_OBE_EN |		 \
++	 SIUL2_MSCR_MUX_MODE_ALT2)
++#endif
++
++#if S32G_EMU == 1
++#define SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad	(SIUL2_MSCR_MUX_MODE_ALT3)
++#else
++#define SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad	(SIUL2_MSCR_MUX_MODE_ALT4)
++#endif
++
++/* LinFLEX 0 */
++#define SIUL2_PC09_MSCR_S32_G1_UART0		41
++#define SIUL2_PC10_MSCR_S32_G1_UART0		42
++#define SIUL2_PC10_IMCR_S32_G1_UART0		(512 - 512)
++
++/* LinFLEX 1 */
++#define SIUL2_PB09_MSCR_S32_G1_UART1		25
++#define SIUL2_PB10_MSCR_S32_G1_UART1		26
++#define SIUL2_PB10_IMCR_S32_G1_UART1		(736 - 512)
++
++/*
++ * Pinctrl for SDHC S32GEN1
++ */
++#define SIUL2_MSCR_S32_G1_SRC_208MHz		(0 << 14)
++#define SIUL2_USDHC_S32_G1_PAD_CTRL_BASE \
++	(SIUL2_MSCR_S32_G1_SRC_208MHz | \
++	 SIUL2_MSCR_S32_G1_OBE_EN | \
++	 SIUL2_MSCR_S32_G1_IBE_EN | \
++	 SIUL2_MSCR_S32_G1_PUE_EN | \
++	 SIUL2_MSCR_S32_G1_SMC_DIS)
++#define SIUL2_USDHC_S32_G1_PAD_CTRL_CLK \
++	(SIUL2_USDHC_S32_G1_PAD_CTRL_BASE | \
++	 SIUL2_MSCR_MUX_MODE_ALT1)
++#define SIUL2_USDHC_S32_G1_PAD_CTRL_CMD \
++	(SIUL2_USDHC_S32_G1_PAD_CTRL_BASE | \
++	 SIUL2_MSCR_S32_G1_PUS_EN | \
++	 SIUL2_MSCR_MUX_MODE_ALT1)
++#define SIUL2_USDHC_S32_G1_PAD_CTRL_DATA \
++	(SIUL2_USDHC_S32_G1_PAD_CTRL_BASE | \
++	 SIUL2_MSCR_S32_G1_PUS_EN | \
++	 SIUL2_MSCR_MUX_MODE_ALT1)
++#define SIUL2_USDHC_S32_G1_PAD_RST \
++	(SIUL2_MSCR_S32_G1_SRC_208MHz | \
++	 SIUL2_MSCR_S32_G1_OBE_EN | \
++	 SIUL2_MSCR_S32_G1_PUE_EN | \
++	 SIUL2_MSCR_S32_G1_SMC_DIS | \
++	 SIUL2_MSCR_MUX_MODE_ALT1)
++
++/* SIUL2_MIDR2 masks */
++#define SIUL2_MIDR2_FREQ_SHIFT		(16)
++#define SIUL2_MIDR2_FREQ_MASK		(0xF << SIUL2_MIDR2_FREQ_SHIFT)
++
++static inline uint32_t get_siul2_midr2_freq(void)
++{
++	return ((mmio_read_32(SIUL2_MIDR2) & SIUL2_MIDR2_FREQ_MASK)
++			>> SIUL2_MIDR2_FREQ_SHIFT);
++}
++
++void s32_plat_config_pinctrl(void);
++
++#endif /* _S32_PINCTRL_H_ */
++
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+index 8294cb292..1ec6ad337 100644
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -134,5 +134,7 @@
+ #define S32_UART_SIZE		S32_LINFLEX0_SIZE
+ #endif
+ 
++#define SIUL2_0_BASE_ADDR	0x4009C000UL
++
+ #endif /* S32_PLATFORM_H */
+ 
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index a78d21b0f..9af51c979 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -48,6 +48,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			plat/nxp/s32/s32_linflexuart.c \
+ 			plat/nxp/s32/s32_linflexuart_crash.S \
+ 			plat/nxp/s32/s32_ncore.c \
++			plat/nxp/s32/s32_pinctrl.c \
+ 
+ BL2_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
+diff --git a/plat/nxp/s32/s32_pinctrl.c b/plat/nxp/s32/s32_pinctrl.c
+new file mode 100644
+index 000000000..c4d4d48aa
+--- /dev/null
++++ b/plat/nxp/s32/s32_pinctrl.c
+@@ -0,0 +1,94 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <lib/mmio.h>
++#include <assert.h>
++#include "s32_pinctrl.h"
++
++static void linflex_config_pinctrl(int lf)
++{
++	if (!lf) {
++		/* set PC09 - MSCR[41] - for UART0 TXD */
++		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PC09_MSCR_S32_G1_UART0),
++			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART0_TXD);
++		/* set PC10 - MSCR[42] - for UART0 RXD */
++		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PC10_MSCR_S32_G1_UART0),
++			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD);
++		/* set PC10 - MSCR[512]/IMCR[0] - for UART0 RXD */
++		mmio_write_32(SIUL2_0_IMCRn(SIUL2_PC10_IMCR_S32_G1_UART0),
++			      SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad);
++		return;
++	}
++
++	if (lf == 1) {
++		/* set PB09 - MSCR[25] - for UART1 TXD */
++		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PB09_MSCR_S32_G1_UART1),
++			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD);
++
++		/* set PB10 - MSCR[26] - for UART1 RXD */
++		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PB10_MSCR_S32_G1_UART1),
++			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD);
++
++		/* set PB10 - MSCR[736]/IMCR[224] - for UART1 RXD */
++		mmio_write_32(SIUL2_1_IMCRn(SIUL2_PB10_IMCR_S32_G1_UART1),
++			      SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad);
++	}
++}
++
++static void sdhc_config_pinctrl(void)
++{
++	/* Set iomux PADS for USDHC */
++
++	/* PC14 pad: uSDHC SD0_CLK_O  */
++	mmio_write_32(SIUL2_0_MSCRn(46), SIUL2_USDHC_S32_G1_PAD_CTRL_CLK);
++
++	/* PC15 pad: uSDHC SDO_CMD_0 */
++	mmio_write_32(SIUL2_0_MSCRn(47), SIUL2_USDHC_S32_G1_PAD_CTRL_CMD);
++	mmio_write_32(SIUL2_0_MSCRn(515), 0x2);
++
++	/* PD00 pad: uSDHC SD0_D_O[0] */
++	mmio_write_32(SIUL2_0_MSCRn(48), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(516), 0x2);
++
++	/* PD01 pad: uSDHC SD0_D_O[1] */
++	mmio_write_32(SIUL2_0_MSCRn(49), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(517), 0x2);
++
++	/* PD02 pad: uSDHC SD0_D_O[2] */
++	mmio_write_32(SIUL2_0_MSCRn(50), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(520), 0x2);
++
++	/* PD03 pad: uSDHC SD0_D_O[3] */
++	mmio_write_32(SIUL2_0_MSCRn(51), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(521), 0x2);
++
++	/* PD04 pad: uSDHC SD0_D_O[4] */
++	mmio_write_32(SIUL2_0_MSCRn(52), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(522), 0x2);
++
++	/* PD05 pad: uSDHC SD0_D_O[5] */
++	mmio_write_32(SIUL2_0_MSCRn(53), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(523), 0x2);
++
++	/* PD06 pad: uSDHC SD0_D_O[6] */
++	mmio_write_32(SIUL2_0_MSCRn(54), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(519), 0x2);
++
++	/* PD07 pad: uSDHC SD0_D_O[7] */
++	mmio_write_32(SIUL2_0_MSCRn(55), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
++	mmio_write_32(SIUL2_0_MSCRn(518), 0x2);
++
++	/* PD08 pad: uSDHC SDO_RST */
++	mmio_write_32(SIUL2_0_MSCRn(56), SIUL2_USDHC_S32_G1_PAD_RST);
++
++	/* PD10 pad: uSDHC SD0_DQS_I */
++	mmio_write_32(SIUL2_0_MSCRn(524), 0x2);
++}
++
++void s32_plat_config_pinctrl(void)
++{
++	linflex_config_pinctrl(S32_LINFLEX_MODULE);
++	sdhc_config_pinctrl();
++}
+diff --git a/plat/nxp/s32/s32g/include/s32g_pinctrl.h b/plat/nxp/s32/s32g/include/s32g_pinctrl.h
+index 7b1bf56d2..ddfe81bb3 100644
+--- a/plat/nxp/s32/s32g/include/s32g_pinctrl.h
++++ b/plat/nxp/s32/s32g/include/s32g_pinctrl.h
+@@ -8,110 +8,7 @@
+ 
+ #include <lib/mmio.h>
+ #include "platform_def.h"
+-
+-#define SIUL2_MIDR1			(SIUL2_0_BASE_ADDR + 0x00000004)
+-#define SIUL2_MIDR2			(SIUL2_0_BASE_ADDR + 0x00000008)
+-#define SIUL2_0_MSCR_BASE	(SIUL2_0_BASE_ADDR + 0x00000240)
+-#define SIUL2_0_IMCR_BASE	(SIUL2_0_BASE_ADDR + 0x00000A40)
+-#define SIUL2_1_MSCR_BASE	(SIUL2_1_BASE_ADDR + 0x00000400)
+-#define SIUL2_1_IMCR_BASE	(SIUL2_1_BASE_ADDR + 0x00000C1C)
+-
+-/* MSCR 0-101 */
+-#define SIUL2_0_MSCRn(i)	(SIUL2_0_MSCR_BASE + 4 * (i))
+-/* MSCR 112-190 */
+-#define SIUL2_1_MSCRn(i)	(SIUL2_1_MSCR_BASE + 4 * (i - 112))
+-/* IMCR 0-83 */
+-#define SIUL2_0_IMCRn(i)	(SIUL2_0_IMCR_BASE +  4 * (i))
+-/* IMCR 119-495 */
+-#define SIUL2_1_IMCRn(i)	(SIUL2_1_IMCR_BASE +  4 * (i - 119))
+-
+-#define SIUL2_MSCR_S32_G1_SRC_100MHz            (5 << 14)
+-#define SIUL2_MSCR_S32_G1_ODE_EN		BIT(20)
+-#define SIUL2_MSCR_S32_G1_OBE_EN		BIT(21)
+-#define SIUL2_MSCR_S32_G1_IBE_EN		BIT(19)
+-#define SIUL2_MSCR_S32_G1_PUE_EN		BIT(13)
+-#define SIUL2_MSCR_S32_G1_PUS_EN		BIT(12)
+-#define SIUL2_MSCR_S32_G1_SMC_DIS		BIT(5)
+-#define SIUL2_MSCR_MUX_MODE_ALT0		(0x0)
+-#define SIUL2_MSCR_MUX_MODE_ALT1		(0x1)
+-#define SIUL2_MSCR_MUX_MODE_ALT2		(0x2)
+-#define SIUL2_MSCR_MUX_MODE_ALT3		(0x3)
+-#define SIUL2_MSCR_MUX_MODE_ALT4		(0x4)
+-#define SIUL2_MSCR_MUX_MODE_ALT5		(0x5)
+-
+-/*
+- * Pinctrl for LinFlexD-UART
+- */
+-#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART0_TXD	\
+-	(SIUL2_MSCR_S32_G1_SRC_100MHz |		\
+-	 SIUL2_MSCR_S32_G1_OBE_EN |		\
+-	 SIUL2_MSCR_MUX_MODE_ALT1)
+-
+-#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD	\
+-	(SIUL2_MSCR_S32_G1_SRC_100MHz |		\
+-	 SIUL2_MSCR_S32_G1_IBE_EN |		\
+-	 SIUL2_MSCR_MUX_MODE_ALT0)
+-
+-#define SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad	\
+-	(SIUL2_MSCR_MUX_MODE_ALT2)
+-
+-#if S32G_EMU == 1
+-#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD	 \
+-	(SIUL2_MSCR_S32_G1_SRC_100MHz |		 \
+-	 SIUL2_MSCR_S32_G1_OBE_EN |		 \
+-	 SIUL2_MSCR_MUX_MODE_ALT1)
+-#else
+-#define SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD	 \
+-	(SIUL2_MSCR_S32_G1_SRC_100MHz |		 \
+-	 SIUL2_MSCR_S32_G1_OBE_EN |		 \
+-	 SIUL2_MSCR_MUX_MODE_ALT2)
+-#endif
+-
+-#if S32G_EMU == 1
+-#define SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad	(SIUL2_MSCR_MUX_MODE_ALT3)
+-#else
+-#define SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad	(SIUL2_MSCR_MUX_MODE_ALT4)
+-#endif
+-
+-
+-
+-/* LinFLEX 0 */
+-#define SIUL2_PC09_MSCR_S32_G1_UART0		41
+-#define SIUL2_PC10_MSCR_S32_G1_UART0		42
+-#define SIUL2_PC10_IMCR_S32_G1_UART0		(512 - 512)
+-
+-/* LinFLEX 1 */
+-#define SIUL2_PB09_MSCR_S32_G1_UART1		25
+-#define SIUL2_PB10_MSCR_S32_G1_UART1		26
+-#define SIUL2_PB10_IMCR_S32_G1_UART1		(736 - 512)
+-
+-/*
+- * Pinctrl for SDHC
+- */
+-#define SIUL2_MSCR_S32_G1_SRC_208MHz		(0 << 14)
+-#define SIUL2_USDHC_S32_G1_PAD_CTRL_BASE \
+-	(SIUL2_MSCR_S32_G1_SRC_208MHz | \
+-	 SIUL2_MSCR_S32_G1_OBE_EN | \
+-	 SIUL2_MSCR_S32_G1_IBE_EN | \
+-	 SIUL2_MSCR_S32_G1_PUE_EN | \
+-	 SIUL2_MSCR_S32_G1_SMC_DIS)
+-#define SIUL2_USDHC_S32_G1_PAD_CTRL_CLK \
+-	(SIUL2_USDHC_S32_G1_PAD_CTRL_BASE | \
+-	 SIUL2_MSCR_MUX_MODE_ALT1)
+-#define SIUL2_USDHC_S32_G1_PAD_CTRL_CMD \
+-	(SIUL2_USDHC_S32_G1_PAD_CTRL_BASE | \
+-	 SIUL2_MSCR_S32_G1_PUS_EN | \
+-	 SIUL2_MSCR_MUX_MODE_ALT1)
+-#define SIUL2_USDHC_S32_G1_PAD_CTRL_DATA \
+-	(SIUL2_USDHC_S32_G1_PAD_CTRL_BASE | \
+-	 SIUL2_MSCR_S32_G1_PUS_EN | \
+-	 SIUL2_MSCR_MUX_MODE_ALT1)
+-#define SIUL2_USDHC_S32_G1_PAD_RST \
+-	(SIUL2_MSCR_S32_G1_SRC_208MHz | \
+-	 SIUL2_MSCR_S32_G1_OBE_EN | \
+-	 SIUL2_MSCR_S32_G1_PUE_EN | \
+-	 SIUL2_MSCR_S32_G1_SMC_DIS | \
+-	 SIUL2_MSCR_MUX_MODE_ALT1)
++#include "s32_pinctrl.h"
+ 
+ /*
+  * Pinctrl for I2C
+@@ -235,17 +132,6 @@
+ #define SIUL2_MIDR1_MAJOR_SHIFT		(4)
+ #define SIUL2_MIDR1_MAJOR_MASK		(0xF << SIUL2_MIDR1_MAJOR_SHIFT)
+ 
+-/* SIUL2_MIDR2 masks */
+-#define SIUL2_MIDR2_FREQ_SHIFT		(16)
+-#define SIUL2_MIDR2_FREQ_MASK		(0xF << SIUL2_MIDR2_FREQ_SHIFT)
+-
+-static inline uint32_t get_siul2_midr2_freq(void)
+-{
+-	return ((mmio_read_32(SIUL2_MIDR2) & SIUL2_MIDR2_FREQ_MASK)
+-			>> SIUL2_MIDR2_FREQ_SHIFT);
+-}
+-
+-void s32g_plat_config_pinctrl(void);
+ void i2c_config_pinctrl(void);
+ void wkpu_config_pinctrl(uint32_t wkup_irq);
+ 
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index 9eff19029..a9d112140 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -15,7 +15,6 @@
+ #include <tbbr_img_def.h>
+ #include <s32_platform_def.h>
+ 
+-#define SIUL2_0_BASE_ADDR	0x4009C000UL
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
+ 
+ /* GPR36 */
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index 6b0bc71b4..14bbcb587 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -30,7 +30,7 @@ void s32g_early_plat_init(bool skip_ddr_clk)
+ {
+ 	uint32_t caiutc;
+ 
+-	s32g_plat_config_pinctrl();
++	s32_plat_config_pinctrl();
+ 	s32g_plat_clock_init(skip_ddr_clk);
+ 
+ 	/* Restore (clear) the CAIUTC[IsolEn] bit for the primay cluster, which
+diff --git a/plat/nxp/s32/s32g/s32g_pinctrl.c b/plat/nxp/s32/s32g/s32g_pinctrl.c
+index 21dfc8956..e6a823448 100644
+--- a/plat/nxp/s32/s32g/s32g_pinctrl.c
++++ b/plat/nxp/s32/s32g/s32g_pinctrl.c
+@@ -65,86 +65,6 @@ void wkpu_config_pinctrl(uint32_t wkup_irq)
+ 		      SIUL2_MSCR_MUX_MODE_ALT0);
+ }
+ 
+-static void linflex_config_pinctrl(int lf)
+-{
+-	if (!lf) {
+-		/* set PC09 - MSCR[41] - for UART0 TXD */
+-		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PC09_MSCR_S32_G1_UART0),
+-			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART0_TXD);
+-		/* set PC10 - MSCR[42] - for UART0 RXD */
+-		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PC10_MSCR_S32_G1_UART0),
+-			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD);
+-		/* set PC10 - MSCR[512]/IMCR[0] - for UART0 RXD */
+-		mmio_write_32(SIUL2_0_IMCRn(SIUL2_PC10_IMCR_S32_G1_UART0),
+-			      SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad);
+-		return;
+-	}
+-
+-	if (lf == 1) {
+-		/* set PB09 - MSCR[25] - for UART1 TXD */
+-		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PB09_MSCR_S32_G1_UART1),
+-			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD);
+-
+-		/* set PB10 - MSCR[26] - for UART1 RXD */
+-		mmio_write_32(SIUL2_0_MSCRn(SIUL2_PB10_MSCR_S32_G1_UART1),
+-			      SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD);
+-
+-		/* set PB10 - MSCR[736]/IMCR[224] - for UART1 RXD */
+-		mmio_write_32(SIUL2_1_IMCRn(SIUL2_PB10_IMCR_S32_G1_UART1),
+-			      SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad);
+-	}
+-}
+-
+-static void sdhc_config_pinctrl(void)
+-{
+-	/* Set iomux PADS for USDHC */
+-
+-	/* PC14 pad: uSDHC SD0_CLK_O  */
+-	mmio_write_32(SIUL2_0_MSCRn(46), SIUL2_USDHC_S32_G1_PAD_CTRL_CLK);
+-
+-	/* PC15 pad: uSDHC SDO_CMD_0 */
+-	mmio_write_32(SIUL2_0_MSCRn(47), SIUL2_USDHC_S32_G1_PAD_CTRL_CMD);
+-	mmio_write_32(SIUL2_0_MSCRn(515), 0x2);
+-
+-	/* PD00 pad: uSDHC SD0_D_O[0] */
+-	mmio_write_32(SIUL2_0_MSCRn(48), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(516), 0x2);
+-
+-	/* PD01 pad: uSDHC SD0_D_O[1] */
+-	mmio_write_32(SIUL2_0_MSCRn(49), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(517), 0x2);
+-
+-	/* PD02 pad: uSDHC SD0_D_O[2] */
+-	mmio_write_32(SIUL2_0_MSCRn(50), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(520), 0x2);
+-
+-	/* PD03 pad: uSDHC SD0_D_O[3] */
+-	mmio_write_32(SIUL2_0_MSCRn(51), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(521), 0x2);
+-
+-	/* PD04 pad: uSDHC SD0_D_O[4] */
+-	mmio_write_32(SIUL2_0_MSCRn(52), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(522), 0x2);
+-
+-	/* PD05 pad: uSDHC SD0_D_O[5] */
+-	mmio_write_32(SIUL2_0_MSCRn(53), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(523), 0x2);
+-
+-	/* PD06 pad: uSDHC SD0_D_O[6] */
+-	mmio_write_32(SIUL2_0_MSCRn(54), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(519), 0x2);
+-
+-	/* PD07 pad: uSDHC SD0_D_O[7] */
+-	mmio_write_32(SIUL2_0_MSCRn(55), SIUL2_USDHC_S32_G1_PAD_CTRL_DATA);
+-	mmio_write_32(SIUL2_0_MSCRn(518), 0x2);
+-
+-	/* PD08 pad: uSDHC SDO_RST */
+-	mmio_write_32(SIUL2_0_MSCRn(56), SIUL2_USDHC_S32_G1_PAD_RST);
+-
+-	/* PD10 pad: uSDHC SD0_DQS_I */
+-	mmio_write_32(SIUL2_0_MSCRn(524), 0x2);
+-}
+-
+ void i2c_config_pinctrl(void)
+ {
+ 	/* Plaftorm board - PCI X16 Express (J99) */
+@@ -186,9 +106,3 @@ void i2c_config_pinctrl(void)
+ 	mmio_write_32(SIUL2_1_IMCRn(SIUL2_PC_02_IMCR_S32G_I2C4_SCLK),
+ 			SIUL2_IMCR_S32G_PAD_CTRL_I2C4_SCLK);
+ }
+-
+-void s32g_plat_config_pinctrl(void)
+-{
+-	linflex_config_pinctrl(S32_LINFLEX_MODULE);
+-	sdhc_config_pinctrl();
+-}
+-- 
+2.17.1
+

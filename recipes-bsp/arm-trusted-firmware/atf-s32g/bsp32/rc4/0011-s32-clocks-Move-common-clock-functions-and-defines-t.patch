@@ -1,0 +1,773 @@
+From 3794f2f7cbb70701d486a86d9acd8b8c05a6ed6e Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Tue, 4 Jan 2022 18:03:56 +0200
+Subject: [PATCH 11/50] s32: clocks: Move common clock functions and defines to
+ generic layer
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/clk/early_clocks.c          |  26 ++---
+ plat/nxp/s32/include/s32_clocks.h           | 117 ++++++++++++++++++++
+ plat/nxp/s32/s32_common.mk                  |  11 +-
+ plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c |   4 +-
+ plat/nxp/s32/s32g/bl31_ssram/ddr_clk.c      |  30 +++--
+ plat/nxp/s32/s32g/include/s32g_clocks.h     | 110 +-----------------
+ plat/nxp/s32/s32g/s32g_bl2_el3.c            |   4 +-
+ plat/nxp/s32/s32g/s32g_bl31.c               |   4 +-
+ plat/nxp/s32/s32g/s32g_bl_common.c          |   4 +-
+ plat/nxp/s32/s32g/s32g_clocks.c             |   4 +-
+ plat/nxp/s32/s32g/s32g_common.mk            |   9 --
+ plat/nxp/s32/s32g/s32g_pm.c                 |  26 ++---
+ plat/nxp/s32/s32g/s32g_psci.c               |   6 +-
+ 13 files changed, 190 insertions(+), 165 deletions(-)
+ create mode 100644 plat/nxp/s32/include/s32_clocks.h
+
+diff --git a/drivers/nxp/s32/clk/early_clocks.c b/drivers/nxp/s32/clk/early_clocks.c
+index e41200c44..5d75aae86 100644
+--- a/drivers/nxp/s32/clk/early_clocks.c
++++ b/drivers/nxp/s32/clk/early_clocks.c
+@@ -1,12 +1,12 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  */
+ #include <clk/clk.h>
+ #include <clk/s32gen1_clk_funcs.h>
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <dt-bindings/clock/s32gen1-clock.h>
+-#include <s32g_clocks.h>
++#include <s32_clocks.h>
+ #include <s32_pinctrl.h>
+ 
+ #define CLK_INIT(ID)          \
+@@ -15,12 +15,12 @@
+ 	.drv = &fake_clk_dev, \
+ }
+ 
+-#define ARM_PLL_BASE_ADDR	PLL_ADDR(S32G_CORE_PLL)
+-#define PERIPH_PLL_BASE_ADDR	PLL_ADDR(S32G_PERIPH_PLL)
+-#define ACCEL_PLL_BASE_ADDR	PLL_ADDR(S32G_ACCEL_PLL)
+-#define DRAM_PLL_BASE_ADDR	PLL_ADDR(S32G_DDR_PLL)
++#define ARM_PLL_BASE_ADDR		PLL_ADDR(S32_CORE_PLL)
++#define PERIPH_PLL_BASE_ADDR	PLL_ADDR(S32_PERIPH_PLL)
++#define ACCEL_PLL_BASE_ADDR		PLL_ADDR(S32_ACCEL_PLL)
++#define DRAM_PLL_BASE_ADDR		PLL_ADDR(S32_DDR_PLL)
+ 
+-#define ARM_DFS_BASE_ADDR	S32G_DFS_ADDR(S32G_CORE_DFS)
++#define ARM_DFS_BASE_ADDR		S32G_DFS_ADDR(S32G_CORE_DFS)
+ #define PERIPH_DFS_BASE_ADDR	S32G_DFS_ADDR(S32G_PERIPH_DFS)
+ 
+ static struct s32gen1_clk_priv s32_priv = {
+@@ -32,7 +32,7 @@ static struct s32gen1_clk_priv s32_priv = {
+ 	.cgm2 = (void *)MC_CGM2_BASE_ADDR,
+ 	.cgm5 = (void *)MC_CGM5_BASE_ADDR,
+ 	.ddrpll = (void *)DRAM_PLL_BASE_ADDR,
+-	.fxosc = (void *)S32G_FXOSC_BASE_ADDR,
++	.fxosc = (void *)S32_FXOSC_BASE_ADDR,
+ 	.mc_me = (void *)MC_ME_BASE_ADDR,
+ 	.periphdfs = (void *)PERIPH_DFS_BASE_ADDR,
+ 	.periphpll = (void *)PERIPH_PLL_BASE_ADDR,
+@@ -95,7 +95,7 @@ static int enable_xbar_clock(void)
+ 	return s32gen1_enable(&xbar_2x, 1);
+ }
+ 
+-int s32g_enable_a53_clock(void)
++int s32_enable_a53_clock(void)
+ {
+ 	int ret;
+ 	unsigned long rate;
+@@ -194,7 +194,7 @@ static int enable_sdhc_clock(void)
+ 	return s32gen1_enable(&sdhc, 1);
+ }
+ 
+-int s32g_enable_ddr_clock(void)
++int s32_enable_ddr_clock(void)
+ {
+ 	int ret;
+ 	unsigned long rate;
+@@ -218,11 +218,11 @@ int s32g_enable_ddr_clock(void)
+ 	return s32gen1_enable(&ddr, 1);
+ }
+ 
+-int s32g_plat_clock_init(bool skip_ddr_clk)
++int s32_plat_clock_init(bool skip_ddr_clk)
+ {
+ 	int ret;
+ 
+-	ret = s32g_enable_a53_clock();
++	ret = s32_enable_a53_clock();
+ 	if (ret)
+ 		return ret;
+ 
+@@ -237,7 +237,7 @@ int s32g_plat_clock_init(bool skip_ddr_clk)
+ 		return ret;
+ 
+ 	if (!skip_ddr_clk)
+-		return s32g_enable_ddr_clock();
++		return s32_enable_ddr_clock();
+ 
+ 	return 0;
+ }
+diff --git a/plat/nxp/s32/include/s32_clocks.h b/plat/nxp/s32/include/s32_clocks.h
+new file mode 100644
+index 000000000..50f63b336
+--- /dev/null
++++ b/plat/nxp/s32/include/s32_clocks.h
+@@ -0,0 +1,117 @@
++/*
++ * Copyright 2021-2022 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef _S32_CLOCKS_H_
++#define _S32_CLOCKS_H_
++
++#define S32_FXOSC_FREQ		(40000000ul)
++#define S32_FIRC_FREQ		(48000000ul)
++#define S32_ERR_CLK_FREQ	(0ul)
++
++/*
++ * PLL configuration
++ */
++
++#define CORE_PLL_BASE_ADDR	0x40038000ul
++#define PLL_ADDR(pll)		(CORE_PLL_BASE_ADDR + (pll) * 0x4000)
++
++#define PLL_MIN_FREQ		(1300000000ull)
++#define PLL_MAX_FREQ		(5000000000ull)
++
++#define PLLCLKMUX_OFFSET	0x20
++#define PLLDIG_PLLCLKMUX(pll)	((PLL_ADDR(pll)) + PLLCLKMUX_OFFSET)
++#define PLLDIG_PLLCLKMUX_REFCLK_FIRC	(0x0ul)
++#define PLLDIG_PLLCLKMUX_REFCLK_FXOSC	(0x1ul)
++#define PLLDIG_PLLCR_PLLPD	BIT(31)
++#define PLLDIG_PLLCR(pll)	(PLL_ADDR(pll))
++
++#define PLLDIG_PLLODIV(pll, n)		((PLL_ADDR(pll)) + 0x00000080 + n * 0x4)
++#define PLLDIG_PLLODIV_DIV_MASK		(0x00FF0000)
++#define PLLDIG_PLLODIV_DIV_OFFSET	(16)
++#define PLLDIG_PLLODIV_DIV_SET(val) \
++	(PLLDIG_PLLODIV_DIV_MASK & ((val) << PLLDIG_PLLODIV_DIV_OFFSET))
++#define PLLDIG_PLLODIV_DE		BIT(31)
++
++#define PLLDIG_PLLDV(pll)	((PLL_ADDR(pll)) + 0x00000008)
++#define PLLDIG_PLLDV_MFI_MASK	(0x000000FF)
++#define PLLDIG_PLLDV_MFI(div)	(PLLDIG_PLLDV_MFI_MASK & (div))
++#define PLLDIG_PLLDV_RDIV_MASK		(0x00007000)
++#define PLLDIG_PLLDV_RDIV_MAXVALUE	(0x7)
++#define PLLDIG_PLLDV_RDIV_OFFSET	(12)
++#define PLLDIG_PLLDV_RDIV_SET(val)	(PLLDIG_PLLDV_RDIV_MASK & \
++	(((val) & PLLDIG_PLLDV_RDIV_MAXVALUE) << PLLDIG_PLLDV_RDIV_OFFSET))
++
++#define PLLDIG_PLLFD(pll)		((PLL_ADDR(pll)) + 0x00000010)
++#define PLLDIG_PLLFD_SMDEN		BIT(30)
++#define PLLDIG_PLLFD_MFN_MASK		(0x00007FFF)
++#define PLLDIG_PLLFD_MFN_SET(val)	(PLLDIG_PLLFD_MFN_MASK & (val))
++
++#define PLLDIG_PLLSR_LOCK	BIT(2)
++#define PLLDIG_PLLSR(pll)	((PLL_ADDR(pll)) + 0x00000004)
++
++enum s32_pll_type {
++	S32_CORE_PLL = 0,
++	S32_PERIPH_PLL,
++	S32_ACCEL_PLL,
++	S32_DDR_PLL,
++	S32_PLL_NR	/* sentinel */
++};
++
++/*
++ * DFS configuration
++ */
++
++/* Number of ports for each DFS  */
++#define S32G_DFS_PORTS_NR	6
++
++enum s32g_dfs_type {
++	S32G_CORE_DFS = 0,
++	S32G_PERIPH_DFS,
++	S32G_DFS_NR	/* sentinel */
++};
++
++#define S32G_DFS_BASE_ADDR	0x40054000ul
++/* @dfs - One of the enum s32g_dfs_type values */
++#define S32G_DFS_ADDR(dfs)	(S32G_DFS_BASE_ADDR + (dfs) * 0x4000)
++
++/*
++ * Platform reference clocks
++ */
++
++enum s32g_refclk {
++	S32G_REFCLK_FIRC,
++	S32G_REFCLK_FXOSC,
++};
++
++
++#define MC_RGM_BASE_ADDR	0x40078000
++#define MC_ME_BASE_ADDR		0x40088000
++#define RDC_BASE_ADDR		0x40080000
++
++#define S32_FXOSC_BASE_ADDR	0x40050000ul
++
++/*
++ * MC_CGM configuration
++ */
++enum s32g_mc_cgm {
++	MC_CGM0,
++	MC_CGM1,
++	MC_CGM2,
++	MC_CGM5
++};
++
++#define MC_CGM0_BASE_ADDR		(0x40030000ul)
++#define MC_CGM1_BASE_ADDR		(0x40034000ul)
++#define MC_CGM2_BASE_ADDR		(0x44018000ul)
++#ifndef MC_CGM5_BASE_ADDR
++#define MC_CGM5_BASE_ADDR		(0x40068000ul)
++#endif
++
++int s32_plat_clock_init(bool skip_ddr_clk);
++int s32_enable_ddr_clock(void);
++int s32_enable_a53_clock(void);
++
++#endif /* _S32_CLOCKS_H_ */
++
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index a4c745b15..1401fa00f 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -1,5 +1,5 @@
+ #
+-# Copyright 2021 NXP
++# Copyright 2021-2022 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+@@ -50,6 +50,15 @@ PLAT_BL_COMMON_SOURCES += \
+ 			plat/nxp/s32/s32_linflexuart_crash.S \
+ 			plat/nxp/s32/s32_ncore.c \
+ 			plat/nxp/s32/s32_pinctrl.c \
++			drivers/delay_timer/delay_timer.c \
++			drivers/delay_timer/generic_delay_timer.c \
++			drivers/nxp/s32/memory_pool.c \
++			drivers/nxp/s32/clk/early_clocks.c \
++			drivers/nxp/s32/clk/enable_clk.c \
++			drivers/nxp/s32/clk/get_rate.c \
++			drivers/nxp/s32/clk/plat_clk.c \
++			drivers/nxp/s32/clk/s32gen1_clk.c \
++			drivers/nxp/s32/clk/set_par_rate.c \
+ 
+ BL2_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
+diff --git a/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c b/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
+index 2df5e575c..d1c361ed6 100644
+--- a/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
++++ b/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -15,7 +15,7 @@ static void disable_ddr_clk(void)
+ {
+ 	s32g_disable_cofb_clk(S32G_MC_ME_USDHC_PART, 0);
+ 	s32g_ddr2firc();
+-	s32g_disable_pll(S32G_DDR_PLL, 1);
++	s32g_disable_pll(S32_DDR_PLL, 1);
+ }
+ 
+ void bl31sram_main(void)
+diff --git a/plat/nxp/s32/s32g/bl31_ssram/ddr_clk.c b/plat/nxp/s32/s32g/bl31_ssram/ddr_clk.c
+index 7f69fd5df..5641f882f 100644
+--- a/plat/nxp/s32/s32g/bl31_ssram/ddr_clk.c
++++ b/plat/nxp/s32/s32g/bl31_ssram/ddr_clk.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -8,6 +8,14 @@
+ #include <s32g_clocks.h>
+ #include <s32g_mc_me.h>
+ 
++/* Number of dividers for each PLL */
++static const uint32_t s32g_pll_phi_nr[S32_PLL_NR] = {2, 8, 2, 1};
++
++/* Array of parameters for each PLL */
++static const uint32_t s32g_pll_rdiv[S32_PLL_NR] = {1, 1, 1, 1};
++static const uint32_t s32g_pll_mfi[S32_PLL_NR] = {50, 50, 60, 0x21};
++static const uint32_t s32g_pll_mfn[S32_PLL_NR] = {0, 0, 1, 0x1800};
++
+ static void start_fxosc(void)
+ {
+ 	uint32_t ctrl;
+@@ -30,20 +38,20 @@ static void start_fxosc(void)
+ 		;
+ }
+ 
+-static uint64_t plldig_set_refclk(enum s32g_pll_type pll,
++static uint64_t plldig_set_refclk(enum s32_pll_type pll,
+ 				  enum s32g_refclk refclk)
+ {
+-	uint64_t refclk_freq = S32G_ERR_CLK_FREQ;
++	uint64_t refclk_freq = S32_ERR_CLK_FREQ;
+ 	uint32_t pllclkmux;
+ 
+ 	switch (refclk) {
+ 	case S32G_REFCLK_FIRC:
+ 		pllclkmux = PLLDIG_PLLCLKMUX_REFCLK_FIRC;
+-		refclk_freq = S32G_FIRC_FREQ;
++		refclk_freq = S32_FIRC_FREQ;
+ 		break;
+ 	case S32G_REFCLK_FXOSC:
+ 		pllclkmux = PLLDIG_PLLCLKMUX_REFCLK_FXOSC;
+-		refclk_freq = S32G_FXOSC_FREQ;
++		refclk_freq = S32_FXOSC_FREQ;
+ 		break;
+ 	default:
+ 		assert(0);
+@@ -68,7 +76,7 @@ static uint64_t plldig_set_refclk(enum s32g_pll_type pll,
+  * For details, please consult the "PLL Digital Interface (PLLDIG)" chapter
+  * of the S32G Reference Manual.
+  */
+-static int program_pll(enum s32g_pll_type pll, enum s32g_refclk refclk,
++static int program_pll(enum s32_pll_type pll, enum s32g_refclk refclk,
+ 		const uint64_t freq[], uint32_t plldv_rdiv, uint32_t plldv_mfi,
+ 		uint32_t pllfd_mfn)
+ {
+@@ -85,7 +93,7 @@ static int program_pll(enum s32g_pll_type pll, enum s32g_refclk refclk,
+ 	mmio_write_32(PLLDIG_PLLCR(pll), PLLDIG_PLLCR_PLLPD);
+ 
+ 	refclk_freq = plldig_set_refclk(pll, refclk);
+-	if (refclk_freq == S32G_ERR_CLK_FREQ)
++	if (refclk_freq == S32_ERR_CLK_FREQ)
+ 		return -1;
+ 
+ 	/* See chapter:
+@@ -162,14 +170,14 @@ static int program_pll(enum s32g_pll_type pll, enum s32g_refclk refclk,
+ void s32g_plat_ddr_clock_init(void)
+ {
+ 	assert(ARRAY_SIZE(s32g_ddr_pll_phi_freq) ==
+-	       s32g_pll_phi_nr[S32G_DDR_PLL]);
++	       s32g_pll_phi_nr[S32_DDR_PLL]);
+ 
+ 	start_fxosc();
+ 	mc_me_enable_partition(S32G_MC_ME_PRTN0);
+ 	mc_me_enable_partition_block(S32G_MC_ME_DDR_0_PART,
+ 				     S32G_MC_ME_DDR_0_REQ);
+-	program_pll(S32G_DDR_PLL, S32G_REFCLK_FXOSC, s32g_ddr_pll_phi_freq,
+-		    s32g_pll_rdiv[S32G_DDR_PLL], s32g_pll_mfi[S32G_DDR_PLL],
+-		    s32g_pll_mfn[S32G_DDR_PLL]);
++	program_pll(S32_DDR_PLL, S32G_REFCLK_FXOSC, s32g_ddr_pll_phi_freq,
++		    s32g_pll_rdiv[S32_DDR_PLL], s32g_pll_mfi[S32_DDR_PLL],
++		    s32g_pll_mfn[S32_DDR_PLL]);
+ 	sw_mux_clk_config(MC_CGM5, 0, MC_CGM_MUXn_CSC_SEL_DDR_PLL_PHI0);
+ }
+diff --git a/plat/nxp/s32/s32g/include/s32g_clocks.h b/plat/nxp/s32/s32g/include/s32g_clocks.h
+index 8ba8871aa..90a743d6e 100644
+--- a/plat/nxp/s32/s32g/include/s32g_clocks.h
++++ b/plat/nxp/s32/s32g/include/s32g_clocks.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -9,64 +9,12 @@
+ #include <dt-bindings/clock/s32gen1-clock-freq.h>
+ #include <stdint.h>
+ #include <stdbool.h>
+-
+-#define S32G_FXOSC_FREQ		(40000000ul)
+-#define S32G_FIRC_FREQ		(48000000ul)
+-#define S32G_ERR_CLK_FREQ	(0ul)
++#include <s32_clocks.h>
+ 
+ /*
+  * PLL configuration
+  */
+ 
+-#define CORE_PLL_BASE_ADDR	0x40038000ul
+-#define PLL_ADDR(pll)		(CORE_PLL_BASE_ADDR + (pll) * 0x4000)
+-
+-#define PLL_MIN_FREQ		(1300000000ull)
+-#define PLL_MAX_FREQ		(5000000000ull)
+-
+-#define PLLCLKMUX_OFFSET	0x20
+-#define PLLDIG_PLLCLKMUX(pll)	((PLL_ADDR(pll)) + PLLCLKMUX_OFFSET)
+-#define PLLDIG_PLLCLKMUX_REFCLK_FIRC	(0x0ul)
+-#define PLLDIG_PLLCLKMUX_REFCLK_FXOSC	(0x1ul)
+-
+-#define PLLDIG_PLLCR_PLLPD	BIT(31)
+-#define PLLDIG_PLLCR(pll)	(PLL_ADDR(pll))
+-
+-#define PLLDIG_PLLODIV(pll, n)		((PLL_ADDR(pll)) + 0x00000080 + n * 0x4)
+-#define PLLDIG_PLLODIV_DIV_MASK		(0x00FF0000)
+-#define PLLDIG_PLLODIV_DIV_OFFSET	(16)
+-#define PLLDIG_PLLODIV_DIV_SET(val) \
+-	(PLLDIG_PLLODIV_DIV_MASK & ((val) << PLLDIG_PLLODIV_DIV_OFFSET))
+-#define PLLDIG_PLLODIV_DE		BIT(31)
+-
+-#define PLLDIG_PLLDV(pll)	((PLL_ADDR(pll)) + 0x00000008)
+-#define PLLDIG_PLLDV_MFI_MASK	(0x000000FF)
+-#define PLLDIG_PLLDV_MFI(div)	(PLLDIG_PLLDV_MFI_MASK & (div))
+-#define PLLDIG_PLLDV_RDIV_MASK		(0x00007000)
+-#define PLLDIG_PLLDV_RDIV_MAXVALUE	(0x7)
+-#define PLLDIG_PLLDV_RDIV_OFFSET	(12)
+-#define PLLDIG_PLLDV_RDIV_SET(val)	(PLLDIG_PLLDV_RDIV_MASK & \
+-	(((val) & PLLDIG_PLLDV_RDIV_MAXVALUE) << PLLDIG_PLLDV_RDIV_OFFSET))
+-
+-#define PLLDIG_PLLFD(pll)		((PLL_ADDR(pll)) + 0x00000010)
+-#define PLLDIG_PLLFD_SMDEN		BIT(30)
+-#define PLLDIG_PLLFD_MFN_MASK		(0x00007FFF)
+-#define PLLDIG_PLLFD_MFN_SET(val)	(PLLDIG_PLLFD_MFN_MASK & (val))
+-
+-#define PLLDIG_PLLSR_LOCK	BIT(2)
+-#define PLLDIG_PLLSR(pll)	((PLL_ADDR(pll)) + 0x00000004)
+-
+-enum s32g_pll_type {
+-	S32G_CORE_PLL = 0,
+-	S32G_PERIPH_PLL,
+-	S32G_ACCEL_PLL,
+-	S32G_DDR_PLL,
+-	S32G_PLL_NR	/* sentinel */
+-};
+-
+-/* Number of dividers for each PLL */
+-static const uint32_t s32g_pll_phi_nr[S32G_PLL_NR] = {2, 8, 2, 1};
+-
+ /* This should be kept in sync with the CORE_PLL
+  * configuration (MFI, MFN, RDIV). Due to not
+  * having floating point support, it is impossible
+@@ -74,11 +22,6 @@ static const uint32_t s32g_pll_phi_nr[S32G_PLL_NR] = {2, 8, 2, 1};
+  */
+ #define CORE_PLL_FVCO	(2000000000ul)
+ 
+-/* Array of parameters for each PLL */
+-static const uint32_t s32g_pll_rdiv[S32G_PLL_NR] = {1, 1, 1, 1};
+-static const uint32_t s32g_pll_mfi[S32G_PLL_NR] = {50, 50, 60, 0x21};
+-static const uint32_t s32g_pll_mfn[S32G_PLL_NR] = {0, 0, 1, 0x1800};
+-
+ /*
+  * Arrays of PHI frequencies
+  */
+@@ -120,18 +63,6 @@ static const uint64_t s32g_ddr_pll_phi_freq[] = {
+  * DFS configuration
+  */
+ 
+-/* Number of ports for each DFS  */
+-#define S32G_DFS_PORTS_NR	6
+-
+-enum s32g_dfs_type {
+-	S32G_CORE_DFS = 0,
+-	S32G_PERIPH_DFS,
+-	S32G_DFS_NR	/* sentinel */
+-};
+-
+-#define S32G_DFS_BASE_ADDR	0x40054000ul
+-/* @dfs - One of the enum s32g_dfs_type values */
+-#define S32G_DFS_ADDR(dfs)	(S32G_DFS_BASE_ADDR + (dfs) * 0x4000)
+ /* DFS register offsets */
+ #define DFS_PORTRESET_OFF	0X14ul
+ #define DFS_PORTRESET(dfs)	((S32G_DFS_ADDR(dfs)) + DFS_PORTRESET_OFF)
+@@ -231,24 +162,9 @@ s32g_periph_dfs_params[S32G_DFS_PORTS_NR][DFS_PARAMS_NR] = {
+ #define SDHC_CLK_FREQ		(200 * 1000 * 1000)
+ #define I2C_CLK_FREQ		(133 * 1000 * 1000)
+ 
+-/*
+- * Platform reference clocks
+- */
+-
+-enum s32g_refclk {
+-	S32G_REFCLK_FIRC,
+-	S32G_REFCLK_FXOSC,
+-};
+-
+-
+-#define MC_RGM_BASE_ADDR	0x40078000
+-#define MC_ME_BASE_ADDR		0x40088000
+-#define RDC_BASE_ADDR		0x40080000
+-
+-#define S32G_FXOSC_BASE_ADDR	0x40050000ul
+ /* FXOSC registers */
+-#define FXOSC_CTRL		(S32G_FXOSC_BASE_ADDR)
+-#define FXOSC_STAT		(S32G_FXOSC_BASE_ADDR + 0x4ul)
++#define FXOSC_CTRL		(S32_FXOSC_BASE_ADDR)
++#define FXOSC_STAT		(S32_FXOSC_BASE_ADDR + 0x4ul)
+ /* FXOSC register fields */
+ #define FXOSC_CTRL_OSC_BYP	BIT(31)
+ #define FXOSC_CTRL_COMP_EN	BIT(24)
+@@ -266,19 +182,6 @@ enum s32g_refclk {
+ /*
+  * MC_CGM configuration
+  */
+-enum s32g_mc_cgm {
+-	MC_CGM0,
+-	MC_CGM1,
+-	MC_CGM2,
+-	MC_CGM5
+-};
+-
+-#define MC_CGM0_BASE_ADDR		(0x40030000ul)
+-#define MC_CGM1_BASE_ADDR		(0x40034000ul)
+-#define MC_CGM2_BASE_ADDR		(0x44018000ul)
+-#ifndef MC_CGM5_BASE_ADDR
+-#define MC_CGM5_BASE_ADDR		(0x40068000ul)
+-#endif
+ 
+ #define MC_CGM_MUXn_CSS_SWIP		BIT(16)
+ #define MC_CGM_MUXn_CSC_SELCTL_MASK	(0x3F000000)
+@@ -331,10 +234,7 @@ enum s32g_mc_cgm {
+ #define MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI7	25
+ #define MC_CGM_MUXn_CSC_SEL_PERIPH_DFS_DFS3	28
+ 
+-int s32g_plat_clock_init(bool skip_ddr_clk);
+ void s32g_plat_ddr_clock_init(void);
+-int s32g_enable_ddr_clock(void);
+-int s32g_enable_a53_clock(void);
+ 
+ #define S32G274A_A53_CORE_CLK_MIN		(48000000ul)
+ #define S32G274A_A53_CORE_CLK_MAX		(1000000000ul)
+@@ -346,7 +246,7 @@ static const uint32_t core_pll_odiv_supported[] = { 1, 2, 4, 10, 20, 40 };
+ void s32g_ddr2firc(void);
+ void s32g_sw_clks2firc(void);
+ void s32g_disable_dfs(enum s32g_dfs_type dfs);
+-void s32g_disable_pll(enum s32g_pll_type pll, uint32_t ndivs);
++void s32g_disable_pll(enum s32_pll_type pll, uint32_t ndivs);
+ void s32g_disable_fxosc(void);
+ 
+ int sw_mux_clk_config(enum s32g_mc_cgm cgm, uint8_t mux, uint8_t source);
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index a38b427e5..aff778b52 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -516,8 +516,8 @@ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ 	resume_entrypoint = ssram_mb->bl31_warm_entrypoint;
+ 	csr_addr = (uintptr_t)&ssram_mb->csr_settings[0];
+ 
+-	s32g_enable_a53_clock();
+-	s32g_enable_ddr_clock();
++	s32_enable_a53_clock();
++	s32_enable_ddr_clock();
+ 	ddrss_to_normal_mode(csr_addr);
+ 
+ 	resume_entrypoint();
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index e0cb742d7..d6461ecc2 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -377,7 +377,7 @@ void bl31_platform_setup(void)
+ 	update_core_state(plat_my_core_pos(), 1);
+ 	s32g_gic_setup();
+ 
+-	s32g_enable_a53_clock();
++	s32_enable_a53_clock();
+ 	dt_clk_init();
+ }
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index f40f90aca..4f055ce61 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -30,7 +30,7 @@ void s32g_early_plat_init(bool skip_ddr_clk)
+ 	uint32_t caiutc;
+ 
+ 	s32_plat_config_pinctrl();
+-	s32g_plat_clock_init(skip_ddr_clk);
++	s32_plat_clock_init(skip_ddr_clk);
+ 
+ 	/* Restore (clear) the CAIUTC[IsolEn] bit for the primay cluster, which
+ 	 * we have manually set during early BL2 boot.
+diff --git a/plat/nxp/s32/s32g/s32g_clocks.c b/plat/nxp/s32/s32g/s32g_clocks.c
+index 23c76ed90..9857970fc 100644
+--- a/plat/nxp/s32/s32g/s32g_clocks.c
++++ b/plat/nxp/s32/s32g/s32g_clocks.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -11,7 +11,7 @@
+ #include <lib/mmio.h>
+ #include <stdbool.h>
+ 
+-void s32g_disable_pll(enum s32g_pll_type pll, uint32_t ndivs)
++void s32g_disable_pll(enum s32_pll_type pll, uint32_t ndivs)
+ {
+ 	uint32_t div;
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index 14f6484f2..7e64accdb 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -43,17 +43,8 @@ PLAT_BL_COMMON_SOURCES	+= \
+ 			   plat/nxp/s32/s32g/s32g_pinctrl.c \
+ 			   plat/nxp/s32/s32g/s32g_clocks.c \
+ 			   drivers/nxp/s32/i2c/s32g_i2c.c \
+-			   drivers/delay_timer/delay_timer.c \
+-			   drivers/delay_timer/generic_delay_timer.c \
+-			   drivers/nxp/s32/memory_pool.c \
+-			   drivers/nxp/s32/clk/early_clocks.c \
+-			   drivers/nxp/s32/clk/enable_clk.c \
+-			   drivers/nxp/s32/clk/get_rate.c \
+-			   drivers/nxp/s32/clk/plat_clk.c \
+ 			   drivers/nxp/s32/clk/s32g_clk.c \
+-			   drivers/nxp/s32/clk/s32gen1_clk.c \
+ 			   drivers/nxp/s32/rst/s32gen1_rst.c \
+-			   drivers/nxp/s32/clk/set_par_rate.c \
+ 			   drivers/nxp/s32/ocotp.c \
+ 			   lib/utils/crc8.c \
+ 			   plat/nxp/s32/s32g/s32g_vr5510.c \
+diff --git a/plat/nxp/s32/s32g/s32g_pm.c b/plat/nxp/s32/s32g/s32g_pm.c
+index 4ad1c4014..eceec953f 100644
+--- a/plat/nxp/s32/s32g/s32g_pm.c
++++ b/plat/nxp/s32/s32g/s32g_pm.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -15,7 +15,7 @@ static const struct periph_clock periph_clocks[] = {
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(1, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(1),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(1),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 0),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 0),
+ 	 .dfs_portreset =		DFS_PORTRESET(S32G_PERIPH_DFS),
+ 	 .dfs_portreset_bitmask =	BIT(1) | BIT(4)
+ 	},
+@@ -23,68 +23,68 @@ static const struct periph_clock periph_clocks[] = {
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(2, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(2),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(2),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 0),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 0),
+ 	 .dfs_portreset =		DFS_PORTRESET(S32G_PERIPH_DFS),
+ 	 .dfs_portreset_bitmask =	BIT(1) | BIT(4)
+ 	},
+ 	{.id = PCIE_0_REF_CLK,
+ 	 .cgm_mux_dc =			(uintptr_t)NULL,
+ 	 .cgm_mux_csc =			(uintptr_t)NULL,
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 0),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 0),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = PER_CLK,
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(3, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(3),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(3),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 1),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = FTM_0_REF_CLK,
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(4, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(4),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(4),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 1),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = FTM_1_REF_CLK,
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(5, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(5),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(5),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 1),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = FLEXRAY_PE_CLK,
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(6, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(6),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(6),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 1),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 1),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = CAN_PE_CLK,
+ 	 .cgm_mux_dc =			(uintptr_t)NULL,
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(7),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 2),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 2),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = LINFLEXD_CLK__LIN_BAUD_CLK,
+ 	 .cgm_mux_dc =			(uintptr_t)NULL,
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(8),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 3),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 3),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = GMAC_TS_CLK,
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(9, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(9),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(9),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 4),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 4),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = GMAC_0_TX_CLK,
+ 	 .cgm_mux_dc =			CGM0_MUXn_DCn(10, 0),
+ 	 .cgm_mux_div_upd_stat =	CGM0_MUXn_DIV_UPD_STAT(10),
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(10),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 5),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 5),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = GMAC_0_RX_CLK,
+@@ -103,7 +103,7 @@ static const struct periph_clock periph_clocks[] = {
+ 	{.id = SPI_CLK,
+ 	 .cgm_mux_dc =			(uintptr_t)NULL,
+ 	 .cgm_mux_csc =			CGM0_MUXn_CSC(16),
+-	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32G_PERIPH_PLL, 7),
++	 .plldig_pllodiv =		PLLDIG_PLLODIV(S32_PERIPH_PLL, 7),
+ 	 .dfs_portreset =		(uintptr_t)NULL
+ 	},
+ 	{.id = QSPI_1X_CLK__QSPI_2X_CLK,
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32g/s32g_psci.c
+index 8cf862199..3ca2dd78c 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32g/s32g_psci.c
+@@ -199,9 +199,9 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 	s32g_disable_dfs(S32G_CORE_DFS);
+ 
+ 	/* Turn off PLL */
+-	s32g_disable_pll(S32G_ACCEL_PLL, 2);
+-	s32g_disable_pll(S32G_PERIPH_PLL, 8);
+-	s32g_disable_pll(S32G_CORE_PLL, 2);
++	s32g_disable_pll(S32_ACCEL_PLL, 2);
++	s32g_disable_pll(S32_PERIPH_PLL, 8);
++	s32g_disable_pll(S32_CORE_PLL, 2);
+ 
+ 	bl31sram_entry();
+ 	plat_panic_handler();
+-- 
+2.17.1
+

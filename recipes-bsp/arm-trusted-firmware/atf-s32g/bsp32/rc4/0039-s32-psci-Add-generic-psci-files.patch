@@ -1,0 +1,1209 @@
+From 8b979193a4644b0af35dc2cb8f6a232059da9f95 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Thu, 9 Dec 2021 18:24:41 +0200
+Subject: [PATCH 39/50] s32: psci: Add generic psci files
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/include/s32_lowlevel.h           |   2 +
+ plat/nxp/s32/include/s32_mc_me.h              |  13 +-
+ plat/nxp/s32/s32_common.mk                    |   2 +
+ plat/nxp/s32/s32_lowlevel_bl31.S              |   2 +-
+ plat/nxp/s32/s32_mc_me.c                      | 407 ++++++++++++++++++
+ plat/nxp/s32/{s32g/s32g_psci.c => s32_psci.c} |  93 ++--
+ plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c   |   2 +-
+ plat/nxp/s32/s32g/include/s32g_mc_me.h        |   9 -
+ plat/nxp/s32/s32g/include/s32g_resume.h       |   4 +-
+ plat/nxp/s32/s32g/s32g_common.mk              |   1 -
+ plat/nxp/s32/s32g/s32g_mc_me.c                | 398 -----------------
+ 11 files changed, 475 insertions(+), 458 deletions(-)
+ create mode 100644 plat/nxp/s32/s32_mc_me.c
+ rename plat/nxp/s32/{s32g/s32g_psci.c => s32_psci.c} (81%)
+
+diff --git a/plat/nxp/s32/include/s32_lowlevel.h b/plat/nxp/s32/include/s32_lowlevel.h
+index 1cfb3a808..5333c1a29 100644
+--- a/plat/nxp/s32/include/s32_lowlevel.h
++++ b/plat/nxp/s32/include/s32_lowlevel.h
+@@ -8,6 +8,8 @@
+ #define S32_LOWLEVEL_H
+ 
+ void s32_smp_fixup(void);
++/* Secondary cores entry point */
++void plat_secondary_cold_boot_setup(void);
+ 
+ #endif /* S32_LOWLEVEL_H */
+ 
+diff --git a/plat/nxp/s32/include/s32_mc_me.h b/plat/nxp/s32/include/s32_mc_me.h
+index 20afbd524..a5e70ac65 100644
+--- a/plat/nxp/s32/include/s32_mc_me.h
++++ b/plat/nxp/s32/include/s32_mc_me.h
+@@ -93,12 +93,21 @@ struct a53_haddr_mapping {
+ 	uint32_t field_off; /** Field offset */
+ };
+ 
+-void s32_turn_off_mcores(void);
++void mc_me_apply_hw_changes(void);
++
++bool s32_core_in_reset(uint32_t core);
++void s32_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint);
+ void s32_turn_off_core(uint8_t part, uint8_t core);
++void s32_turn_off_mcores(void);
++void s32_reset_core(uint8_t part, uint8_t core);
++void s32_disable_cofb_clk(uint8_t part, uint32_t keep_blocks);
+ const struct a53_haddr_mapping *s32_get_a53_haddr_mappings(size_t *size);
+-
++void mc_me_enable_partition_block(uint32_t part, uint32_t block);
++void mc_me_enable_partition(uint32_t part);
+ uint8_t mc_me_core2prtn_core_id(uint8_t part, uint8_t id);
+ uint32_t mc_me_get_cluster_ptrn(uint32_t core);
+ 
++void s32_destructive_reset(void);
++
+ #endif /* __S32_MC_ME_H__ */
+ 
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index e7518001a..953f807fb 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -61,6 +61,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			plat/nxp/s32/s32_sramc_asm.S \
+ 			plat/nxp/s32/s32_linflexuart.c \
+ 			plat/nxp/s32/s32_linflexuart_crash.S \
++			plat/nxp/s32/s32_mc_me.c \
+ 			plat/nxp/s32/s32_ncore.c \
+ 			plat/nxp/s32/s32_pinctrl.c \
+ 			drivers/delay_timer/delay_timer.c \
+@@ -109,6 +110,7 @@ BL31_SOURCES += \
+ 			plat/nxp/s32/s32_scmi_clk.c \
+ 			plat/nxp/s32/s32_scmi_rst.c \
+ 			plat/nxp/s32/s32_svc.c \
++			plat/nxp/s32/s32_psci.c \
+ 
+ DTC_FLAGS		+= -Wno-unit_address_vs_reg
+ 
+diff --git a/plat/nxp/s32/s32_lowlevel_bl31.S b/plat/nxp/s32/s32_lowlevel_bl31.S
+index 04dafe93c..ff87b364f 100644
+--- a/plat/nxp/s32/s32_lowlevel_bl31.S
++++ b/plat/nxp/s32/s32_lowlevel_bl31.S
+@@ -229,7 +229,7 @@ wfi_done:
+ 	bl	plat_my_core_pos	/* x0: my core index */
+ 	bl	wait_ncore_caiu_online
+ 	/* point of no return */
+-	ldr	x7, =s32g_warmboot_entry
++	ldr	x7, =s32_warmboot_entry
+ 	ldr	x7, [x7]
+ 	br	x7
+ endfunc plat_secondary_cold_boot_setup
+diff --git a/plat/nxp/s32/s32_mc_me.c b/plat/nxp/s32/s32_mc_me.c
+new file mode 100644
+index 000000000..91befdd6a
+--- /dev/null
++++ b/plat/nxp/s32/s32_mc_me.c
+@@ -0,0 +1,407 @@
++/*
++ * Copyright 2019-2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <utils_def.h>
++#include <lib/mmio.h>
++#include <common/debug.h>
++#include "s32_mc_rgm.h"
++#include "s32_mc_me.h"
++
++/* Apply changes to MC_ME partitions */
++void mc_me_apply_hw_changes(void)
++{
++	mmio_write_32(S32_MC_ME_CTL_KEY, S32_MC_ME_CTL_KEY_KEY);
++	mmio_write_32(S32_MC_ME_CTL_KEY, S32_MC_ME_CTL_KEY_INVERTEDKEY);
++}
++
++/*
++ * PART<n>_CORE<m> register accessors
++ */
++
++static void mc_me_part_core_addr_write(uintptr_t addr, uint32_t part,
++				       uint32_t core)
++{
++	uint32_t addr_lo;
++
++	addr_lo = (uint32_t)(addr & 0xFFFFFFFC);
++	mmio_write_32(S32_MC_ME_PRTN_N_CORE_M_ADDR(part, core), addr_lo);
++}
++
++static void mc_me_part_core_pconf_write_cce(uint32_t cce_bit, uint32_t p,
++					    uint32_t c)
++{
++	uint32_t pconf;
++
++	pconf = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_PCONF(p, c)) &
++			~S32_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK;
++	pconf |= (cce_bit & S32_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK);
++	mmio_write_32(S32_MC_ME_PRTN_N_CORE_M_PCONF(p, c), pconf);
++}
++
++static void mc_me_part_core_pupd_write_ccupd(uint32_t ccupd_bit, uint32_t p,
++					    uint32_t c)
++{
++	uint32_t pupd;
++
++	pupd = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_PUPD(p, c)) &
++			~S32_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK;
++	pupd |= (ccupd_bit & S32_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK);
++	mmio_write_32(S32_MC_ME_PRTN_N_CORE_M_PUPD(p, c), pupd);
++}
++
++/*
++ * PART<n>_[XYZ] register accessors
++ */
++
++static void mc_me_part_pconf_write_pce(uint32_t pce_bit, uint32_t p)
++{
++	uint32_t pconf;
++
++	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(p)) &
++			~S32_MC_ME_PRTN_N_PCONF_PCE_MASK;
++	pconf |= (pce_bit & S32_MC_ME_PRTN_N_PCONF_PCE_MASK);
++	mmio_write_32(S32_MC_ME_PRTN_N_PCONF(p), pconf);
++}
++
++static void mc_me_part_pconf_write_osse(uint32_t osse_bit, uint32_t p)
++{
++	uint32_t pconf;
++
++	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(p)) &
++			~S32_MC_ME_PRTN_N_PCONF_OSSE_MASK;
++	pconf |= (osse_bit & S32_MC_ME_PRTN_N_PCONF_OSSE_MASK);
++	mmio_write_32(S32_MC_ME_PRTN_N_PCONF(p), pconf);
++}
++
++static void mc_me_part_pupd_write_pcud(uint32_t pcud_bit, uint32_t p)
++{
++	uint32_t pupd;
++
++	pupd = mmio_read_32(S32_MC_ME_PRTN_N_PUPD(p)) &
++			~S32_MC_ME_PRTN_N_PUPD_PCUD_MASK;
++	pupd |= (pcud_bit & S32_MC_ME_PRTN_N_PUPD_PCUD_MASK);
++	mmio_write_32(S32_MC_ME_PRTN_N_PUPD(p), pupd);
++}
++
++static void mc_me_part_pupd_update_and_wait(uint32_t mask, uint32_t p)
++{
++	uint32_t pupd, pconf, stat;
++
++	pupd = mmio_read_32(S32_MC_ME_PRTN_N_PUPD(p));
++	pupd |= mask;
++	mmio_write_32(S32_MC_ME_PRTN_N_PUPD(p), pupd);
++
++	mc_me_apply_hw_changes();
++
++	/* wait for the updates to apply */
++	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(p));
++	do {
++		stat = mmio_read_32(S32_MC_ME_PRTN_N_STAT(p));
++	} while ((stat & mask) != (pconf & mask));
++}
++
++/*
++ * PART<n>_COFB<m> register accessors
++ */
++
++static void mc_me_part_cofb_clken_write_req(uint32_t req, uint32_t val,
++					    uint32_t part)
++{
++	uint32_t clken;
++
++	clken = mmio_read_32(S32_MC_ME_PRTN_N_COFB_0_CLKEN(part));
++	clken |= ((val & 0x1) << req);
++	mmio_write_32(S32_MC_ME_PRTN_N_COFB_0_CLKEN(part), clken);
++}
++
++/*
++ * Higher-level constructs
++ */
++
++/* First part of the "Software reset partition turn-on flow chart",
++ * as per S32Gen1 RefMan.
++ */
++void mc_me_enable_partition(uint32_t part)
++{
++	uint32_t reg;
++
++	/* Partition 0 is already enabled by BootROM */
++	if (part == 0)
++		return;
++
++	mc_me_part_pconf_write_pce(S32_MC_ME_PRTN_N_PCONF_PCE_MASK, part);
++	mc_me_part_pupd_update_and_wait(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
++
++	/* Unlock RDC register write */
++	mmio_write_32(RDC_RD_CTRL(part), RDC_CTRL_UNLOCK);
++	/* Enable the XBAR interface */
++	mmio_write_32(RDC_RD_CTRL(part),
++		      mmio_read_32(RDC_RD_CTRL(part)) & ~RDC_CTRL_XBAR_DISABLE);
++	/* Wait until XBAR interface is enabled */
++	while (mmio_read_32(RDC_RD_CTRL(part)) & RDC_CTRL_XBAR_DISABLE)
++		;
++	/* Release partition reset */
++	reg = mmio_read_32(S32_MC_RGM_PRST(part));
++	reg &= ~MC_RGM_PRST_PERIPH_N_RST(0);
++	mmio_write_32(S32_MC_RGM_PRST(part), reg);
++
++	/* Clear OSSE bit */
++	mc_me_part_pconf_write_osse(0, part);
++
++	mc_me_part_pupd_update_and_wait(S32_MC_ME_PRTN_N_PUPD_OSSUD_MASK,
++					part);
++	while (mmio_read_32(S32_MC_RGM_PSTAT(part)) &
++			    MC_RGM_STAT_PERIPH_N_STAT(0))
++		;
++	/* Lock RDC register write */
++	reg = mmio_read_32(RDC_RD_CTRL(part));
++	reg &= ~RDC_CTRL_UNLOCK;
++	mmio_write_32(RDC_RD_CTRL(part), reg);
++}
++
++/* Second part of the "Software reset partition turn-on flow chart" from the
++ * S32Gen1 RefMan.
++ *
++ * Partition blocks must only be enabled after mc_me_enable_partition()
++ * has been called for their respective partition.
++ */
++void mc_me_enable_partition_block(uint32_t part, uint32_t block)
++{
++	mc_me_part_cofb_clken_write_req(block, 1, part);
++	mc_me_part_pupd_update_and_wait(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
++}
++
++bool s32_core_in_reset(uint32_t core)
++{
++	uint32_t stat, rst;
++
++	rst = BIT(get_rgm_a53_bit(core));
++	stat = mmio_read_32(S32_MC_RGM_PSTAT(S32_MC_RGM_RST_DOMAIN_CA53));
++	return ((stat & rst) != 0);
++}
++
++static bool s32_core_clock_running(uint32_t part, uint32_t core)
++{
++	uint32_t stat;
++
++	stat = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_STAT(part, core));
++	return ((stat & S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK) != 0);
++}
++
++static void enable_a53_partition(void)
++{
++	uint32_t pconf;
++
++	pconf = mmio_read_32(S32_MC_ME_PRTN_N_STAT(S32_MC_ME_CA53_PART));
++
++	/* Already enabled */
++	if (pconf & S32_MC_ME_PRTN_N_PCONF_PCE_MASK)
++		return;
++
++	mc_me_part_pconf_write_pce(S32_MC_ME_PRTN_N_PCONF_PCE_MASK,
++				   S32_MC_ME_CA53_PART);
++	mc_me_part_pupd_write_pcud(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK,
++				   S32_MC_ME_CA53_PART);
++	mc_me_apply_hw_changes();
++}
++
++static void enable_a53_core_cluster(uint32_t core)
++{
++	uint32_t pconf_cluster = mc_me_get_cluster_ptrn(core);
++	uint32_t stat, part = S32_MC_ME_CA53_PART;
++	uint64_t addr;
++
++	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
++	    S32_MC_ME_PRTN_N_STAT_OFF;
++	stat = mmio_read_32(addr);
++
++	if (stat & S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK)
++		return;
++
++	/* When in performance (i.e., not in lockstep) mode, the following
++	 * bits from the reset sequence are only defined for the first core
++	 * of each CA53 cluster. Make sure this part of the sequence only runs
++	 * on even-numbered cores.
++	 */
++	/* Enable clock and make changes effective */
++	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
++	    S32_MC_ME_PRTN_N_PCONF_OFF;
++	mmio_write_32(addr, S32_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK);
++
++	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
++	    S32_MC_ME_PRTN_N_PUPD_OFF;
++	mmio_write_32(addr, S32_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK);
++
++	mc_me_apply_hw_changes();
++
++	/* Wait for the core clock to become active */
++	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
++	    S32_MC_ME_PRTN_N_STAT_OFF;
++	do {
++		stat = mmio_read_32(addr);
++		stat &= S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK;
++	} while (stat != S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK);
++}
++
++static void set_core_high_addr(uintptr_t addr, uint32_t core)
++{
++	const struct a53_haddr_mapping *map;
++	uint32_t addr_hi, reg_val, field_off, reg_off;
++	size_t size;
++
++	map = s32_get_a53_haddr_mappings(&size);
++
++	if (core >= size)
++		panic();
++
++	reg_off = map[core].reg;
++	field_off = map[core].field_off;
++
++	addr_hi = (uint32_t)(addr >> 32);
++	reg_val = mmio_read_32(GPR_BASE_ADDR + reg_off);
++
++	reg_val |= ((addr_hi & CA53_RVBARADDR_MASK) << field_off);
++	mmio_write_32(GPR_BASE_ADDR + reg_off, reg_val);
++}
++
++/** Reset and initialize secondary A53 core identified by its number
++ *  in one of the MC_ME partitions
++ */
++void s32_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint)
++{
++	uint32_t rst;
++	uint32_t rst_mask = BIT(get_rgm_a53_bit(core));
++	const uint32_t part = S32_MC_ME_CA53_PART;
++
++	enable_a53_partition();
++
++	set_core_high_addr(entrypoint, core);
++	/* The MC_ME provides the 32 low-order bits for the core's
++	 * start address
++	 */
++	mc_me_part_core_addr_write(entrypoint, part, core);
++
++	enable_a53_core_cluster(core);
++
++	/* Release the core reset */
++	rst = mmio_read_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53));
++
++	/* Forced reset */
++	if (!(rst & rst_mask)) {
++		rst |= rst_mask;
++		mmio_write_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53),
++			      rst);
++		while (!s32_core_in_reset(core))
++			;
++	}
++
++	rst = mmio_read_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53));
++	rst &= ~rst_mask;
++	mmio_write_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53), rst);
++	/* Wait for reset bit to deassert */
++	while (s32_core_in_reset(core))
++		;
++}
++
++void s32_reset_core(uint8_t part, uint8_t core)
++{
++	uint32_t resetc;
++	uint32_t statv;
++	uintptr_t prst;
++	uintptr_t pstat;
++
++	if (part == S32_MC_ME_CA53_PART) {
++		resetc = BIT(get_rgm_a53_bit(core));
++		prst = S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53);
++		pstat = S32_MC_RGM_PSTAT(S32_MC_RGM_RST_DOMAIN_CA53);
++	} else {
++		/* M7 cores */
++		resetc = S32_MC_RGM_RST_CM7_BIT(core);
++		prst = S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CM7);
++		pstat = S32_MC_RGM_PSTAT(S32_MC_RGM_RST_DOMAIN_CM7);
++	}
++	statv = resetc;
++
++	/* Assert the core reset */
++	resetc |= mmio_read_32(prst);
++	mmio_write_32(prst, resetc);
++
++	/* Wait reset status */
++	while (!(mmio_read_32(pstat) & statv))
++		;
++}
++
++void s32_turn_off_core(uint8_t part, uint8_t core)
++{
++	uint32_t stat;
++
++	/* Assumption : The core is already in WFI */
++	stat = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_STAT(part, core));
++
++	/* The clock isn't enabled */
++	if (!(stat & S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK))
++		return;
++
++	/* Wait for WFI */
++	do {
++		stat = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_STAT(part, core));
++	} while (!(stat & S32_MC_ME_PRTN_N_CORE_M_STAT_WFI_MASK));
++
++	/* Disable the core clock */
++	mc_me_part_core_pconf_write_cce(0, part, core);
++	mc_me_part_core_pupd_write_ccupd(1, part, core);
++
++	/* Write valid key sequence to trigger the update. */
++	mc_me_apply_hw_changes();
++
++	/* Wait for the core clock to become inactive */
++	while (s32_core_clock_running(part, core))
++		;
++
++	s32_reset_core(part, core);
++}
++
++void s32_disable_cofb_clk(uint8_t part, uint32_t keep_blocks)
++{
++	uint32_t pconf;
++
++	if (!mmio_read_32(S32_MC_ME_PRTN_N_COFB0_CLKEN(part)))
++		return;
++
++	/* Disable all blocks */
++	mmio_write_32(S32_MC_ME_PRTN_N_COFB0_CLKEN(part), keep_blocks);
++
++	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(part));
++
++	/* Keep the partition on if not all the blocks are disabled */
++	if (keep_blocks == 0)
++		pconf &= ~S32_MC_ME_PRTN_N_PCONF_PCE_MASK;
++
++	/* Disable the clock to IPs */
++	mmio_write_32(S32_MC_ME_PRTN_N_PCONF(part), pconf);
++
++	/* Initiate the clock hardware process */
++	mc_me_part_pupd_write_pcud(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
++
++	/* Write valid key sequence to trigger the update. */
++	mc_me_apply_hw_changes();
++
++	/* Make sure the COFB clock is gated */
++	while (mmio_read_32(S32_MC_ME_PRTN_N_COFB0_STAT(part)) != keep_blocks)
++		;
++}
++
++void s32_destructive_reset(void)
++{
++	/* Prevent reset escalation */
++	mmio_write_32(S32_MC_RGM_DRET_ADDR, 0);
++
++	mmio_write_32(MC_ME_MODE_CONF, MC_ME_MODE_CONF_DRST);
++	mmio_write_32(MC_ME_MODE_UPD, MC_ME_MODE_UPD_UPD);
++
++	/* Write valid key sequence to trigger the reset. */
++	mc_me_apply_hw_changes();
++}
++
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32_psci.c
+similarity index 81%
+rename from plat/nxp/s32/s32g/s32g_psci.c
+rename to plat/nxp/s32/s32_psci.c
+index 79c315b3d..ca2ee418e 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32_psci.c
+@@ -3,35 +3,37 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#include "bl31_sram.h"
+ #include "platform_def.h"
+-#include "s32g_clocks.h"
+-#include "s32g_lowlevel.h"
+-#include "s32g_mc_me.h"
++#include "s32_lowlevel.h"
+ #include "s32_ncore.h"
++
++#if defined(PLAT_s32g2) || defined(PLAT_s32g3)
++#include "bl31_sram.h"
++#include <lib/mmio.h>
++#include <lib/xlat_tables/xlat_tables_v2.h>
+ #include <plat/nxp/s32g/bl31_ssram/ssram_mailbox.h>
+-#include "s32g_resume.h"
+-#include "s32g_bl_common.h"
+ #include "s32_sramc.h"
+ #include "s32gen1-wkpu.h"
+-
++#include "s32g_bl_common.h"
++#include "s32g_clocks.h"
++#include "s32g_mc_me.h"
++#include "s32g_resume.h"
++#else
++#include "s32_bl_common.h"
++#include "s32_mc_me.h"
++#endif
+ 
+ #include <arch_helpers.h>
+ #include <assert.h>
+-#include <bl31/interrupt_mgmt.h>
+ #include <common/debug.h>	/* printing macros such as INFO() */
+ #include <drivers/arm/gicv3.h>
+-#include <lib/mmio.h>
+-#include <lib/xlat_tables/xlat_tables_v2.h>
+ #include <plat/common/platform.h>
+-#include <string.h>
+ 
+ /* See firmware-design, psci-lib-integration-guide for details */
+ /* Used by plat_secondary_cold_boot_setup */
+-uintptr_t s32g_warmboot_entry;
++uintptr_t s32_warmboot_entry;
+ 
+-/* FIXME revisit tree composition */
+-static const unsigned char s32g_power_domain_tree_desc[] = {
++static const unsigned char s32_power_domain_tree_desc[] = {
+ 	PLATFORM_SYSTEM_COUNT,
+ 	PLATFORM_CLUSTER_COUNT,
+ 	PLATFORM_CORE_COUNT / 2,
+@@ -46,7 +48,7 @@ static bool is_core_in_secondary_cluster(int pos)
+ /** Executed by the primary core as part of the PSCI_CPU_ON call,
+  *  e.g. during Linux kernel boot.
+  */
+-static int s32g_pwr_domain_on(u_register_t mpidr)
++static int s32_pwr_domain_on(u_register_t mpidr)
+ {
+ 	int pos;
+ 	uintptr_t core_start_addr = (uintptr_t)&plat_secondary_cold_boot_setup;
+@@ -54,8 +56,8 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	pos = plat_core_pos_by_mpidr(mpidr);
+ 	dsbsy();
+ 
+-	if (s32g_core_in_reset(pos))
+-		s32g_kick_secondary_ca53_core(pos, core_start_addr);
++	if (s32_core_in_reset(pos))
++		s32_kick_secondary_ca53_core(pos, core_start_addr);
+ 
+ 	/* Do some chores on behalf of the secondary core. ICC setup must be
+ 	 * done by the secondaries, because the interface is not memory-mapped.
+@@ -68,7 +70,7 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	gicv3_enable_interrupt(S32_SECONDARY_WAKE_SGI, pos);
+ 
+ 	/* Kick the secondary core out of wfi */
+-	NOTICE("S32G TF-A: %s: booting up core %d\n", __func__, pos);
++	NOTICE("S32 TF-A: %s: booting up core %d\n", __func__, pos);
+ 	update_core_state(pos, 1);
+ 	plat_ic_raise_el3_sgi(S32_SECONDARY_WAKE_SGI, mpidr);
+ 
+@@ -86,12 +88,12 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ /** Executed by the woken (secondary) core after it exits the wfi holding pen
+  *  during cold boot.
+  */
+-static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
++static void s32_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ {
+ 	int pos;
+ 	unsigned int intid;
+ 
+-	NOTICE("S32G TF-A: %s: cpu %d running\n", __func__, plat_my_core_pos());
++	NOTICE("S32 TF-A: %s: cpu %d running\n", __func__, plat_my_core_pos());
+ 
+ 	/* Clear pending interrupt */
+ 	pos = plat_my_core_pos();
+@@ -107,7 +109,7 @@ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ 
+ 	write_scr_el3(read_scr_el3() & ~SCR_IRQ_BIT);
+ }
+-
++#if defined(PLAT_s32g2) || defined(PLAT_s32g3)
+ #if S32G_EMU == 0
+ static void copy_bl31sram_image(void)
+ {
+@@ -186,9 +188,9 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 	}
+ 
+ 	/* PFE blocks */
+-	s32g_disable_cofb_clk(S32G_MC_ME_PFE_PART, 0);
++	s32_disable_cofb_clk(S32G_MC_ME_PFE_PART, 0);
+ 	/* Keep the DDR clock */
+-	s32g_disable_cofb_clk(S32_MC_ME_USDHC_PART,
++	s32_disable_cofb_clk(S32_MC_ME_USDHC_PART,
+ 			      S32_MC_ME_PRTN_N_REQ(S32_MC_ME_DDR_0_REQ));
+ 
+ 	/* Switching all MC_CGM muxes to FIRC */
+@@ -264,41 +266,44 @@ static void s32g_pwr_domain_suspend_pwrdown_early(
+ {
+ 	NOTICE("S32G TF-A: %s\n", __func__);
+ }
+-
+-static void s32g_pwr_domain_off(const psci_power_state_t *target_state)
++#endif
++static void s32_pwr_domain_off(const psci_power_state_t *target_state)
+ {
+-	NOTICE("S32G TF-A: %s\n", __func__);
++	NOTICE("S32 TF-A: %s\n", __func__);
+ }
+ 
+-static void __dead2 s32g_system_reset(void)
++static void __dead2 s32_system_reset(void)
+ {
+-	NOTICE("S32G TF-A: %s\n", __func__);
+-	s32g_destructive_reset();
++	NOTICE("S32 TF-A: %s\n", __func__);
++	s32_destructive_reset();
+ 	plat_panic_handler();
+ }
+ 
+-static void __dead2 s32g_system_off(void)
++static void __dead2 s32_system_off(void)
+ {
++#if defined(PLAT_s32g2) || defined(PLAT_s32g3)
+ 	pmic_system_off();
++#endif
+ 	plat_panic_handler();
+ }
+ 
+-static int32_t s32g_migrate_info(u_register_t *resident_cpu)
++static int32_t s32_migrate_info(u_register_t *resident_cpu)
+ {
+ 	return PSCI_TOS_NOT_PRESENT_MP;
+ }
+ 
+-const spd_pm_ops_t s32g_svc_pm = {
++const spd_pm_ops_t s32_svc_pm = {
+ 	.svc_migrate = NULL,
+-	.svc_migrate_info = s32g_migrate_info,
++	.svc_migrate_info = s32_migrate_info,
+ };
+ 
+-const plat_psci_ops_t s32g_psci_pm_ops = {
++const plat_psci_ops_t s32_psci_pm_ops = {
+ 	/* cap: PSCI_CPU_OFF */
+-	.pwr_domain_off = s32g_pwr_domain_off,
++	.pwr_domain_off = s32_pwr_domain_off,
+ 	/* cap: PSCI_CPU_ON_AARCH64 */
+-	.pwr_domain_on = s32g_pwr_domain_on,
+-	.pwr_domain_on_finish = s32g_pwr_domain_on_finish,
++	.pwr_domain_on = s32_pwr_domain_on,
++	.pwr_domain_on_finish = s32_pwr_domain_on_finish,
++#if defined(PLAT_s32g2) || defined(PLAT_s32g3)
+ 	/* cap: PSCI_CPU_SUSPEND_AARCH64 */
+ 	.pwr_domain_suspend = s32g_pwr_domain_suspend,
+ 	/* cap: PSCI_SYSTEM_SUSPEND_AARCH64 */
+@@ -307,22 +312,24 @@ const plat_psci_ops_t s32g_psci_pm_ops = {
+ 					s32g_pwr_domain_suspend_pwrdown_early,
+ 	.pwr_domain_suspend_finish = s32g_pwr_domain_suspend_finish,
+ 	.pwr_domain_pwr_down_wfi = s32g_pwr_domain_pwr_down_wfi,
+-	.system_reset = s32g_system_reset,
+-	.system_off = s32g_system_off,
++#endif
++	.system_reset = s32_system_reset,
++	.system_off = s32_system_off,
+ };
+ 
+ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
+ 			const plat_psci_ops_t **psci_ops)
+ {
+-	s32g_warmboot_entry = sec_entrypoint;
++	s32_warmboot_entry = sec_entrypoint;
+ 
+-	*psci_ops = &s32g_psci_pm_ops;
+-	psci_register_spd_pm_hook(&s32g_svc_pm);
++	*psci_ops = &s32_psci_pm_ops;
++	psci_register_spd_pm_hook(&s32_svc_pm);
+ 
+ 	return 0;
+ }
+ 
+ const unsigned char *plat_get_power_domain_tree_desc(void)
+ {
+-	return s32g_power_domain_tree_desc;
++	return s32_power_domain_tree_desc;
+ }
++
+diff --git a/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c b/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
+index 82a438114..c3c1d73c1 100644
+--- a/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
++++ b/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
+@@ -13,7 +13,7 @@
+ 
+ static void disable_ddr_clk(void)
+ {
+-	s32g_disable_cofb_clk(S32_MC_ME_USDHC_PART, 0);
++	s32_disable_cofb_clk(S32_MC_ME_USDHC_PART, 0);
+ 	s32g_ddr2firc();
+ 	s32g_disable_pll(S32_DDR_PLL, 1);
+ }
+diff --git a/plat/nxp/s32/s32g/include/s32g_mc_me.h b/plat/nxp/s32/s32g/include/s32g_mc_me.h
+index ae0122579..f7753387f 100644
+--- a/plat/nxp/s32/s32g/include/s32g_mc_me.h
++++ b/plat/nxp/s32/s32g/include/s32g_mc_me.h
+@@ -28,15 +28,6 @@
+ #define S32G_STBY_MASTER_CORE	0
+ #define S32G_STBY_MASTER_PART	1
+ 
+-bool s32g_core_in_reset(uint32_t core);
+-void s32g_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint);
+-void s32g_reset_core(uint8_t part, uint8_t core);
+-void s32g_disable_cofb_clk(uint8_t part, uint32_t keep_blocks);
+ void s32g_set_stby_master_core(uint8_t part, uint8_t core);
+-void mc_me_enable_partition_block(uint32_t part, uint32_t block);
+-void mc_me_enable_partition(uint32_t part);
+-
+-void s32g_destructive_reset(void);
+-
+ 
+ #endif /* __S32G_MC_ME_H__ */
+diff --git a/plat/nxp/s32/s32g/include/s32g_resume.h b/plat/nxp/s32/s32g/include/s32g_resume.h
+index 5eb831957..9bec6c1b7 100644
+--- a/plat/nxp/s32/s32g/include/s32g_resume.h
++++ b/plat/nxp/s32/s32g/include/s32g_resume.h
+@@ -1,13 +1,11 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #ifndef S32G_RESUME_H
+ #define S32G_RESUME_H
+ 
+-/* Secondary cores entry point */
+-void plat_secondary_cold_boot_setup(void);
+ void s32g_resume_entrypoint(void);
+ 
+ #endif
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index fc3ed034b..6977f3a6a 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -40,7 +40,6 @@ BL2_SOURCES		+= \
+ 			   ${BL31SSRAM_SRC_DUMP} \
+ 
+ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+-			   plat/nxp/s32/s32g/s32g_psci.c \
+ 			   plat/nxp/s32/s32g/s32g_resume.c \
+ 			   plat/nxp/s32/s32g/s32g_pm.c \
+ 			   drivers/nxp/s32/s32g_wkpu.c \
+diff --git a/plat/nxp/s32/s32g/s32g_mc_me.c b/plat/nxp/s32/s32g/s32g_mc_me.c
+index 308ca6238..da3fa77b0 100644
+--- a/plat/nxp/s32/s32g/s32g_mc_me.c
++++ b/plat/nxp/s32/s32g/s32g_mc_me.c
+@@ -3,395 +3,8 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#include <utils_def.h>
+ #include <lib/mmio.h>
+-#include <common/debug.h>
+ #include "s32g_mc_me.h"
+-#include "s32g_mc_rgm.h"
+-
+-/* Apply changes to MC_ME partitions */
+-static void mc_me_apply_hw_changes(void)
+-{
+-	mmio_write_32(S32_MC_ME_CTL_KEY, S32_MC_ME_CTL_KEY_KEY);
+-	mmio_write_32(S32_MC_ME_CTL_KEY, S32_MC_ME_CTL_KEY_INVERTEDKEY);
+-}
+-
+-/*
+- * PART<n>_CORE<m> register accessors
+- */
+-
+-static void mc_me_part_core_addr_write(uintptr_t addr, uint32_t part,
+-				       uint32_t core)
+-{
+-	uint32_t addr_lo;
+-
+-	addr_lo = (uint32_t)(addr & 0xFFFFFFFC);
+-	mmio_write_32(S32_MC_ME_PRTN_N_CORE_M_ADDR(part, core), addr_lo);
+-}
+-
+-static void mc_me_part_core_pconf_write_cce(uint32_t cce_bit, uint32_t p,
+-					    uint32_t c)
+-{
+-	uint32_t pconf;
+-
+-	pconf = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_PCONF(p, c)) &
+-			~S32_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK;
+-	pconf |= (cce_bit & S32_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK);
+-	mmio_write_32(S32_MC_ME_PRTN_N_CORE_M_PCONF(p, c), pconf);
+-}
+-
+-static void mc_me_part_core_pupd_write_ccupd(uint32_t ccupd_bit, uint32_t p,
+-					    uint32_t c)
+-{
+-	uint32_t pupd;
+-
+-	pupd = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_PUPD(p, c)) &
+-			~S32_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK;
+-	pupd |= (ccupd_bit & S32_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK);
+-	mmio_write_32(S32_MC_ME_PRTN_N_CORE_M_PUPD(p, c), pupd);
+-}
+-
+-/*
+- * PART<n>_[XYZ] register accessors
+- */
+-
+-static void mc_me_part_pconf_write_pce(uint32_t pce_bit, uint32_t p)
+-{
+-	uint32_t pconf;
+-
+-	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(p)) &
+-			~S32_MC_ME_PRTN_N_PCONF_PCE_MASK;
+-	pconf |= (pce_bit & S32_MC_ME_PRTN_N_PCONF_PCE_MASK);
+-	mmio_write_32(S32_MC_ME_PRTN_N_PCONF(p), pconf);
+-}
+-
+-static void mc_me_part_pconf_write_osse(uint32_t osse_bit, uint32_t p)
+-{
+-	uint32_t pconf;
+-
+-	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(p)) &
+-			~S32_MC_ME_PRTN_N_PCONF_OSSE_MASK;
+-	pconf |= (osse_bit & S32_MC_ME_PRTN_N_PCONF_OSSE_MASK);
+-	mmio_write_32(S32_MC_ME_PRTN_N_PCONF(p), pconf);
+-}
+-
+-static void mc_me_part_pupd_write_pcud(uint32_t pcud_bit, uint32_t p)
+-{
+-	uint32_t pupd;
+-
+-	pupd = mmio_read_32(S32_MC_ME_PRTN_N_PUPD(p)) &
+-			~S32_MC_ME_PRTN_N_PUPD_PCUD_MASK;
+-	pupd |= (pcud_bit & S32_MC_ME_PRTN_N_PUPD_PCUD_MASK);
+-	mmio_write_32(S32_MC_ME_PRTN_N_PUPD(p), pupd);
+-}
+-
+-static void mc_me_part_pupd_update_and_wait(uint32_t mask, uint32_t p)
+-{
+-	uint32_t pupd, pconf, stat;
+-
+-	pupd = mmio_read_32(S32_MC_ME_PRTN_N_PUPD(p));
+-	pupd |= mask;
+-	mmio_write_32(S32_MC_ME_PRTN_N_PUPD(p), pupd);
+-
+-	mc_me_apply_hw_changes();
+-
+-	/* wait for the updates to apply */
+-	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(p));
+-	do {
+-		stat = mmio_read_32(S32_MC_ME_PRTN_N_STAT(p));
+-	} while ((stat & mask) != (pconf & mask));
+-}
+-
+-/*
+- * PART<n>_COFB<m> register accessors
+- */
+-
+-static void mc_me_part_cofb_clken_write_req(uint32_t req, uint32_t val,
+-					    uint32_t part)
+-{
+-	uint32_t clken;
+-
+-	clken = mmio_read_32(S32_MC_ME_PRTN_N_COFB_0_CLKEN(part));
+-	clken |= ((val & 0x1) << req);
+-	mmio_write_32(S32_MC_ME_PRTN_N_COFB_0_CLKEN(part), clken);
+-}
+-
+-/*
+- * Higher-level constructs
+- */
+-
+-/* First part of the "Software reset partition turn-on flow chart",
+- * as per S32G RefMan.
+- */
+-void mc_me_enable_partition(uint32_t part)
+-{
+-	uint32_t reg;
+-
+-	/* Partition 0 is already enabled by BootROM */
+-	if (part == 0)
+-		return;
+-
+-	mc_me_part_pconf_write_pce(S32_MC_ME_PRTN_N_PCONF_PCE_MASK, part);
+-	mc_me_part_pupd_update_and_wait(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
+-
+-	/* Unlock RDC register write */
+-	mmio_write_32(RDC_RD_CTRL(part), RDC_CTRL_UNLOCK);
+-	/* Enable the XBAR interface */
+-	mmio_write_32(RDC_RD_CTRL(part),
+-		      mmio_read_32(RDC_RD_CTRL(part)) & ~RDC_CTRL_XBAR_DISABLE);
+-	/* Wait until XBAR interface is enabled */
+-	while (mmio_read_32(RDC_RD_CTRL(part)) & RDC_CTRL_XBAR_DISABLE)
+-		;
+-	/* Release partition reset */
+-	reg = mmio_read_32(S32_MC_RGM_PRST(part));
+-	reg &= ~MC_RGM_PRST_PERIPH_N_RST(0);
+-	mmio_write_32(S32_MC_RGM_PRST(part), reg);
+-
+-	/* Clear OSSE bit */
+-	mc_me_part_pconf_write_osse(0, part);
+-
+-	mc_me_part_pupd_update_and_wait(S32_MC_ME_PRTN_N_PUPD_OSSUD_MASK,
+-					part);
+-	while (mmio_read_32(S32_MC_RGM_PSTAT(part)) &
+-			    MC_RGM_STAT_PERIPH_N_STAT(0))
+-		;
+-	/* Lock RDC register write */
+-	reg = mmio_read_32(RDC_RD_CTRL(part));
+-	reg &= ~RDC_CTRL_UNLOCK;
+-	mmio_write_32(RDC_RD_CTRL(part), reg);
+-}
+-
+-/* Second part of the "Software reset partition turn-on flow chart" from the
+- * S32G RefMan.
+- *
+- * Partition blocks must only be enabled after mc_me_enable_partition()
+- * has been called for their respective partition.
+- */
+-void mc_me_enable_partition_block(uint32_t part, uint32_t block)
+-{
+-	mc_me_part_cofb_clken_write_req(block, 1, part);
+-	mc_me_part_pupd_update_and_wait(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
+-}
+-
+-bool s32g_core_in_reset(uint32_t core)
+-{
+-	uint32_t stat, rst;
+-
+-	rst = BIT(get_rgm_a53_bit(core));
+-	stat = mmio_read_32(S32_MC_RGM_PSTAT(S32_MC_RGM_RST_DOMAIN_CA53));
+-	return ((stat & rst) != 0);
+-}
+-
+-static bool s32g_core_clock_running(uint32_t part, uint32_t core)
+-{
+-	uint32_t stat;
+-
+-	stat = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_STAT(part, core));
+-	return ((stat & S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK) != 0);
+-}
+-
+-static void enable_a53_partition(void)
+-{
+-	uint32_t pconf;
+-
+-	pconf = mmio_read_32(S32_MC_ME_PRTN_N_STAT(S32_MC_ME_CA53_PART));
+-
+-	/* Already enabled */
+-	if (pconf & S32_MC_ME_PRTN_N_PCONF_PCE_MASK)
+-		return;
+-
+-	mc_me_part_pconf_write_pce(S32_MC_ME_PRTN_N_PCONF_PCE_MASK,
+-				   S32_MC_ME_CA53_PART);
+-	mc_me_part_pupd_write_pcud(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK,
+-				   S32_MC_ME_CA53_PART);
+-	mc_me_apply_hw_changes();
+-}
+-
+-static void enable_a53_core_cluster(uint32_t core)
+-{
+-	uint32_t pconf_cluster = mc_me_get_cluster_ptrn(core);
+-	uint32_t stat, part = S32_MC_ME_CA53_PART;
+-	uint64_t addr;
+-
+-	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
+-	    S32_MC_ME_PRTN_N_STAT_OFF;
+-	stat = mmio_read_32(addr);
+-
+-	if (stat & S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK)
+-		return;
+-
+-	/* When in performance (i.e., not in lockstep) mode, the following
+-	 * bits from the reset sequence are only defined for the first core
+-	 * of each CA53 cluster. Make sure this part of the sequence only runs
+-	 * on even-numbered cores.
+-	 */
+-	/* Enable clock and make changes effective */
+-	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
+-	    S32_MC_ME_PRTN_N_PCONF_OFF;
+-	mmio_write_32(addr, S32_MC_ME_PRTN_N_CORE_M_PCONF_CCE_MASK);
+-
+-	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
+-	    S32_MC_ME_PRTN_N_PUPD_OFF;
+-	mmio_write_32(addr, S32_MC_ME_PRTN_N_CORE_M_PUPD_CCUPD_MASK);
+-
+-	mc_me_apply_hw_changes();
+-
+-	/* Wait for the core clock to become active */
+-	addr = MC_ME_PRTN_PART(part, pconf_cluster) +
+-	    S32_MC_ME_PRTN_N_STAT_OFF;
+-	do {
+-		stat = mmio_read_32(addr);
+-		stat &= S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK;
+-	} while (stat != S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK);
+-}
+-
+-static void set_core_high_addr(uintptr_t addr, uint32_t core)
+-{
+-	const struct a53_haddr_mapping *map;
+-	uint32_t addr_hi, reg_val, field_off, reg_off;
+-	size_t size;
+-
+-	map = s32_get_a53_haddr_mappings(&size);
+-
+-	if (core >= size)
+-		panic();
+-
+-	reg_off = map[core].reg;
+-	field_off = map[core].field_off;
+-
+-	addr_hi = (uint32_t)(addr >> 32);
+-	reg_val = mmio_read_32(GPR_BASE_ADDR + reg_off);
+-
+-	reg_val |= ((addr_hi & CA53_RVBARADDR_MASK) << field_off);
+-	mmio_write_32(GPR_BASE_ADDR + reg_off, reg_val);
+-}
+-
+-/** Reset and initialize secondary A53 core identified by its number
+- *  in one of the MC_ME partitions
+- */
+-void s32g_kick_secondary_ca53_core(uint32_t core, uintptr_t entrypoint)
+-{
+-	uint32_t rst;
+-	uint32_t rst_mask = BIT(get_rgm_a53_bit(core));
+-	const uint32_t part = S32_MC_ME_CA53_PART;
+-
+-	enable_a53_partition();
+-
+-	set_core_high_addr(entrypoint, core);
+-	/* The MC_ME provides the 32 low-order bits for the core's
+-	 * start address
+-	 */
+-	mc_me_part_core_addr_write(entrypoint, part, core);
+-
+-	enable_a53_core_cluster(core);
+-
+-	/* Release the core reset */
+-	rst = mmio_read_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53));
+-
+-	/* Forced reset */
+-	if (!(rst & rst_mask)) {
+-		rst |= rst_mask;
+-		mmio_write_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53),
+-			      rst);
+-		while (!s32g_core_in_reset(core))
+-			;
+-	}
+-
+-	rst = mmio_read_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53));
+-	rst &= ~rst_mask;
+-	mmio_write_32(S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53), rst);
+-	/* Wait for reset bit to deassert */
+-	while (s32g_core_in_reset(core))
+-		;
+-}
+-
+-void s32g_reset_core(uint8_t part, uint8_t core)
+-{
+-	uint32_t resetc;
+-	uint32_t statv;
+-	uintptr_t prst;
+-	uintptr_t pstat;
+-
+-	if (part == S32_MC_ME_CA53_PART) {
+-		resetc = BIT(get_rgm_a53_bit(core));
+-		prst = S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CA53);
+-		pstat = S32_MC_RGM_PSTAT(S32_MC_RGM_RST_DOMAIN_CA53);
+-	} else {
+-		/* M7 cores */
+-		resetc = S32_MC_RGM_RST_CM7_BIT(core);
+-		prst = S32_MC_RGM_PRST(S32_MC_RGM_RST_DOMAIN_CM7);
+-		pstat = S32_MC_RGM_PSTAT(S32_MC_RGM_RST_DOMAIN_CM7);
+-	}
+-	statv = resetc;
+-
+-	/* Assert the core reset */
+-	resetc |= mmio_read_32(prst);
+-	mmio_write_32(prst, resetc);
+-
+-	/* Wait reset status */
+-	while (!(mmio_read_32(pstat) & statv))
+-		;
+-}
+-
+-void s32_turn_off_core(uint8_t part, uint8_t core)
+-{
+-	uint32_t stat;
+-
+-	/* Assumption : The core is already in WFI */
+-	stat = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_STAT(part, core));
+-
+-	/* The clock isn't enabled */
+-	if (!(stat & S32_MC_ME_PRTN_N_CORE_M_STAT_CCS_MASK))
+-		return;
+-
+-	/* Wait for WFI */
+-	do {
+-		stat = mmio_read_32(S32_MC_ME_PRTN_N_CORE_M_STAT(part, core));
+-	} while (!(stat & S32_MC_ME_PRTN_N_CORE_M_STAT_WFI_MASK));
+-
+-	/* Disable the core clock */
+-	mc_me_part_core_pconf_write_cce(0, part, core);
+-	mc_me_part_core_pupd_write_ccupd(1, part, core);
+-
+-	/* Write valid key sequence to trigger the update. */
+-	mc_me_apply_hw_changes();
+-
+-	/* Wait for the core clock to become inactive */
+-	while (s32g_core_clock_running(part, core))
+-		;
+-
+-	s32g_reset_core(part, core);
+-}
+-
+-void s32g_disable_cofb_clk(uint8_t part, uint32_t keep_blocks)
+-{
+-	uint32_t pconf;
+-
+-	if (!mmio_read_32(S32_MC_ME_PRTN_N_COFB0_CLKEN(part)))
+-		return;
+-
+-	/* Disable all blocks */
+-	mmio_write_32(S32_MC_ME_PRTN_N_COFB0_CLKEN(part), keep_blocks);
+-
+-	pconf = mmio_read_32(S32_MC_ME_PRTN_N_PCONF(part));
+-
+-	/* Keep the partition on if not all the blocks are disabled */
+-	if (keep_blocks == 0)
+-		pconf &= ~S32_MC_ME_PRTN_N_PCONF_PCE_MASK;
+-
+-	/* Disable the clock to IPs */
+-	mmio_write_32(S32_MC_ME_PRTN_N_PCONF(part), pconf);
+-
+-	/* Initiate the clock hardware process */
+-	mc_me_part_pupd_write_pcud(S32_MC_ME_PRTN_N_PUPD_PCUD_MASK, part);
+-
+-	/* Write valid key sequence to trigger the update. */
+-	mc_me_apply_hw_changes();
+-
+-	/* Make sure the COFB clock is gated */
+-	while (mmio_read_32(S32_MC_ME_PRTN_N_COFB0_STAT(part)) != keep_blocks)
+-		;
+-}
+ 
+ void s32g_set_stby_master_core(uint8_t part, uint8_t core)
+ {
+@@ -408,14 +21,3 @@ void s32g_set_stby_master_core(uint8_t part, uint8_t core)
+ 	mc_me_apply_hw_changes();
+ }
+ 
+-void s32g_destructive_reset(void)
+-{
+-	/* Prevent reset escalation */
+-	mmio_write_32(S32_MC_RGM_DRET_ADDR, 0);
+-
+-	mmio_write_32(MC_ME_MODE_CONF, MC_ME_MODE_CONF_DRST);
+-	mmio_write_32(MC_ME_MODE_UPD, MC_ME_MODE_UPD_UPD);
+-
+-	/* Write valid key sequence to trigger the reset. */
+-	mc_me_apply_hw_changes();
+-}
+-- 
+2.17.1
+

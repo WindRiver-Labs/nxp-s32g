@@ -1,0 +1,74 @@
+From 44b208df113b72bf7a644cd2fb6281d9e73f069e Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Tue, 7 Dec 2021 15:19:04 +0200
+Subject: [PATCH 33/50] s32: scmi: Move generic scmi files to common bl31
+ sources
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32_common.mk                            | 11 ++++++++++-
+ plat/nxp/s32/{s32g/s32g_scmi_clk.c => s32_scmi_clk.c} |  0
+ plat/nxp/s32/s32g/s32g_common.mk                      |  9 ---------
+ 3 files changed, 10 insertions(+), 10 deletions(-)
+ rename plat/nxp/s32/{s32g/s32g_scmi_clk.c => s32_scmi_clk.c} (100%)
+
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index 6230faf5a..cb0553f31 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -92,11 +92,20 @@ BL2_SOURCES += \
+ 
+ BL31_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
++			drivers/scmi-msg/base.c \
++			drivers/scmi-msg/clock.c \
++			drivers/scmi-msg/entry.c \
++			drivers/scmi-msg/reset_domain.c \
++			drivers/nxp/s32/clk/clk.c \
++			drivers/nxp/s32/clk/fixed_clk.c \
++			drivers/nxp/s32/clk/s32gen1_scmi_clk.c \
++			drivers/nxp/s32/clk/s32gen1_scmi_ids.c \
+ 			plat/common/plat_gicv3.c \
+ 			plat/common/plat_psci_common.c \
+ 			plat/nxp/s32/include/plat_macros.S \
++			plat/nxp/s32/s32_scmi_clk.c \
+ 			plat/nxp/s32/s32_bl31.c \
+-			plat/nxp/s32/s32_lowlevel_bl31.S
++			plat/nxp/s32/s32_lowlevel_bl31.S \
+ 
+ DTC_FLAGS		+= -Wno-unit_address_vs_reg
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_scmi_clk.c b/plat/nxp/s32/s32_scmi_clk.c
+similarity index 100%
+rename from plat/nxp/s32/s32g/s32g_scmi_clk.c
+rename to plat/nxp/s32/s32_scmi_clk.c
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index a485dc645..122f26c6e 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -45,18 +45,9 @@ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32/s32g/s32g_resume.c \
+ 			   plat/nxp/s32/s32g/s32g_pm.c \
+ 			   plat/nxp/s32/s32g/s32g_svc.c \
+-			   plat/nxp/s32/s32g/s32g_scmi_clk.c \
+ 			   plat/nxp/s32/s32g/s32g_scmi_rst.c \
+ 			   drivers/nxp/s32/s32g_wkpu.c \
+-			   drivers/nxp/s32/clk/clk.c \
+-			   drivers/nxp/s32/clk/fixed_clk.c \
+ 			   drivers/nxp/s32/clk/s32g_scmi_ids.c \
+-			   drivers/nxp/s32/clk/s32gen1_scmi_clk.c \
+-			   drivers/nxp/s32/clk/s32gen1_scmi_ids.c \
+-			   drivers/scmi-msg/base.c \
+-			   drivers/scmi-msg/clock.c \
+-			   drivers/scmi-msg/entry.c \
+-			   drivers/scmi-msg/reset_domain.c \
+ 
+ ### Platform-specific defines ###
+ # Which LinFlexD to use as a UART device
+-- 
+2.17.1
+

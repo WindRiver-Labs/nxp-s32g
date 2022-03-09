@@ -1,0 +1,269 @@
+From 71a927bcfc938b799c2a0c98a324af3ee2e080cf Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 17 Nov 2021 15:30:03 +0200
+Subject: [PATCH 10/50] s32: dt: Move s32g_dt files to s32 generic layer
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/clk/clk.c                                 | 2 +-
+ drivers/nxp/s32/clk/plat_clk.c                            | 2 +-
+ drivers/nxp/s32/i2c/s32g_i2c.c                            | 2 +-
+ drivers/nxp/s32/ocotp.c                                   | 2 +-
+ drivers/nxp/s32/pmic/vr5510.c                             | 2 +-
+ drivers/nxp/s32/s32g_wkpu.c                               | 4 ++--
+ include/drivers/nxp/s32/clk/clk.h                         | 4 ++--
+ plat/nxp/s32/{s32g/include/s32g_dt.h => include/s32_dt.h} | 6 +++---
+ plat/nxp/s32/s32_common.mk                                | 1 +
+ plat/nxp/s32/{s32g/s32g_dt.c => s32_dt.c}                 | 4 ++--
+ plat/nxp/s32/s32g/s32g_bl2_el3.c                          | 2 +-
+ plat/nxp/s32/s32g/s32g_bl31.c                             | 2 +-
+ plat/nxp/s32/s32g/s32g_bl_common.c                        | 3 +--
+ plat/nxp/s32/s32g/s32g_common.mk                          | 1 -
+ plat/nxp/s32/s32g/s32g_storage.c                          | 2 +-
+ 15 files changed, 19 insertions(+), 20 deletions(-)
+ rename plat/nxp/s32/{s32g/include/s32g_dt.h => include/s32_dt.h} (89%)
+ rename plat/nxp/s32/{s32g/s32g_dt.c => s32_dt.c} (97%)
+
+diff --git a/drivers/nxp/s32/clk/clk.c b/drivers/nxp/s32/clk/clk.c
+index e5f122128..aa2a245b3 100644
+--- a/drivers/nxp/s32/clk/clk.c
++++ b/drivers/nxp/s32/clk/clk.c
+@@ -8,7 +8,7 @@
+ #include <errno.h>
+ #include <libfdt.h>
+ #include <memory_pool.h>
+-#include <s32g_dt.h>
++#include <s32_dt.h>
+ 
+ #define MAX_NUM_CLK 100
+ #define MAX_NUM_DRV 20
+diff --git a/drivers/nxp/s32/clk/plat_clk.c b/drivers/nxp/s32/clk/plat_clk.c
+index 0d55f5d9d..6d99f0dad 100644
+--- a/drivers/nxp/s32/clk/plat_clk.c
++++ b/drivers/nxp/s32/clk/plat_clk.c
+@@ -9,7 +9,7 @@
+ #include <clk/s32gen1_scmi_clk.h>
+ #include <libfdt.h>
+ #include <libfdt_env.h>
+-#include <s32g_dt.h>
++#include <s32_dt.h>
+ 
+ struct s32gen1_clk_driver {
+ 	struct s32gen1_clk_priv priv;
+diff --git a/drivers/nxp/s32/i2c/s32g_i2c.c b/drivers/nxp/s32/i2c/s32g_i2c.c
+index 35c7189dd..2e0e08379 100644
+--- a/drivers/nxp/s32/i2c/s32g_i2c.c
++++ b/drivers/nxp/s32/i2c/s32g_i2c.c
+@@ -10,7 +10,7 @@
+ #include <drivers/delay_timer.h>
+ #include <drivers/nxp/s32/i2c/s32g_i2c.h>
+ #include "s32g_clocks.h"
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ 
+ /* Register index */
+ #define IBFD	1
+diff --git a/drivers/nxp/s32/ocotp.c b/drivers/nxp/s32/ocotp.c
+index 902b27fb1..5e9f5e1c2 100644
+--- a/drivers/nxp/s32/ocotp.c
++++ b/drivers/nxp/s32/ocotp.c
+@@ -2,7 +2,7 @@
+ /*
+  * Copyright 2021 NXP
+  */
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ #include <common/debug.h>
+ #include <drivers/nxp/s32/ocotp.h>
+ #include <lib/libc/errno.h>
+diff --git a/drivers/nxp/s32/pmic/vr5510.c b/drivers/nxp/s32/pmic/vr5510.c
+index 49bc7da65..9f9f6adad 100644
+--- a/drivers/nxp/s32/pmic/vr5510.c
++++ b/drivers/nxp/s32/pmic/vr5510.c
+@@ -12,7 +12,7 @@
+ #include <stdlib.h>
+ 
+ #include "pmic/vr5510.h"
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ 
+ #define VR5510_ADDR_SIZE	2
+ #define VR5510_REG_SIZE		2
+diff --git a/drivers/nxp/s32/s32g_wkpu.c b/drivers/nxp/s32/s32g_wkpu.c
+index 3159f694e..92d443660 100644
+--- a/drivers/nxp/s32/s32g_wkpu.c
++++ b/drivers/nxp/s32/s32g_wkpu.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+ OR BSD-3-Clause
+ /*
+- * Copyright 2020, 2022 NXP
++ * Copyright 2020-2022 NXP
+  */
+ #include <common/debug.h>
+ #include <common/fdt_wrappers.h>
+@@ -12,7 +12,7 @@
+ #include <s32g_bl_common.h>
+ #include <s32g_pinctrl.h>
+ 
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ #include "s32gen1-wkpu.h"
+ 
+ #define WKPU_RTC_IRQ		BIT(31)
+diff --git a/include/drivers/nxp/s32/clk/clk.h b/include/drivers/nxp/s32/clk/clk.h
+index 6dbd26b7e..a3969a4b9 100644
+--- a/include/drivers/nxp/s32/clk/clk.h
++++ b/include/drivers/nxp/s32/clk/clk.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -8,7 +8,7 @@
+ 
+ #include <stddef.h>
+ #include <stdint.h>
+-#include <s32g_dt.h>
++#include <s32_dt.h>
+ 
+ /* Assumption: Clock cells = 1*/
+ #define FDT_CLOCK_CELL_SIZE	(2 * sizeof(uint32_t))
+diff --git a/plat/nxp/s32/s32g/include/s32g_dt.h b/plat/nxp/s32/include/s32_dt.h
+similarity index 89%
+rename from plat/nxp/s32/s32g/include/s32g_dt.h
+rename to plat/nxp/s32/include/s32_dt.h
+index a4e953493..22670390a 100644
+--- a/plat/nxp/s32/s32g/include/s32g_dt.h
++++ b/plat/nxp/s32/include/s32_dt.h
+@@ -1,11 +1,11 @@
+ /*
+  * Copyright (c) 2017-2019, ARM Limited and Contributors. All rights reserved.
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#ifndef S32G_DT_H
+-#define S32G_DT_H
++#ifndef S32_DT_H
++#define S32_DT_H
+ 
+ #include <stdint.h>
+ 
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index d4a7b9d77..a4c745b15 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -42,6 +42,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			common/fdt_wrappers.c \
+ 			drivers/nxp/uart/linflexuart.c \
+ 			plat/nxp/s32/s32_bl_common.c \
++			plat/nxp/s32/s32_dt.c \
+ 			plat/nxp/s32/s32_lowlevel_common.S \
+ 			plat/nxp/s32/s32_sramc.c \
+ 			plat/nxp/s32/s32_sramc_asm.S \
+diff --git a/plat/nxp/s32/s32g/s32g_dt.c b/plat/nxp/s32/s32_dt.c
+similarity index 97%
+rename from plat/nxp/s32/s32g/s32g_dt.c
+rename to plat/nxp/s32/s32_dt.c
+index 524af1b23..b74a44392 100644
+--- a/plat/nxp/s32/s32g/s32g_dt.c
++++ b/plat/nxp/s32/s32_dt.c
+@@ -1,6 +1,6 @@
+ /*
+  * Copyright (c) 2017-2019, ARM Limited and Contributors. All rights reserved.
+- * Copyright 2020 NXP
++ * Copyright 2020-2021 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -11,7 +11,7 @@
+ #include <errno.h>
+ #include <libfdt.h>
+ #include <platform_def.h>
+-#include <s32g_dt.h>
++#include <s32_dt.h>
+ 
+ static int fdt_checked;
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index ba4c9411f..a38b427e5 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -30,7 +30,7 @@
+ #include <lib/libfdt/libfdt.h>
+ #include <drivers/io/io_storage.h>
+ #include <tools_share/firmware_image_package.h>
+-#include <s32g_dt.h>
++#include <s32_dt.h>
+ #if S32G_EMU == 1
+ #include <ddr/ddrss.h>
+ #else
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index 602df0c9b..e0cb742d7 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -19,7 +19,7 @@
+ #include "pmic/vr5510.h"
+ #include "s32g_pm.h"
+ #include "s32g_clocks.h"
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ #include "s32_linflexuart.h"
+ #include "s32g_lowlevel.h"
+ #include "s32g_mc_me.h"
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index ae14d826c..f40f90aca 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -4,7 +4,6 @@
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ 
+-#include <s32g_dt.h>
+ #include <common/debug.h>
+ #include <lib/mmio.h>
+ #include <libfdt.h>
+@@ -18,7 +17,7 @@
+ #include "s32_ncore.h"
+ #include "s32g_storage.h"
+ #include "s32g_bl_common.h"
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ #include "s32g_pinctrl.h"
+ 
+ #define S32G_MAX_I2C_MODULES 5
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index 29da2fa25..14f6484f2 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -40,7 +40,6 @@ PLAT_INCLUDES		+= -Iplat/nxp/s32/s32g/include \
+ PLAT_BL_COMMON_SOURCES	+= \
+ 			   plat/nxp/s32/s32g/s32g_mc_me.c \
+ 			   plat/nxp/s32/s32g/s32g_bl_common.c \
+-			   plat/nxp/s32/s32g/s32g_dt.c \
+ 			   plat/nxp/s32/s32g/s32g_pinctrl.c \
+ 			   plat/nxp/s32/s32g/s32g_clocks.c \
+ 			   drivers/nxp/s32/i2c/s32g_i2c.c \
+diff --git a/plat/nxp/s32/s32g/s32g_storage.c b/plat/nxp/s32/s32g/s32g_storage.c
+index 96a880e3a..04f0241b8 100644
+--- a/plat/nxp/s32/s32g/s32g_storage.c
++++ b/plat/nxp/s32/s32g/s32g_storage.c
+@@ -19,7 +19,7 @@
+ 
+ #include "s32g_storage.h"
+ #include "s32g_bl_common.h"
+-#include "s32g_dt.h"
++#include "s32_dt.h"
+ 
+ #ifdef SPD_opteed
+ #define FIP_BACKEND_MEMMAP_ID	(BL32_EXTRA1_IMAGE_ID + 1)
+-- 
+2.17.1
+

@@ -1,0 +1,512 @@
+From 44621e3e3a47ec41270a2af6a5d4bf9ef6259e34 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Mon, 22 Nov 2021 12:17:21 +0200
+Subject: [PATCH 19/50] s32: storage: Make s32g_storage generic
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/mmc/{s32g_mmc.c => s32_mmc.c} |  4 +-
+ include/drivers/nxp/s32/mmc/s32_mmc.h         | 12 ++++
+ include/drivers/nxp/s32/mmc/s32g_mmc.h        | 12 ----
+ plat/nxp/s32/include/s32_clocks.h             |  1 +
+ plat/nxp/s32/include/s32_platform_def.h       | 14 ++++
+ .../s32g_storage.h => include/s32_storage.h}  |  9 +--
+ plat/nxp/s32/s32_common.mk                    | 23 +++++++
+ .../{s32g/s32g_storage.c => s32_storage.c}    | 68 +++++++++----------
+ plat/nxp/s32/s32g/include/s32g_clocks.h       |  5 --
+ plat/nxp/s32/s32g/include/s32g_platform_def.h | 15 ----
+ plat/nxp/s32/s32g/s32g_bl2_el3.c              |  4 +-
+ plat/nxp/s32/s32g/s32g_bl_common.c            |  2 -
+ plat/nxp/s32/s32g/s32g_common.mk              | 23 -------
+ 13 files changed, 92 insertions(+), 100 deletions(-)
+ rename drivers/nxp/s32/mmc/{s32g_mmc.c => s32_mmc.c} (99%)
+ create mode 100644 include/drivers/nxp/s32/mmc/s32_mmc.h
+ delete mode 100644 include/drivers/nxp/s32/mmc/s32g_mmc.h
+ rename plat/nxp/s32/{s32g/include/s32g_storage.h => include/s32_storage.h} (80%)
+ rename plat/nxp/s32/{s32g/s32g_storage.c => s32_storage.c} (84%)
+
+diff --git a/drivers/nxp/s32/mmc/s32g_mmc.c b/drivers/nxp/s32/mmc/s32_mmc.c
+similarity index 99%
+rename from drivers/nxp/s32/mmc/s32g_mmc.c
+rename to drivers/nxp/s32/mmc/s32_mmc.c
+index 2e6c89c24..68c955130 100644
+--- a/drivers/nxp/s32/mmc/s32g_mmc.c
++++ b/drivers/nxp/s32/mmc/s32_mmc.c
+@@ -10,7 +10,7 @@
+ #include <drivers/delay_timer.h>
+ #include <drivers/mmc.h>
+ #include <lib/mmio.h>
+-#include "s32g_clocks.h"
++#include "s32_clocks.h"
+ 
+ #define USDHC				(0x402f0000ull)
+ 
+@@ -354,7 +354,7 @@ static const struct mmc_ops s32g274a_mmc_ops = {
+ 	.write		= s32g274a_mmc_write,
+ };
+ 
+-int s32g_mmc_register(uint32_t boot_source)
++int s32_mmc_register(uint32_t boot_source)
+ {
+ 	struct mmc_device_info *device_info;
+ 
+diff --git a/include/drivers/nxp/s32/mmc/s32_mmc.h b/include/drivers/nxp/s32/mmc/s32_mmc.h
+new file mode 100644
+index 000000000..5cbf59523
+--- /dev/null
++++ b/include/drivers/nxp/s32/mmc/s32_mmc.h
+@@ -0,0 +1,12 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#ifndef S32_MMC_H
++#define S32_MMC_H
++
++int s32_mmc_register(uint32_t boot_source);
++
++#endif /* S32_MMC_H */
+diff --git a/include/drivers/nxp/s32/mmc/s32g_mmc.h b/include/drivers/nxp/s32/mmc/s32g_mmc.h
+deleted file mode 100644
+index 7d6f92577..000000000
+--- a/include/drivers/nxp/s32/mmc/s32g_mmc.h
++++ /dev/null
+@@ -1,12 +0,0 @@
+-/*
+- * Copyright 2020-2021 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#ifndef S32G_MMC_H
+-#define S32G_MMC_H
+-
+-int s32g_mmc_register(uint32_t boot_source);
+-
+-#endif /* S32G_MMC_H */
+diff --git a/plat/nxp/s32/include/s32_clocks.h b/plat/nxp/s32/include/s32_clocks.h
+index 1cce43413..dad886eae 100644
+--- a/plat/nxp/s32/include/s32_clocks.h
++++ b/plat/nxp/s32/include/s32_clocks.h
+@@ -116,6 +116,7 @@ enum s32g_mc_cgm {
+ /* This should be kept in sync with other defines in this file,
+  * as it cannot be determined at run-time.
+  */
++#define SDHC_CLK_FREQ		(200 * 1000 * 1000)
+ #define I2C_CLK_FREQ		(133 * 1000 * 1000)
+ 
+ int s32_plat_clock_init(bool skip_ddr_clk);
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+index 1ec6ad337..cd670ead2 100644
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -62,6 +62,16 @@
+ #define CA53_1_0_RVBARADDR_39_32_OFF	(16)
+ #define CA53_1_1_RVBARADDR_39_32_OFF	(24)
+ 
++#define BOOT_GPR_BASE		0x4007C900UL
++#define BOOT_GPR_BMR1_OFF	0
++#define BOOT_RCON_MODE_MASK	0x100
++#define BOOT_SOURCE_MASK	0xE0
++#define BOOT_SOURCE_OFF		5
++#define BOOT_SOURCE_QSPI	0
++#define BOOT_SOURCE_SD		2
++#define BOOT_SOURCE_MMC		3
++#define INVALID_BOOT_SOURCE	1
++
+ /* GIC (re)definitions */
+ #define S32GEN1_GIC_BASE	0x50800000
+ #define PLAT_GICD_BASE		S32GEN1_GIC_BASE
+@@ -115,12 +125,16 @@
+ #define BL31_LIMIT		(S32_PMEM_END)
+ #define BL31_SIZE		(BL31_LIMIT - BL31_BASE + 1)
+ 
++#define FIP_BASE		(S32_SRAM_END - FIP_ROFFSET)
++
+ /* FIXME value randomly chosen; should probably be revisited */
+ #define PLATFORM_STACK_SIZE		0x4000
+ 
+ #define MAX_IO_HANDLES			4
+ #define MAX_IO_DEVICES			3
+ 
++#define PLAT_LOG_LEVEL_ASSERT		LOG_LEVEL_VERBOSE
++
+ #define S32_LINFLEX0_BASE	(0x401C8000ul)
+ #define S32_LINFLEX0_SIZE	(0x4000)
+ #define S32_LINFLEX1_BASE	(0x401CC000ul)
+diff --git a/plat/nxp/s32/s32g/include/s32g_storage.h b/plat/nxp/s32/include/s32_storage.h
+similarity index 80%
+rename from plat/nxp/s32/s32g/include/s32g_storage.h
+rename to plat/nxp/s32/include/s32_storage.h
+index f90ab3448..4500cfd17 100644
+--- a/plat/nxp/s32/s32g/include/s32g_storage.h
++++ b/plat/nxp/s32/include/s32_storage.h
+@@ -3,10 +3,11 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#ifndef S32G_STORAGE_H
+-#define S32G_STORAGE_H
++#ifndef S32_STORAGE_H
++#define S32_STORAGE_H
+ 
+ #include <tools_share/uuid.h>
++#include <string.h>
+ 
+ #define FIP_HEADER_SIZE		(0x200)
+ 
+@@ -16,7 +17,7 @@ struct plat_io_policy {
+ 	int (*check)(const uintptr_t spec);
+ };
+ 
+-void s32g_io_setup(void);
++void s32_io_setup(void);
+ 
+ /* Return 0 for equal uuids. */
+ static inline int compare_uuids(const uuid_t *uuid1, const uuid_t *uuid2)
+@@ -26,4 +27,4 @@ static inline int compare_uuids(const uuid_t *uuid1, const uuid_t *uuid2)
+ 
+ void set_image_spec(const uuid_t *uuid, uint64_t size, uint64_t offset);
+ 
+-#endif /* S32G_STORAGE_H */
++#endif /* S32_STORAGE_H */
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index 8a25f07f4..3b454bd03 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -68,7 +68,11 @@ BL2_SOURCES += \
+ 			drivers/io/io_fip.c \
+ 			drivers/io/io_storage.c \
+ 			drivers/mmc/mmc.c \
++			drivers/nxp/s32/io/io_mmc.c \
++			drivers/nxp/s32/io/io_memmap.c \
++			drivers/nxp/s32/mmc/s32_mmc.c \
+ 			plat/nxp/s32/s32_bl2_el3.c \
++			plat/nxp/s32/s32_storage.c \
+ 			plat/nxp/s32/s32_lowlevel_bl2.S \
+ 
+ BL31_SOURCES += \
+@@ -144,6 +148,25 @@ ${BL2_W_DTB}: bl2 dtbs
+ 	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
+ 	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
+ 
++# User defined parameters, for example:
++# 	make FIP_MMC_OFFSET=0x5400 <...other parameters>
++# These defines update only BL2's view of FIP AppBootCode:Code position.
++# IVT header updates (e.g. mkimage application code offset) should be updated
++# independently
++# These offsets must be aligned to the block size of 512 bytes
++FIP_MMC_OFFSET		?= 0x3400
++$(eval $(call add_define,FIP_MMC_OFFSET))
++FIP_QSPI_OFFSET		?= 0x3400
++$(eval $(call add_define,FIP_QSPI_OFFSET))
++
++# If FIP_MEM_OFFSET is defined, the FIP is not read from boot source (QSPI/MMC)
++# but from this defined memory address.
++# The use case is that M7 bootloader loads the FIP from storage at this SRAM
++# location and BL2 will read from it without accessing the storage.
++ifdef FIP_MEM_OFFSET
++$(eval $(call add_define,FIP_MEM_OFFSET))
++endif
++
+ FIP_ALIGN := 512
+ all: add_to_fip
+ add_to_fip: fip ${BL2_W_DTB}
+diff --git a/plat/nxp/s32/s32g/s32g_storage.c b/plat/nxp/s32/s32_storage.c
+similarity index 84%
+rename from plat/nxp/s32/s32g/s32g_storage.c
+rename to plat/nxp/s32/s32_storage.c
+index 523773a0a..5273bbdab 100644
+--- a/plat/nxp/s32/s32g/s32g_storage.c
++++ b/plat/nxp/s32/s32_storage.c
+@@ -10,15 +10,15 @@
+ #include <drivers/nxp/s32/io/io_mmc.h>
+ #include <drivers/io/io_memmap.h>
+ #include <drivers/io/io_fip.h>
+-#include <drivers/nxp/s32/mmc/s32g_mmc.h>
++#include <drivers/nxp/s32/mmc/s32_mmc.h>
+ #include <assert.h>
+ #include <tools_share/firmware_image_package.h>
+ #include <lib/mmio.h>
+ #include <libfdt.h>
+ #include <common/fdt_wrappers.h>
+ 
+-#include "s32g_storage.h"
+-#include "s32g_bl_common.h"
++#include "s32_storage.h"
++#include "s32_bl_common.h"
+ #include "s32_dt.h"
+ 
+ #ifdef SPD_opteed
+@@ -31,14 +31,14 @@
+ #define EEPROM_BOOT_CFG_OFF		0x0
+ #define EEPROM_ADDR_LEN			1
+ 
+-static const io_dev_connector_t *s32g_mmc_io_conn;
+-static uintptr_t s32g_mmc_dev_handle;
++static const io_dev_connector_t *s32_mmc_io_conn;
++static uintptr_t s32_mmc_dev_handle;
+ 
+-static const io_dev_connector_t *s32g_memmap_io_conn;
+-static uintptr_t s32g_memmap_dev_handle;
++static const io_dev_connector_t *s32_memmap_io_conn;
++static uintptr_t s32_memmap_dev_handle;
+ 
+-static int s32g_check_mmc_dev(const uintptr_t spec);
+-static int s32g_check_memmap_dev(const uintptr_t spec);
++static int s32_check_mmc_dev(const uintptr_t spec);
++static int s32_check_memmap_dev(const uintptr_t spec);
+ 
+ static const io_block_spec_t fip_memmap_spec = {
+ 	.offset = FIP_BASE,
+@@ -102,20 +102,20 @@ static struct image_storage_info images_info[] = {
+ 	},
+ };
+ 
+-static struct plat_io_policy s32g_policies[] = {
++static struct plat_io_policy s32_policies[] = {
+ 	[FIP_BACKEND_MEMMAP_ID] = {
+-		&s32g_memmap_dev_handle,
++		&s32_memmap_dev_handle,
+ 		(uintptr_t)&fip_memmap_spec,
+-		s32g_check_memmap_dev
++		s32_check_memmap_dev
+ 	},
+ };
+ 
+-static int s32g_check_mmc_dev(const uintptr_t spec)
++static int s32_check_mmc_dev(const uintptr_t spec)
+ {
+ 	uintptr_t local_handle;
+ 	int ret;
+ 
+-	ret = io_open(s32g_mmc_dev_handle, spec, &local_handle);
++	ret = io_open(s32_mmc_dev_handle, spec, &local_handle);
+ 	if (ret)
+ 		return ret;
+ 	/* must be closed, as load_image() will do another io_open() */
+@@ -124,14 +124,12 @@ static int s32g_check_mmc_dev(const uintptr_t spec)
+ 	return 0;
+ }
+ 
+-static int s32g_check_memmap_dev(const uintptr_t spec)
++static int s32_check_memmap_dev(const uintptr_t spec)
+ {
+ 	uintptr_t local_handle;
+ 	int ret;
+ 
+-	return 0;
+-
+-	ret = io_open(s32g_memmap_dev_handle, spec, &local_handle);
++	ret = io_open(s32_memmap_dev_handle, spec, &local_handle);
+ 	if (ret)
+ 		return ret;
+ 	/* must be closed, as load_image() will do another io_open() */
+@@ -323,11 +321,11 @@ static void set_img_source(struct plat_io_policy *policy,
+ 	policy->image_spec = (uintptr_t)crt_spec;
+ 
+ 	if (is_mmc_boot_source()) {
+-		policy->dev_handle = &s32g_mmc_dev_handle;
+-		policy->check = s32g_check_mmc_dev;
++		policy->dev_handle = &s32_mmc_dev_handle;
++		policy->check = s32_check_mmc_dev;
+ 	} else {
+-		policy->dev_handle = &s32g_memmap_dev_handle;
+-		policy->check = s32g_check_memmap_dev;
++		policy->dev_handle = &s32_memmap_dev_handle;
++		policy->check = s32_check_memmap_dev;
+ 	}
+ }
+ 
+@@ -338,11 +336,11 @@ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+ 	const struct plat_io_policy *policy;
+ 	int ret;
+ 
+-	assert(image_id < ARRAY_SIZE(s32g_policies));
++	assert(image_id < ARRAY_SIZE(s32_policies));
+ 
+-	set_img_source(&s32g_policies[image_id], image_id);
++	set_img_source(&s32_policies[image_id], image_id);
+ 
+-	policy = &s32g_policies[image_id];
++	policy = &s32_policies[image_id];
+ 	assert(policy && policy->check);
+ 	ret = policy->check(policy->image_spec);
+ 	if (ret) {
+@@ -357,16 +355,16 @@ int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+ 	return 0;
+ }
+ 
+-void s32g_io_setup(void)
++void s32_io_setup(void)
+ {
+ 	uint8_t boot_source;
+ 
+-	if (register_io_dev_memmap(&s32g_memmap_io_conn))
++	if (register_io_dev_memmap(&s32_memmap_io_conn))
+ 		goto err;
+-	if (io_dev_open(s32g_memmap_io_conn, (uintptr_t)&fip_memmap_spec,
+-			&s32g_memmap_dev_handle))
++	if (io_dev_open(s32_memmap_io_conn, (uintptr_t)&fip_memmap_spec,
++			&s32_memmap_dev_handle))
+ 		goto err;
+-	if (io_dev_init(s32g_memmap_dev_handle,
++	if (io_dev_init(s32_memmap_dev_handle,
+ 			(uintptr_t)FIP_BACKEND_MEMMAP_ID))
+ 		goto err;
+ 
+@@ -376,15 +374,15 @@ void s32g_io_setup(void)
+ 
+ 	/* MMC/SD may not be inserted */
+ 	if (boot_source != BOOT_SOURCE_QSPI) {
+-		if (s32g_mmc_register(boot_source))
++		if (s32_mmc_register(boot_source))
+ 			goto err;
+-		if (register_io_dev_mmc(&s32g_mmc_io_conn))
++		if (register_io_dev_mmc(&s32_mmc_io_conn))
+ 			goto err;
+-		if (io_dev_open(s32g_mmc_io_conn,
++		if (io_dev_open(s32_mmc_io_conn,
+ 				(uintptr_t)get_image_spec_from_id(FIP_IMAGE_ID),
+-				&s32g_mmc_dev_handle))
++				&s32_mmc_dev_handle))
+ 			goto err;
+-		if (io_dev_init(s32g_mmc_dev_handle, FIP_IMAGE_ID))
++		if (io_dev_init(s32_mmc_dev_handle, FIP_IMAGE_ID))
+ 			goto err;
+ 	}
+ 
+diff --git a/plat/nxp/s32/s32g/include/s32g_clocks.h b/plat/nxp/s32/s32g/include/s32g_clocks.h
+index 64098ff4c..bc4380014 100644
+--- a/plat/nxp/s32/s32g/include/s32g_clocks.h
++++ b/plat/nxp/s32/s32g/include/s32g_clocks.h
+@@ -156,11 +156,6 @@ s32g_periph_dfs_params[S32G_DFS_PORTS_NR][DFS_PARAMS_NR] = {
+ 	{PERIPH_DFS6_EN, PERIPH_DFS6_MFN, PERIPH_DFS6_MFI}
+ };
+ 
+-/* This should be kept in sync with other defines in this file,
+- * as it cannot be determined at run-time.
+- */
+-#define SDHC_CLK_FREQ		(200 * 1000 * 1000)
+-
+ /* FXOSC registers */
+ #define FXOSC_CTRL		(S32_FXOSC_BASE_ADDR)
+ #define FXOSC_STAT		(S32_FXOSC_BASE_ADDR + 0x4ul)
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index f2a83ee55..eb56a3cda 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -24,17 +24,6 @@
+ #define CA53_1_2_RVBARADDR_39_32_OFF	(16)
+ #define CA53_1_3_RVBARADDR_39_32_OFF	(24)
+ 
+-
+-#define BOOT_GPR_BASE		0x4007C900UL
+-#define BOOT_GPR_BMR1_OFF	0
+-#define BOOT_RCON_MODE_MASK	0x100
+-#define BOOT_SOURCE_MASK	0xE0
+-#define BOOT_SOURCE_OFF		5
+-#define BOOT_SOURCE_QSPI	0
+-#define BOOT_SOURCE_SD		2
+-#define BOOT_SOURCE_MMC		3
+-#define INVALID_BOOT_SOURCE	1
+-
+ #define S32G_SSRAM_BASE		(0x24000000)
+ #define S32G_SSRAM_SIZE		(0x8000)
+ #define S32G_SSRAM_LIMIT	(S32G_SSRAM_BASE + S32G_SSRAM_SIZE)
+@@ -80,10 +69,6 @@
+ #define S32G_BL32_BASE		(BL31_BASE - S32G_BL32_SIZE)
+ #define S32G_BL32_LIMIT		(BL31_BASE)
+ 
+-#define FIP_BASE		(S32_SRAM_END - FIP_ROFFSET)
+-
+-#define PLAT_LOG_LEVEL_ASSERT		LOG_LEVEL_VERBOSE
+-
+ #if defined IMAGE_BL31
+ /* To limit usage, keep these in sync with sizeof(s32g_mmap) */
+ #define MAX_MMAP_REGIONS		17
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 22c74090d..96655a3ec 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -17,7 +17,7 @@
+ #include <lib/xlat_tables/xlat_tables_v2.h>
+ #include "s32g_clocks.h"
+ #include "s32_linflexuart.h"
+-#include "s32g_storage.h"
++#include "s32_storage.h"
+ #include "s32g_mc_rgm.h"
+ #include "s32g_mc_me.h"
+ #include "bl31_ssram.h"
+@@ -696,7 +696,7 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 
+ 	s32_early_plat_init(false);
+ 	console_s32_register();
+-	s32g_io_setup();
++	s32_io_setup();
+ 
+ 	NOTICE("Reset status: %s\n", get_reset_cause_str(reset_cause));
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index 06b7cfed2..87243844e 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -13,8 +13,6 @@
+ #include "platform_def.h"
+ #include "s32g_pinctrl.h"
+ #include "s32g_clocks.h"
+-#include "s32_ncore.h"
+-#include "s32g_storage.h"
+ #include "s32g_bl_common.h"
+ #include "s32_dt.h"
+ #include "s32g_pinctrl.h"
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index 4bc7bc394..40e92c302 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -52,10 +52,6 @@ PLAT_BL_COMMON_SOURCES	+= \
+ 
+ BL2_SOURCES		+= \
+ 			   plat/nxp/s32/s32g/s32g_bl2_el3.c \
+-			   plat/nxp/s32/s32g/s32g_storage.c \
+-			   drivers/nxp/s32/io/io_mmc.c \
+-			   drivers/nxp/s32/io/io_memmap.c \
+-			   drivers/nxp/s32/mmc/s32g_mmc.c \
+ 			   ${BL31SSRAM_SRC_DUMP} \
+ 			   ${DDR_DRV_SRCS} \
+ 			   lib/optee/optee_utils.c \
+@@ -80,25 +76,6 @@ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+ 
+ BL31_SOURCES		+= plat/nxp/s32/s32g/bl31_lowlevel.S \
+ 
+-# User defined parameters, for example:
+-# 	make FIP_MMC_OFFSET=0x5400 <...other parameters>
+-# These defines update only BL2's view of FIP AppBootCode:Code position.
+-# IVT header updates (e.g. mkimage application code offset) should be updated
+-# independently
+-# These offsets must be aligned to the block size of 512 bytes
+-FIP_MMC_OFFSET		?= 0x3400
+-$(eval $(call add_define,FIP_MMC_OFFSET))
+-FIP_QSPI_OFFSET		?= 0x3400
+-$(eval $(call add_define,FIP_QSPI_OFFSET))
+-
+-# If FIP_MEM_OFFSET is defined, the FIP is not read from boot source (QSPI/MMC)
+-# but from this defined memory address.
+-# The use case is that M7 bootloader loads the FIP from storage at this SRAM
+-# location and BL2 will read from it without accessing the storage.
+-ifdef FIP_MEM_OFFSET
+-$(eval $(call add_define,FIP_MEM_OFFSET))
+-endif
+-
+ ### Platform-specific defines ###
+ # Which LinFlexD to use as a UART device
+ ifeq ($(S32G_EMU),0)
+-- 
+2.17.1
+

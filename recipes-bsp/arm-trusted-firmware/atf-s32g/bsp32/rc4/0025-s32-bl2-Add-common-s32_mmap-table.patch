@@ -1,0 +1,459 @@
+From 56b689710329071993f23ad64e033cc9998e0195 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 5 Jan 2022 12:26:26 +0200
+Subject: [PATCH 25/50] s32: bl2: Add common s32_mmap table
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/include/s32_bl2_el3.h            |   4 +-
+ plat/nxp/s32/include/s32_platform_def.h       |  10 +-
+ plat/nxp/s32/s32_bl2_el3.c                    | 150 +++++++++++++++++-
+ plat/nxp/s32/s32g/include/s32g_platform_def.h |  10 +-
+ plat/nxp/s32/s32g/s32g_bl2_el3.c              | 134 +---------------
+ plat/nxp/s32/s32g/s32g_bl31.c                 |   2 +-
+ plat/nxp/s32/s32g/s32g_svc.c                  |   6 +-
+ 7 files changed, 167 insertions(+), 149 deletions(-)
+
+diff --git a/plat/nxp/s32/include/s32_bl2_el3.h b/plat/nxp/s32/include/s32_bl2_el3.h
+index 6cad5b0c0..1bc2f66a0 100644
+--- a/plat/nxp/s32/include/s32_bl2_el3.h
++++ b/plat/nxp/s32/include/s32_bl2_el3.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -15,4 +15,6 @@ void add_bl32_extra1_img_to_mem_params_descs(bl_mem_params_node_t *params, size_
+ void add_bl33_img_to_mem_params_descs(bl_mem_params_node_t *params, size_t *index);
+ void add_invalid_img_to_mem_params_descs(bl_mem_params_node_t *params, size_t *index);
+ 
++int s32_el3_mmu_fixup(void);
++
+ #endif /* S32_BL2_EL3_H */
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+index 40a34a04f..90501fb1c 100644
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -161,5 +161,13 @@
+ #define S32_UART_SIZE		S32_LINFLEX0_SIZE
+ #endif
+ 
++#define S32_SCMI_SHARED_MEM			0xd0000000U
++#define S32_SCMI_SHARED_MEM_SIZE	0x400000U
++
++#define S32_QSPI_BASE		(0x40134000ul)
++#define S32_QSPI_SIZE		(0x1000)
++
++#define S32_FLASH_BASE		(0x0)
++
+ #endif /* S32_PLATFORM_H */
+ 
+diff --git a/plat/nxp/s32/s32_bl2_el3.c b/plat/nxp/s32/s32_bl2_el3.c
+index 0840c884b..b3868bbea 100644
+--- a/plat/nxp/s32/s32_bl2_el3.c
++++ b/plat/nxp/s32/s32_bl2_el3.c
+@@ -1,12 +1,22 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #include <assert.h>
++
++#include <common/bl_common.h>
+ #include <common/desc_image_load.h>
++#include <lib/xlat_tables/xlat_tables_v2.h>
++#include <lib/libc/errno.h>
++#include <lib/libfdt/libfdt.h>
+ #include <platform.h>
+ 
++#include "s32_dt.h"
++#include "s32_clocks.h"
++#include "s32_mc_me.h"
++#include "s32_mc_rgm.h"
++#include "s32_sramc.h"
+ #include "s32_storage.h"
+ 
+ void add_fip_img_to_mem_params_descs(bl_mem_params_node_t *params,
+@@ -141,6 +151,144 @@ void add_invalid_img_to_mem_params_descs(bl_mem_params_node_t *params,
+ 	params[(*index)++] = node;
+ }
+ 
++#define MMU_ROUND_UP_TO_4K(x)	\
++			(((x) & ~0xfff) == (x) ? (x) : ((x) & ~0xfff) + 0x1000)
++
++IMPORT_SYM(uintptr_t, __RW_START__, BL2_RW_START);
++
++static mmap_region_t s32_mmap[] = {
++#if !defined(PLAT_s32r)
++	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
++			 MT_MEMORY | MT_RW | MT_SECURE),
++#endif
++	MAP_REGION_FLAT(S32_UART_BASE, S32_UART_SIZE,
++			MT_DEVICE | MT_RW | MT_NS),
++	MAP_REGION_FLAT(S32_MC_ME_BASE_ADDR, S32_MC_ME_SIZE,
++			MT_DEVICE | MT_RW),
++	MAP_REGION_FLAT(MC_CGM0_BASE_ADDR,
++			MMU_ROUND_UP_TO_4K(S32_DFS_ADDR(S32_DFS_NR)),
++			MT_DEVICE | MT_RW),
++	/* This will cover both the MC_RGM and the GPR accesses, while reducing
++	 * the number of used up MMU regions.
++	 */
++	MAP_REGION_FLAT(S32_MC_RGM_BASE_ADDR, S32_MC_RGM_SIZE,
++			MT_DEVICE | MT_RW),
++	MAP_REGION_FLAT(SRAMC0_BASE_ADDR, SRAMC_SIZE,
++			MT_DEVICE | MT_RW),
++#if !defined(PLAT_s32r)
++	MAP_REGION_FLAT(SSRAMC_BASE_ADDR, SRAMC_SIZE,
++			MT_DEVICE | MT_RW),
++#endif
++	MAP_REGION2(S32_BL32_BASE, S32_BL32_BASE,
++			MMU_ROUND_UP_TO_4K(S32_BL32_SIZE),
++			MT_MEMORY | MT_RW, PAGE_SIZE),
++	MAP_REGION2(S32_BL33_IMAGE_BASE, S32_BL33_IMAGE_BASE,
++			MMU_ROUND_UP_TO_4K(S32_BL33_IMAGE_SIZE),
++			MT_MEMORY | MT_RW, PAGE_SIZE),
++	MAP_REGION_FLAT(S32_PMEM_START, S32_PMEM_LEN,
++			MT_MEMORY | MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(S32_SCMI_SHARED_MEM, S32_SCMI_SHARED_MEM_SIZE,
++			MT_NON_CACHEABLE | MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(S32_QSPI_BASE, S32_QSPI_SIZE, MT_DEVICE | MT_RW),
++	MAP_REGION_FLAT(FIP_BASE, FIP_MAXIMUM_SIZE, MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(S32_FLASH_BASE, FIP_MAXIMUM_SIZE, MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(DTB_BASE, BL2_BASE - DTB_BASE, MT_MEMORY | MT_RW),
++	{0},
++};
++
++static int disable_qspi_mmu_entry(void)
++{
++	int offset;
++	void *fdt = NULL;
++	size_t i;
++
++	if (dt_open_and_check() < 0) {
++		ERROR("Failed to check FDT integrity\n");
++		return -EFAULT;
++	}
++
++	if (fdt_get_address(&fdt) == 0) {
++		ERROR("Failed to get FDT address\n");
++		return -EFAULT;
++	}
++
++	offset = fdt_node_offset_by_compatible(fdt, -1, "fsl,s32gen1-qspi");
++	if (offset > 0) {
++		if (fdt_get_status(offset) == DT_ENABLED)
++			return 0;
++	}
++
++	for (i = 0; i < ARRAY_SIZE(s32_mmap); i++) {
++		if (s32_mmap[i].base_pa == S32_FLASH_BASE) {
++			s32_mmap[i].size = 0;
++			break;
++		}
++	}
++
++	return 0;
++}
++
++int s32_el3_mmu_fixup(void)
++{
++	const unsigned long code_start = BL_CODE_BASE;
++	const unsigned long code_size = BL_CODE_END - BL_CODE_BASE;
++	const unsigned long rw_start = BL2_RW_START;
++	const unsigned long rw_size = BL_END - BL2_RW_START;
++	mmap_region_t regions[] = {
++		{
++			.base_pa = code_start,
++			.base_va = code_start,
++			.size = code_size,
++			.attr = MT_CODE | MT_SECURE,
++		},
++		{
++			.base_pa = rw_start,
++			.base_va = rw_start,
++			.size = rw_size,
++			.attr = MT_RW | MT_MEMORY | MT_SECURE,
++		},
++	};
++	int i, ret;
++
++	ret = disable_qspi_mmu_entry();
++	if (ret)
++		return ret;
++
++	/* Check the BL31/BL32/BL33 memory ranges for overlapping */
++	_Static_assert(S32_BL32_BASE + S32_BL32_SIZE <= BL31_BASE,
++				"BL32 and BL31 memory ranges overlap!");
++	_Static_assert(BL31_BASE + BL31_SIZE <= BL33_BASE,
++				"BL31 and BL33 memory ranges overlap!");
++
++	/* The calls to mmap_add_region() consume mmap regions,
++	 * so they must be counted in the static asserts
++	 */
++	_Static_assert(ARRAY_SIZE(s32_mmap) + ARRAY_SIZE(regions) - 1 <=
++		MAX_MMAP_REGIONS,
++		"Fewer MAX_MMAP_REGIONS than in s32_mmap will likely result in a MMU exception at runtime");
++
++	_Static_assert(ARRAY_SIZE(s32_mmap) + ARRAY_SIZE(regions) - 1
++#if !defined(PLAT_s32r)
++		+ BL31SRAM_MAX_PAGES
++#endif
++		<= MAX_XLAT_TABLES,
++		"Fewer MAX_XLAT_TABLES than in s32_mmap will likely result in a MMU exception at runtime");
++
++	/* MMU initialization; while technically not necessary, improves
++	 * bl2_load_images execution time.
++	 */
++	for (i = 0; i < ARRAY_SIZE(regions); i++)
++		mmap_add_region(regions[i].base_pa, regions[i].base_va,
++				regions[i].size, regions[i].attr);
++
++	mmap_add(s32_mmap);
++
++	init_xlat_tables();
++	enable_mmu_el3(0);
++
++	return 0;
++}
++
+ struct bl_load_info *plat_get_bl_image_load_info(void)
+ {
+ 	return get_bl_load_info_from_mem_params_desc();
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index 0738521f0..e4a8c8644 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -72,12 +72,4 @@
+ #pragma warning "BL33 image is being built; you should configure it out."
+ #endif
+ 
+-#define S32G_SCMI_SHARED_MEM			0xd0000000U
+-#define S32G_SCMI_SHARED_MEM_SIZE	0x400000U
+-
+-#define S32G_QSPI_BASE		(0x40134000ul)
+-#define S32G_QSPI_SIZE		(0x1000)
+-
+-#define S32G_FLASH_BASE		(0x0)
+-
+ #endif /* S32G_PLATFORM_DEF_H */
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 191583080..34422cd17 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -393,138 +393,6 @@ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ }
+ #endif
+ 
+-#define MMU_ROUND_UP_TO_4K(x)	\
+-			(((x) & ~0xfff) == (x) ? (x) : ((x) & ~0xfff) + 0x1000)
+-
+-IMPORT_SYM(uintptr_t, __RW_START__, BL2_RW_START);
+-
+-static mmap_region_t s32g_mmap[] = {
+-	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
+-			 MT_MEMORY | MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(S32_UART_BASE, S32_UART_SIZE,
+-			MT_DEVICE | MT_RW | MT_NS),
+-	MAP_REGION_FLAT(S32_MC_ME_BASE_ADDR, S32_MC_ME_SIZE,
+-			MT_DEVICE | MT_RW),
+-	MAP_REGION_FLAT(MC_CGM0_BASE_ADDR,
+-			MMU_ROUND_UP_TO_4K(S32_DFS_ADDR(S32_DFS_NR)),
+-			MT_DEVICE | MT_RW),
+-	/* This will cover both the MC_RGM and the GPR accesses, while reducing
+-	 * the number of used up MMU regions.
+-	 */
+-	MAP_REGION_FLAT(S32_MC_RGM_BASE_ADDR, S32_MC_RGM_SIZE,
+-			MT_DEVICE | MT_RW),
+-	MAP_REGION_FLAT(SRAMC0_BASE_ADDR, SRAMC_SIZE,
+-			MT_DEVICE | MT_RW),
+-	MAP_REGION_FLAT(SSRAMC_BASE_ADDR, SRAMC_SIZE,
+-			MT_DEVICE | MT_RW),
+-	MAP_REGION2(S32_BL32_BASE, S32_BL32_BASE,
+-			MMU_ROUND_UP_TO_4K(S32_BL32_SIZE),
+-			MT_MEMORY | MT_RW, PAGE_SIZE),
+-	MAP_REGION2(S32_BL33_IMAGE_BASE, S32_BL33_IMAGE_BASE,
+-			MMU_ROUND_UP_TO_4K(S32_BL33_IMAGE_SIZE),
+-			MT_MEMORY | MT_RW, PAGE_SIZE),
+-	MAP_REGION_FLAT(S32_PMEM_START, S32_PMEM_LEN,
+-			MT_MEMORY | MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(S32G_SCMI_SHARED_MEM, S32G_SCMI_SHARED_MEM_SIZE,
+-			MT_NON_CACHEABLE | MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(S32G_QSPI_BASE, S32G_QSPI_SIZE, MT_DEVICE | MT_RW),
+-	MAP_REGION_FLAT(FIP_BASE, FIP_MAXIMUM_SIZE, MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(S32G_FLASH_BASE, FIP_MAXIMUM_SIZE, MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(DTB_BASE, BL2_BASE - DTB_BASE, MT_MEMORY | MT_RW),
+-	{0},
+-};
+-
+-static int disable_qspi_mmu_entry(void)
+-{
+-	int offset;
+-	void *fdt = NULL;
+-	size_t i;
+-
+-	if (dt_open_and_check() < 0) {
+-		ERROR("Failed to check FDT integrity\n");
+-		return -EFAULT;
+-	}
+-
+-	if (fdt_get_address(&fdt) == 0) {
+-		ERROR("Failed to get FDT address\n");
+-		return -EFAULT;
+-	}
+-
+-	offset = fdt_node_offset_by_compatible(fdt, -1, "fsl,s32gen1-qspi");
+-	if (offset > 0) {
+-		if (fdt_get_status(offset) == DT_ENABLED)
+-			return 0;
+-	}
+-
+-	for (i = 0; i < ARRAY_SIZE(s32g_mmap); i++) {
+-		if (s32g_mmap[i].base_pa == S32G_FLASH_BASE) {
+-			s32g_mmap[i].size = 0;
+-			break;
+-		}
+-	}
+-
+-	return 0;
+-}
+-
+-static int s32g_el3_mmu_fixup(void)
+-{
+-	const unsigned long code_start = BL_CODE_BASE;
+-	const unsigned long code_size = BL_CODE_END - BL_CODE_BASE;
+-	const unsigned long rw_start = BL2_RW_START;
+-	const unsigned long rw_size = BL_END - BL2_RW_START;
+-	mmap_region_t regions[] = {
+-		{
+-			.base_pa = code_start,
+-			.base_va = code_start,
+-			.size = code_size,
+-			.attr = MT_CODE | MT_SECURE,
+-		},
+-		{
+-			.base_pa = rw_start,
+-			.base_va = rw_start,
+-			.size = rw_size,
+-			.attr = MT_RW | MT_MEMORY | MT_SECURE,
+-		},
+-	};
+-	int i, ret;
+-
+-	ret = disable_qspi_mmu_entry();
+-	if (ret)
+-		return ret;
+-
+-	/* Check the BL31/BL32/BL33 memory ranges for overlapping */
+-	_Static_assert(S32_BL32_BASE + S32_BL32_SIZE <= BL31_BASE,
+-				"BL32 and BL31 memory ranges overlap!");
+-	_Static_assert(BL31_BASE + BL31_SIZE <= BL33_BASE,
+-				"BL31 and BL33 memory ranges overlap!");
+-
+-	/* The calls to mmap_add_region() consume mmap regions,
+-	 * so they must be counted in the static asserts
+-	 */
+-	_Static_assert(ARRAY_SIZE(s32g_mmap) + ARRAY_SIZE(regions) - 1 <=
+-		       MAX_MMAP_REGIONS,
+-		       "Fewer MAX_MMAP_REGIONS than in s32g_mmap will likely "
+-		       "result in a MMU exception at runtime");
+-	_Static_assert(ARRAY_SIZE(s32g_mmap) + ARRAY_SIZE(regions) - 1 +
+-		       BL31SRAM_MAX_PAGES <= MAX_XLAT_TABLES,
+-		       "Fewer MAX_XLAT_TABLES than in s32g_mmap will likely "
+-		       "result in a MMU exception at runtime");
+-
+-	/* MMU initialization; while technically not necessary, improves
+-	 * bl2_load_images execution time.
+-	 */
+-	for (i = 0; i < ARRAY_SIZE(regions); i++)
+-		mmap_add_region(regions[i].base_pa, regions[i].base_va,
+-				regions[i].size, regions[i].attr);
+-
+-	mmap_add(s32g_mmap);
+-
+-	init_xlat_tables();
+-	enable_mmu_el3(0);
+-
+-	return 0;
+-}
+-
+ #if S32G_EMU == 1
+ static void skip_emu_images(bl_mem_params_node_t *params, size_t size)
+ {
+@@ -596,7 +464,7 @@ void bl2_el3_plat_arch_setup(void)
+ 	uint32_t ret;
+ 
+ #if S32G_EMU == 0
+-	ret = s32g_el3_mmu_fixup();
++	ret = s32_el3_mmu_fixup();
+ 	if (ret)
+ 		panic();
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index 111f14993..6b97c4e17 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -75,7 +75,7 @@ static const mmap_region_t s32g_mmap[] = {
+ 			MT_MEMORY | MT_RW, PAGE_SIZE),
+ 	MAP_REGION_FLAT(S32_PMEM_START, S32_PMEM_LEN,
+ 			MT_MEMORY | MT_RW | MT_SECURE),
+-	MAP_REGION_FLAT(S32G_SCMI_SHARED_MEM, S32G_SCMI_SHARED_MEM_SIZE,
++	MAP_REGION_FLAT(S32_SCMI_SHARED_MEM, S32_SCMI_SHARED_MEM_SIZE,
+ 			MT_NON_CACHEABLE | MT_RW | MT_SECURE),
+ 	{0},
+ };
+diff --git a/plat/nxp/s32/s32g/s32g_svc.c b/plat/nxp/s32/s32g/s32g_svc.c
+index b5f165cbc..7292559d3 100644
+--- a/plat/nxp/s32/s32g/s32g_svc.c
++++ b/plat/nxp/s32/s32g/s32g_svc.c
+@@ -68,7 +68,7 @@ size_t plat_scmi_protocol_count(void)
+ 
+ static int32_t s32g_svc_smc_setup(void)
+ {
+-	struct scmi_shared_mem *mem = (void *)S32G_SCMI_SHARED_MEM;
++	struct scmi_shared_mem *mem = (void *)S32_SCMI_SHARED_MEM;
+ 
+ 	mem->channel_status = SCMI_SHMEM_CHAN_STAT_CHANNEL_FREE;
+ 	return 0;
+@@ -77,7 +77,7 @@ static int32_t s32g_svc_smc_setup(void)
+ static int scmi_handler(uint32_t smc_fid, u_register_t x1,
+ 			u_register_t x2, u_register_t x3)
+ {
+-	struct scmi_shared_mem *mem = (void *)S32G_SCMI_SHARED_MEM;
++	struct scmi_shared_mem *mem = (void *)S32_SCMI_SHARED_MEM;
+ 	struct response *response = (struct response *)&mem->msg_payload[0];
+ 	uint32_t msg_header = mem->msg_header;
+ 	struct scmi_msg msg = {
+@@ -87,7 +87,7 @@ static int scmi_handler(uint32_t smc_fid, u_register_t x1,
+ 		.protocol_id = MSG_PRO_ID(msg_header),
+ 		.message_id = MSG_ID(msg_header),
+ 		.out = (char *)response,
+-		.out_size = S32G_SCMI_SHARED_MEM_SIZE - sizeof(*mem),
++		.out_size = S32_SCMI_SHARED_MEM_SIZE - sizeof(*mem),
+ 	};
+ 
+ 	scmi_process_message(&msg);
+-- 
+2.17.1
+

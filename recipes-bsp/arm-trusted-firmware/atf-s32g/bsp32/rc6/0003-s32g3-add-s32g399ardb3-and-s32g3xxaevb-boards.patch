@@ -1,0 +1,219 @@
+From d541641356959bae55e59bc48bda0d2ac4e10431 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Mon, 31 Jan 2022 12:50:18 +0200
+Subject: [PATCH 3/6] s32g3: add s32g399ardb3 and s32g3xxaevb boards
+
+The new build targets for the s32g3 SOC will be s32g399ardb3 and
+s32g3xxaevb.
+
+Issue: ALB-8443
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ ...s32g399a-rdb.dts => fsl-s32g399a-rdb3.dts} |  4 +--
+ fdts/fsl-s32g3xxa-evb.dts                     | 34 +++++++++++++++++++
+ .../{platform_def.h => s32g3_platform_def.h}  |  8 ++---
+ .../s32/s32g/s32g3/{platform.mk => s32g3.mk}  |  7 ++--
+ .../s32g3/s32g399ardb3/include/platform_def.h | 11 ++++++
+ .../s32/s32g/s32g3/s32g399ardb3/platform.mk   | 11 ++++++
+ .../s32g3/s32g3xxaevb/include/platform_def.h  | 11 ++++++
+ .../s32/s32g/s32g3/s32g3xxaevb/platform.mk    | 11 ++++++
+ 8 files changed, 87 insertions(+), 10 deletions(-)
+ rename fdts/{fsl-s32g399a-rdb.dts => fsl-s32g399a-rdb3.dts} (67%)
+ create mode 100644 fdts/fsl-s32g3xxa-evb.dts
+ rename plat/nxp/s32/s32g/s32g3/include/{platform_def.h => s32g3_platform_def.h} (87%)
+ rename plat/nxp/s32/s32g/s32g3/{platform.mk => s32g3.mk} (89%)
+ create mode 100644 plat/nxp/s32/s32g/s32g3/s32g399ardb3/include/platform_def.h
+ create mode 100644 plat/nxp/s32/s32g/s32g3/s32g399ardb3/platform.mk
+ create mode 100644 plat/nxp/s32/s32g/s32g3/s32g3xxaevb/include/platform_def.h
+ create mode 100644 plat/nxp/s32/s32g/s32g3/s32g3xxaevb/platform.mk
+
+diff --git a/fdts/fsl-s32g399a-rdb.dts b/fdts/fsl-s32g399a-rdb3.dts
+similarity index 67%
+rename from fdts/fsl-s32g399a-rdb.dts
+rename to fdts/fsl-s32g399a-rdb3.dts
+index f0861bad2..c88f13085 100644
+--- a/fdts/fsl-s32g399a-rdb.dts
++++ b/fdts/fsl-s32g399a-rdb3.dts
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -8,5 +8,5 @@
+ #include "fsl-s32g-rdb.dtsi"
+ 
+ / {
+-	compatible = "fsl,s32g399ardb";
++	compatible = "fsl,s32g399ardb3";
+ };
+diff --git a/fdts/fsl-s32g3xxa-evb.dts b/fdts/fsl-s32g3xxa-evb.dts
+new file mode 100644
+index 000000000..8683382e3
+--- /dev/null
++++ b/fdts/fsl-s32g3xxa-evb.dts
+@@ -0,0 +1,34 @@
++/*
++ * Copyright 2022 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++/dts-v1/;
++#include "fsl-s32g3.dtsi"
++
++/ {
++	compatible = "fsl,s32g3xxaevb";
++};
++
++/* PMIC */
++&i2c4 {
++	status = "okay";
++	clock-frequency=<100000>;
++
++	vr5510@20 {
++		compatible = "fsl,vr5510";
++		reg = <0x20>;
++		status = "okay";
++	};
++
++	vr5510_fsu@21 {
++		compatible = "fsl,vr5510";
++		reg = <0x21>;
++		status = "okay";
++	};
++
++};
++
++&wkpu {
++	status = "okay";
++};
+diff --git a/plat/nxp/s32/s32g/s32g3/include/platform_def.h b/plat/nxp/s32/s32g/s32g3/include/s32g3_platform_def.h
+similarity index 87%
+rename from plat/nxp/s32/s32g/s32g3/include/platform_def.h
+rename to plat/nxp/s32/s32g/s32g3/include/s32g3_platform_def.h
+index 74ce10305..e9a19f890 100644
+--- a/plat/nxp/s32/s32g/s32g3/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g3/include/s32g3_platform_def.h
+@@ -1,10 +1,10 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#ifndef PLATFORM_DEF_H
+-#define PLATFORM_DEF_H
++#ifndef S32G3_PLATFORM_DEF_H
++#define S32G3_PLATFORM_DEF_H
+ 
+ #include <s32g_platform_def.h>
+ 
+@@ -36,5 +36,5 @@
+ #define FIRMWARE_WELCOME_STR_S32G_BL31	"This is S32G3 BL31\n"
+ #endif
+ 
+-#endif /* PLATFORM_DEF_H */
++#endif /* S32G3_PLATFORM_DEF_H */
+ 
+diff --git a/plat/nxp/s32/s32g/s32g3/platform.mk b/plat/nxp/s32/s32g/s32g3/s32g3.mk
+similarity index 89%
+rename from plat/nxp/s32/s32g/s32g3/platform.mk
+rename to plat/nxp/s32/s32g/s32g3/s32g3.mk
+index 0480b882f..4980a8445 100644
+--- a/plat/nxp/s32/s32g/s32g3/platform.mk
++++ b/plat/nxp/s32/s32g/s32g3/s32g3.mk
+@@ -1,9 +1,11 @@
+ #
+-# Copyright 2021 NXP
++# Copyright 2021-2022 NXP
+ #
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+ 
++S32_PLAT_SOC := s32g3
++
+ DDR_DRV_SRCS            += ${DDR_DRV}/s32g3/ddrc_cfg.c \
+ 			   ${DDR_DRV}/s32g3/dmem_cfg.c \
+ 			   ${DDR_DRV}/s32g3/dq_swap_cfg.c \
+@@ -20,6 +22,3 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g3/s32g3_mc_me.c \
+ 			   plat/nxp/s32/s32g/s32g3/s32g3_vr5510.c \
+ 			   drivers/nxp/s32/clk/s32g3_clk.c \
+ 			   lib/cpus/aarch64/cortex_a53.S \
+-
+-# Device tree
+-DTB_FILE_NAME		?= fsl-s32g399a-rdb.dtb
+diff --git a/plat/nxp/s32/s32g/s32g3/s32g399ardb3/include/platform_def.h b/plat/nxp/s32/s32g/s32g3/s32g399ardb3/include/platform_def.h
+new file mode 100644
+index 000000000..1949f1a65
+--- /dev/null
++++ b/plat/nxp/s32/s32g/s32g3/s32g399ardb3/include/platform_def.h
+@@ -0,0 +1,11 @@
++/*
++ * Copyright 2022 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef PLATFORM_DEF_H
++#define PLATFORM_DEF_H
++
++#include <s32g3_platform_def.h>
++
++#endif /* PLATFORM_DEF_H */
+diff --git a/plat/nxp/s32/s32g/s32g3/s32g399ardb3/platform.mk b/plat/nxp/s32/s32g/s32g3/s32g399ardb3/platform.mk
+new file mode 100644
+index 000000000..475be5f30
+--- /dev/null
++++ b/plat/nxp/s32/s32g/s32g3/s32g399ardb3/platform.mk
+@@ -0,0 +1,11 @@
++#
++# Copyright 2022 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++include plat/nxp/s32/s32g/s32g3/s32g3.mk
++
++PLAT_INCLUDES		+= -Iplat/nxp/s32/s32g/s32g3/s32g399ardb3/include \
++
++DTB_FILE_NAME		?= fsl-s32g399a-rdb3.dtb
+diff --git a/plat/nxp/s32/s32g/s32g3/s32g3xxaevb/include/platform_def.h b/plat/nxp/s32/s32g/s32g3/s32g3xxaevb/include/platform_def.h
+new file mode 100644
+index 000000000..1949f1a65
+--- /dev/null
++++ b/plat/nxp/s32/s32g/s32g3/s32g3xxaevb/include/platform_def.h
+@@ -0,0 +1,11 @@
++/*
++ * Copyright 2022 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef PLATFORM_DEF_H
++#define PLATFORM_DEF_H
++
++#include <s32g3_platform_def.h>
++
++#endif /* PLATFORM_DEF_H */
+diff --git a/plat/nxp/s32/s32g/s32g3/s32g3xxaevb/platform.mk b/plat/nxp/s32/s32g/s32g3/s32g3xxaevb/platform.mk
+new file mode 100644
+index 000000000..27fcdc57b
+--- /dev/null
++++ b/plat/nxp/s32/s32g/s32g3/s32g3xxaevb/platform.mk
+@@ -0,0 +1,11 @@
++#
++# Copyright 2022 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++include plat/nxp/s32/s32g/s32g3/s32g3.mk
++
++PLAT_INCLUDES		+= -Iplat/nxp/s32/s32g/s32g3/s32g3xxaevb/include \
++
++DTB_FILE_NAME		?= fsl-s32g3xxa-evb.dtb
+-- 
+2.17.1
+

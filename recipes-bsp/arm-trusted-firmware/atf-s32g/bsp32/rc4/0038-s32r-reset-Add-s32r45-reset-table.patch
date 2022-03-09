@@ -1,0 +1,78 @@
+From 57b526f9210e8f72a36e76790100aef28f5aa702 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 8 Dec 2021 13:40:38 +0200
+Subject: [PATCH 38/50] s32r: reset: Add s32r45 reset table
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/s32_scmi_rst.c | 16 +++++++++++++++-
+ plat/nxp/s32/s32_svc.c      |  4 +++-
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32/s32_scmi_rst.c b/plat/nxp/s32/s32_scmi_rst.c
+index 353eb5338..e92721a45 100644
+--- a/plat/nxp/s32/s32_scmi_rst.c
++++ b/plat/nxp/s32/s32_scmi_rst.c
+@@ -5,6 +5,9 @@
+ #include <common/debug.h>
+ #include <drivers/scmi-msg.h>
+ #include <drivers/scmi.h>
++#ifdef PLAT_s32r
++#include <dt-bindings/reset/s32r45-scmi-reset.h>
++#endif
+ #ifdef PLAT_s32g2
+ #include <dt-bindings/reset/s32g-scmi-reset.h>
+ #endif
+@@ -44,6 +47,9 @@ static const struct reset_entry reset_table[] = {
+ 	[S32GEN1_SCMI_RST_A53_1] = PERIPH_RESET(66, "a53_1"),
+ 	[S32GEN1_SCMI_RST_A53_2] = PERIPH_RESET(67, "a53_2"),
+ 	[S32GEN1_SCMI_RST_A53_3] = PERIPH_RESET(68, "a53_3"),
++	/* PFE and LLCE cannot be reset as an independent peripherals */
++	[S32G_SCMI_RST_PFE] = PART_RESET(2, "pfe"),
++	[S32G_SCMI_RST_LLCE] = PART_RESET(3, "llce"),
+ #endif
+ #ifdef PLAT_s32g3
+ 	[S32GEN1_SCMI_RST_A53_0] = PERIPH_RESET(65, "a53_0"),
+@@ -55,10 +61,18 @@ static const struct reset_entry reset_table[] = {
+ 	[S32G3_SCMI_RST_A53_6] = PERIPH_RESET(71, "a53_6"),
+ 	[S32G3_SCMI_RST_A53_7] = PERIPH_RESET(72, "a53_7"),
+ 	[S32G3_SCMI_RST_CM7_3] = PERIPH_RESET(6, "cm7_3"),
+-#endif
+ 	/* PFE and LLCE cannot be reset as an independent peripherals */
+ 	[S32G_SCMI_RST_PFE] = PART_RESET(2, "pfe"),
+ 	[S32G_SCMI_RST_LLCE] = PART_RESET(3, "llce"),
++#endif
++#ifdef PLAT_s32r
++	[S32GEN1_SCMI_RST_A53_0] = PERIPH_RESET(65, "a53_0"),
++	[S32GEN1_SCMI_RST_A53_1] = PERIPH_RESET(66, "a53_1"),
++	[S32GEN1_SCMI_RST_A53_2] = PERIPH_RESET(67, "a53_2"),
++	[S32GEN1_SCMI_RST_A53_3] = PERIPH_RESET(68, "a53_3"),
++	[S32R45_SCMI_RST_LAX] = PERIPH_RESET(128, "lax"),
++	[S32R45_SCMI_RST_RADAR] = PERIPH_RESET(192, "radar"),
++#endif
+ };
+ 
+ uint32_t get_reset_block(uint32_t scmi_id)
+diff --git a/plat/nxp/s32/s32_svc.c b/plat/nxp/s32/s32_svc.c
+index c8801a7b9..3f39b8d49 100644
+--- a/plat/nxp/s32/s32_svc.c
++++ b/plat/nxp/s32/s32_svc.c
+@@ -50,8 +50,10 @@ const char *plat_scmi_sub_vendor_name(void)
+ {
+ #if defined(PLAT_s32g2)
+ 	return "S32G274A";
+-#else
++#elif defined(PLAT_s32g3)
+ 	return "S32G399A";
++#else
++	return "S32R45";
+ #endif
+ }
+ 
+-- 
+2.17.1
+

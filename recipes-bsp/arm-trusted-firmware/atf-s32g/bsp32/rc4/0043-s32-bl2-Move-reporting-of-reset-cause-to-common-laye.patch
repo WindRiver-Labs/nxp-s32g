@@ -1,0 +1,234 @@
+From e9dbd9fb51be67c6b3888c92645275402ad3e6f9 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Tue, 18 Jan 2022 15:18:27 +0200
+Subject: [PATCH 43/50] s32: bl2: Move reporting of reset cause to common layer
+
+Different 'get_reset_cause' functions are used for S32G and S32R
+platforms, as MC_RGM_RDSS and MC_ME_MODE_STAT registers are not available
+on S32R45.
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/include/s32_bl2_el3.h      |  3 +++
+ plat/nxp/s32/include/s32_mc_rgm.h       | 12 +++++++++++-
+ plat/nxp/s32/s32_bl2_el3.c              | 25 +++++++++++++++++++++++++
+ plat/nxp/s32/s32g/include/s32g_mc_rgm.h | 12 +-----------
+ plat/nxp/s32/s32g/s32g_bl2_el3.c        | 25 -------------------------
+ plat/nxp/s32/s32r/s32r_bl2_el3.c        | 25 ++++++++++++++++++++++++-
+ 6 files changed, 64 insertions(+), 38 deletions(-)
+
+diff --git a/plat/nxp/s32/include/s32_bl2_el3.h b/plat/nxp/s32/include/s32_bl2_el3.h
+index 4c7e25460..d69714547 100644
+--- a/plat/nxp/s32/include/s32_bl2_el3.h
++++ b/plat/nxp/s32/include/s32_bl2_el3.h
+@@ -7,6 +7,7 @@
+ #define S32_BL2_EL3_H
+ 
+ #include <common/desc_image_load.h>
++#include "s32_mc_rgm.h"
+ 
+ void add_fip_img_to_mem_params_descs(bl_mem_params_node_t *params, size_t *index);
+ void add_bl31_img_to_mem_params_descs(bl_mem_params_node_t *params, size_t *index);
+@@ -17,5 +18,7 @@ void add_invalid_img_to_mem_params_descs(bl_mem_params_node_t *params, size_t *i
+ 
+ int s32_el3_mmu_fixup(void);
+ void clear_swt_faults(void);
++void clear_reset_cause(void);
++const char *get_reset_cause_str(enum reset_cause reset_cause);
+ 
+ #endif /* S32_BL2_EL3_H */
+diff --git a/plat/nxp/s32/include/s32_mc_rgm.h b/plat/nxp/s32/include/s32_mc_rgm.h
+index 85b8da503..5eaa67a95 100644
+--- a/plat/nxp/s32/include/s32_mc_rgm.h
++++ b/plat/nxp/s32/include/s32_mc_rgm.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -41,6 +41,16 @@
+ #define MC_RGM_FES	(S32_MC_RGM_BASE_ADDR + 0x8)
+ #define FES_F_FR_ANY	0xc0340058
+ 
++enum reset_cause {
++	CAUSE_POR,
++	CAUSE_DESTRUCTIVE_RESET_DURING_RUN,
++	CAUSE_DESTRUCTIVE_RESET_DURING_STANDBY,
++	CAUSE_FUNCTIONAL_RESET_DURING_RUN,
++	CAUSE_FUNCTIONAL_RESET_DURING_STANDBY,
++	CAUSE_WAKEUP_DURING_STANDBY,
++	CAUSE_ERROR
++};
++
+ /* Reset Domain Controller definitions */
+ #define S32_RDC_BASE_ADDR	0x40080000ull
+ #define RDC_RD_CTRL(part)	(S32_RDC_BASE_ADDR + (part) * 4)
+diff --git a/plat/nxp/s32/s32_bl2_el3.c b/plat/nxp/s32/s32_bl2_el3.c
+index 900859a70..7f57c28da 100644
+--- a/plat/nxp/s32/s32_bl2_el3.c
++++ b/plat/nxp/s32/s32_bl2_el3.c
+@@ -597,3 +597,28 @@ void clear_swt_faults(void)
+ 	}
+ }
+ 
++void clear_reset_cause(void)
++{
++	uint32_t mc_rgm_des = mmio_read_32(MC_RGM_DES);
++
++	mmio_write_32(MC_RGM_DES, mc_rgm_des);
++}
++
++const char *get_reset_cause_str(enum reset_cause reset_cause)
++{
++	static const char * const names[] = {
++		[CAUSE_POR] = "Power-On Reset",
++		[CAUSE_DESTRUCTIVE_RESET_DURING_RUN] = "Destructive Reset (RUN)",
++		[CAUSE_DESTRUCTIVE_RESET_DURING_STANDBY] = "Destructive Reset (STBY)",
++		[CAUSE_FUNCTIONAL_RESET_DURING_RUN] = "Functional Reset (RUN)",
++		[CAUSE_FUNCTIONAL_RESET_DURING_STANDBY] = "Functional Reset (STBY)",
++		[CAUSE_WAKEUP_DURING_STANDBY] = "Wakeup (STBY)",
++		[CAUSE_ERROR] = "Error",
++	};
++
++	if (reset_cause >= ARRAY_SIZE(names))
++		return "Unknown cause";
++
++	return names[reset_cause];
++}
++
+diff --git a/plat/nxp/s32/s32g/include/s32g_mc_rgm.h b/plat/nxp/s32/s32g/include/s32g_mc_rgm.h
+index c8223fcb6..8f4983d99 100644
+--- a/plat/nxp/s32/s32g/include/s32g_mc_rgm.h
++++ b/plat/nxp/s32/s32g/include/s32g_mc_rgm.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -13,14 +13,4 @@
+ #define RDSS_FES_RES	BIT(1)
+ #define RDSS_DES_RES	BIT(0)
+ 
+-enum reset_cause {
+-	CAUSE_POR,
+-	CAUSE_DESTRUCTIVE_RESET_DURING_RUN,
+-	CAUSE_DESTRUCTIVE_RESET_DURING_STANDBY,
+-	CAUSE_FUNCTIONAL_RESET_DURING_RUN,
+-	CAUSE_FUNCTIONAL_RESET_DURING_STANDBY,
+-	CAUSE_WAKEUP_DURING_STANDBY,
+-	CAUSE_ERROR
+-};
+-
+ #endif /* __S32G_MC_RGM_H__ */
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index c48c7b809..2600b7553 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -25,13 +25,6 @@
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[6];
+ REGISTER_BL_IMAGE_DESCS(s32g_bl2_mem_params_descs)
+ 
+-static void clear_reset_cause(void)
+-{
+-	uint32_t mc_rgm_des = mmio_read_32(MC_RGM_DES);
+-
+-	mmio_write_32(MC_RGM_DES, mc_rgm_des);
+-}
+-
+ static enum reset_cause get_reset_cause(void)
+ {
+ 	uint32_t mc_rgm_des = mmio_read_32(MC_RGM_DES);
+@@ -59,24 +52,6 @@ static enum reset_cause get_reset_cause(void)
+ 	return CAUSE_ERROR;
+ }
+ 
+-static const char *get_reset_cause_str(enum reset_cause reset_cause)
+-{
+-	static const char * const names[] = {
+-		[CAUSE_POR] = "Power-On Reset",
+-		[CAUSE_DESTRUCTIVE_RESET_DURING_RUN] = "Destructive Reset (RUN)",
+-		[CAUSE_DESTRUCTIVE_RESET_DURING_STANDBY] = "Destructive Reset (STBY)",
+-		[CAUSE_FUNCTIONAL_RESET_DURING_RUN] = "Functional Reset (RUN)",
+-		[CAUSE_FUNCTIONAL_RESET_DURING_STANDBY] = "Functional Reset (STBY)",
+-		[CAUSE_WAKEUP_DURING_STANDBY] = "Wakeup (STBY)",
+-		[CAUSE_ERROR] = "Error",
+-	};
+-
+-	if (reset_cause >= ARRAY_SIZE(names))
+-		return "Unknown cause";
+-
+-	return names[reset_cause];
+-}
+-
+ #if S32G_EMU == 0
+ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ {
+diff --git a/plat/nxp/s32/s32r/s32r_bl2_el3.c b/plat/nxp/s32/s32r/s32r_bl2_el3.c
+index ad430bf91..53f0d6025 100644
+--- a/plat/nxp/s32/s32r/s32r_bl2_el3.c
++++ b/plat/nxp/s32/s32r/s32r_bl2_el3.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -7,6 +7,7 @@
+ #include <common/desc_image_load.h>
+ #include <ddr/ddr_init.h>
+ #include <lib/libc/errno.h>
++#include <lib/mmio.h>
+ #include "platform_def.h"
+ #include "s32_bl_common.h"
+ #include "s32_bl2_el3.h"
+@@ -17,16 +18,38 @@
+ static bl_mem_params_node_t s32r_bl2_mem_params_descs[6];
+ REGISTER_BL_IMAGE_DESCS(s32r_bl2_mem_params_descs)
+ 
++static enum reset_cause get_reset_cause(void)
++{
++	uint32_t mc_rgm_des = mmio_read_32(MC_RGM_DES);
++
++	if (mc_rgm_des & DES_F_POR)
++		return CAUSE_POR;
++
++	if (mc_rgm_des & DES_F_DR_ANY)
++		return CAUSE_DESTRUCTIVE_RESET_DURING_RUN;
++
++	if (mmio_read_32(MC_RGM_FES) & FES_F_FR_ANY)
++		return CAUSE_FUNCTIONAL_RESET_DURING_RUN;
++
++	return CAUSE_ERROR;
++}
++
+ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 				  u_register_t arg2, u_register_t arg3)
+ {
++	enum reset_cause reset_cause;
+ 	size_t index = 0;
+ 	bl_mem_params_node_t *params = s32r_bl2_mem_params_descs;
+ 
++	reset_cause = get_reset_cause();
++	clear_reset_cause();
++
+ 	s32_early_plat_init(false);
+ 	console_s32_register();
+ 	s32_io_setup();
+ 
++	NOTICE("Reset status: %s\n", get_reset_cause_str(reset_cause));
++
+ 	add_fip_img_to_mem_params_descs(params, &index);
+ 	add_bl31_img_to_mem_params_descs(params, &index);
+ 	add_bl32_img_to_mem_params_descs(params, &index);
+-- 
+2.17.1
+

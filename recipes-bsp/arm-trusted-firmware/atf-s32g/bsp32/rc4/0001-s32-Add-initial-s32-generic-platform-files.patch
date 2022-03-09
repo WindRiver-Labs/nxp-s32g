@@ -1,0 +1,1126 @@
+From adecc2d65242f982c3c342c9f458a4fda5db7439 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Fri, 17 Dec 2021 15:31:01 +0200
+Subject: [PATCH 01/50] s32: Add initial s32 generic platform files
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/{s32g => }/include/plat_macros.S |  12 +-
+ plat/nxp/s32/include/s32_platform_def.h       |  89 ++++++++++
+ plat/nxp/s32/s32_bl2_el3.c                    |  28 +++
+ plat/nxp/s32/s32_bl_common.c                  |  13 ++
+ plat/nxp/s32/s32_common.mk                    | 159 ++++++++++++++++++
+ plat/nxp/s32/s32_lowlevel_bl2.S               |  14 ++
+ plat/nxp/s32/s32_lowlevel_common.S            |  59 +++++++
+ plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk      |   1 -
+ plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk    |   1 -
+ plat/nxp/s32/s32g/include/s32g_platform_def.h |  77 +--------
+ .../nxp/s32/s32g/s32g2/include/platform_def.h |   4 +-
+ plat/nxp/s32/s32g/s32g2/platform.mk           |   3 +-
+ .../nxp/s32/s32g/s32g3/include/platform_def.h |   4 +-
+ plat/nxp/s32/s32g/s32g3/platform.mk           |   1 -
+ plat/nxp/s32/s32g/s32g_bl2_el3.c              |  32 +---
+ plat/nxp/s32/s32g/s32g_bl31.c                 |   8 +-
+ plat/nxp/s32/s32g/s32g_bl_common.c            |   5 -
+ plat/nxp/s32/s32g/s32g_common.mk              | 141 +---------------
+ plat/nxp/s32/s32g/s32g_lowlevel_bl2.S         |   6 -
+ plat/nxp/s32/s32g/s32g_lowlevel_common.S      |  57 +------
+ 20 files changed, 386 insertions(+), 328 deletions(-)
+ rename plat/nxp/s32/{s32g => }/include/plat_macros.S (89%)
+ create mode 100644 plat/nxp/s32/include/s32_platform_def.h
+ create mode 100644 plat/nxp/s32/s32_bl2_el3.c
+ create mode 100644 plat/nxp/s32/s32_bl_common.c
+ create mode 100644 plat/nxp/s32/s32_common.mk
+ create mode 100644 plat/nxp/s32/s32_lowlevel_bl2.S
+ create mode 100644 plat/nxp/s32/s32_lowlevel_common.S
+
+diff --git a/plat/nxp/s32/s32g/include/plat_macros.S b/plat/nxp/s32/include/plat_macros.S
+similarity index 89%
+rename from plat/nxp/s32/s32g/include/plat_macros.S
+rename to plat/nxp/s32/include/plat_macros.S
+index 7f696683c..f621f569d 100644
+--- a/plat/nxp/s32/s32g/include/plat_macros.S
++++ b/plat/nxp/s32/include/plat_macros.S
+@@ -9,11 +9,11 @@
+ 
+ #include <asm_macros.S>
+ 
+-#ifndef S32G_CRASH_STACK_SIZE
+-#define S32G_CRASH_STACK_SIZE	0x400
++#ifndef S32_CRASH_STACK_SIZE
++#define S32_CRASH_STACK_SIZE	0x400
+ #endif
+ 
+-#define S32G_STACK_GUARD	0xDEAD
++#define S32_STACK_GUARD			0xDEAD
+ 
+ .extern s32_plat_data_stack
+ .extern s32_crash_reg_stash
+@@ -58,17 +58,17 @@
+ .endm
+ 
+ .macro	s32_init_local_stack
+-	mov	w10, #S32G_STACK_GUARD
++	mov	w10, #S32_STACK_GUARD
+ 	adrp	x9, s32_plat_data_stack
+ 	add	x9, x9, :lo12:s32_plat_data_stack
+ 	/* Color the end of the stack */
+ 	str	w10, [x9]
+-	add	x9, x9, #S32G_CRASH_STACK_SIZE
++	add	x9, x9, #S32_CRASH_STACK_SIZE
+ 	mov	sp, x9
+ .endm
+ 
+ .macro s32_check_stack_guard
+-	mov	w10, #S32G_STACK_GUARD
++	mov	w10, #S32_STACK_GUARD
+ 	adrp	x9, s32_plat_data_stack
+ 	add	x9, x9, :lo12:s32_plat_data_stack
+ 	ldrh	w9, [x9]
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+new file mode 100644
+index 000000000..409a2d923
+--- /dev/null
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -0,0 +1,89 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef S32_PLATFORM_DEF_H
++#define S32_PLATFORM_DEF_H
++
++#include <common_def.h>
++
++#define SIZE_1M                 (0x100000)
++
++#define S32_MPIDR_CPU_CLUSTER_MASK	0xFFF
++/* Cluster mask is the most significant 0xF from the CPU_CLUSTER_MASK */
++#define S32_MPIDR_CLUSTER_SHIFT	    U(8)
++#define S32_PLAT_PRIMARY_CPU		0x0u	/* Cluster 0, cpu 0*/
++
++#define S32_CACHE_WRITEBACK_SHIFT	6
++#define CACHE_WRITEBACK_GRANULE		(1 << S32_CACHE_WRITEBACK_SHIFT)
++#define PLAT_PHY_ADDR_SPACE_SIZE        (1ull << 36)
++/* We'll be doing a 1:1 mapping anyway */
++#define PLAT_VIRT_ADDR_SPACE_SIZE	    (1ull << 36)
++
++#define PLATFORM_CLUSTER_COUNT		2
++#define PLATFORM_SYSTEM_COUNT		1
++
++#define PLAT_MAX_OFF_STATE		    U(2)
++#define PLAT_MAX_RET_STATE		    U(1)
++#define PLAT_MAX_PWR_LVL		    MPIDR_AFFLVL2
++#define PLAT_MAX_PWR_LVL_STATES		2
++
++/* Generic timer frequency; this goes directly into CNTFRQ_EL0.
++ * Its end-value is 5MHz; this is based on the assumption that
++ * GPR00[CA53_COUNTER_CLK_DIV_VAL] contains the reset value of 0x7, hence
++ * producing a divider value of 8, applied to the FXOSC frequency of 40MHz.
++ */
++#define COUNTER_FREQUENCY	    0x004C4B40
++
++/* Top of the first 2GB bank of physical memory */
++#if S32G_EMU == 0
++#define S32_DDR0_END		0xffffffff
++#else
++/* 1GB available */
++#define S32_DDR0_END		0xbfffffff
++#endif
++
++/* Note: depending on the compiler optimization level, this may or may not be
++ * enough to prevent overflowing onto the adjacent SRAM image. Handle with care,
++ * wear a helmet and compile with -Os.
++ */
++#define BOOTROM_ADMA_RSRVD_BASE		(0x343ff000)
++#define BL2_LIMIT			(BOOTROM_ADMA_RSRVD_BASE - 1)
++
++/* U-boot addresses in SRAM. BL33_DTB and BL33_ENTRYPOINT must be kept in
++ * sync with u-boot's CONFIG_DTB_SRAM_ADDR and CONFIG_SYS_TEXT_BASE.
++ */
++#define S32_BL33_IMAGE_SIZE	        (5 * SIZE_1M)
++/* Leave a gap between BL33 and BL31 to avoid MMU entries merge */
++#define BL33_BASE		        (S32_DDR0_END - S32_BL33_IMAGE_SIZE - \
++						SIZE_1M + 1)
++#define BL33_DTB		        (BL33_BASE + 0x90000)
++#define BL33_ENTRYPOINT		    (BL33_BASE + 0xa0000)
++#define S32_BL33_IMAGE_BASE	    (BL33_DTB)
++#define S32_BL33_LIMIT	        (S32_DDR0_END)
++
++/* Protected zone in DDR - we'll deploy BL31 there. Choose the top of the first
++ * 2GB, before the BL33 zone (6 MB), which is reachable by the 32-bit eDMA.
++ * This must also be kept in sync with U-Boot, which is expected to alter
++ * the Linux device-tree.
++ */
++#define S32_PMEM_END		(BL33_BASE - 1)
++#define S32_PMEM_LEN		(2 * SIZE_1M)	/* conservatively allow 2MB */
++#define S32_PMEM_START		(S32_PMEM_END - S32_PMEM_LEN + 1)
++
++/* BL31 location in DDR - physical addresses only, as the MMU is not
++ * configured at that point yet
++ */
++#define BL31_BASE		(S32_PMEM_START)
++#define BL31_LIMIT		(S32_PMEM_END)
++#define BL31_SIZE		(BL31_LIMIT - BL31_BASE + 1)
++
++/* FIXME value randomly chosen; should probably be revisited */
++#define PLATFORM_STACK_SIZE		0x4000
++
++#define MAX_IO_HANDLES			4
++#define MAX_IO_DEVICES			3
++
++#endif /* S32_PLATFORM_H */
++
+diff --git a/plat/nxp/s32/s32_bl2_el3.c b/plat/nxp/s32/s32_bl2_el3.c
+new file mode 100644
+index 000000000..b0a89c3c8
+--- /dev/null
++++ b/plat/nxp/s32/s32_bl2_el3.c
+@@ -0,0 +1,28 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <common/desc_image_load.h>
++#include <platform.h>
++
++struct bl_load_info *plat_get_bl_image_load_info(void)
++{
++	return get_bl_load_info_from_mem_params_desc();
++}
++
++void bl2_platform_setup(void)
++{
++
++}
++
++struct bl_params *plat_get_next_bl_params(void)
++{
++	return get_next_bl_params_from_mem_params_desc();
++}
++
++void plat_flush_next_bl_params(void)
++{
++	flush_bl_params_desc();
++}
++
+diff --git a/plat/nxp/s32/s32_bl_common.c b/plat/nxp/s32/s32_bl_common.c
+new file mode 100644
+index 000000000..8d2c384c9
+--- /dev/null
++++ b/plat/nxp/s32/s32_bl_common.c
+@@ -0,0 +1,13 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <platform.h>
++#include <platform_def.h>
++
++unsigned int plat_get_syscnt_freq2(void)
++{
++	return COUNTER_FREQUENCY;
++}
++
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+new file mode 100644
+index 000000000..2785abb31
+--- /dev/null
++++ b/plat/nxp/s32/s32_common.mk
+@@ -0,0 +1,159 @@
++#
++# Copyright 2021 NXP
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++
++include drivers/arm/gic/v3/gicv3.mk
++include lib/libc/libc.mk
++include lib/libfdt/libfdt.mk
++include lib/xlat_tables_v2/xlat_tables.mk
++include make_helpers/build_macros.mk
++
++ERRATA_A53_855873	:= 1
++ERRATA_A53_836870	:= 1
++ERRATA_A53_1530924	:= 1
++ERRATA_SPECULATIVE_AT	:= 1
++
++# Tools
++HEXDUMP ?= xxd
++SED ?= sed
++
++BL2_AT_EL3		:= 1
++
++PLAT_INCLUDES 	+= \
++			-Idrivers \
++			-Iinclude/common/tbbr \
++			-Iinclude/drivers \
++			-Iinclude/drivers/nxp/s32g \
++			-Iinclude/lib \
++			-Iinclude/lib/libc \
++			-Iinclude/lib/psci \
++			-Iinclude/plat/arm/common \
++			-Iinclude/plat/arm/soc/common \
++			-Iinclude/plat/common \
++			-Iplat/nxp/s32/include \
++
++PLAT_BL_COMMON_SOURCES += \
++			${GICV3_SOURCES} \
++			common/fdt_wrappers.c \
++			drivers/nxp/uart/linflexuart.c \
++			plat/nxp/s32/s32_bl_common.c \
++			plat/nxp/s32/s32_lowlevel_common.S \
++
++BL2_SOURCES += \
++			${XLAT_TABLES_LIB_SRCS} \
++			common/desc_image_load.c \
++			common/fdt_fixup.c \
++			drivers/io/io_fip.c \
++			drivers/io/io_storage.c \
++			drivers/mmc/mmc.c \
++			plat/nxp/s32/s32_bl2_el3.c \
++			plat/nxp/s32/s32_lowlevel_bl2.S \
++
++BL31_SOURCES += \
++			${XLAT_TABLES_LIB_SRCS} \
++			plat/common/plat_gicv3.c \
++			plat/common/plat_psci_common.c \
++			plat/nxp/s32/include/plat_macros.S \
++
++DTC_FLAGS		+= -Wno-unit_address_vs_reg
++
++all: check_dtc_version
++check_dtc_version:
++	$(eval DTC_VERSION_RAW = $(shell $(DTC) --version | cut -f3 -d" " \
++							  | cut -f1 -d"-"))
++	$(eval DTC_VERSION = $(shell echo $(DTC_VERSION_RAW) | sed "s/\./0/g"))
++	@if [ ${DTC_VERSION} -lt 10406 ]; then \
++		echo "$(DTC) version must be 1.4.6 or above"; \
++		false; \
++	fi
++
++# Disable the PSCI platform compatibility layer
++ENABLE_PLAT_COMPAT	:= 0
++
++MULTI_CONSOLE_API	:= 1
++LOAD_IMAGE_V2		:= 1
++USE_COHERENT_MEM	:= 0
++
++# Set RESET_TO_BL31 to boot from BL31
++PROGRAMMABLE_RESET_ADDRESS	:= 1
++RESET_TO_BL31			:= 0
++# We need SMP boot in order to make specific initializations such as
++# secure GIC registers, which U-Boot and then Linux won't be able to.
++COLD_BOOT_SINGLE_CPU		:= 0
++
++BL2_EL3_STACK_ALIGNMENT :=	512
++$(eval $(call add_define_val,BL2_EL3_STACK_ALIGNMENT,$(BL2_EL3_STACK_ALIGNMENT)))
++
++FDT_SOURCES             = $(addprefix fdts/, $(patsubst %.dtb,%.dts,$(DTB_FILE_NAME)))
++
++### Devel & Debug options ###
++ifeq (${DEBUG},1)
++	CFLAGS			+= -O0
++else
++	CFLAGS			+= -Os
++endif
++# Enable dump of processor register state upon exceptions while running BL31
++CRASH_REPORTING		:= 1
++# As verbose as it can be
++LOG_LEVEL		?= 50
++
++# Reserve some space at the end of SRAM for external apps and include it
++# in the calculation of FIP_BASE address.
++EXT_APP_SIZE		:= 0x100000
++$(eval $(call add_define,EXT_APP_SIZE))
++FIP_MAXIMUM_SIZE	:= 0x300000
++$(eval $(call add_define,FIP_MAXIMUM_SIZE))
++# FIP offset from the far end of SRAM; leave it to the C code to perform
++# the arithmetic
++FIP_ROFFSET		:= "(EXT_APP_SIZE + FIP_MAXIMUM_SIZE)"
++$(eval $(call add_define,FIP_ROFFSET))
++
++BL2_W_DTB		:= ${BUILD_PLAT}/bl2_w_dtb.bin
++all: ${BL2_W_DTB}
++${BL2_W_DTB}: bl2 dtbs
++	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
++	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
++
++FIP_ALIGN := 512
++all: add_to_fip
++add_to_fip: fip ${BL2_W_DTB}
++	$(eval FIP_MAXIMUM_SIZE_10 = $(shell printf "%d\n" ${FIP_MAXIMUM_SIZE}))
++	${Q}${FIPTOOL} update ${FIP_ARGS} \
++		--tb-fw ${BUILD_PLAT}/bl2_w_dtb.bin \
++		--soc-fw-config ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} \
++		${BUILD_PLAT}/${FIP_NAME}
++	@echo "Added BL2 and DTB to ${BUILD_PLAT}/${FIP_NAME} successfully"
++	${Q}${FIPTOOL} info ${BUILD_PLAT}/${FIP_NAME}
++	$(eval ACTUAL_FIP_SIZE = $(shell \
++				stat --printf="%s" ${BUILD_PLAT}/${FIP_NAME}))
++	@if [ ${ACTUAL_FIP_SIZE} -gt ${FIP_MAXIMUM_SIZE_10} ]; then \
++		echo "FIP image exceeds the maximum size of" \
++		     "0x${FIP_MAXIMUM_SIZE}"; \
++		false; \
++	fi
++
++DTB_BASE		:= 0x34300000
++$(eval $(call add_define,DTB_BASE))
++BL2_BASE		:= 0x34302000
++$(eval $(call add_define,BL2_BASE))
++MKIMAGE_CFG ?= u-boot.cfgout
++
++all: call_mkimage
++call_mkimage: add_to_fip
++ifeq ($(MKIMAGE),)
++	$(eval BL33DIR = $(shell dirname $(BL33)))
++	$(eval MKIMAGE = $(BL33DIR)/tools/mkimage)
++endif
++	@cd ${BL33DIR} && \
++		${MKIMAGE} -e ${BL2_BASE} -a ${DTB_BASE} -T s32gen1image \
++		-n ${MKIMAGE_CFG} -d ${BUILD_PLAT}/${FIP_NAME} \
++		${BUILD_PLAT}/fip.s32
++	@echo "Generated ${BUILD_PLAT}/fip.s32 successfully"
++
++# If BL32_EXTRA1 option is present, include the binary it is pointing to
++# in the FIP image
++ifneq ($(BL32_EXTRA1),)
++$(eval $(call TOOL_ADD_IMG,bl32_extra1,--tos-fw-extra1))
++endif
+diff --git a/plat/nxp/s32/s32_lowlevel_bl2.S b/plat/nxp/s32/s32_lowlevel_bl2.S
+new file mode 100644
+index 000000000..180f374aa
+--- /dev/null
++++ b/plat/nxp/s32/s32_lowlevel_bl2.S
+@@ -0,0 +1,14 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++
++#include <asm_macros.S>
++
++.globl plat_secondary_cold_boot_setup
++
++func plat_secondary_cold_boot_setup
++	ret
++endfunc plat_secondary_cold_boot_setup
++
+diff --git a/plat/nxp/s32/s32_lowlevel_common.S b/plat/nxp/s32/s32_lowlevel_common.S
+new file mode 100644
+index 000000000..cb9f19c01
+--- /dev/null
++++ b/plat/nxp/s32/s32_lowlevel_common.S
+@@ -0,0 +1,59 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#include <asm_macros.S>
++#include <platform_def.h>
++
++.globl plat_is_my_cpu_primary
++.globl plat_my_core_pos
++.globl plat_core_pos_by_mpidr
++.globl plat_panic_handler
++
++func plat_panic_handler
++	wfi
++	b	plat_panic_handler
++endfunc plat_panic_handler
++
++/* Clobber list: x0,x1,x7,x8
++ */
++func plat_is_my_cpu_primary
++	mov	x7, x30
++	bl	plat_my_core_pos
++	cmp	x0, #S32_PLAT_PRIMARY_CPU
++	cset	x0, eq
++	mov	x30, x7
++	ret
++endfunc plat_is_my_cpu_primary
++
++/* Out: x0
++ * Clobber list: x0,x1,x8
++ */
++func plat_my_core_pos
++	mov	x8, x30
++	mrs x0, mpidr_el1
++	bl	s32_core_pos_by_mpidr
++	mov	x30, x8
++	ret
++endfunc plat_my_core_pos
++
++/* In:	x0 -  MPIDR_EL1
++ * Out:	x0
++ * Clobber list: x0,x1
++ */
++func s32_core_pos_by_mpidr
++	and	x0, x0, #S32_MPIDR_CPU_CLUSTER_MASK
++	and	x1, x0, #S32_MPIDR_CPU_MASK
++	lsr	x0, x0, #S32_MPIDR_CLUSTER_SHIFT
++	add	x0, x1, x0, lsl #S32_MPIDR_CPU_MASK_BITS
++	ret
++endfunc s32_core_pos_by_mpidr
++
++/* Clobber list: x7 */
++func plat_core_pos_by_mpidr
++	mov	x7, x30
++	bl	s32_core_pos_by_mpidr
++	mov	x30, x7
++	ret
++endfunc plat_core_pos_by_mpidr
+diff --git a/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk b/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk
+index 59c6f6683..c25911ca2 100644
+--- a/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk
++++ b/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk
+@@ -12,7 +12,6 @@ BL31SRAM_SOURCES = plat/common/aarch64/platform_up_stack.S \
+ 		   plat/nxp/s32/s32g/s32g_mc_me.c \
+ 		   plat/nxp/s32/s32g/s32g_linflexuart.c \
+ 		   plat/nxp/s32/s32g/s32g_linflexuart_crash.S \
+-		   drivers/nxp/uart/linflexuart.c \
+ 		   ${DDR_DRV}/ddr_lp_mmio.c \
+ 
+ BL31SRAM_ARRAY_NAME ?= bl31sram
+diff --git a/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk b/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk
+index af60bef3a..43ad216ea 100644
+--- a/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk
++++ b/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk
+@@ -13,7 +13,6 @@ BL31SSRAM_SOURCES =  plat/nxp/s32/s32g/bl31_ssram/bl31ssram_stacks.S \
+ 		     plat/nxp/s32/s32g/s32g_mc_me.c \
+ 		     plat/nxp/s32/s32g/s32g_linflexuart.c \
+ 		     plat/nxp/s32/s32g/s32g_linflexuart_crash.S \
+-		     drivers/nxp/uart/linflexuart.c \
+ 		     ${DDR_DRV_SRCS} \
+ 		     ${LIBC_SRCS}
+ 
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index 83ed2c1e6..239f6e210 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -12,15 +12,8 @@
+ #ifndef S32G_PLATFORM_DEF_H
+ #define S32G_PLATFORM_DEF_H
+ 
+-#include <common_def.h>
+ #include <tbbr_img_def.h>
+-
+-#define SIZE_1M		(0x100000)
+-
+-#define S32G_MPIDR_CPU_CLUSTER_MASK	0xFFF
+-/* Cluster mask is the most significant 0xF from the CPU_CLUSTER_MASK */
+-#define S32G_MPIDR_CLUSTER_SHIFT	U(8)
+-#define S32G_PLAT_PRIMARY_CPU		0x0u	/* Cluster 0, cpu 0*/
++#include <s32_platform_def.h>
+ 
+ #define S32G_NCORE_CAIU0_BASE_ADDR	0x50400000
+ #define S32G_NCORE_CAIU0_BASE_ADDR_H	(S32G_NCORE_CAIU0_BASE_ADDR >> 16)
+@@ -28,14 +21,6 @@
+ #define NCORE_CAIUTC_ISOLEN_SHIFT	1
+ #define NCORE_CAIUTC_ISOLEN_MASK	BIT(NCORE_CAIUTC_ISOLEN_SHIFT)
+ 
+-#define S32G_CACHE_WRITEBACK_SHIFT	6
+-#define CACHE_WRITEBACK_GRANULE		(1 << S32G_CACHE_WRITEBACK_SHIFT)
+-#define PLAT_PHY_ADDR_SPACE_SIZE        (1ull << 36)
+-/* We'll be doing a 1:1 mapping anyway */
+-#define PLAT_VIRT_ADDR_SPACE_SIZE	(1ull << 36)
+-
+-#define PLATFORM_CLUSTER_COUNT		2
+-#define PLATFORM_SYSTEM_COUNT		1
+ /* FIXME I'm not sure this is technically correct. We do NOT have
+  * cluster-level power management operations, only core and system.
+  */
+@@ -43,18 +28,7 @@
+ 					 PLATFORM_CLUSTER_COUNT + \
+ 					 PLATFORM_CORE_COUNT)
+ 
+-#define PLAT_MAX_OFF_STATE		U(2)
+-#define PLAT_MAX_RET_STATE		U(1)
+-#define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL2
+-#define PLAT_MAX_PWR_LVL_STATES		2
+-
+ #define PLAT_PRIMARY_CPU		0x0
+-/* Generic timer frequency; this goes directly into CNTFRQ_EL0.
+- * Its end-value is 5MHz; this is based on the assumption that
+- * GPR00[CA53_COUNTER_CLK_DIV_VAL] contains the reset value of 0x7, hence
+- * producing a divider value of 8, applied to the FXOSC frequency of 40MHz.
+- */
+-#define COUNTER_FREQUENCY	0x004C4B40
+ 
+ #define SIUL2_0_BASE_ADDR	0x4009C000UL
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
+@@ -111,27 +85,12 @@
+ #define RTC_APIVAL_OFFSET	0x10
+ #define RTC_RTCVAL_OFFSET	0x14
+ 
+-/* Top of the first 2GB bank of physical memory */
+-#if S32G_EMU == 0
+-#define S32G_DDR0_END		0xffffffff
+-#else
+-/* 1GB available */
+-#define S32G_DDR0_END		0xbfffffff
+-#endif
+-
+ /* Physical address 0x0 is actually mapped; to increase our
+  * chances of detecting a 'null pointer access', use a location
+  * that is currently not mapped to anything
+  */
+ #define S32G_ERR_PTR		(0x44000000ul)
+ 
+-/* Note: depending on the compiler optimization level, this may or may not be
+- * enough to prevent overflowing onto the adjacent SRAM image. Handle with care,
+- * wear a helmet and compile with -Os.
+- */
+-#define BOOTROM_ADMA_RSRVD_BASE	(0x343ff000)
+-#define BL2_LIMIT		(BOOTROM_ADMA_RSRVD_BASE - 1)
+-
+ #define BL31SRAM_BASE		BL2_BASE
+ #define BL31SRAM_MAX_PAGES	50
+ #define BL31SRAM_SIZE		(BL31SRAM_MAX_PAGES * PAGE_SIZE)
+@@ -148,34 +107,6 @@
+ 
+ #define DTB_SIZE		(BL2_BASE - DTB_BASE)
+ 
+-/* U-boot addresses in SRAM. BL33_DTB and BL33_ENTRYPOINT must be kept in
+- * sync with u-boot's CONFIG_DTB_SRAM_ADDR and CONFIG_SYS_TEXT_BASE.
+- */
+-#define S32G_BL33_IMAGE_SIZE	(5 * SIZE_1M)
+-/* Leave a gap between BL33 and BL31 to avoid MMU entries merge */
+-#define BL33_BASE		(S32G_DDR0_END - S32G_BL33_IMAGE_SIZE - \
+-				 SIZE_1M + 1)
+-#define BL33_DTB		(BL33_BASE + 0x90000)
+-#define BL33_ENTRYPOINT		(BL33_BASE + 0xa0000)
+-#define S32G_BL33_IMAGE_BASE	(BL33_DTB)
+-#define S32G_BL33_LIMIT		(S32G_DDR0_END)
+-
+-/* Protected zone in DDR - we'll deploy BL31 there. Choose the top of the first
+- * 2GB, before the BL33 zone (6 MB), which is reachable by the 32-bit eDMA.
+- * This must also be kept in sync with U-Boot, which is expected to alter
+- * the Linux device-tree.
+- */
+-#define S32G_PMEM_END		(BL33_BASE - 1)
+-#define S32G_PMEM_LEN		(2 * SIZE_1M)	/* conservatively allow 2MB */
+-#define S32G_PMEM_START		(S32G_PMEM_END - S32G_PMEM_LEN + 1)
+-
+-/* BL31 location in DDR - physical addresses only, as the MMU is not
+- * configured at that point yet
+- */
+-#define BL31_BASE		(S32G_PMEM_START)
+-#define BL31_LIMIT		(S32G_PMEM_END)
+-#define BL31_SIZE		(BL31_LIMIT - BL31_BASE + 1)
+-
+ /* BL32 location in DDR - 22MB
+  * 20 MB for optee_os (optee_os itself + TA mappings during their execution)
+  * 2 MB for shared memory between optee and linux kernel
+@@ -189,12 +120,6 @@
+ 
+ #define FIP_BASE		(S32G_SRAM_END - FIP_ROFFSET)
+ 
+-/* FIXME value randomly chosen; should probably be revisited */
+-#define PLATFORM_STACK_SIZE		0x4000
+-
+-#define MAX_IO_HANDLES			4
+-#define MAX_IO_DEVICES			3
+-
+ #define PLAT_LOG_LEVEL_ASSERT		LOG_LEVEL_VERBOSE
+ 
+ #if defined IMAGE_BL1
+diff --git a/plat/nxp/s32/s32g/s32g2/include/platform_def.h b/plat/nxp/s32/s32g/s32g2/include/platform_def.h
+index e2558c97d..ab3d1cd1a 100644
+--- a/plat/nxp/s32/s32g/s32g2/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g2/include/platform_def.h
+@@ -17,8 +17,8 @@
+  *	A53_1_cpu0:	0x8000_0100
+  *	A53_1_cpu1:	0x8000_0101
+  */
+-#define S32G_MPIDR_CPU_MASK		0x1
+-#define S32G_MPIDR_CPU_MASK_BITS	0x1
++#define S32_MPIDR_CPU_MASK		0x1
++#define S32_MPIDR_CPU_MASK_BITS	0x1
+ 
+ #define S32G_SRAM_SIZE			0x00800000
+ 
+diff --git a/plat/nxp/s32/s32g/s32g2/platform.mk b/plat/nxp/s32/s32g/s32g2/platform.mk
+index 22500d232..abd24728c 100644
+--- a/plat/nxp/s32/s32g/s32g2/platform.mk
++++ b/plat/nxp/s32/s32g/s32g2/platform.mk
+@@ -26,5 +26,4 @@ ERRATA_S32G2_050481	:= 1
+ ERRATA_S32G2_050543     := 1
+ 
+ # Device tree
+-DTB_FILE_NAME		?= fsl-s32g274a-rdb.dtb
+-FDT_SOURCES             := $(addprefix fdts/, $(patsubst %.dtb,%.dts,$(DTB_FILE_NAME)))
++DTB_FILE_NAME		?= fsl-s32g274a-rdb.dtb
+\ No newline at end of file
+diff --git a/plat/nxp/s32/s32g/s32g3/include/platform_def.h b/plat/nxp/s32/s32g/s32g3/include/platform_def.h
+index 40b8e7e0c..b01187828 100644
+--- a/plat/nxp/s32/s32g/s32g3/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g3/include/platform_def.h
+@@ -21,8 +21,8 @@
+  *	A53_1_cpu2:	0x8000_0102
+  *	A53_1_cpu3:	0x8000_0103
+  */
+-#define S32G_MPIDR_CPU_MASK		0x3
+-#define S32G_MPIDR_CPU_MASK_BITS	0x2
++#define S32_MPIDR_CPU_MASK		0x3
++#define S32_MPIDR_CPU_MASK_BITS	0x2
+ 
+ #define S32G_SRAM_SIZE			0x1400000
+ 
+diff --git a/plat/nxp/s32/s32g/s32g3/platform.mk b/plat/nxp/s32/s32g/s32g3/platform.mk
+index 53a108710..bc4ebbcef 100644
+--- a/plat/nxp/s32/s32g/s32g3/platform.mk
++++ b/plat/nxp/s32/s32g/s32g3/platform.mk
+@@ -23,4 +23,3 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g3/s32g3_mc_me.c \
+ 
+ # Device tree
+ DTB_FILE_NAME		?= fsl-s32g399a-rdb.dtb
+-FDT_SOURCES             := $(addprefix fdts/, $(patsubst %.dtb,%.dts,$(DTB_FILE_NAME)))
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 51f225f67..965801091 100644
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -165,8 +165,8 @@ static void add_bl33_img_to_mem_params_descs(bl_mem_params_node_t *params,
+ 
+ 		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
+ 				      image_info_t, 0),
+-		.image_info.image_max_size = S32G_BL33_IMAGE_SIZE,
+-		.image_info.image_base = S32G_BL33_IMAGE_BASE,
++		.image_info.image_max_size = S32_BL33_IMAGE_SIZE,
++		.image_info.image_base = S32_BL33_IMAGE_BASE,
+ 		.next_handoff_image_id = INVALID_IMAGE_ID,
+ 	};
+ 
+@@ -185,26 +185,6 @@ static void add_invalid_img_to_mem_params_descs(bl_mem_params_node_t *params,
+ 	params[(*index)++] = node;
+ }
+ 
+-void bl2_platform_setup(void)
+-{
+-	return;
+-}
+-
+-struct bl_params *plat_get_next_bl_params(void)
+-{
+-	return get_next_bl_params_from_mem_params_desc();
+-}
+-
+-void plat_flush_next_bl_params(void)
+-{
+-	flush_bl_params_desc();
+-}
+-
+-struct bl_load_info *plat_get_bl_image_load_info(void)
+-{
+-	return get_bl_load_info_from_mem_params_desc();
+-}
+-
+ static int disable_clk_node(void *blob, uint32_t *phandle)
+ {
+ 	const char *clk_path;
+@@ -571,10 +551,10 @@ static mmap_region_t s32g_mmap[] = {
+ 	MAP_REGION2(S32G_BL32_BASE, S32G_BL32_BASE,
+ 			MMU_ROUND_UP_TO_4K(S32G_BL32_SIZE),
+ 			MT_MEMORY | MT_RW, PAGE_SIZE),
+-	MAP_REGION2(S32G_BL33_IMAGE_BASE, S32G_BL33_IMAGE_BASE,
+-			MMU_ROUND_UP_TO_4K(S32G_BL33_IMAGE_SIZE),
++	MAP_REGION2(S32_BL33_IMAGE_BASE, S32_BL33_IMAGE_BASE,
++			MMU_ROUND_UP_TO_4K(S32_BL33_IMAGE_SIZE),
+ 			MT_MEMORY | MT_RW, PAGE_SIZE),
+-	MAP_REGION_FLAT(S32G_PMEM_START, S32G_PMEM_LEN,
++	MAP_REGION_FLAT(S32_PMEM_START, S32_PMEM_LEN,
+ 			MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_SCMI_SHARED_MEM, S32G_SCMI_SHARED_MEM_SIZE,
+ 			MT_NON_CACHEABLE | MT_RW | MT_SECURE),
+@@ -758,7 +738,7 @@ void bl2_el3_plat_arch_setup(void)
+ 	if (ret)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
+ 
+-	s32_sram_clear(S32G_BL33_IMAGE_BASE, DTB_BASE);
++	s32_sram_clear(S32_BL33_IMAGE_BASE, DTB_BASE);
+ 	/* Clear only the necessary part for the FIP header. The rest will
+ 	 * be cleared in bl2_plat_handle_post_image_load, before loading
+ 	 * the entire FIP image.
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index aa1825396..3288d83e1 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -68,12 +68,12 @@ static const mmap_region_t s32g_mmap[] = {
+ 	MAP_REGION2(BL31SRAM_BASE, BL31SRAM_BASE,
+ 		    MMU_ROUND_UP_TO_4K(BL31SRAM_SIZE),
+ 		    MT_MEMORY | MT_RW, PAGE_SIZE),
+-	MAP_REGION2(S32G_BL33_IMAGE_BASE, S32G_BL33_IMAGE_BASE,
+-			MMU_ROUND_UP_TO_4K(S32G_BL33_IMAGE_SIZE),
++	MAP_REGION2(S32_BL33_IMAGE_BASE, S32_BL33_IMAGE_BASE,
++			MMU_ROUND_UP_TO_4K(S32_BL33_IMAGE_SIZE),
+ 			MT_MEMORY | MT_RW, PAGE_SIZE),
+ 	MAP_REGION2(DTB_BASE, DTB_BASE, MMU_ROUND_UP_TO_4K(DTB_SIZE),
+ 			MT_MEMORY | MT_RW, PAGE_SIZE),
+-	MAP_REGION_FLAT(S32G_PMEM_START, S32G_PMEM_LEN,
++	MAP_REGION_FLAT(S32_PMEM_START, S32_PMEM_LEN,
+ 			MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32G_SCMI_SHARED_MEM, S32G_SCMI_SHARED_MEM_SIZE,
+ 			MT_NON_CACHEABLE | MT_RW | MT_SECURE),
+@@ -382,7 +382,7 @@ void bl31_platform_setup(void)
+ }
+ 
+ /* TODO: Last-minute modifications before exiting BL31:
+- *  - restrict the S32G_PMEM_START..S32G_PMEM_END DRAM area only to
++ *  - restrict the S32_PMEM_START..S32_PMEM_END DRAM area only to
+  *    secure privileged contexts;
+  *  - lock XRDC until the next reset
+  */
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index b2083cf9b..282e04407 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -34,11 +34,6 @@ bool is_lockstep_enabled(void)
+ 	return false;
+ }
+ 
+-unsigned int plat_get_syscnt_freq2(void)
+-{
+-	return COUNTER_FREQUENCY;
+-}
+-
+ void s32g_early_plat_init(bool skip_ddr_clk)
+ {
+ 	uint32_t caiutc;
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index d75b204fd..3d65f4053 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -4,23 +4,11 @@
+ # SPDX-License-Identifier: BSD-3-Clause
+ #
+ 
+-include drivers/arm/gic/v3/gicv3.mk
+-include lib/libc/libc.mk
+-include lib/libfdt/libfdt.mk
+-include lib/xlat_tables_v2/xlat_tables.mk
+-include make_helpers/build_macros.mk
+-
+-ERRATA_A53_855873	:= 1
+-ERRATA_A53_836870	:= 1
+-ERRATA_A53_1530924	:= 1
++include plat/nxp/s32/s32_common.mk
+ 
+ S32G_EMU		?= 0
+ $(eval $(call add_define_val,S32G_EMU,$(S32G_EMU)))
+ 
+-# Tools
+-HEXDUMP ?= xxd
+-SED ?= sed
+-
+ S32G_DRAM_INLINE_ECC	?= 1
+ $(eval $(call add_define_val,S32G_DRAM_INLINE_ECC,$(S32G_DRAM_INLINE_ECC)))
+ 
+@@ -51,18 +39,6 @@ endif
+ PLAT_INCLUDES		+= -Iplat/nxp/s32/s32g/include \
+ 			   -Iplat/nxp/s32/s32g/bl31_sram/include \
+ 			   -Iplat/nxp/s32/s32g/bl31_ssram/include \
+-			   -Iinclude/common/tbbr \
+-			   -Iinclude/plat/common \
+-			   -Iinclude/plat/arm/common \
+-			   -Iinclude/plat/arm/soc/common \
+-			   -Iinclude/lib \
+-			   -Iinclude/lib/libc \
+-			   -Iinclude/drivers \
+-			   -Iinclude/lib/psci \
+-			   -Iinclude/drivers/nxp/s32g \
+-			   -Idrivers \
+-
+-BL2_AT_EL3		:= 1
+ 
+ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g_lowlevel_common.S \
+ 			   plat/nxp/s32/s32g/s32g_mc_me.c \
+@@ -87,30 +63,21 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/clk/s32gen1_clk.c \
+ 			   drivers/nxp/s32g/rst/s32gen1_rst.c \
+ 			   drivers/nxp/s32g/clk/set_par_rate.c \
+-			   drivers/nxp/uart/linflexuart.c \
+ 			   drivers/nxp/s32g/ocotp.c \
+ 			   lib/utils/crc8.c \
+ 			   plat/nxp/s32/s32g/s32g_vr5510.c \
+ 			   drivers/nxp/s32g/pmic/vr5510.c \
+-			   common/fdt_wrappers.c \
+-			   ${GICV3_SOURCES} \
+ 			   ${BL31SRAM_SRC_DUMP} \
+ 
+ BL2_SOURCES		+= plat/nxp/s32/s32g/s32g_lowlevel_bl2.S \
+ 			   plat/nxp/s32/s32g/s32g_bl2_el3.c \
+ 			   plat/nxp/s32/s32g/s32g_storage.c \
+-			   drivers/io/io_storage.c \
+-			   common/desc_image_load.c \
+-			   common/fdt_fixup.c \
+-			   drivers/mmc/mmc.c \
+ 			   drivers/nxp/s32g/io/io_mmc.c \
+ 			   drivers/nxp/s32g/io/io_memmap.c \
+-			   drivers/io/io_fip.c \
+ 			   drivers/nxp/s32g/mmc/s32g_mmc.c \
+ 			   ${BL31SSRAM_SRC_DUMP} \
+ 			   ${DDR_DRV_SRCS} \
+ 			   lib/optee/optee_utils.c \
+-			   ${XLAT_TABLES_LIB_SRCS} \
+ 
+ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32/s32g/s32g_psci.c \
+@@ -119,8 +86,6 @@ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+ 			   plat/nxp/s32/s32g/s32g_svc.c \
+ 			   plat/nxp/s32/s32g/s32g_scmi_clk.c \
+ 			   plat/nxp/s32/s32g/s32g_scmi_rst.c \
+-			   plat/common/plat_psci_common.c \
+-			   plat/common/plat_gicv3.c \
+ 			   drivers/nxp/s32g/s32g_wkpu.c \
+ 			   drivers/nxp/s32g/clk/clk.c \
+ 			   drivers/nxp/s32g/clk/fixed_clk.c \
+@@ -133,27 +98,7 @@ BL31_SOURCES		+= plat/nxp/s32/s32g/s32g_bl31.c \
+ 			   drivers/scmi-msg/reset_domain.c \
+ 
+ BL31_SOURCES		+= plat/nxp/s32/s32g/bl31_lowlevel.S \
+-			   plat/nxp/s32/s32g/include/plat_macros.S
+-
+-BL31_SOURCES		+= ${XLAT_TABLES_LIB_SRCS}
+-
+-DTC_FLAGS		+= -Wno-unit_address_vs_reg
+-
+-all: check_dtc_version
+-check_dtc_version:
+-	$(eval DTC_VERSION_RAW = $(shell $(DTC) --version | cut -f3 -d" " \
+-							  | cut -f1 -d"-"))
+-	$(eval DTC_VERSION = $(shell echo $(DTC_VERSION_RAW) | sed "s/\./0/g"))
+-	@if [ ${DTC_VERSION} -lt 10406 ]; then \
+-		echo "$(DTC) version must be 1.4.6 or above"; \
+-		false; \
+-	fi
+ 
+-BL2_W_DTB		:= ${BUILD_PLAT}/bl2_w_dtb.bin
+-all: ${BL2_W_DTB}
+-${BL2_W_DTB}: bl2 dtbs
+-	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
+-	@dd if=${BUILD_PLAT}/bl2.bin of=$@ bs=1024 seek=8 status=none
+ 
+ # User defined parameters, for example:
+ # 	make FIP_MMC_OFFSET=0x5400 <...other parameters>
+@@ -174,69 +119,6 @@ ifdef FIP_MEM_OFFSET
+ $(eval $(call add_define,FIP_MEM_OFFSET))
+ endif
+ 
+-# Reserve some space at the end of SRAM for external apps and include it
+-# in the calculation of FIP_BASE address.
+-EXT_APP_SIZE		:= 0x100000
+-$(eval $(call add_define,EXT_APP_SIZE))
+-FIP_MAXIMUM_SIZE	:= 0x300000
+-$(eval $(call add_define,FIP_MAXIMUM_SIZE))
+-# FIP offset from the far end of SRAM; leave it to the C code to perform
+-# the arithmetic
+-FIP_ROFFSET		:= "(EXT_APP_SIZE + FIP_MAXIMUM_SIZE)"
+-$(eval $(call add_define,FIP_ROFFSET))
+-
+-FIP_ALIGN := 512
+-all: add_to_fip
+-add_to_fip: fip ${BL2_W_DTB}
+-	$(eval FIP_MAXIMUM_SIZE_10 = $(shell printf "%d\n" ${FIP_MAXIMUM_SIZE}))
+-	${Q}${FIPTOOL} update ${FIP_ARGS} \
+-		--tb-fw ${BUILD_PLAT}/bl2_w_dtb.bin \
+-		--soc-fw-config ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} \
+-		${BUILD_PLAT}/${FIP_NAME}
+-	@echo "Added BL2 and DTB to ${BUILD_PLAT}/${FIP_NAME} successfully"
+-	${Q}${FIPTOOL} info ${BUILD_PLAT}/${FIP_NAME}
+-	$(eval ACTUAL_FIP_SIZE = $(shell \
+-				stat --printf="%s" ${BUILD_PLAT}/${FIP_NAME}))
+-	@if [ ${ACTUAL_FIP_SIZE} -gt ${FIP_MAXIMUM_SIZE_10} ]; then \
+-		echo "FIP image exceeds the maximum size of" \
+-		     "0x${FIP_MAXIMUM_SIZE}"; \
+-		false; \
+-	fi
+-
+-DTB_BASE		:= 0x34300000
+-$(eval $(call add_define,DTB_BASE))
+-BL2_BASE		:= 0x34302000
+-$(eval $(call add_define,BL2_BASE))
+-MKIMAGE_CFG ?= u-boot.cfgout
+-
+-all: call_mkimage
+-call_mkimage: add_to_fip
+-ifeq ($(MKIMAGE),)
+-	$(eval BL33DIR = $(shell dirname $(BL33)))
+-	$(eval MKIMAGE = $(BL33DIR)/tools/mkimage)
+-endif
+-	@cd ${BL33DIR} && \
+-		${MKIMAGE} -e ${BL2_BASE} -a ${DTB_BASE} -T s32gen1image \
+-		-n ${MKIMAGE_CFG} -d ${BUILD_PLAT}/${FIP_NAME} \
+-		${BUILD_PLAT}/fip.s32
+-	@echo "Generated ${BUILD_PLAT}/fip.s32 successfully"
+-
+-# Disable the PSCI platform compatibility layer
+-ENABLE_PLAT_COMPAT	:= 0
+-
+-MULTI_CONSOLE_API	:= 1
+-LOAD_IMAGE_V2		:= 1
+-USE_COHERENT_MEM	:= 0
+-
+-# Set RESET_TO_BL31 to boot from BL31
+-PROGRAMMABLE_RESET_ADDRESS	:= 1
+-RESET_TO_BL31			:= 0
+-# We need SMP boot in order to make specific initializations such as
+-# secure GIC registers, which U-Boot and then Linux won't be able to.
+-COLD_BOOT_SINGLE_CPU		:= 0
+-
+-ERRATA_SPECULATIVE_AT	:= 1
+-
+ ### Platform-specific defines ###
+ # Which LinFlexD to use as a UART device
+ ifeq ($(S32G_EMU),0)
+@@ -256,24 +138,3 @@ $(eval $(call add_define_val,S32G_USE_LINFLEX_IN_BL31,$(S32G_USE_LINFLEX_IN_BL31
+ # bootloader (EL1)
+ S32G_HAS_HV		?= 0
+ $(eval $(call add_define_val,S32G_HAS_HV,$(S32G_HAS_HV)))
+-
+-BL2_EL3_STACK_ALIGNMENT :=	512
+-$(eval $(call add_define_val,BL2_EL3_STACK_ALIGNMENT,$(BL2_EL3_STACK_ALIGNMENT)))
+-
+-### Devel & Debug options ###
+-ifeq (${DEBUG},1)
+-	CFLAGS			+= -O0
+-else
+-	CFLAGS			+= -Os
+-endif
+-# Enable dump of processor register state upon exceptions while running BL31
+-CRASH_REPORTING		:= 1
+-# As verbose as it can be
+-LOG_LEVEL		?= 50
+-
+-# If BL32_EXTRA1 option is present, include the binary it is pointing to
+-# in the FIP image
+-ifneq ($(BL32_EXTRA1),)
+-$(eval $(call TOOL_ADD_IMG,bl32_extra1,--tos-fw-extra1))
+-endif
+-
+diff --git a/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S b/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S
+index c2cebed08..6e4e90b31 100644
+--- a/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S
++++ b/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S
+@@ -12,7 +12,6 @@
+ .globl platform_mem_init
+ .globl plat_reset_handler
+ .globl _s32g_sram_clr
+-.globl plat_secondary_cold_boot_setup
+ .globl s32g_ncore_isol_cluster0
+ .globl reset_registers_for_lockstep
+ 
+@@ -30,7 +29,6 @@ func plat_reset_handler
+ 	ret
+ endfunc plat_reset_handler
+ 
+-
+ /* Clobber list: x0,x1,x16 */
+ func platform_mem_init
+ 	mov	x16, x30
+@@ -47,7 +45,3 @@ func platform_mem_init
+ 	ret
+ endfunc platform_mem_init
+ 
+-
+-func plat_secondary_cold_boot_setup
+-	ret
+-endfunc plat_secondary_cold_boot_setup
+diff --git a/plat/nxp/s32/s32g/s32g_lowlevel_common.S b/plat/nxp/s32/s32g/s32g_lowlevel_common.S
+index 5024dd142..c8bf02f2a 100644
+--- a/plat/nxp/s32/s32g/s32g_lowlevel_common.S
++++ b/plat/nxp/s32/s32g/s32g_lowlevel_common.S
+@@ -10,10 +10,6 @@
+ #include <plat_macros.S>
+ #include <platform_def.h>
+ 
+-.globl plat_is_my_cpu_primary
+-.globl plat_my_core_pos
+-.globl plat_core_pos_by_mpidr
+-.globl plat_panic_handler
+ .globl s32g_ncore_isol_cluster0
+ .globl reset_registers_for_lockstep
+ .globl s32_plat_data_stack
+@@ -25,17 +21,12 @@
+  */
+ .section .data.s32_plat_data_stack
+ 	.balign 16
+-	s32_plat_data_stack: .skip S32G_CRASH_STACK_SIZE
++	s32_plat_data_stack: .skip S32_CRASH_STACK_SIZE
+ 
+ .section .data.s32_crash_reg_stash
+ 	.align 3
+ 	s32_crash_reg_stash: .quad 0, 0, 0, 0
+ 
+-func plat_panic_handler
+-	wfi
+-	b	plat_panic_handler
+-endfunc plat_panic_handler
+-
+ /* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+  * This is so cache invalidate operations from the early TF-A boot code
+  * won't cause Ncore to crash.
+@@ -53,52 +44,6 @@ func s32g_ncore_isol_cluster0
+ 	ret
+ endfunc s32g_ncore_isol_cluster0
+ 
+-/* Clobber list: x0,x1,x7,x8
+- */
+-func plat_is_my_cpu_primary
+-	mov	x7, x30
+-	bl	plat_my_core_pos
+-	cmp	x0, #S32G_PLAT_PRIMARY_CPU
+-	cset	x0, eq
+-	mov	x30, x7
+-	ret
+-endfunc plat_is_my_cpu_primary
+-
+-
+-/* Out: x0
+- * Clobber list: x0,x1,x8
+- */
+-func plat_my_core_pos
+-	mov	x8, x30
+-	mrs 	x0, mpidr_el1
+-	bl	s32g_core_pos_by_mpidr
+-	mov	x30, x8
+-	ret
+-endfunc plat_my_core_pos
+-
+-
+-/* In:	x0 -  MPIDR_EL1
+- * Out:	x0
+- * Clobber list: x0,x1
+- */
+-func s32g_core_pos_by_mpidr
+-	and	x0, x0, #S32G_MPIDR_CPU_CLUSTER_MASK
+-	and	x1, x0, #S32G_MPIDR_CPU_MASK
+-	lsr	x0, x0, #S32G_MPIDR_CLUSTER_SHIFT
+-	add	x0, x1, x0, lsl #S32G_MPIDR_CPU_MASK_BITS
+-	ret
+-endfunc s32g_core_pos_by_mpidr
+-
+-
+-/* Clobber list: x7 */
+-func plat_core_pos_by_mpidr
+-	mov	x7, x30
+-	bl	s32g_core_pos_by_mpidr
+-	mov	x30, x7
+-	ret
+-endfunc plat_core_pos_by_mpidr
+-
+-
+ /* Clobber list: x0,x24,x25,x26,27,x28 */
+ func reset_registers_for_lockstep
+ 	/*
+-- 
+2.17.1
+

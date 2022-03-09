@@ -1,0 +1,144 @@
+From a9494ff69ae03e9ce770e3447f010b196792e15c Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Mon, 15 Nov 2021 15:54:10 +0200
+Subject: [PATCH 05/50] s32: GIC: Move common GIC definitions to generic header
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/include/s32_platform_def.h        |  7 +++++++
+ plat/nxp/s32/s32g/include/s32g_platform_def.h  |  7 -------
+ plat/nxp/s32/s32g/s32g2/include/platform_def.h |  2 +-
+ plat/nxp/s32/s32g/s32g3/include/platform_def.h |  2 +-
+ plat/nxp/s32/s32g/s32g_bl31.c                  |  4 ++--
+ plat/nxp/s32/s32g/s32g_psci.c                  | 12 ++++++------
+ 6 files changed, 17 insertions(+), 17 deletions(-)
+
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+index 693bc96be..8294cb292 100644
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -62,6 +62,13 @@
+ #define CA53_1_0_RVBARADDR_39_32_OFF	(16)
+ #define CA53_1_1_RVBARADDR_39_32_OFF	(24)
+ 
++/* GIC (re)definitions */
++#define S32GEN1_GIC_BASE	0x50800000
++#define PLAT_GICD_BASE		S32GEN1_GIC_BASE
++#define S32GEN1_GIC_SIZE	0x100000
++/* SGI to use for kicking the secondary cores out of wfi */
++#define S32_SECONDARY_WAKE_SGI	15
++
+ #define S32_SRAM_BASE		0x34000000
+ #define S32_SRAM_END		(S32_SRAM_BASE + S32_SRAM_SIZE)
+ 
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index c8d630b7c..ae27a0530 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -35,13 +35,6 @@
+ #define BOOT_SOURCE_MMC		3
+ #define INVALID_BOOT_SOURCE	1
+ 
+-/* GIC (re)definitions */
+-#define S32G274A_GIC_BASE	0x50800000
+-#define PLAT_GICD_BASE		S32G274A_GIC_BASE
+-#define S32G274A_GIC_SIZE	0x100000
+-/* SGI to use for kicking the secondary cores out of wfi */
+-#define S32G_SECONDARY_WAKE_SGI	15
+-
+ #define S32G_SSRAM_BASE		(0x24000000)
+ #define S32G_SSRAM_SIZE		(0x8000)
+ #define S32G_SSRAM_LIMIT	(S32G_SSRAM_BASE + S32G_SSRAM_SIZE)
+diff --git a/plat/nxp/s32/s32g/s32g2/include/platform_def.h b/plat/nxp/s32/s32g/s32g2/include/platform_def.h
+index ab8d1e2ae..12d2451b0 100644
+--- a/plat/nxp/s32/s32g/s32g2/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g2/include/platform_def.h
+@@ -9,7 +9,7 @@
+ #include <s32g_platform_def.h>
+ 
+ #define PLATFORM_CORE_COUNT		4
+-#define PLAT_GICR_BASE			(S32G274A_GIC_BASE + 0x80000)
++#define PLAT_GICR_BASE			(S32GEN1_GIC_BASE + 0x80000)
+ 
+ /* MPIDR_EL1 for the four A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+diff --git a/plat/nxp/s32/s32g/s32g3/include/platform_def.h b/plat/nxp/s32/s32g/s32g3/include/platform_def.h
+index 4deda9820..af2eb04e6 100644
+--- a/plat/nxp/s32/s32g/s32g3/include/platform_def.h
++++ b/plat/nxp/s32/s32g/s32g3/include/platform_def.h
+@@ -9,7 +9,7 @@
+ #include <s32g_platform_def.h>
+ 
+ #define PLATFORM_CORE_COUNT		8
+-#define PLAT_GICR_BASE			(S32G274A_GIC_BASE + 0x100000)
++#define PLAT_GICR_BASE			(S32GEN1_GIC_BASE + 0x100000)
+ 
+ /* MPIDR_EL1 for the eight A53 cores is as follows:
+  *	A53_0_cpu0:	0x8000_0000
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index 6b71dcd43..602df0c9b 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -44,7 +44,7 @@ static const mmap_region_t s32g_mmap[] = {
+ 			 MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32_UART_BASE, S32_UART_SIZE,
+ 			MT_DEVICE | MT_RW | MT_NS),
+-	MAP_REGION_FLAT(S32G274A_GIC_BASE, S32G274A_GIC_SIZE,
++	MAP_REGION_FLAT(S32GEN1_GIC_BASE, S32GEN1_GIC_SIZE,
+ 			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(S32G_MC_ME_BASE_ADDR, S32G_MC_ME_SIZE,
+ 			MT_DEVICE | MT_RW),
+@@ -86,7 +86,7 @@ static entry_point_info_t bl32_image_ep_info;
+ static uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
+ 
+ static const interrupt_prop_t interrupt_props[] = {
+-	INTR_PROP_DESC(S32G_SECONDARY_WAKE_SGI, GIC_HIGHEST_SEC_PRIORITY,
++	INTR_PROP_DESC(S32_SECONDARY_WAKE_SGI, GIC_HIGHEST_SEC_PRIORITY,
+ 		       INTR_GROUP0, GIC_INTR_CFG_EDGE),
+ };
+ 
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32g/s32g_psci.c
+index 5bdcc4fb4..8cf862199 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32g/s32g_psci.c
+@@ -62,15 +62,15 @@ static int s32g_pwr_domain_on(u_register_t mpidr)
+ 	 */
+ 	gicv3_rdistif_init(pos);
+ 	/* GICR_IGROUPR0, GICR_IGRPMOD0 */
+-	gicv3_set_interrupt_type(S32G_SECONDARY_WAKE_SGI, pos, INTR_GROUP0);
++	gicv3_set_interrupt_type(S32_SECONDARY_WAKE_SGI, pos, INTR_GROUP0);
+ 	/* GICR_ISENABLER0 */
+-	assert(plat_ic_is_sgi(S32G_SECONDARY_WAKE_SGI));
+-	gicv3_enable_interrupt(S32G_SECONDARY_WAKE_SGI, pos);
++	assert(plat_ic_is_sgi(S32_SECONDARY_WAKE_SGI));
++	gicv3_enable_interrupt(S32_SECONDARY_WAKE_SGI, pos);
+ 
+ 	/* Kick the secondary core out of wfi */
+ 	NOTICE("S32G TF-A: %s: booting up core %d\n", __func__, pos);
+ 	update_core_state(pos, 1);
+-	plat_ic_raise_el3_sgi(S32G_SECONDARY_WAKE_SGI, mpidr);
++	plat_ic_raise_el3_sgi(S32_SECONDARY_WAKE_SGI, mpidr);
+ 
+ 	if (is_core_in_secondary_cluster(pos) &&
+ 	    !ncore_is_caiu_online(A53_CLUSTER1_CAIU))
+@@ -98,11 +98,11 @@ static void s32g_pwr_domain_on_finish(const psci_power_state_t *target_state)
+ 	while ((intid = gicv3_get_pending_interrupt_id()) <= MAX_SPI_ID) {
+ 		gicv3_clear_interrupt_pending(intid, pos);
+ 
+-		if (intid == S32G_SECONDARY_WAKE_SGI)
++		if (intid == S32_SECONDARY_WAKE_SGI)
+ 			break;
+ 
+ 		WARN("%s(): Interrupt %d found pending instead of the expected %d\n",
+-		     __func__, intid, S32G_SECONDARY_WAKE_SGI);
++		     __func__, intid, S32_SECONDARY_WAKE_SGI);
+ 	}
+ 
+ 	write_scr_el3(read_scr_el3() & ~SCR_IRQ_BIT);
+-- 
+2.17.1
+

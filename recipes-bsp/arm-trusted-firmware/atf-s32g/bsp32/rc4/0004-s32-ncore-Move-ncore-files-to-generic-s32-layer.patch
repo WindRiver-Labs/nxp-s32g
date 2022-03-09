@@ -1,0 +1,680 @@
+From dfe8a20a1bb05674bb69d5b12aa8a69433fd5299 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Wed, 22 Dec 2021 12:39:49 +0200
+Subject: [PATCH 04/50] s32: ncore: Move ncore files to generic s32 layer
+
+Issue: ALB-7411
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ plat/nxp/s32/include/s32_bl_common.h          | 14 ++++
+ .../s32g_ncore.h => include/s32_ncore.h}      |  8 +-
+ plat/nxp/s32/include/s32_platform_def.h       | 26 ++++++
+ plat/nxp/s32/s32_bl_common.c                  | 11 ++-
+ plat/nxp/s32/s32_common.mk                    |  1 +
+ plat/nxp/s32/s32_lowlevel_bl2.S               | 19 +++++
+ plat/nxp/s32/s32_lowlevel_common.S            | 72 ++++++++++++++++-
+ .../s32/{s32g/s32g_ncore.c => s32_ncore.c}    |  5 +-
+ plat/nxp/s32/s32g/bl31_lowlevel.S             |  2 +-
+ plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk      |  1 -
+ plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk    |  1 -
+ plat/nxp/s32/s32g/include/s32g_bl_common.h    |  3 +-
+ plat/nxp/s32/s32g/include/s32g_platform_def.h | 25 ------
+ plat/nxp/s32/s32g/s32g_bl31.c                 |  4 +-
+ plat/nxp/s32/s32g/s32g_bl_common.c            | 14 +---
+ plat/nxp/s32/s32g/s32g_common.mk              |  5 +-
+ plat/nxp/s32/s32g/s32g_lowlevel_bl2.S         | 28 -------
+ plat/nxp/s32/s32g/s32g_lowlevel_common.S      | 81 -------------------
+ plat/nxp/s32/s32g/s32g_psci.c                 |  2 +-
+ plat/nxp/s32/s32g/s32g_resume.c               |  4 +-
+ 20 files changed, 159 insertions(+), 167 deletions(-)
+ create mode 100644 plat/nxp/s32/include/s32_bl_common.h
+ rename plat/nxp/s32/{s32g/include/s32g_ncore.h => include/s32_ncore.h} (95%)
+ rename plat/nxp/s32/{s32g/s32g_ncore.c => s32_ncore.c} (97%)
+ delete mode 100644 plat/nxp/s32/s32g/s32g_lowlevel_bl2.S
+ delete mode 100644 plat/nxp/s32/s32g/s32g_lowlevel_common.S
+
+diff --git a/plat/nxp/s32/include/s32_bl_common.h b/plat/nxp/s32/include/s32_bl_common.h
+new file mode 100644
+index 000000000..e142c6237
+--- /dev/null
++++ b/plat/nxp/s32/include/s32_bl_common.h
+@@ -0,0 +1,14 @@
++/*
++ * Copyright 2021 NXP
++ *
++ * SPDX-License-Identifier: BSD-3-Clause
++ */
++#ifndef S32_BL_COMMON_H
++#define S32_BL_COMMON_H
++
++#include <stdbool.h>
++#include <stdint.h>
++
++bool is_lockstep_enabled(void);
++
++#endif /* S32_BL_COMMON_H */
+diff --git a/plat/nxp/s32/s32g/include/s32g_ncore.h b/plat/nxp/s32/include/s32_ncore.h
+similarity index 95%
+rename from plat/nxp/s32/s32g/include/s32g_ncore.h
+rename to plat/nxp/s32/include/s32_ncore.h
+index adc621edc..d0b8510ca 100644
+--- a/plat/nxp/s32/s32g/include/s32g_ncore.h
++++ b/plat/nxp/s32/include/s32_ncore.h
+@@ -4,8 +4,8 @@
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ 
+-#ifndef S32G_NCORE_H
+-#define S32G_NCORE_H
++#ifndef S32_NCORE_H
++#define S32_NCORE_H
+ 
+ #ifndef __ASSEMBLER__
+ #include <arch_helpers.h>
+@@ -13,7 +13,7 @@
+ #include "platform_def.h"
+ 
+ #define NCORE_BASE_ADDR		(0x50400000)
+-#define S32G_NCORE_SIZE		SIZE_1M
++#define S32_NCORE_SIZE		SIZE_1M
+ 
+ #define A53_CLUSTER0_CAIU	(0)
+ #define A53_CLUSTER1_CAIU	(1)
+@@ -68,4 +68,4 @@ void ncore_init(void);
+ bool ncore_is_caiu_online(uint32_t caiu);
+ #endif
+ 
+-#endif /* S32G_NCORE_H */
++#endif /* S32_NCORE_H */
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+index eb9fc405c..693bc96be 100644
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -15,6 +15,12 @@
+ #define S32_MPIDR_CLUSTER_SHIFT	    U(8)
+ #define S32_PLAT_PRIMARY_CPU		0x0u	/* Cluster 0, cpu 0*/
+ 
++#define S32_NCORE_CAIU0_BASE_ADDR		0x50400000
++#define S32_NCORE_CAIU0_BASE_ADDR_H		(S32_NCORE_CAIU0_BASE_ADDR >> 16)
++#define NCORE_CAIUTC_OFF				0x0
++#define NCORE_CAIUTC_ISOLEN_SHIFT		1
++#define NCORE_CAIUTC_ISOLEN_MASK		BIT(NCORE_CAIUTC_ISOLEN_SHIFT)
++
+ #define S32_CACHE_WRITEBACK_SHIFT	6
+ #define CACHE_WRITEBACK_GRANULE		(1 << S32_CACHE_WRITEBACK_SHIFT)
+ #define PLAT_PHY_ADDR_SPACE_SIZE        (1ull << 36)
+@@ -24,11 +30,20 @@
+ #define PLATFORM_CLUSTER_COUNT		2
+ #define PLATFORM_SYSTEM_COUNT		1
+ 
++/* FIXME I'm not sure this is technically correct. We do NOT have
++ * cluster-level power management operations, only core and system.
++ */
++#define PLAT_NUM_PWR_DOMAINS		(PLATFORM_SYSTEM_COUNT + \
++					 PLATFORM_CLUSTER_COUNT + \
++					 PLATFORM_CORE_COUNT)
++
+ #define PLAT_MAX_OFF_STATE		    U(2)
+ #define PLAT_MAX_RET_STATE		    U(1)
+ #define PLAT_MAX_PWR_LVL		    MPIDR_AFFLVL2
+ #define PLAT_MAX_PWR_LVL_STATES		2
+ 
++#define PLAT_PRIMARY_CPU			0x0
++
+ /* Generic timer frequency; this goes directly into CNTFRQ_EL0.
+  * Its end-value is 5MHz; this is based on the assumption that
+  * GPR00[CA53_COUNTER_CLK_DIV_VAL] contains the reset value of 0x7, hence
+@@ -36,6 +51,17 @@
+  */
+ #define COUNTER_FREQUENCY	    0x004C4B40
+ 
++#define GPR_BASE_ADDR		0x4007C400UL
++#define GPR06_OFF			0x18U
++#define GPR09_OFF			0x24U
++#define GPR36_OFF			0x90U
++#define CA53_RVBARADDR_MASK	(0xFFUL)
++/* GPR09 */
++#define CA53_0_0_RVBARADDR_39_32_OFF	(0)
++#define CA53_0_1_RVBARADDR_39_32_OFF	(8)
++#define CA53_1_0_RVBARADDR_39_32_OFF	(16)
++#define CA53_1_1_RVBARADDR_39_32_OFF	(24)
++
+ #define S32_SRAM_BASE		0x34000000
+ #define S32_SRAM_END		(S32_SRAM_BASE + S32_SRAM_SIZE)
+ 
+diff --git a/plat/nxp/s32/s32_bl_common.c b/plat/nxp/s32/s32_bl_common.c
+index 8d2c384c9..b755cd10f 100644
+--- a/plat/nxp/s32/s32_bl_common.c
++++ b/plat/nxp/s32/s32_bl_common.c
+@@ -3,8 +3,17 @@
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+-#include <platform.h>
++#include <lib/mmio.h>
+ #include <platform_def.h>
++#include "s32_ncore.h"
++
++bool is_lockstep_enabled(void)
++{
++	if (mmio_read_32(GPR_BASE_ADDR + GPR06_OFF) & CA53_LOCKSTEP_EN)
++		return true;
++
++	return false;
++}
+ 
+ unsigned int plat_get_syscnt_freq2(void)
+ {
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index f48aca3f7..a78d21b0f 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -47,6 +47,7 @@ PLAT_BL_COMMON_SOURCES += \
+ 			plat/nxp/s32/s32_sramc_asm.S \
+ 			plat/nxp/s32/s32_linflexuart.c \
+ 			plat/nxp/s32/s32_linflexuart_crash.S \
++			plat/nxp/s32/s32_ncore.c \
+ 
+ BL2_SOURCES += \
+ 			${XLAT_TABLES_LIB_SRCS} \
+diff --git a/plat/nxp/s32/s32_lowlevel_bl2.S b/plat/nxp/s32/s32_lowlevel_bl2.S
+index 4d05c97e2..426b81045 100644
+--- a/plat/nxp/s32/s32_lowlevel_bl2.S
++++ b/plat/nxp/s32/s32_lowlevel_bl2.S
+@@ -5,11 +5,30 @@
+  */
+ 
+ #include <asm_macros.S>
++#include <console_macros.S>
++#include "platform_def.h"
+ #include "s32_sramc.h"
+ 
+ .globl platform_mem_init
++.globl plat_reset_handler
+ .globl _s32_sram_clr
+ .globl plat_secondary_cold_boot_setup
++.globl s32_ncore_isol_cluster0
++.globl reset_registers_for_lockstep
++
++/* Clobber list: x0,x1,x16 */
++func plat_reset_handler
++	mov	x16, x30
++
++	/* Reset Generic Timers and GPR registers for lockstep */
++	bl	reset_registers_for_lockstep
++
++	/* Ncore quirks */
++	bl	s32_ncore_isol_cluster0
++
++	mov	x30, x16
++	ret
++endfunc plat_reset_handler
+ 
+ /* Clobber list: x0,x1,x16 */
+ func platform_mem_init
+diff --git a/plat/nxp/s32/s32_lowlevel_common.S b/plat/nxp/s32/s32_lowlevel_common.S
+index 5aa323bb2..3fb38596e 100644
+--- a/plat/nxp/s32/s32_lowlevel_common.S
++++ b/plat/nxp/s32/s32_lowlevel_common.S
+@@ -4,13 +4,17 @@
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #include <asm_macros.S>
+-#include <platform_def.h>
++#include <console_macros.S>
++#include <lib/utils_def.h>
+ #include <plat_macros.S>
++#include <platform_def.h>
+ 
+ .globl plat_is_my_cpu_primary
+ .globl plat_my_core_pos
+ .globl plat_core_pos_by_mpidr
+ .globl plat_panic_handler
++.globl s32_ncore_isol_cluster0
++.globl reset_registers_for_lockstep
+ .globl s32_plat_data_stack
+ .globl s32_crash_reg_stash
+ 
+@@ -31,6 +35,23 @@ func plat_panic_handler
+ 	b	plat_panic_handler
+ endfunc plat_panic_handler
+ 
++/* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
++ * This is so cache invalidate operations from the early TF-A boot code
++ * won't cause Ncore to crash.
++ *
++ * Clobber list: x8,x9,x10
++ */
++func s32_ncore_isol_cluster0
++	movz	x8, #S32_NCORE_CAIU0_BASE_ADDR_H, lsl #16
++	ldr	x9, [x8, #NCORE_CAIUTC_OFF]
++	movz	x10, #1
++	lsl	x10, x10, #NCORE_CAIUTC_ISOLEN_SHIFT
++	orr	x9, x9, x10
++	str	x9, [x8, #NCORE_CAIUTC_OFF]
++
++	ret
++endfunc s32_ncore_isol_cluster0
++
+ /* Clobber list: x0,x1,x7,x8
+  */
+ func plat_is_my_cpu_primary
+@@ -72,3 +93,52 @@ func plat_core_pos_by_mpidr
+ 	mov	x30, x7
+ 	ret
+ endfunc plat_core_pos_by_mpidr
++
++/* Clobber list: x0,x24,x25,x26,27,x28 */
++func reset_registers_for_lockstep
++	/*
++	 * Timers reset must be done when lockstep is enabled to avoid RCCU
++	 * mismatch errors. Reset should be executed as early as possible
++	 * before any read access to these counters. Resetting them for all boot
++	 * flows assures consistent values
++	 * This must be done in EL3 and executed for all cores.
++	 */
++
++	mov x0, #0x0
++	msr cntkctl_el1, x0
++
++	msr cntp_tval_el0, x0
++	msr cntp_ctl_el0, x0
++	msr cntp_cval_el0, x0
++
++	msr cntv_tval_el0, x0
++	msr cntv_cval_el0, x0
++	msr cntv_ctl_el0, x0
++
++	msr cntvoff_el2, x0
++	msr cnthctl_el2, x0
++
++	msr cnthp_tval_el2, x0
++	msr cnthp_ctl_el2, x0
++	msr cnthp_cval_el2, x0
++
++	msr cntps_tval_el1, x0
++	msr cntps_ctl_el1, x0
++	msr cntps_cval_el1, x0
++
++	/*
++	 * Lockstep sync GPR registers: write x19-x28 callee-saved registers
++	 * as defined in procedure call standard for the ARM 64-bit. These
++	 * registers may be saved to stack without being initialized, setting
++	 * them is needed to avoid lockstep errors.
++	 * x19-x23 are already initialized up to this point
++	 */
++
++	mov x24, #0
++	mov x25, #0
++	mov x26, #0
++	mov x27, #0
++	mov x28, #0
++
++	ret
++endfunc reset_registers_for_lockstep
+diff --git a/plat/nxp/s32/s32g/s32g_ncore.c b/plat/nxp/s32/s32_ncore.c
+similarity index 97%
+rename from plat/nxp/s32/s32g/s32g_ncore.c
+rename to plat/nxp/s32/s32_ncore.c
+index 63e68b608..27203c541 100644
+--- a/plat/nxp/s32/s32g/s32g_ncore.c
++++ b/plat/nxp/s32/s32_ncore.c
+@@ -4,11 +4,10 @@
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+ #include <lib/mmio.h>
+-#include <s32g_bl_common.h>
+-#include "s32g_ncore.h"
++#include <s32_bl_common.h>
++#include "s32_ncore.h"
+ #include "platform_def.h"
+ 
+-
+ static void ncore_diru_online(uint32_t diru)
+ {
+ 	int numsfs, sf;
+diff --git a/plat/nxp/s32/s32g/bl31_lowlevel.S b/plat/nxp/s32/s32g/bl31_lowlevel.S
+index e19d2c1d6..58bbeab06 100644
+--- a/plat/nxp/s32/s32g/bl31_lowlevel.S
++++ b/plat/nxp/s32/s32g/bl31_lowlevel.S
+@@ -7,7 +7,7 @@
+ #include <asm_macros.S>
+ #include <drivers/arm/gicv3.h>
+ #include "platform_def.h"
+-#include "s32g_ncore.h"
++#include "s32_ncore.h"
+ 
+ .globl s32g_smp_fixup
+ .globl plat_secondary_cold_boot_setup
+diff --git a/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk b/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk
+index 81135bbed..eb9b1a10b 100644
+--- a/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk
++++ b/plat/nxp/s32/s32g/bl31_sram/bl31_sram.mk
+@@ -8,7 +8,6 @@ BL31SRAM_SOURCES = plat/common/aarch64/platform_up_stack.S \
+ 		   plat/nxp/s32/s32g/bl31_sram/bl31sram_entrypoint.S \
+ 		   plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c \
+ 		   plat/nxp/s32/s32g/s32g_clocks.c \
+-		   plat/nxp/s32/s32g/s32g_lowlevel_common.S \
+ 		   plat/nxp/s32/s32g/s32g_mc_me.c \
+ 		   ${DDR_DRV}/ddr_lp_mmio.c \
+ 
+diff --git a/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk b/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk
+index 03c156635..4febf12a7 100644
+--- a/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk
++++ b/plat/nxp/s32/s32g/bl31_ssram/bl31_ssram.mk
+@@ -9,7 +9,6 @@ BL31SSRAM_SOURCES =  plat/nxp/s32/s32g/bl31_ssram/bl31ssram_stacks.S \
+ 		     plat/nxp/s32/s32g/bl31_ssram/bl31ssram_main.c \
+ 		     plat/nxp/s32/s32g/bl31_ssram/ddr_clk.c \
+ 		     plat/nxp/s32/s32g/s32g_clocks.c \
+-		     plat/nxp/s32/s32g/s32g_lowlevel_common.S \
+ 		     plat/nxp/s32/s32g/s32g_mc_me.c \
+ 		     ${DDR_DRV_SRCS} \
+ 		     ${LIBC_SRCS}
+diff --git a/plat/nxp/s32/s32g/include/s32g_bl_common.h b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+index 4ba6a9526..d242f6647 100644
+--- a/plat/nxp/s32/s32g/include/s32g_bl_common.h
++++ b/plat/nxp/s32/s32g/include/s32g_bl_common.h
+@@ -10,6 +10,7 @@
+ #include <pmic/vr5510.h>
+ #include <stdbool.h>
+ #include <stdint.h>
++#include "s32_bl_common.h"
+ 
+ /**
+  * container_of - cast a member of a structure out to the containing structure
+@@ -29,8 +30,6 @@ struct s32g_i2c_driver {
+ 	int fdt_node;
+ };
+ 
+-bool is_lockstep_enabled(void);
+-
+ void s32g_gic_setup(void);
+ void plat_gic_save(void);
+ void plat_gic_restore(void);
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index baa289bbd..c8d630b7c 100644
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -15,34 +15,9 @@
+ #include <tbbr_img_def.h>
+ #include <s32_platform_def.h>
+ 
+-#define S32G_NCORE_CAIU0_BASE_ADDR	0x50400000
+-#define S32G_NCORE_CAIU0_BASE_ADDR_H	(S32G_NCORE_CAIU0_BASE_ADDR >> 16)
+-#define NCORE_CAIUTC_OFF		0x0
+-#define NCORE_CAIUTC_ISOLEN_SHIFT	1
+-#define NCORE_CAIUTC_ISOLEN_MASK	BIT(NCORE_CAIUTC_ISOLEN_SHIFT)
+-
+-/* FIXME I'm not sure this is technically correct. We do NOT have
+- * cluster-level power management operations, only core and system.
+- */
+-#define PLAT_NUM_PWR_DOMAINS		(PLATFORM_SYSTEM_COUNT + \
+-					 PLATFORM_CLUSTER_COUNT + \
+-					 PLATFORM_CORE_COUNT)
+-
+-#define PLAT_PRIMARY_CPU		0x0
+-
+ #define SIUL2_0_BASE_ADDR	0x4009C000UL
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
+ 
+-#define GPR_BASE_ADDR		0x4007C400UL
+-#define GPR06_OFF		0x18U
+-#define GPR09_OFF		0x24U
+-#define GPR36_OFF		0x90U
+-#define CA53_RVBARADDR_MASK	(0xFFUL)
+-/* GPR09 */
+-#define CA53_0_0_RVBARADDR_39_32_OFF	(0)
+-#define CA53_0_1_RVBARADDR_39_32_OFF	(8)
+-#define CA53_1_0_RVBARADDR_39_32_OFF	(16)
+-#define CA53_1_1_RVBARADDR_39_32_OFF	(24)
+ /* GPR36 */
+ #define CA53_0_2_RVBARADDR_39_32_OFF	(0)
+ #define CA53_0_3_RVBARADDR_39_32_OFF	(8)
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index a9029b49e..6b71dcd43 100644
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -24,7 +24,7 @@
+ #include "s32g_lowlevel.h"
+ #include "s32g_mc_me.h"
+ #include "s32g_mc_rgm.h"
+-#include "s32g_ncore.h"
++#include "s32_ncore.h"
+ #include "s32g_pinctrl.h"
+ #include "s32gen1-wkpu.h"
+ #include "s32g_bl_common.h"
+@@ -59,7 +59,7 @@ static const mmap_region_t s32g_mmap[] = {
+ 	/* When we execute at System Monitor on behalf of EL2/EL1, we might
+ 	 * have to reconfigure Ncore
+ 	 */
+-	MAP_REGION_FLAT(NCORE_BASE_ADDR, S32G_NCORE_SIZE,
++	MAP_REGION_FLAT(NCORE_BASE_ADDR, S32_NCORE_SIZE,
+ 			MT_DEVICE | MT_RW),
+ 	MAP_REGION_FLAT(SRAMC0_BASE_ADDR, SRAMC_SIZE,
+ 			MT_DEVICE | MT_RW),
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+index 282e04407..6b0bc71b4 100644
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -15,7 +15,7 @@
+ #include "platform_def.h"
+ #include "s32g_pinctrl.h"
+ #include "s32g_clocks.h"
+-#include "s32g_ncore.h"
++#include "s32_ncore.h"
+ #include "s32g_storage.h"
+ #include "s32g_bl_common.h"
+ #include "s32g_dt.h"
+@@ -26,14 +26,6 @@
+ static struct s32g_i2c_driver i2c_drivers[S32G_MAX_I2C_MODULES];
+ static size_t i2c_fill_level;
+ 
+-bool is_lockstep_enabled(void)
+-{
+-	if (mmio_read_32(GPR_BASE_ADDR + GPR06_OFF) & CA53_LOCKSTEP_EN)
+-		return true;
+-
+-	return false;
+-}
+-
+ void s32g_early_plat_init(bool skip_ddr_clk)
+ {
+ 	uint32_t caiutc;
+@@ -44,9 +36,9 @@ void s32g_early_plat_init(bool skip_ddr_clk)
+ 	/* Restore (clear) the CAIUTC[IsolEn] bit for the primay cluster, which
+ 	 * we have manually set during early BL2 boot.
+ 	 */
+-	caiutc = mmio_read_32(S32G_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF);
++	caiutc = mmio_read_32(S32_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF);
+ 	caiutc &= ~NCORE_CAIUTC_ISOLEN_MASK;
+-	mmio_write_32(S32G_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF, caiutc);
++	mmio_write_32(S32_NCORE_CAIU0_BASE_ADDR + NCORE_CAIUTC_OFF, caiutc);
+ 
+ 	ncore_init();
+ 	ncore_caiu_online(A53_CLUSTER0_CAIU);
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+index c284da0ce..d00b586ec 100644
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -37,9 +37,8 @@ PLAT_INCLUDES		+= -Iplat/nxp/s32/s32g/include \
+ 			   -Iplat/nxp/s32/s32g/bl31_sram/include \
+ 			   -Iplat/nxp/s32/s32g/bl31_ssram/include \
+ 
+-PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g_lowlevel_common.S \
++PLAT_BL_COMMON_SOURCES	+= \
+ 			   plat/nxp/s32/s32g/s32g_mc_me.c \
+-			   plat/nxp/s32/s32g/s32g_ncore.c \
+ 			   plat/nxp/s32/s32g/s32g_bl_common.c \
+ 			   plat/nxp/s32/s32g/s32g_dt.c \
+ 			   plat/nxp/s32/s32g/s32g_pinctrl.c \
+@@ -62,7 +61,7 @@ PLAT_BL_COMMON_SOURCES	+= plat/nxp/s32/s32g/s32g_lowlevel_common.S \
+ 			   drivers/nxp/s32g/pmic/vr5510.c \
+ 			   ${BL31SRAM_SRC_DUMP} \
+ 
+-BL2_SOURCES		+= plat/nxp/s32/s32g/s32g_lowlevel_bl2.S \
++BL2_SOURCES		+= \
+ 			   plat/nxp/s32/s32g/s32g_bl2_el3.c \
+ 			   plat/nxp/s32/s32g/s32g_storage.c \
+ 			   drivers/nxp/s32g/io/io_mmc.c \
+diff --git a/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S b/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S
+deleted file mode 100644
+index 670b9ab71..000000000
+--- a/plat/nxp/s32/s32g/s32g_lowlevel_bl2.S
++++ /dev/null
+@@ -1,28 +0,0 @@
+-/*
+- * Copyright 2019-2021 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <asm_macros.S>
+-#include <console_macros.S>
+-#include "platform_def.h"
+-
+-.globl plat_reset_handler
+-.globl s32g_ncore_isol_cluster0
+-.globl reset_registers_for_lockstep
+-
+-/* Clobber list: x0,x1,x16 */
+-func plat_reset_handler
+-	mov	x16, x30
+-
+-	/* Reset Generic Timers and GPR registers for lockstep */
+-	bl	reset_registers_for_lockstep
+-
+-	/* Ncore quirks */
+-	bl	s32g_ncore_isol_cluster0
+-
+-	mov	x30, x16
+-	ret
+-endfunc plat_reset_handler
+-
+diff --git a/plat/nxp/s32/s32g/s32g_lowlevel_common.S b/plat/nxp/s32/s32g/s32g_lowlevel_common.S
+deleted file mode 100644
+index 9abe6c327..000000000
+--- a/plat/nxp/s32/s32g/s32g_lowlevel_common.S
++++ /dev/null
+@@ -1,81 +0,0 @@
+-/*
+- * Copyright 2019-2021 NXP
+- *
+- * SPDX-License-Identifier: BSD-3-Clause
+- */
+-
+-#include <asm_macros.S>
+-#include <console_macros.S>
+-#include <lib/utils_def.h>
+-#include <plat_macros.S>
+-#include <platform_def.h>
+-
+-.globl s32g_ncore_isol_cluster0
+-.globl reset_registers_for_lockstep
+-
+-/* Set the CAIUTC[IsolEn] bit for the primary A53 cluster.
+- * This is so cache invalidate operations from the early TF-A boot code
+- * won't cause Ncore to crash.
+- *
+- * Clobber list: x8,x9,x10
+- */
+-func s32g_ncore_isol_cluster0
+-	movz	x8, #S32G_NCORE_CAIU0_BASE_ADDR_H, lsl #16
+-	ldr	x9, [x8, #NCORE_CAIUTC_OFF]
+-	movz	x10, #1
+-	lsl	x10, x10, #NCORE_CAIUTC_ISOLEN_SHIFT
+-	orr	x9, x9, x10
+-	str	x9, [x8, #NCORE_CAIUTC_OFF]
+-
+-	ret
+-endfunc s32g_ncore_isol_cluster0
+-
+-/* Clobber list: x0,x24,x25,x26,27,x28 */
+-func reset_registers_for_lockstep
+-	/*
+-	 * Timers reset must be done when lockstep is enabled to avoid RCCU
+-	 * mismatch errors. Reset should be executed as early as possible
+-	 * before any read access to these counters. Resetting them for all boot
+-	 * flows assures consistent values
+-	 * This must be done in EL3 and executed for all cores.
+-	 */
+-
+-	mov x0, #0x0
+-	msr cntkctl_el1, x0
+-
+-	msr cntp_tval_el0, x0
+-	msr cntp_ctl_el0, x0
+-	msr cntp_cval_el0, x0
+-
+-	msr cntv_tval_el0, x0
+-	msr cntv_cval_el0, x0
+-	msr cntv_ctl_el0, x0
+-
+-	msr cntvoff_el2, x0
+-	msr cnthctl_el2, x0
+-
+-	msr cnthp_tval_el2, x0
+-	msr cnthp_ctl_el2, x0
+-	msr cnthp_cval_el2, x0
+-
+-	msr cntps_tval_el1, x0
+-	msr cntps_ctl_el1, x0
+-	msr cntps_cval_el1, x0
+-
+-	/*
+-	 * Lockstep sync GPR registers: write x19-x28 callee-saved registers
+-	 * as defined in procedure call standard for the ARM 64-bit. These
+-	 * registers may be saved to stack without being initialized, setting
+-	 * them is needed to avoid lockstep errors.
+-	 * x19-x23 are already initialized up to this point
+-	 */
+-
+-	mov x24, #0
+-	mov x25, #0
+-	mov x26, #0
+-	mov x27, #0
+-	mov x28, #0
+-
+-	ret
+-endfunc reset_registers_for_lockstep
+-
+diff --git a/plat/nxp/s32/s32g/s32g_psci.c b/plat/nxp/s32/s32g/s32g_psci.c
+index 9bb7daa28..5bdcc4fb4 100644
+--- a/plat/nxp/s32/s32g/s32g_psci.c
++++ b/plat/nxp/s32/s32g/s32g_psci.c
+@@ -8,7 +8,7 @@
+ #include "s32g_clocks.h"
+ #include "s32g_lowlevel.h"
+ #include "s32g_mc_me.h"
+-#include "s32g_ncore.h"
++#include "s32_ncore.h"
+ #include <plat/nxp/s32g/bl31_ssram/ssram_mailbox.h>
+ #include "s32g_resume.h"
+ #include "s32g_bl_common.h"
+diff --git a/plat/nxp/s32/s32g/s32g_resume.c b/plat/nxp/s32/s32g/s32g_resume.c
+index 92204f590..adb80f154 100644
+--- a/plat/nxp/s32/s32g/s32g_resume.c
++++ b/plat/nxp/s32/s32g/s32g_resume.c
+@@ -13,7 +13,7 @@
+ #include <lib/el3_runtime/cpu_data.h>
+ #include <lib/mmio.h>
+ 
+-void s32g_ncore_isol_cluster0(void);
++void s32_ncore_isol_cluster0(void);
+ 
+ static void reset_rtc(void)
+ {
+@@ -35,7 +35,7 @@ void s32g_resume_entrypoint(void)
+ 
+ 	/* Prepare resume operation */
+ 	reset_registers_for_lockstep();
+-	s32g_ncore_isol_cluster0();
++	s32_ncore_isol_cluster0();
+ 	s32g_early_plat_init(true);
+ 
+ 	ret = pmic_setup();
+-- 
+2.17.1
+
