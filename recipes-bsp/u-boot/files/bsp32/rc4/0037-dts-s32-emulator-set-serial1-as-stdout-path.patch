@@ -1,0 +1,62 @@
+From 40d08132f968438bb0f1187bea8bd9ffab413fea Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Mon, 31 Jan 2022 16:13:02 +0200
+Subject: [PATCH 37/64] dts: s32 emulator: set serial1 as stdout-path
+
+Issue: ALB-8368
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi   | 1 +
+ arch/arm/dts/fsl-s32g274aemu.dts | 4 ++++
+ arch/arm/dts/fsl-s32g399aemu.dts | 4 ++++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index b807055fd3..0b19150664 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -34,6 +34,7 @@
+ 		mmc0 = &usdhc0;
+ 		clks = &clks;
+ 		serial0 = &uart0;
++		serial1 = &uart1;
+ 	};
+ 
+ 	chosen {
+diff --git a/arch/arm/dts/fsl-s32g274aemu.dts b/arch/arm/dts/fsl-s32g274aemu.dts
+index 01e5885ee8..32e4b33e4c 100644
+--- a/arch/arm/dts/fsl-s32g274aemu.dts
++++ b/arch/arm/dts/fsl-s32g274aemu.dts
+@@ -8,6 +8,10 @@
+ 
+ / {
+ 	model = "ZeBu model for NXP S32G274A";
++
++	chosen {
++		stdout-path = "serial1:115200n8";
++	};
+ };
+ 
+ &usdhc0 {
+diff --git a/arch/arm/dts/fsl-s32g399aemu.dts b/arch/arm/dts/fsl-s32g399aemu.dts
+index 2a5fc84ac0..a07dc24a32 100644
+--- a/arch/arm/dts/fsl-s32g399aemu.dts
++++ b/arch/arm/dts/fsl-s32g399aemu.dts
+@@ -16,6 +16,10 @@
+ 		device_type = "memory";
+ 		reg = <0 0x80000000 0 0x40000000>;
+ 	};
++
++	chosen {
++		stdout-path = "serial1:115200n8";
++	};
+ };
+ 
+ &usdhc0 {
+-- 
+2.17.1
+

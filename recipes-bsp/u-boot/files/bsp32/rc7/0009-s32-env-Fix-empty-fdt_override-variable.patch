@@ -1,0 +1,30 @@
+From d3fe45fdac88d92303979f2bc8cf3343b7aaec51 Mon Sep 17 00:00:00 2001
+From: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Date: Tue, 22 Feb 2022 15:01:18 +0200
+Subject: [PATCH 09/51] s32: env: Fix empty fdt_override variable
+
+Issue: ALB-8537
+Upstream-Status: Pending 
+
+Signed-off-by: Andra-Teodora Ilie <andra.ilie@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 578399f8bd..ce19e06f6c 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -256,7 +256,7 @@
+ 
+ #define FDT_OVERRIDE \
+ 	"fdt_override=" \
+-		" \0"
++		";\0"
+ 
+ #define CONFIG_FLASHBOOT_RAMDISK " ${ramdisk_addr} "
+ 
+-- 
+2.17.1
+

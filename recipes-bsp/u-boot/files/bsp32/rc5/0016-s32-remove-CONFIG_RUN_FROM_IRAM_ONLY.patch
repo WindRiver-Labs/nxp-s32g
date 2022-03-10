@@ -1,0 +1,98 @@
+From 0ea4ab1189674d8372165719cd51ae6fb06ed5ec Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Fri, 4 Feb 2022 10:42:20 +0200
+Subject: [PATCH 16/43] s32: remove CONFIG_RUN_FROM_IRAM_ONLY
+
+CONFIG_RUN_IRAM_ONLY is no longer necessary since moving to ATF.
+Also removed old define SWT_SR(SWTn_BASE_ADDR) which is no longer used.
+
+Issue: ALB-8347
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/lowlevel.S |  3 ---
+ include/configs/s32-gen1.h        |  2 --
+ include/configs/s32.h             | 10 ----------
+ scripts/config_whitelist.txt      |  1 -
+ 4 files changed, 16 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/lowlevel.S b/arch/arm/cpu/armv8/s32/lowlevel.S
+index af85e5120a..c7cd7cdfdb 100644
+--- a/arch/arm/cpu/armv8/s32/lowlevel.S
++++ b/arch/arm/cpu/armv8/s32/lowlevel.S
+@@ -16,9 +16,6 @@
+ #include <asm/gic.h>
+ #include "mp.h"
+ 
+-#define SWT_SR(SWTn_BASE_ADDR) (SWTn_BASE_ADDR + 0x10)
+-
+-
+ ENTRY(lowlevel_init)
+ 
+ 	mov	x29, lr			/* Save LR */
+diff --git a/include/configs/s32-gen1.h b/include/configs/s32-gen1.h
+index 7c2b88723e..5b226466b9 100644
+--- a/include/configs/s32-gen1.h
++++ b/include/configs/s32-gen1.h
+@@ -26,8 +26,6 @@
+ /* The configurations of this board depend on the definitions in this file and
+ * the ones in the header included at the end, configs/s32.h */
+ 
+-#undef CONFIG_RUN_FROM_IRAM_ONLY
+-
+ #define CONFIG_MACH_TYPE		4146
+ 
+ /* Config CACHE */
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index f82e6e40a4..12a03221b1 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -14,8 +14,6 @@
+ 
+ #include <generated/autoconf.h>
+ 
+-#undef CONFIG_RUN_FROM_IRAM_ONLY
+-
+ #define CONFIG_REMAKE_ELF
+ 
+ #define CONFIG_MACH_TYPE		4146
+@@ -150,11 +148,7 @@
+ #endif
+ 
+ /* Size of malloc() pool */
+-#if defined(CONFIG_RUN_FROM_IRAM_ONLY)
+-#define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + 512 * 1024)
+-#else
+ #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + 2 * 1024 * 1024)
+-#endif
+ 
+ /* Allow to overwrite serial and ethaddr */
+ #define CONFIG_ENV_OVERWRITE
+@@ -440,10 +434,6 @@
+ #define CONFIG_SYS_LOAD_ADDR		CONFIG_LOADADDR
+ #define CONFIG_SYS_HZ			1000
+ 
+-#ifdef CONFIG_RUN_FROM_IRAM_ONLY
+-#define CONFIG_SYS_MALLOC_BASE		(CONFIG_SYS_FSL_DRAM_BASE1)
+-#endif
+-
+ #define CONFIG_SYS_SDRAM_BASE		CONFIG_SYS_FSL_DRAM_BASE1
+ 
+ #define CONFIG_SYS_INIT_RAM_ADDR	IRAM_BASE_ADDR
+diff --git a/scripts/config_whitelist.txt b/scripts/config_whitelist.txt
+index 9b8caf0456..a0c05bc6f1 100644
+--- a/scripts/config_whitelist.txt
++++ b/scripts/config_whitelist.txt
+@@ -1495,7 +1495,6 @@ CONFIG_RTC_MXS
+ CONFIG_RTC_PCF85263
+ CONFIG_RTC_PCF8563
+ CONFIG_RTC_PT7C4338
+-CONFIG_RUN_FROM_IRAM_ONLY
+ CONFIG_RX_DESCR_NUM
+ CONFIG_S32
+ CONFIG_S5P
+-- 
+2.17.1
+

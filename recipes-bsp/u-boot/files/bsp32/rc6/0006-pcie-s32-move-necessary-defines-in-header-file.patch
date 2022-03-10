@@ -1,0 +1,85 @@
+From 837d55c6c091bfaed8ee73f2d6fce2c1ac3f4f2f Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Mon, 14 Feb 2022 14:59:19 +0200
+Subject: [PATCH 6/9] pcie: s32: move necessary defines in header file
+
+Issue: ALB-8344
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/pci/serdes_s32gen1.c |  3 +--
+ drivers/pci/serdes_s32gen1.h | 16 +++++++++++++---
+ 2 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/pci/serdes_s32gen1.c b/drivers/pci/serdes_s32gen1.c
+index 7ded446a42..146d780cab 100644
+--- a/drivers/pci/serdes_s32gen1.c
++++ b/drivers/pci/serdes_s32gen1.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  * S32Gen1 PCIe driver
+  */
+ 
+@@ -19,7 +19,6 @@
+ #include <clk.h>
+ 
+ #include "serdes_s32gen1.h"
+-#include "mc_rgm_regs.h"
+ 
+ #define PCIE_DEFAULT_INTERNAL_CLK	CLK_INT
+ #define PCIE_DEFAULT_INTERNAL_CLK_FMHZ	CLK_100MHZ
+diff --git a/drivers/pci/serdes_s32gen1.h b/drivers/pci/serdes_s32gen1.h
+index c9df1ac137..61e0ca45f5 100644
+--- a/drivers/pci/serdes_s32gen1.h
++++ b/drivers/pci/serdes_s32gen1.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0+ */
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  * S32Gen1 PCIe driver
+  */
+ 
+@@ -13,7 +13,6 @@
+ 
+ #include "serdes_regs.h"
+ #include "ss_pcie_regs.h"
+-#include "mc_rgm_regs.h"
+ #include "serdes_s32gen1_io.h"
+ 
+ #define PCIE_LINK_UP_COUNT 100
+@@ -21,7 +20,6 @@
+ #define PCIE_RESET_COUNT 50
+ #define DELAY_QUANTUM 1000
+ 
+-
+ #define LTSSM_STATE_L0		0x11 /* L0 state */
+ 
+ #define SERDES_LINKUP_MASK	(SMLH_LINK_UP | RDLH_LINK_UP | \
+@@ -45,6 +43,18 @@
+ #define WARM_RST		0x2
+ #define COLD_RST		0x1
+ 
++/* RGM peripheral reset registers */
++#define RGM_PRST(MC_RGM, per)		(UPTR(MC_RGM) + 0x40 + \
++					((per) * 0x8))
++#define RGM_PSTAT(rgm, per)		(UPTR(rgm) + 0x140 + \
++					 ((per) * 0x8))
++#define RGM_PERIPH_RST(num)		BIT(num)
++
++#define PRST_PCIE_0_SERDES		4
++#define PRST_PCIE_0_FUNC		5
++#define PRST_PCIE_1_SERDES		16
++#define PRST_PCIE_1_FUNC		17
++
+ enum serdes_link_width {
+ 	X1 = 0x1,
+ 	X2 = 0x2
+-- 
+2.17.1
+

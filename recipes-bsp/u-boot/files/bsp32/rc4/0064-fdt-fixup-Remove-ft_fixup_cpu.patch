@@ -1,0 +1,245 @@
+From f73c3dfdbb801121dcf27c8b4a3a548ae0c77831 Mon Sep 17 00:00:00 2001
+From: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Date: Mon, 7 Feb 2022 13:58:29 +0200
+Subject: [PATCH 64/64] fdt: fixup: Remove 'ft_fixup_cpu'
+
+'cpu' nodes are properly set for A-TF boot flow in Linux dts.
+
+Issue: ALB-8481
+Upstream-Status: Pending 
+
+Signed-off-by: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/fdt.c             | 133 -----------------------
+ arch/arm/cpu/armv8/s32/mp.h              |   3 +-
+ arch/arm/cpu/armv8/s32/s32-gen1/Makefile |   3 +-
+ arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c  |  10 --
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c    |   5 -
+ 5 files changed, 2 insertions(+), 152 deletions(-)
+ delete mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c
+
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index fc06820130..340e66e721 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -39,135 +39,6 @@ DECLARE_GLOBAL_DATA_PTR;
+ 
+ #define S32_DDR_LIMIT_VAR "ddr_limitX"
+ 
+-#ifdef CONFIG_MP
+-
+-#if CONFIG_S32_ATF_BOOT_FLOW
+-static void ft_fixup_enable_method(void *blob, int off, u64 __always_unused reg)
+-{
+-	const char *prop = fdt_getprop(blob, off, "enable-method", NULL);
+-	bool ovr = (prop == NULL);
+-
+-	if (prop && strcmp(prop, "psci")) {
+-		printf("enable-method found: %s, overwriting with psci\n",
+-		       prop);
+-		ovr = true;
+-	}
+-	if (ovr)
+-		fdt_setprop_string(blob, off, "enable-method", "psci");
+-}
+-#endif
+-
+-#if CONFIG_S32_ATF_BOOT_FLOW
+-/* Add a "psci" node at the top-level of the devide-tree,
+- * if it does not already exist
+- */
+-static void ft_fixup_psci_node(void *blob)
+-{
+-	int off;
+-	const char *prop;
+-	const char *exp_compatible = "arm,psci-1.0";
+-	const char *exp_method = "smc";
+-	bool ovr;
+-
+-	off = fdt_path_offset(blob, "/psci");
+-	if (off >= 0) {
+-		/* Node exists, but we'll want to check it has
+-		 * the correct properties
+-		 */
+-		goto set_psci_prop;
+-	}
+-	if (off != -FDT_ERR_NOTFOUND)
+-		goto fdt_error;
+-
+-	/* psci node did not exist, create one now */
+-	off = fdt_add_subnode(blob, 0, "psci");
+-	if (off < 0)
+-		goto fdt_error;
+-
+-set_psci_prop:
+-	prop = fdt_getprop(blob, off, "compatible", NULL);
+-	ovr = (prop == NULL);
+-	if (prop && strcmp(prop, exp_compatible)) {
+-		printf("psci/compatible prop found: %s; replacing with %s\n",
+-		       prop, exp_compatible);
+-		ovr = true;
+-	}
+-	if (ovr)
+-		fdt_setprop_string(blob, off, "compatible", exp_compatible);
+-
+-	prop = fdt_getprop(blob, off, "method", NULL);
+-	ovr = (prop == NULL);
+-	if (prop && strcmp(prop, exp_method)) {
+-		printf("psci/method prop found: %s; replacing with %s\n",
+-		       prop, exp_method);
+-		ovr = true;
+-	}
+-	if (ovr)
+-		fdt_setprop_string(blob, off, "method", exp_method);
+-
+-	return;
+-
+-fdt_error:
+-	printf("%s: error at \"psci\" node: %s\n", __func__, fdt_strerror(off));
+-}
+-#endif
+-
+-void ft_fixup_cpu(void *blob)
+-{
+-	int off, addr_cells;
+-	u64 core_id;
+-	fdt32_t *reg;
+-	u32 mask = cpu_pos_mask();
+-	int off_prev = -1;
+-
+-	off = fdt_path_offset(blob, "/cpus");
+-	if (off < 0) {
+-		puts("couldn't find /cpus node\n");
+-		return;
+-	}
+-
+-	fdt_support_default_count_cells(blob, off, &addr_cells, NULL);
+-
+-	off = fdt_node_offset_by_prop_value(blob, off_prev, "device_type",
+-					    "cpu", 4);
+-	while (off != -FDT_ERR_NOTFOUND) {
+-		reg = (fdt32_t *)fdt_getprop(blob, off, "reg", 0);
+-		if (!reg) {
+-			continue;
+-		}
+-
+-		core_id = fdt_read_number(reg, addr_cells);
+-		if (!test_bit(fdt_to_cpu_id(core_id), &mask)) {
+-			fdt_del_node(blob, off);
+-			off = off_prev;
+-		} else {
+-#if CONFIG_S32_ATF_BOOT_FLOW
+-			ft_fixup_enable_method(blob, off, *reg);
+-#endif
+-		}
+-
+-		off_prev = off;
+-		off = fdt_node_offset_by_prop_value(blob, off_prev,
+-						    "device_type", "cpu", 4);
+-	}
+-
+-#if CONFIG_S32_ATF_BOOT_FLOW
+-	/* Check if a "psci" node should be added */
+-	ft_fixup_psci_node(blob);
+-#endif
+-
+-	/*
+-	 * Boot page and spin table can be reserved here if not done statically
+-	 * in device tree.
+-	 *
+-	 * fdt_add_mem_rsv(blob, bootpg,
+-	 *		   *((u64 *)&(__secondary_boot_page_size)));
+-	 * If defined CONFIG_FSL_SMP_RELEASE_ALL, the release address should
+-	 * also be reserved.
+-	 */
+-}
+-#endif /* CONFIG_MP */
+-
+ static void ft_fixup_ddr_polling(const void *old_blob, void *new_blob)
+ {
+ 	int off, ret;
+@@ -731,10 +602,6 @@ static void ft_fixup_serdes(void *blob)
+ 
+ void ft_cpu_setup(void *blob, bd_t *bd)
+ {
+-#ifdef CONFIG_MP
+-	ft_fixup_cpu(blob);
+-#endif
+-
+ 	ft_fixup_memory(blob, bd);
+ 	ft_fixup_ddr_polling(gd->fdt_blob, blob);
+ #ifdef CONFIG_S32_ATF_BOOT_FLOW
+diff --git a/arch/arm/cpu/armv8/s32/mp.h b/arch/arm/cpu/armv8/s32/mp.h
+index d7a7ddbd5d..186d0f4b86 100644
+--- a/arch/arm/cpu/armv8/s32/mp.h
++++ b/arch/arm/cpu/armv8/s32/mp.h
+@@ -1,7 +1,7 @@
+ /* SPDX-License-Identifier:     GPL-2.0+ */
+ /*
+  * Copyright 2014, Freescale Semiconductor
+- * Copyright 2017-2018, 2020-2021 NXP
++ * Copyright 2017-2018, 2020-2022 NXP
+  */
+ 
+ #ifndef _S32_MP_H
+@@ -19,7 +19,6 @@ void *get_spin_tbl_addr(void);
+ phys_addr_t determine_mp_bootpg(void);
+ void secondary_boot_func(void);
+ u32 cpu_pos_mask(void);
+-u64 fdt_to_cpu_id(u64 fdt_id);
+ #endif
+ 
+ #endif /* _S32_MP_H */
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+index f0664bb1c6..2fda775338 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier:	GPL-2.0+
+ #
+-# Copyright 2018-2021 NXP
++# Copyright 2018-2022 NXP
+ #
+ 
+ obj-$(CONFIG_S32_CMU)			+= cmu.o
+@@ -12,7 +12,6 @@ obj-$(CONFIG_HSE_SECBOOT)		+= hse_adv_secboot.o
+ obj-y					+= ncore.o
+ obj-y					+= soc.o
+ obj-$(CONFIG_NXP_S32G2XX)		+= s32g274a.o
+-obj-$(CONFIG_NXP_S32G3XX)		+= s32g3.o
+ obj-$(CONFIG_NXP_S32G3XX)		+= s32g3_sramc.o
+ obj-$(CONFIG_NXP_S32G2XX)		+= s32gen1_common_sramc.o
+ obj-$(CONFIG_NXP_S32R45)		+= s32gen1_common_sramc.o
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c
+deleted file mode 100644
+index 14f18d39c6..0000000000
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32g3.c
++++ /dev/null
+@@ -1,10 +0,0 @@
+-// SPDX-License-Identifier:     GPL-2.0+
+-/*
+- * Copyright 2021 NXP
+- */
+-#include <asm/arch/cpu.h>
+-
+-u64 fdt_to_cpu_id(u64 fdt_id)
+-{
+-	return (fdt_id & 0x3u) | (fdt_id >> 0x6u);
+-}
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index e5aaf0075c..93194fdf1a 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -286,8 +286,3 @@ __weak u32 mc_me_get_cluster_ptrn(u32 core)
+ 	 */
+ 	return (core % 4) & ~1;
+ }
+-
+-__weak u64 fdt_to_cpu_id(u64 fdt_id)
+-{
+-	return (fdt_id & 0x3u) | (fdt_id >> 0x7u);
+-}
+-- 
+2.17.1
+

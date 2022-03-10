@@ -1,0 +1,59 @@
+From 092cb67a98360abe858c730a8ef226acc7254b6d Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 10:25:07 +0200
+Subject: [PATCH 32/51] s32: Make OF_BOARD_SETUP a dependency of S32_GEN1
+
+Issue: ALB-8483, ALB-8484
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/Kconfig           | 1 +
+ include/configs/s32-gen1.h | 3 ---
+ include/configs/s32.h      | 3 ---
+ 3 files changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
+index 7bd654681f..f0de008a1b 100644
+--- a/arch/arm/Kconfig
++++ b/arch/arm/Kconfig
+@@ -1119,6 +1119,7 @@ config ARCH_ZYNQMP
+ config ARCH_S32
+ 	bool "Support S32 SOCs"
+ 	select ARM64
++	select OF_BOARD_SETUP
+ 
+ config TEGRA
+ 	bool "NVIDIA Tegra"
+diff --git a/include/configs/s32-gen1.h b/include/configs/s32-gen1.h
+index ca5c68ee7e..c508bb1629 100644
+--- a/include/configs/s32-gen1.h
++++ b/include/configs/s32-gen1.h
+@@ -28,9 +28,6 @@
+ 
+ #define CONFIG_MP
+ 
+-/* Flat device tree definitions */
+-#define CONFIG_OF_BOARD_SETUP
+-
+ /* System Timer */
+ /* #define CONFIG_SYS_PIT_TIMER */
+ 
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 4eb50f5a4a..66bf8b810a 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -12,9 +12,6 @@
+ 
+ #include <generated/autoconf.h>
+ 
+-/* Flat device tree definitions */
+-#define CONFIG_OF_BOARD_SETUP
+-
+ /* System Timer */
+ /* #define CONFIG_SYS_PIT_TIMER */
+ 
+-- 
+2.17.1
+

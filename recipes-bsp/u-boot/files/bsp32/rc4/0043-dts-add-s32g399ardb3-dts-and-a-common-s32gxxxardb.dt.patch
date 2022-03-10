@@ -1,0 +1,167 @@
+From 93430811f13eb6f40ae8855250ff00556d57c659 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Tue, 18 Jan 2022 00:49:59 +0200
+Subject: [PATCH 43/64] dts: add s32g399ardb3 dts and a common s32gxxxardb.dtsi
+ for rdb platforms
+
+Issue: ALB-8376
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g274ardb2.dts             | 48 ++-----------------
+ arch/arm/dts/fsl-s32g399ardb3.dts             | 13 +++++
+ ...-s32g274ardb.dtsi => fsl-s32gxxxardb.dtsi} | 42 +++++++++++++++-
+ 3 files changed, 56 insertions(+), 47 deletions(-)
+ create mode 100644 arch/arm/dts/fsl-s32g399ardb3.dts
+ rename arch/arm/dts/{fsl-s32g274ardb.dtsi => fsl-s32gxxxardb.dtsi} (92%)
+
+diff --git a/arch/arm/dts/fsl-s32g274ardb2.dts b/arch/arm/dts/fsl-s32g274ardb2.dts
+index 758de7b6e2..d4cd674dcc 100644
+--- a/arch/arm/dts/fsl-s32g274ardb2.dts
++++ b/arch/arm/dts/fsl-s32g274ardb2.dts
+@@ -1,54 +1,12 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2019-2020,2022 NXP
++ * Copyright 2019-2020, 2022 NXP
+  */
+ 
+ /dts-v1/;
+-#include "fsl-s32g274ardb.dtsi"
++#include "fsl-s32g274a.dtsi"
++#include "fsl-s32gxxxardb.dtsi"
+ 
+ / {
+ 	model = "NXP S32G274A-RDB2";
+ };
+-
+-/* PMIC */
+-&i2c4 {
+-	pf5020_a {
+-		compatible = "nxp,pf5020";
+-		reg = <0x9>;
+-		status = "okay";
+-	};
+-
+-	pf5020_b {
+-		compatible = "nxp,pf5020";
+-		reg = <0x8>;
+-		status = "okay";
+-	};
+-
+-	fs5600 {
+-		compatible = "nxp,fs5600";
+-		reg = <0x18>;
+-		status = "okay";
+-	};
+-};
+-
+-&gmac0 {
+-    status = "okay";
+-    phy-mode = "rgmii";
+-    /* Connected to KSZ9031 MDIO_A */
+-    phy-handle = <&mdio_a_phy1>;
+-};
+-
+-&gmac0_mdio {
+-    #address-cells = <1>;
+-    #size-cells = <0>;
+-    /* KSZ9031 GMAC */
+-    mdio_a_phy1: ethernet-phy@1 {
+-        max-speed = <1000>;
+-        reg = <1>;
+-    };
+-    /* ARQ107 */
+-    mdio_a_phy3: ethernet-phy@3 {
+-        compatible = "ethernet-phy-ieee802.3-c45";
+-        reg = <3>;
+-    };
+-};
+diff --git a/arch/arm/dts/fsl-s32g399ardb3.dts b/arch/arm/dts/fsl-s32g399ardb3.dts
+new file mode 100644
+index 0000000000..d3986d16bb
+--- /dev/null
++++ b/arch/arm/dts/fsl-s32g399ardb3.dts
+@@ -0,0 +1,13 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Copyright 2022 NXP
++ */
++
++/dts-v1/;
++#include "fsl-s32g.dtsi"
++#include "fsl-s32g3.dtsi"
++#include "fsl-s32gxxxardb.dtsi"
++
++/ {
++	model = "NXP S32G399A-RDB3";
++};
+diff --git a/arch/arm/dts/fsl-s32g274ardb.dtsi b/arch/arm/dts/fsl-s32gxxxardb.dtsi
+similarity index 92%
+rename from arch/arm/dts/fsl-s32g274ardb.dtsi
+rename to arch/arm/dts/fsl-s32gxxxardb.dtsi
+index 50fc070c45..f661f168b5 100644
+--- a/arch/arm/dts/fsl-s32g274ardb.dtsi
++++ b/arch/arm/dts/fsl-s32gxxxardb.dtsi
+@@ -3,9 +3,7 @@
+  * Copyright 2019-2022 NXP
+  */
+ 
+-/dts-v1/;
+ #include <dt-bindings/gpio/gpio.h>
+-#include "fsl-s32g274a.dtsi"
+ 
+ &usdhc0 {
+ 	/* By default sd0 pins were able to work at 100Mhz and 200Mhz */
+@@ -86,6 +84,46 @@
+ 		reg = <0x21>;
+ 		status = "okay";
+ 	};
++
++	pf5020_a {
++		compatible = "nxp,pf5020";
++		reg = <0x9>;
++		status = "okay";
++	};
++
++	pf5020_b {
++		compatible = "nxp,pf5020";
++		reg = <0x8>;
++		status = "okay";
++	};
++
++	fs5600 {
++		compatible = "nxp,fs5600";
++		reg = <0x18>;
++		status = "okay";
++	};
++};
++
++&gmac0 {
++	status = "okay";
++	phy-mode = "rgmii";
++	/* Connected to KSZ9031 MDIO_A */
++	phy-handle = <&mdio_a_phy1>;
++};
++
++&gmac0_mdio {
++	#address-cells = <1>;
++	#size-cells = <0>;
++	/* KSZ9031 GMAC */
++	mdio_a_phy1: ethernet-phy@1 {
++		max-speed = <1000>;
++		reg = <1>;
++	};
++	/* ARQ107 */
++	mdio_a_phy3: ethernet-phy@3 {
++		compatible = "ethernet-phy-ieee802.3-c45";
++		reg = <3>;
++	};
+ };
+ 
+ &pinctrl0 {
+-- 
+2.17.1
+

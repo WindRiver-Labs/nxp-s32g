@@ -1,0 +1,42 @@
+From 032ec70360c25219249e8745b23770b1e857670f Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Wed, 9 Feb 2022 10:20:50 +0200
+Subject: [PATCH 04/51] board: s32gr45evb: remove not useful DWC_ETH_QOS_S32CC
+ guards
+
+Issue: ALB-8367
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/s32r45evb.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/s32r45evb.c b/board/freescale/s32-gen1/s32r45evb.c
+index 93fd9679b3..440f987e3d 100644
+--- a/board/freescale/s32-gen1/s32r45evb.c
++++ b/board/freescale/s32-gen1/s32r45evb.c
+@@ -3,16 +3,12 @@
+  * Copyright 2018-2022 NXP
+  */
+ 
+-#include "board_common.h"
+-#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
+-#include "s32gen1_gmac_utils.h"
+-#endif
+ #include <asm/arch/soc.h>
+ #include <common.h>
+-#if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
+ #include <linux/err.h>
+ #include <miiphy.h>
+-#endif
++
++#include "s32gen1_gmac_utils.h"
+ 
+ #define S32R_PHY_ADDR_1 0x01
+ 
+-- 
+2.17.1
+

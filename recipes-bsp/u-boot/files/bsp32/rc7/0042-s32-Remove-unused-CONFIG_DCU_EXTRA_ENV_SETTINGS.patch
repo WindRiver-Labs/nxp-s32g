@@ -1,0 +1,53 @@
+From acb54537dd1619fc4e62079ccb9fd021fb3b7988 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 16:21:51 +0200
+Subject: [PATCH 42/51] s32: Remove unused CONFIG_DCU_EXTRA_ENV_SETTINGS
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h        | 5 -----
+ scripts/config_whitelist.txt | 1 -
+ 2 files changed, 6 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index d5297cb37e..e191d6c840 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -114,10 +114,6 @@
+ 
+ #endif
+ 
+-#ifndef CONFIG_DCU_EXTRA_ENV_SETTINGS
+-#define CONFIG_DCU_EXTRA_ENV_SETTINGS	""
+-#endif
+-
+ #ifndef S32_DEFAULT_IP
+ #define S32_DEFAULT_IP "10.0.0.100\0"
+ #endif
+@@ -217,7 +213,6 @@
+ #define INITRD_HIGH 0xFE1FFFFF
+ 
+ #define CONFIG_EXTRA_ENV_SETTINGS \
+-	CONFIG_DCU_EXTRA_ENV_SETTINGS \
+ 	"ipaddr=" S32_DEFAULT_IP \
+ 	"serverip=10.0.0.1\0" \
+ 	"netmask=255.255.255.0\0" \
+diff --git a/scripts/config_whitelist.txt b/scripts/config_whitelist.txt
+index 120c66cfcc..cdd778e581 100644
+--- a/scripts/config_whitelist.txt
++++ b/scripts/config_whitelist.txt
+@@ -279,7 +279,6 @@ CONFIG_DB_784MP_GP
+ CONFIG_DCACHE
+ CONFIG_DCACHE_OFF
+ CONFIG_DCFG_ADDR
+-CONFIG_DCU_EXTRA_ENV_SETTINGS
+ CONFIG_DDR3
+ CONFIG_DDR_
+ CONFIG_DDR_2HCLK
+-- 
+2.17.1
+

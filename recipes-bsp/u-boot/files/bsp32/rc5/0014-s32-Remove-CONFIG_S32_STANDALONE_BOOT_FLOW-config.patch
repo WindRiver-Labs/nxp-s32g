@@ -1,0 +1,614 @@
+From d50ac45b2e286d7ab7e1087e0811ccd834395824 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Thu, 3 Feb 2022 12:18:53 +0200
+Subject: [PATCH 14/43] s32: Remove CONFIG_S32_STANDALONE_BOOT_FLOW config
+
+Removed CONFIG_S32_STANDALONE_BOOT_FLOW and the similar
+!defined(CONFIG_S32_ATF_BOOT_FLOW).
+
+Issue: ALB-8347
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c          | 115 ----------------
+ arch/arm/cpu/armv8/s32/lowlevel.S     |  51 -------
+ arch/arm/cpu/armv8/s32/mp.c           | 183 +-------------------------
+ arch/arm/cpu/armv8/s32/mp.h           |   1 -
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c |  27 ----
+ board/freescale/Kconfig               |   1 -
+ board/freescale/s32-gen1/Kconfig      |  32 +----
+ include/configs/s32-gen1.h            |  17 ---
+ include/configs/s32.h                 |   2 +-
+ 9 files changed, 7 insertions(+), 422 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index 16efe53804..0f229cd7e3 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -9,33 +9,17 @@
+ #include <asm/io.h>
+ #include <asm/system.h>
+ #include <asm/arch/cpu.h>
+-#include <asm/arch/mc_me_regs.h>
+-#include <asm/arch/siul.h>
+ #include <asm-generic/sections.h>
+-#include "mp.h"
+ #include "scmi_reset_agent.h"
+-#include "s32gen1_ocotp.h"
+ #include <asm/arch/soc.h>
+-#include <asm/arch/s32-gen1/a53_cluster_gpr.h>
+-#include <asm/arch/s32-gen1/ncore.h>
+-#include <s32gen1_clk_utils.h>
+ #include <asm-generic/sections.h>
+-#include <clk.h>
+-#include <dm/device.h>
+-#include <dm/uclass.h>
+-#include <misc.h>
+ #include <linux/sizes.h>
+-#include <power/pmic.h>
+ 
+ #define S32GEN1_DRAM_STD_ADDR	0x80000000ULL
+ #define S32GEN1_DRAM_EXT_ADDR	0x800000000ULL
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-static int s32_gentimer_init(void);
+-#endif
+-
+ void mmu_setup(void);
+ 
+ #ifndef CONFIG_SYS_DCACHE_OFF
+@@ -224,44 +208,6 @@ static inline void final_mmu_setup(void)
+ 	set_sctlr(get_sctlr() | CR_M);
+ }
+ 
+-#if !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-/*
+- * This function is a temporary fix for drivers without clock bindings.
+- *
+- * It should be removed once Linux kernel is able to enable all
+- * needed clocks and all U-Boot drivers have clock bindings.
+- *
+- * E.g. QSPI, FTM, etc.
+- */
+-static int enable_periph_clocks(void)
+-{
+-	struct udevice *dev;
+-	struct clk_bulk bulk;
+-	int ret;
+-
+-	ret = uclass_get_device_by_name(UCLASS_CLK, "clks", &dev);
+-	if (ret) {
+-		pr_err("Failed to get 'clk' device\n");
+-		return ret;
+-	}
+-
+-	ret = clk_get_bulk(dev, &bulk);
+-	if (ret == -EINVAL)
+-		return 0;
+-
+-	if (ret)
+-		return ret;
+-
+-	ret = clk_enable_bulk(&bulk);
+-	if (ret) {
+-		clk_release_bulk(&bulk);
+-		return ret;
+-	}
+-
+-	return 0;
+-}
+-#endif
+-
+ int arch_cpu_init(void)
+ {
+ 	int ret = 0;
+@@ -275,30 +221,12 @@ int arch_cpu_init(void)
+ 	gd->flags |= GD_FLG_SKIP_RELOC;
+ #endif
+ 
+-
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-	/* Platforms with Concerto/Ncore have to explicitly initialize
+-	 * the interconnect before any cache operations are performed.
+-	 * Also, ensure that clocks are initialized before the interconnect.
+-	 *
+-	 * Note: TF-A has already initialized these, so don't do it again if
+-	 * we're running at EL2.
+-	 */
+-	ret = enable_early_clocks();
+-	if (ret)
+-		return ret;
+-
+-	ncore_init(0x1);
+-#endif
+ 	set_sctlr(get_sctlr() & ~CR_M);
+ 	icache_enable();
+ 	__asm_invalidate_dcache_all();
+ 	__asm_invalidate_tlb_all();
+ 	early_mmu_setup();
+ 
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-	s32_gentimer_init();
+-#endif
+ 	return ret;
+ }
+ 
+@@ -345,53 +273,10 @@ int arch_early_init_r(void)
+ {
+ 	int rv = 0;
+ 
+-#if !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-	asm volatile("dsb sy");
+-	rv = fsl_s32_wake_secondary_cores();
+-
+-	if (rv)
+-		printf("Did not wake secondary cores\n");
+-
+-	/* Reconfigure Concerto before actually waking the cores */
+-	ncore_init(cpu_pos_mask());
+-	asm volatile("sev");
+-#endif
+-
+-#if !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-	return enable_periph_clocks();
+-#endif
+ 	return rv;
+ }
+ #endif /* CONFIG_ARCH_EARLY_INIT_R */
+ 
+-/* For configurations with U-Boot *not* at EL3, it is presumed that
+- * the EL3 software (e.g. the TF-A) will initialize the generic timer.
+- */
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-/* The base counter frequency (FXOSC on the S32G) is actually board-dependent.
+- * Moreoever, only software running at the highest implemented Exception level
+- * can write to CNTFRQ_EL0, so we won't even define this function if we are
+- * running with TF-A.
+- */
+-static int s32_gentimer_init(void)
+-{
+-	u32 clk_div;
+-
+-	clk_div = readl(A53_CLUSTER_GPR_GPR(0)) & GPR00_CA53_COUNTER_CLK_DIV_VAL_MASK;
+-	clk_div = (clk_div >> GPR00_CA53_COUNTER_CLK_DIV_VAL_SHIFT) + 1;
+-
+-	__real_cntfrq = COUNTER_FREQUENCY / clk_div;
+-	flush_dcache_range((unsigned long)&__real_cntfrq,
+-			   (unsigned long)&__real_cntfrq +
+-			   sizeof(__real_cntfrq));
+-
+-	/* Primary core updated here, secondaries in start_slave_cores */
+-	asm volatile("msr cntfrq_el0, %0" : : "r" (__real_cntfrq) : "memory");
+-
+-	return 0;
+-}
+-#endif /* CONFIG_S32_STANDALONE_BOOT_FLOW */
+-
+ static void s32_init_ram_size(void)
+ {
+ 	int i;
+diff --git a/arch/arm/cpu/armv8/s32/lowlevel.S b/arch/arm/cpu/armv8/s32/lowlevel.S
+index ef20f7bb60..af85e5120a 100644
+--- a/arch/arm/cpu/armv8/s32/lowlevel.S
++++ b/arch/arm/cpu/armv8/s32/lowlevel.S
+@@ -23,57 +23,6 @@ ENTRY(lowlevel_init)
+ 
+ 	mov	x29, lr			/* Save LR */
+ 
+-#if !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-reset_registers_for_lockstep:
+-	/*
+-	 * Timers reset must be done when lockstep is enabled to avoid RCCU
+-	 * mismatch errors. Reset should be executed as early as possible
+-	 * before any read access to these counters. Resetting them for all boot
+-	 * flows assures consistent values
+-	 * This must be done in EL3 and executed for all cores.
+-	 */
+-
+-	mov x0, #0x0
+-	msr cntkctl_el1, x0
+-
+-	msr cntp_tval_el0, x0
+-	msr cntp_ctl_el0, x0
+-	msr cntp_cval_el0, x0
+-
+-	msr cntv_tval_el0, x0
+-	msr cntv_cval_el0, x0
+-	msr cntv_ctl_el0, x0
+-
+-	msr cntvoff_el2, x0
+-	msr cnthctl_el2, x0
+-
+-	msr cnthp_tval_el2, x0
+-	msr cnthp_ctl_el2, x0
+-	msr cnthp_cval_el2, x0
+-
+-	msr cntps_tval_el1, x0
+-	msr cntps_ctl_el1, x0
+-	msr cntps_cval_el1, x0
+-
+-	/*
+-	 * Lockstep sync GPR registers: write x19-x28 callee-saved registers
+-	 * as defined in procedure call standard for the ARM 64-bit. These
+-	 * registers may be saved to stack without being initialized, setting
+-	 * them is needed to avoid lockstep errors.
+-	 */
+-
+-	mov x19, #0
+-	mov x20, #0
+-	mov x21, #0
+-	mov x22, #0
+-	mov x23, #0
+-	mov x24, #0
+-	mov x25, #0
+-	mov x26, #0
+-	mov x27, #0
+-	mov x28, #0
+-#endif
+-
+ #if defined(CONFIG_GICV2) || defined(CONFIG_GICV3)
+ 	branch_if_slave x0, 1f
+ #endif
+diff --git a/arch/arm/cpu/armv8/s32/mp.c b/arch/arm/cpu/armv8/s32/mp.c
+index b0ab9f9ef0..d19dcb62eb 100644
+--- a/arch/arm/cpu/armv8/s32/mp.c
++++ b/arch/arm/cpu/armv8/s32/mp.c
+@@ -33,189 +33,8 @@ struct cpu_desc {
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-static void enable_a53_core_cluster(int core)
+-{
+-	u32 pconf_cluster = mc_me_get_cluster_ptrn(core);
+-	u32 prtn = MC_ME_CORES_PRTN;
+-	u32 stat;
+-
+-	stat = readl(MC_ME_PRTN_PART(prtn, pconf_cluster) +
+-		     MC_ME_PRTN_N_STAT_OFF);
+-	if (stat & MC_ME_PRTN_N_CORE_M_STAT_CCS)
+-		return;
+-
+-	/* If in performance (i.e. not lockstep) mode, the following bits used
+-	 * in the core wakeup sequence are only defined for the first core of
+-	 * each cluster: CCE, CCUPD, CCS.
+-	 */
+-	/*
+-	 * Enable core clock
+-	 */
+-	writel(MC_ME_PRTN_N_CORE_M_PCONF_CCE,
+-	       MC_ME_PRTN_PART(prtn, pconf_cluster) + MC_ME_PRTN_N_PCONF_OFF);
+-	writel(MC_ME_PRTN_N_CORE_M_PUPD_CCUPD,
+-	       MC_ME_PRTN_PART(prtn, pconf_cluster) + MC_ME_PRTN_N_PUPD_OFF);
+-
+-	/* Write valid key sequence to trigger the update. */
+-	writel(MC_ME_CTL_KEY_KEY, MC_ME_CTL_KEY(MC_ME_BASE_ADDR));
+-	writel(MC_ME_CTL_KEY_INVERTEDKEY, MC_ME_CTL_KEY(MC_ME_BASE_ADDR));
+-
+-	/* Wait for core clock enable status bit. */
+-	do {
+-		stat = readl(MC_ME_PRTN_PART(prtn, pconf_cluster) +
+-			     MC_ME_PRTN_N_STAT_OFF);
+-	} while ((stat & MC_ME_PRTN_N_CORE_M_STAT_CCS) !=
+-		 MC_ME_PRTN_N_CORE_M_STAT_CCS);
+-}
+-
+-static void fsl_s32_wake_secondary_core(u32 prtn, u32 core)
+-{
+-	u32 reset, resetc;
+-
+-	enable_a53_core_cluster(core);
+-
+-	/* MC_ME holds the low 32 bits of the start_address */
+-	writel(gd->relocaddr, MC_ME_PRTN_N_CORE_M_ADDR(prtn, core));
+-
+-	/* Deassert core reset */
+-	reset = readl(RGM_PRST(MC_RGM_BASE_ADDR, RGM_CORES_RESET_GROUP));
+-	resetc = BIT(get_rgm_a53_bit(core));
+-	reset &= ~resetc;
+-	writel(reset, RGM_PRST(MC_RGM_BASE_ADDR, RGM_CORES_RESET_GROUP));
+-	while ((readl(RGM_PSTAT(MC_RGM_BASE_ADDR, RGM_CORES_RESET_GROUP))
+-				& resetc) != 0)
+-		;
+-
+-	printf("CA53 core %d running.\n", core);
+-}
+-
+-int fsl_s32_wake_secondary_cores(void)
+-{
+-	u32 i, mask = cpu_pos_mask();
+-
+-	/* Enable partition clock */
+-	writel(MC_ME_PRTN_N_PCE,
+-	       MC_ME_PRTN_N_PCONF(MC_ME_BASE_ADDR, MC_ME_CORES_PRTN));
+-	writel(MC_ME_PRTN_N_PCE,
+-	       MC_ME_PRTN_N_PUPD(MC_ME_BASE_ADDR, MC_ME_CORES_PRTN));
+-
+-	/* Write valid key sequence to trigger the update. */
+-	writel(MC_ME_CTL_KEY_KEY, MC_ME_CTL_KEY(MC_ME_BASE_ADDR));
+-	writel(MC_ME_CTL_KEY_INVERTEDKEY, MC_ME_CTL_KEY(MC_ME_BASE_ADDR));
+-
+-	/* Cluster 0, core 0 is already enabled by BootROM.
+-	 * We should enable core 1 from cluster 0 and
+-	 * core 0 and 1 from cluster 1. All are in prtn 1.
+-	 * The procedure can be found in
+-	 * "MC_ME application core enable", S32R RM Rev1 DraftC.
+-	 */
+-	for (i = 1; i <= fls(mask); i++) {
+-		if (test_bit(i, &mask))
+-			fsl_s32_wake_secondary_core(MC_ME_CORES_PRTN, i);
+-	}
+-
+-	smp_kick_all_cpus();
+-
+-	printf("All (%d) cores are up.\n", cpu_numcores());
+-
+-	return 0;
+-}
+-#endif
+-
+ #if defined(CONFIG_MP)
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-static bool is_core_active(int core)
+-{
+-	u32 mask = MC_ME_PRTN_N_CORE_M_STAT_CCS;
+-	uintptr_t addr = MC_ME_PRTN_N_CORE_M_STAT(MC_ME_CORES_PRTN, core & ~1);
+-	u32 status = readl(addr);
+-
+-	return (status & mask) == mask;
+-}
+-
+-static unsigned long get_core_start_addr(int core)
+-{
+-	return readl(MC_ME_PRTN_N_CORE_M_ADDR(MC_ME_CORES_PRTN, core));
+-}
+-
+-int is_core_valid(unsigned int core)
+-{
+-	if (core == 0)
+-		return 0;
+-
+-	return !!((1 << core) & cpu_mask());
+-}
+-
+-int cpu_reset(u32 nr)
+-{
+-	puts("Feature is not implemented.\n");
+-
+-	return 0;
+-}
+-
+-int cpu_disable(u32 nr)
+-{
+-	puts("Feature is not implemented.\n");
+-
+-	return 0;
+-}
+-
+-int core_to_pos(int nr)
+-{
+-	u32 cores = cpu_mask();
+-	int i, count = 0;
+-
+-	if (nr == 0) {
+-		return 0;
+-	} else if (nr >= hweight32(cores)) {
+-		puts("Not a valid core number.\n");
+-		return -1;
+-	}
+-
+-	for (i = 1; i < 32; i++) {
+-		if (is_core_valid(i)) {
+-			count++;
+-			if (count == nr)
+-				break;
+-		}
+-	}
+-
+-	return count;
+-}
+-
+-int cpu_status(u32 nr)
+-{
+-	printf("Core %d status: ", nr);
+-	if (!is_core_active(nr))
+-		printf("inactive");
+-	else
+-		printf("running");
+-	printf("\n");
+-
+-	printf("Start address = 0x%lx\n", get_core_start_addr(nr));
+-	return 0;
+-}
+-
+-int cpu_release(u32 nr, int argc, char * const argv[])
+-{
+-	int valid;
+-	u64 boot_addr;
+-
+-	valid = is_core_valid(nr);
+-	if (!valid)
+-		return 0;
+-
+-	boot_addr = simple_strtoull(argv[0], NULL, 16);
+-	spin_table_cpu_release_addr = boot_addr;
+-	flush_dcache_range((unsigned long)&spin_table_cpu_release_addr,
+-			   (unsigned long)(&spin_table_cpu_release_addr + 1));
+-	asm volatile("dsb st");
+-
+-	smp_kick_all_cpus();	/* only those with entry addr set will run */
+-	return 0;
+-}
+-#elif defined(CONFIG_S32_ATF_BOOT_FLOW)
++#if defined(CONFIG_S32_ATF_BOOT_FLOW)
+ static struct cpu_desc *cpus;
+ static u32 n_cpus;
+ 
+diff --git a/arch/arm/cpu/armv8/s32/mp.h b/arch/arm/cpu/armv8/s32/mp.h
+index 186d0f4b86..ee99eecb63 100644
+--- a/arch/arm/cpu/armv8/s32/mp.h
++++ b/arch/arm/cpu/armv8/s32/mp.h
+@@ -14,7 +14,6 @@ extern u64 __spin_table[];
+ extern u64 __real_cntfrq;
+ extern u64 *secondary_boot_page;
+ extern size_t __secondary_boot_page_size;
+-int fsl_s32_wake_secondary_cores(void);
+ void *get_spin_tbl_addr(void);
+ phys_addr_t determine_mp_bootpg(void);
+ void secondary_boot_func(void);
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 542ea70eae..c540b00dfa 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -24,13 +24,6 @@
+ #include <dt-bindings/clock/s32gen1-clock.h>
+ #include <s32gen1_clk_utils.h>
+ 
+-/* FCCU registers */
+-#ifndef CONFIG_S32_ATF_BOOT_FLOW
+-#define FCCU_NCF_S1	(FCCU_BASE_ADDR + 0x84)
+-#define FCCU_NCFK	(FCCU_BASE_ADDR + 0x90)
+-#define FCCU_NCFK_KEY	(0xAB3498FE)
+-#endif
+-
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ __weak u32 cpu_pos_lockstep_mask(void)
+@@ -163,22 +156,6 @@ U_BOOT_CMD(
+ 		"<start_address>"
+ 	  );
+ 
+-/**
+- * Clear non-critical faults generated by SWT (software watchdog timer)
+- * All SWT faults are placed in NCF_S1 (33-38)
+- */
+-#ifndef CONFIG_S32_ATF_BOOT_FLOW
+-static void clear_swt_faults(void)
+-{
+-	u32 val = readl(FCCU_NCF_S1);
+-
+-	if (val) {
+-		writel(FCCU_NCFK_KEY, FCCU_NCFK);
+-		writel(val, FCCU_NCF_S1);
+-	}
+-}
+-#endif
+-
+ #ifdef CONFIG_SAF1508BET_USB_PHY
+ static int enable_saf1508bet(void)
+ {
+@@ -225,10 +202,6 @@ static int enable_saf1508bet(void)
+ 
+ int arch_misc_init(void)
+ {
+-#ifndef CONFIG_S32_ATF_BOOT_FLOW
+-	clear_swt_faults();
+-#endif
+-
+ #ifdef CONFIG_SAF1508BET_USB_PHY
+ 	/* The usb phy must be probed in u-boot in order to have a working USB
+ 	 * interface in linux.
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 05dd99026a..e11dfc1edc 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -30,7 +30,6 @@ config S32_GEN1
+ 	select S32_GPIO
+ 	select MMC_HS400_SUPPORT if !TARGET_TYPE_S32GEN1_EMULATOR
+ 	select MMC_HS400_ES_SUPPORT if !TARGET_TYPE_S32GEN1_EMULATOR
+-	select ARM_ERRATA_855873 if S32_STANDALONE_BOOT_FLOW
+ 	select SYS_MALLOC_F
+ 	select CPU
+ 	help
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index da5eac7535..7dc36e2129 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -83,34 +83,12 @@ config DTB_ADDR
+ 	default 0xbfa90000 if TARGET_TYPE_S32GEN1_EMULATOR
+ 	default 0xffa90000
+ 
+-choice
+-	prompt "Select boot flow configuration"
+-	default S32_STANDALONE_BOOT_FLOW
++config S32_ATF_BOOT_FLOW
++	bool "Boot flow with TF-A"
++	select S32_SKIP_RELOC
+ 	help
+-	  In secure boot and power management aware scenarios, there would be a
+-	  Trusted Firmware running at EL3 just before U-Boot, while the latter
+-	  runs at EL2 or EL1. Running in the non-secure world prevents U-Boot
+-	  from configuring certain registers, in particular secure GICv3.
+-	  While the secure boot feature and the Trusted Firmware are still in
+-	  development, this choice will enable the U-Boot and firmware developer
+-	  to switch between TF-A and standalone boot flows. The default
+-	  is standalone, to allow for backward compatibility with the existing,
+-	  stable configurations.
+-
+-	config S32_STANDALONE_BOOT_FLOW
+-		bool "Standalone boot flow"
+-		help
+-		  U-Boot runs at EL3 as the first component in the boot flow.
+-		  This boot flow does not accommodate an ARM Trusted Firmware
+-		  (TF-A) for this platform.
+-
+-	config S32_ATF_BOOT_FLOW
+-		bool "Boot flow with TF-A"
+-		select S32_SKIP_RELOC
+-		help
+-		  U-Boot is started by the ARM Trusted Firmware (TF-A) and runs
+-		  in the non-secure world.
+-endchoice
++	  U-Boot is started by the ARM Trusted Firmware (TF-A) and runs
++	  in the non-secure world.
+ 
+ config S32GEN1_HWCONFIG
+ 	string "S32GEN1 HWConfig definition"
+diff --git a/include/configs/s32-gen1.h b/include/configs/s32-gen1.h
+index 2f6c13460e..7c2b88723e 100644
+--- a/include/configs/s32-gen1.h
++++ b/include/configs/s32-gen1.h
+@@ -86,23 +86,6 @@
+ 
+ #define IMX_FEC_BASE            ENET0_BASE_ADDR
+ 
+-#if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+-/* In secure boot scenarios, the Trusted Firmware runs at EL3, while U-Boot runs
+- * in the non-secure world. This produces errors while U-Boot attempts to
+- * configure the secure GIC registers. As a result, GICv3 initialization on S32G
+- * is done by the Trusted Firmware - unless we run U-Boot at EL3.
+- */
+-#define CONFIG_GICV3
+-#define GIC_BASE	0x50800000
+-#define GICD_BASE	GIC_BASE
+-#if defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR) || \
+-	defined(CONFIG_NXP_S32G3XX)
+-#define GICR_BASE	(GIC_BASE + 0x100000)
+-#else
+-#define GICR_BASE	(GIC_BASE + 0x80000)
+-#endif
+-#endif
+-
+ #define CONFIG_SYS_TEXT_OFFSET      0x00020000
+ 
+ #define S32_SRAM_BASE		0x34000000
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 9fd89106f0..594fc88c5a 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -452,7 +452,7 @@
+ #define CONFIG_SYS_MALLOC_BASE		(CONFIG_SYS_FSL_DRAM_BASE1)
+ #endif
+ 
+-#if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
++#if defined(CONFIG_S32_SKIP_RELOC)
+ #define CONFIG_SYS_SDRAM_BASE		S32_SRAM_BASE
+ #else
+ #define CONFIG_SYS_SDRAM_BASE		CONFIG_SYS_FSL_DRAM_BASE1
+-- 
+2.17.1
+

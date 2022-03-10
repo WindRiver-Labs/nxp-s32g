@@ -1,0 +1,89 @@
+From 3e5c2e289dddc9cde508e44f1737af863784be29 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 13 Jan 2022 11:21:42 +0200
+Subject: [PATCH 04/64] board: s32-gen1: use SIUL2 NVRAM to print board name
+
+Issue: ALB-8339
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/Makefile |  1 +
+ board/freescale/s32-gen1/common.c | 38 +++++++++++++++++++++++++++----
+ 2 files changed, 34 insertions(+), 5 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/Makefile b/board/freescale/s32-gen1/Makefile
+index 0559a6941b..b039123e9e 100644
+--- a/board/freescale/s32-gen1/Makefile
++++ b/board/freescale/s32-gen1/Makefile
+@@ -8,6 +8,7 @@
+ ccflags-$(CONFIG_S32_GEN1) += -Iarch/$(ARCH)/cpu/armv8/s32
+ ccflags-$(CONFIG_S32_GEN1) += -Iboard/freescale/s32-gen1
+ ccflags-$(CONFIG_S32_GEN1) += -Idrivers/clk/s32/include
++ccflags-$(CONFIG_S32_GEN1) += -Idrivers/misc
+ obj-y := common.o
+ 
+ ifeq (,$(CONFIG_OF_EMBED)$(CONFIG_OF_SEPARATE))
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index 3efb99fd2c..355348a73b 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -13,6 +13,13 @@
+ #include <asm/arch/s32-gen1/ncore.h>
+ #include <asm/arch/siul-s32r45.h>
+ 
++#if defined(CONFIG_TARGET_S32G2XXAEVB) || defined(CONFIG_TARGET_S32G3XXAEVB) ||\
++	defined(CONFIG_TARGET_S32G274ARDB)
++#include <dm/uclass.h>
++#include <misc.h>
++#include <s32gen1_siul2_nvram.h>
++#endif
++
+ #include "board_common.h"
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+@@ -42,14 +49,35 @@ int board_init(void)
+ 
+ int checkboard(void)
+ {
+-#if defined(CONFIG_TARGET_S32G2XXAEVB)
+-	printf("Board:\tNXP %s-EVB\n", get_s32g2_deriv_name());
++#if defined(CONFIG_TARGET_S32G2XXAEVB) || defined(CONFIG_TARGET_S32G3XXAEVB) ||\
++	defined(CONFIG_TARGET_S32G274ARDB)
++
++	u32 part_number;
++	struct udevice *siul20_nvmem;
++	int ret;
++
++	ret = uclass_get_device_by_name(UCLASS_MISC, "siul2_0_nvram",
++					&siul20_nvmem);
++	if (ret) {
++		printf("%s: No SIUL20 NVMEM (err = %d)\n", __func__, ret);
++		return ret;
++	}
++
++	ret = misc_read(siul20_nvmem, S32GEN1_SOC_PART_NO, &part_number,
++			sizeof(part_number));
++	if (ret != sizeof(part_number)) {
++		printf("%s: Failed to read SoC's part number (err = %d)\n",
++		       __func__, ret);
++		return -EINVAL;
++	}
++#endif
++
++#if defined(CONFIG_TARGET_S32G2XXAEVB) || defined(CONFIG_TARGET_S32G3XXAEVB)
++	printf("Board:\tNXP S32G%d-EVB\n", part_number);
+ #elif defined(CONFIG_TARGET_S32G274ARDB)
+-	printf("Board:\tNXP %s-RDB\n", get_s32g2_deriv_name());
++	printf("Board:\tNXP S32G%d-RDB\n", part_number);
+ #elif defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+ 	puts("Board:\tNXP S32G274A BlueBox3\n");
+-#elif defined(CONFIG_TARGET_S32G3XXAEVB)
+-	puts("Board:\tNXP S32G399A-EVB\n");
+ #elif defined(CONFIG_TARGET_S32G274ASIM)
+ 	puts("Board:\tVDK for NXP S32G274A VP\n");
+ #elif defined(CONFIG_TARGET_S32G274AEMU)
+-- 
+2.17.1
+

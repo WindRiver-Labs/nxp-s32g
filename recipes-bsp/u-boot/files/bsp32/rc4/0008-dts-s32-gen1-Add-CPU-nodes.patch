@@ -1,0 +1,98 @@
+From 71f4d92af45f45d329645f5076fa693e0f632976 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 14 Jan 2022 15:41:24 +0200
+Subject: [PATCH 08/64] dts: s32-gen1: Add CPU nodes
+
+Issue: ALB-8337
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 31 +++++++++++++++++++++++++++++++
+ arch/arm/dts/fsl-s32g3.dtsi    | 27 +++++++++++++++++++++++++++
+ 2 files changed, 58 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index 5e40bd9572..b4948719b5 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -35,6 +35,37 @@
+ 		clks = &clks;
+ 	};
+ 
++	cpus: cpus {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		u-boot,dm-pre-reloc;
++
++		cpu0: cpu@0 {
++			device_type = "cpu";
++			compatible = "arm,cortex-a53";
++			reg = <0x0 0x0>;
++			u-boot,dm-pre-reloc;
++		};
++
++		cpu1: cpu@1 {
++			device_type = "cpu";
++			compatible = "arm,cortex-a53";
++			reg = <0x0 0x1>;
++		};
++
++		cpu2: cpu@100 {
++			device_type = "cpu";
++			compatible = "arm,cortex-a53";
++			reg = <0x0 0x100>;
++		};
++
++		cpu3: cpu@101 {
++			device_type = "cpu";
++			compatible = "arm,cortex-a53";
++			reg = <0x0 0x101>;
++		};
++	};
++
+ 	reserved-memory {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+diff --git a/arch/arm/dts/fsl-s32g3.dtsi b/arch/arm/dts/fsl-s32g3.dtsi
+index efcbf50c76..4d641e9c10 100644
+--- a/arch/arm/dts/fsl-s32g3.dtsi
++++ b/arch/arm/dts/fsl-s32g3.dtsi
+@@ -46,6 +46,33 @@
+ };
+ 
+ /delete-node/ &mc_cgm0;
++
++&cpus {
++	cpu4: cpu@2 {
++		device_type = "cpu";
++		compatible = "arm,cortex-a53";
++		reg = <0x0 0x2>;
++	};
++
++	cpu5: cpu@3 {
++		device_type = "cpu";
++		compatible = "arm,cortex-a53";
++		reg = <0x0 0x3>;
++	};
++
++	cpu6: cpu@102 {
++		device_type = "cpu";
++		compatible = "arm,cortex-a53";
++		reg = <0x0 0x102>;
++	};
++
++	cpu7: cpu@103 {
++		device_type = "cpu";
++		compatible = "arm,cortex-a53";
++		reg = <0x0 0x103>;
++	};
++};
++
+ &clks {
+ 	mc_cgm0: mc_cgm0@40030000 {
+ 		compatible = "fsl,s32gen1-mc_cgm0";
+-- 
+2.17.1
+

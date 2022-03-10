@@ -1,0 +1,42 @@
+From d6f39cb23d9f8a447cebb44c1d8aaaf954ddd8e9 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Thu, 3 Feb 2022 17:50:20 +0200
+Subject: [PATCH 49/64] s32g399ardb3: enable default ATF boot flow
+
+Issue: ALB-8343, ALB-8376
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ configs/s32g399ardb3_defconfig      | 1 +
+ configs/s32g399ardb3_qspi_defconfig | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/configs/s32g399ardb3_defconfig b/configs/s32g399ardb3_defconfig
+index cce0043f24..188e31b454 100644
+--- a/configs/s32g399ardb3_defconfig
++++ b/configs/s32g399ardb3_defconfig
+@@ -5,6 +5,7 @@ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32G399ARDB3=y
+ CONFIG_SYS_ERRATUM_ERR050543=y
++CONFIG_S32_ATF_BOOT_FLOW=y
+ CONFIG_DISTRO_DEFAULTS=y
+ CONFIG_TOOLS_DEBUG=y
+ CONFIG_FIT=y
+diff --git a/configs/s32g399ardb3_qspi_defconfig b/configs/s32g399ardb3_qspi_defconfig
+index a5811640a6..6214c46f5d 100644
+--- a/configs/s32g399ardb3_qspi_defconfig
++++ b/configs/s32g399ardb3_qspi_defconfig
+@@ -6,6 +6,7 @@ CONFIG_ENV_OFFSET=0x1e0000
+ CONFIG_NR_DRAM_BANKS=3
+ CONFIG_TARGET_S32G399ARDB3=y
+ CONFIG_SYS_ERRATUM_ERR050543=y
++CONFIG_S32_ATF_BOOT_FLOW=y
+ CONFIG_DISTRO_DEFAULTS=y
+ CONFIG_TOOLS_DEBUG=y
+ CONFIG_FIT=y
+-- 
+2.17.1
+

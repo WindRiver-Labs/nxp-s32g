@@ -1,0 +1,164 @@
+From 5efb96d701b9b954adc3ab6cfad7de58e3304940 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Thu, 3 Feb 2022 15:24:23 +0200
+Subject: [PATCH 04/43] s32gen1: remove/rename configs related to SRAM
+
+Issue: ALB-8350
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c                  |  2 +-
+ .../cpu/armv8/s32/s32-gen1/hse_adv_secboot.c  |  6 ++--
+ arch/arm/mach-s32/Makefile                    |  6 ++--
+ board/freescale/s32-gen1/Kconfig              | 36 +++++++------------
+ include/configs/s32.h                         |  2 +-
+ 5 files changed, 20 insertions(+), 32 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index 1c4a492558..16efe53804 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -160,7 +160,7 @@ struct mm_region *mem_map = early_map;
+ 
+ static unsigned long get_tlb_size(void)
+ {
+-	return CONFIG_DTB_SRAM_ADDR - S32_IRAM_MMU_TABLES_BASE;
++	return CONFIG_DTB_ADDR - S32_IRAM_MMU_TABLES_BASE;
+ }
+ 
+ static inline void early_mmu_setup(void)
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
+index 818848376a..faeadf8ee1 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
+@@ -2,7 +2,7 @@
+ /*
+  * HSE advanced secure boot preparatory command demo
+  *
+- * Copyright 2020-2021 NXP
++ * Copyright 2020-2022 NXP
+  */
+ 
+ #include <common.h>
+@@ -230,10 +230,10 @@ int hse_install_smr_entry(struct hse_private *priv, u32 *recv_buf)
+ 
+ 	/**
+ 	 * no address of actual code start, need to reference app bl header
+-	 * CONFIG_DTB_SRAM_ADDR used bc smr contains dtb and code
++	 * CONFIG_DTB_ADDR used bc smr contains dtb and code
+ 	 */
+ 	smr_entry->smr_src = priv->ivt.app_boot + 0x200;
+-	smr_entry->smr_dst_addr = CONFIG_DTB_SRAM_ADDR;
++	smr_entry->smr_dst_addr = CONFIG_DTB_ADDR;
+ 	smr_entry->smr_size = HSE_UBOOT_MAX_SIZE;
+ 	smr_entry->config_flags = (HSE_SMR_CFG_FLAG_SD_FLASH |
+ 				   HSE_SMR_CFG_FLAG_INSTALL_AUTH);
+diff --git a/arch/arm/mach-s32/Makefile b/arch/arm/mach-s32/Makefile
+index 5d7b7496ac..7b10ef685d 100644
+--- a/arch/arm/mach-s32/Makefile
++++ b/arch/arm/mach-s32/Makefile
+@@ -44,19 +44,19 @@ endif
+ 
+ MKIMAGEFLAGS_u-boot.s32 = -T $(CONFIG_MKIMAGE_T) \
+ 	-n u-boot.cfgout \
+-	-a $(CONFIG_DTB_SRAM_ADDR) \
++	-a $(CONFIG_DTB_ADDR) \
+ 	-e $(CONFIG_SYS_TEXT_BASE)
+ 
+ u-boot.s32: MKIMAGEOUTPUT = u-boot.s32.log
+ u-boot.s32: u-boot.bin u-boot.cfgout $(QSPI_PARAMS_FILE) FORCE
+ 	$(eval DTB_RSRVD_SIZE = $(shell \
+-		echo $$((${CONFIG_SYS_TEXT_BASE} - ${CONFIG_DTB_SRAM_ADDR}))))
++		echo $$((${CONFIG_SYS_TEXT_BASE} - ${CONFIG_DTB_ADDR}))))
+ 	$(eval DTB_SIZE = $(shell stat --printf="%s" u-boot.dtb))
+ 
+ 	$(Q)if [ ${DTB_SIZE} -gt ${DTB_RSRVD_SIZE} ]; then \
+ 		echo "DTB exceeds the reserved space of" \
+ 		"${DTB_RSRVD_SIZE} bytes between CONFIG_SYS_TEXT_BASE" \
+-		"and CONFIG_DTB_SRAM_ADDR"; \
++		"and CONFIG_DTB_ADDR"; \
+ 		false; \
+ 	fi
+ 
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index e9e342001c..da5eac7535 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -38,9 +38,8 @@ config CUSTOM_SYS_DATA_BASE
+ 
+ config SYS_DATA_BASE
+ 	hex "Data Base" if CUSTOM_SYS_DATA_BASE
+-	default 0xbfa00000 if S32_ATF_BOOT_FLOW && TARGET_TYPE_S32GEN1_EMULATOR
+-	default 0xffa00000 if S32_ATF_BOOT_FLOW
+-	default 0x34000000
++	default 0xbfa00000 if TARGET_TYPE_S32GEN1_EMULATOR
++	default 0xffa00000
+ 	help
+ 	  U-boot data base address (normally SRAM base address)
+ 
+@@ -53,9 +52,8 @@ config CUSTOM_SYS_TEXT_BASE
+ 
+ config SYS_TEXT_BASE
+ 	hex "Text Base" if CUSTOM_SYS_TEXT_BASE
+-	default 0xbfaa0000 if S32_ATF_BOOT_FLOW && TARGET_TYPE_S32GEN1_EMULATOR
+-	default 0xffaa0000 if S32_ATF_BOOT_FLOW
+-	default 0x340a0000
++	default 0xbfaa0000 if TARGET_TYPE_S32GEN1_EMULATOR
++	default 0xffaa0000
+ 
+ config SYS_MEM_SIZE
+ 	hex "RAM Memory Size"
+@@ -73,27 +71,17 @@ config SYS_CONFIG_NAME
+ 	default "s32r45" if NXP_S32R45
+ 	default "s32g399a" if NXP_S32G3XX
+ 
+-# Size of SRAM area used by U-boot during the first boot stage. This includes
+-# all of the sections in the System.map, plus the runtime stack which
+-# is constructed starting from this offset downwards. Note this has nothing
+-# to do with the memory layout after relocation to DDR, which includes
+-# heap and other zones reservations.
+-config UBOOT_SRAM_FOOTPRINT
+-	hex
+-	default 0x200000
+-
+-config CUSTOM_DTB_SRAM_ADDR
+-	bool "Use a custom DTB_SRAM_ADDR"
++config CUSTOM_DTB_ADDR
++	bool "Use a custom DTB_ADDR"
+ 	help
+-	  Enable this if you need to use a custom DTB_SRAM_ADDR.
+-	  When disabled, a suitable DTB_SRAM_ADDR address is calculated
++	  Enable this if you need to use a custom DTB_ADDR.
++	  When disabled, a suitable DTB_ADDR address is calculated
+ 	  automatically.
+ 
+-config DTB_SRAM_ADDR
+-	hex "SRAM address at which the dtb will be found" if CUSTOM_DTB_SRAM_ADDR
+-	default 0xbfa90000 if S32_ATF_BOOT_FLOW && TARGET_TYPE_S32GEN1_EMULATOR
+-	default 0xffa90000 if S32_ATF_BOOT_FLOW
+-	default 0x34090000
++config DTB_ADDR
++	hex "Address at which the dtb will be found" if CUSTOM_DTB_ADDR
++	default 0xbfa90000 if TARGET_TYPE_S32GEN1_EMULATOR
++	default 0xffa90000
+ 
+ choice
+ 	prompt "Select boot flow configuration"
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 9610bd3bd4..9fd89106f0 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -131,7 +131,7 @@
+ #endif
+ 
+ #define ENV_FDTCONTROLADDR \
+-			"fdtcontroladdr=" __stringify(CONFIG_DTB_SRAM_ADDR) "\0"
++			"fdtcontroladdr=" __stringify(CONFIG_DTB_ADDR) "\0"
+ 
+ /* Generic Timer Definitions */
+ #if defined(CONFIG_SYS_ARCH_TIMER)
+-- 
+2.17.1
+

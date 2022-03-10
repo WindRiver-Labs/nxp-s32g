@@ -1,0 +1,117 @@
+From 1f8aca6e36e542d54dc6f7ad5e6b8dd47a09aa90 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Wed, 26 Jan 2022 11:44:16 +0200
+Subject: [PATCH 24/64] boards: s32g: remove kind of setup_iomux functions
+
+Issue: ALB-8348
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/board_common.h     | 10 ----------
+ board/freescale/s32-gen1/s32g274a_common.h  | 18 ------------------
+ board/freescale/s32-gen1/s32g274abluebox3.c |  1 -
+ board/freescale/s32-gen1/s32g274ardb.c      |  1 -
+ board/freescale/s32-gen1/s32gxxxaevb.c      |  3 +--
+ 5 files changed, 1 insertion(+), 32 deletions(-)
+ delete mode 100644 board/freescale/s32-gen1/s32g274a_common.h
+
+diff --git a/board/freescale/s32-gen1/board_common.h b/board/freescale/s32-gen1/board_common.h
+index 09e7d4209d..f24fb960af 100644
+--- a/board/freescale/s32-gen1/board_common.h
++++ b/board/freescale/s32-gen1/board_common.h
+@@ -9,14 +9,8 @@
+ #include <config.h>
+ #include <asm/types.h>
+ 
+-void setup_iomux_i2c(void);
+-void setup_iomux_sdhc(void);
+ void setup_iomux_uart(void);
+ 
+-#ifdef CONFIG_FSL_DSPI
+-	void setup_iomux_dspi(void);
+-#endif
+-
+ void setup_iomux_uart0_pc09_pc10(void);
+ 
+ #if defined(CONFIG_TARGET_S32G274ASIM) || \
+@@ -30,8 +24,4 @@ void ft_enet_fixup(void *fdt);
+ u32 s32ccgmac_cfg_get_mode(int cardnum);
+ #endif
+ 
+-#if defined(CONFIG_SAF1508BET_USB_PHY)
+-void setup_iomux_usb(void);
+-#endif
+-
+ #endif /* __S32_GEN1_BOARD_COMMON_H__ */
+diff --git a/board/freescale/s32-gen1/s32g274a_common.h b/board/freescale/s32-gen1/s32g274a_common.h
+deleted file mode 100644
+index 34513fb819..0000000000
+--- a/board/freescale/s32-gen1/s32g274a_common.h
++++ /dev/null
+@@ -1,18 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Copyright 2020 NXP
+- *
+- */
+-
+-#ifndef S32G274A_COMMON_H
+-#define S32G274A_COMMON_H
+-
+-#include <config.h>
+-
+-void setup_iomux_i2c_pb00_pb01(void);
+-void setup_iomux_i2c_pb03_pb04(void);
+-void setup_iomux_i2c_pb05_pb06(void);
+-void setup_iomux_i2c_pc01_pc02(void);
+-void setup_iomux_i2c_pc05_pc06(void);
+-
+-#endif /* S32G274A_COMMON_H */
+diff --git a/board/freescale/s32-gen1/s32g274abluebox3.c b/board/freescale/s32-gen1/s32g274abluebox3.c
+index cefd6363d3..44c1b7e5ae 100644
+--- a/board/freescale/s32-gen1/s32g274abluebox3.c
++++ b/board/freescale/s32-gen1/s32g274abluebox3.c
+@@ -5,7 +5,6 @@
+ #include <asm/arch/soc.h>
+ #include <board_common.h>
+ #include <common.h>
+-#include <s32g274a_common.h>
+ #include <miiphy.h>
+ #include <phy.h>
+ #include <i2c.h>
+diff --git a/board/freescale/s32-gen1/s32g274ardb.c b/board/freescale/s32-gen1/s32g274ardb.c
+index 8f6828fdb4..cd3e122cab 100644
+--- a/board/freescale/s32-gen1/s32g274ardb.c
++++ b/board/freescale/s32-gen1/s32g274ardb.c
+@@ -7,7 +7,6 @@
+ #include <common.h>
+ #include <dm/uclass.h>
+ #include <adc.h>
+-#include <s32g274a_common.h>
+ 
+ #define SARADC0_DEV	"saradc0"
+ #define SARADC0_CH5	5
+diff --git a/board/freescale/s32-gen1/s32gxxxaevb.c b/board/freescale/s32-gen1/s32gxxxaevb.c
+index 17845529a8..b58cdd3685 100644
+--- a/board/freescale/s32-gen1/s32gxxxaevb.c
++++ b/board/freescale/s32-gen1/s32gxxxaevb.c
+@@ -1,12 +1,11 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2021 NXP
++ * Copyright 2018-2022 NXP
+  */
+ #include <asm/arch/soc.h>
+ #include <board_common.h>
+ #include <common.h>
+ #include <dm/uclass.h>
+-#include <s32g274a_common.h>
+ 
+ #define SJA1105_NAME	"ethernet-switch@0"
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,40 @@
+From 4b1acfa6754b2c7224a9bfd7dee2c20b748d0936 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 17:09:46 +0200
+Subject: [PATCH 46/51] s32-gen1: Remove BCM settings
+
+BCM is a leftover from S32V2 and has nothing in common with S32GEN1
+platforms.
+
+Issue: ALB-8484
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32-gen1.h | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/include/configs/s32-gen1.h b/include/configs/s32-gen1.h
+index 8b427bcbb3..efe0742d8c 100644
+--- a/include/configs/s32-gen1.h
++++ b/include/configs/s32-gen1.h
+@@ -23,15 +23,6 @@
+ #define CONFIG_SYS_FSL_DRAM_SIZE2       0x80000000
+ #endif
+ 
+-/* CONFIG_PHY_RGMII_DIRECT_CONNECTED should be enabled when
+- * BCM switch is configured.
+- */
+-#ifdef CONFIG_PHY_RGMII_DIRECT_CONNECTED
+-#define CONFIG_BCM_SPEED	SPEED_1000
+-#else
+-#define CONFIG_FEC_MXC_PHYADDR  7
+-#endif
+-
+ #ifdef CONFIG_CMD_IRQ
+ #define CONFIG_GICSUPPORT
+ #define CONFIG_USE_IRQ
+-- 
+2.17.1
+

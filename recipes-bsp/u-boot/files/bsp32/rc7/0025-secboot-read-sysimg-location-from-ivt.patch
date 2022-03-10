@@ -1,0 +1,119 @@
+From d34ec1c57719c2967b6879b0591cfc19742faa73 Mon Sep 17 00:00:00 2001
+From: Vlad Pelin <vlad.pelin@nxp.com>
+Date: Fri, 4 Feb 2022 16:41:34 +0200
+Subject: [PATCH 25/51] secboot: read sysimg location from ivt
+
+sysimg location on sd card is now read from ivt->sys_img field
+
+Issue: ALB-8477
+Upstream-Status: Pending 
+
+Signed-off-by: Vlad Pelin <vlad.pelin@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ .../cpu/armv8/s32/s32-gen1/hse_adv_secboot.c  | 37 +++++--------------
+ include/hse/hse_abi.h                         |  6 +--
+ 2 files changed, 12 insertions(+), 31 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
+index 30c57699f2..8c89cc00c8 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
+@@ -308,13 +308,15 @@ hse_send_fail:
+ int hse_write_sys_img(struct hse_private *priv, bool secure)
+ {
+ 	int ret = 0;
++	u32 sys_img_blk;
+ 
+ 	printf("\tWriting SYS_IMG to SDcard...\n");
+ 
+ 	flush_dcache_range((u64)priv,
+ 			   (u64)priv + sizeof(struct hse_private));
+ 
+-	ret = hse_mmc_write(&priv->sys_img, HSE_SYS_IMG_BLK, 96);
++	sys_img_blk = priv->ivt.sys_img / 512;
++	ret = hse_mmc_write(&priv->sys_img, sys_img_blk, 96);
+ 	if (ret) {
+ 		log_err("ERROR: sys-img write failed!\n");
+ 		ret = CMD_RET_FAILURE;
+@@ -324,7 +326,6 @@ int hse_write_sys_img(struct hse_private *priv, bool secure)
+ 	printf("\tUpdating SYS_IMG pointer...\n");
+ 
+ 	/* set the sys img address, external flash type, flash page size */
+-	priv->ivt.sys_img = HSE_SYS_IMG_SD;
+ 	priv->ivt.sys_img_ext_flash_type = HSE_EXT_FLASH_SD;
+ 	priv->ivt.sys_img_flash_page_size = HSE_EXT_FLASH_PAGE;
+ 
+@@ -435,30 +436,10 @@ static int do_hse_adv_secboot_prep(cmd_tbl_t *cmdtp, int flag,
+ 	}
+ 
+ 	/* check if sys_img already exists */
+-	if (priv->ivt.sys_img) {
+-		printf("CHECK: SYS_IMG already exists\n");
+-		if (priv->ivt.boot_cfg & HSE_IVT_BOOTSEQ_BIT) {
+-			/* do nothing */
+-			printf("CHECK: BOOTSEQ bit already set\n");
+-
+-			ret = CMD_RET_SUCCESS;
+-			goto ret_fail;
+-		} else {
+-			/* set bootseq bit in boot cfg word */
+-			printf("\tSetting BOOTSEQ bit...\n");
+-			priv->ivt.boot_cfg |= HSE_IVT_BOOTSEQ_BIT;
+-
+-			/* write ivt */
+-			ret = hse_mmc_write(&priv->ivt, HSE_IVT_BLK, 1);
+-			if (ret) {
+-				log_err("ERROR: ivt write failed!\n");
+-				ret = CMD_RET_FAILURE;
+-				goto ret_fail;
+-			}
+-
+-			ret = CMD_RET_SUCCESS;
+-			goto ret_fail;
+-		}
++	if (hse_status_ret & HSE_STATUS_PRIMARY_SYSIMG) {
++		printf("CHECK: SYS_IMG already loaded\n");
++		ret = CMD_RET_FAILURE;
++		goto ret_fail;
+ 	}
+ 
+ 	ret = hse_enable_mus(priv, &hse_recv);
+@@ -541,8 +522,8 @@ static int do_hse_keystore_format(cmd_tbl_t *cmdtp, int flag,
+ 	}
+ 
+ 	/* check if sys_img already exists */
+-	if (priv->ivt.sys_img) {
+-		printf("CHECK: SYS_IMG already exists\n");
++	if (hse_status_ret & HSE_STATUS_PRIMARY_SYSIMG) {
++		printf("CHECK: SYS_IMG already loaded\n");
+ 		ret = CMD_RET_SUCCESS;
+ 		goto ret_fail;
+ 	}
+diff --git a/include/hse/hse_abi.h b/include/hse/hse_abi.h
+index 03eb20684a..9ea8e5d0b5 100644
+--- a/include/hse/hse_abi.h
++++ b/include/hse/hse_abi.h
+@@ -27,7 +27,6 @@
+ #define HSE_AUTH_TAG_SD      0x82000u
+ 
+ #define HSE_IVT_BLK        8
+-#define HSE_SYS_IMG_BLK    944
+ #define HSE_UBOOT_SIGN_BLK 1040
+ #define HSE_UBOOT_BIN_BLK  1057
+ 
+@@ -37,8 +36,9 @@
+ #define HSE_CHANNEL_ADMIN   0u
+ #define HSE_CHANNEL_GENERAL 1u
+ 
+-#define HSE_STATUS_INIT_OK  BIT(8)
+-#define HSE_IVT_BOOTSEQ_BIT BIT(3)
++#define HSE_STATUS_INIT_OK        BIT(8)
++#define HSE_STATUS_PRIMARY_SYSIMG BIT(14)
++#define HSE_IVT_BOOTSEQ_BIT       BIT(3)
+ 
+ #define HSE_SRV_ID_SET_ATTR                 0x00000001ul
+ #define HSE_SRV_ID_PUBLISH_SYS_IMAGE        0x00000011ul
+-- 
+2.17.1
+

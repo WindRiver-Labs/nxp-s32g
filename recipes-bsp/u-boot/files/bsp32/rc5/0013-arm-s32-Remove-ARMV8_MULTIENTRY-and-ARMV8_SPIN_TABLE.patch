@@ -1,0 +1,33 @@
+From c12a2437db4af6af4ce595342cb99ab7bebf6016 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Thu, 3 Feb 2022 11:44:47 +0200
+Subject: [PATCH 13/43] arm: s32: Remove ARMV8_MULTIENTRY and ARMV8_SPIN_TABLE
+
+ARMV8_MULTIENTRY and ARMV8_SPIN_TABLE dependencies are no longer
+necessary since the move to ATF.
+
+Issue: ALB-8347
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/Kconfig | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm/Kconfig b/arch/arm/Kconfig
+index 92a6e33b42..958d4461d7 100644
+--- a/arch/arm/Kconfig
++++ b/arch/arm/Kconfig
+@@ -1107,8 +1107,6 @@ config ARCH_ZYNQMP
+ config ARCH_S32
+ 	bool "Support S32 SOCs"
+ 	select ARM64
+-	select ARMV8_MULTIENTRY
+-	select ARMV8_SPIN_TABLE
+ 
+ config TEGRA
+ 	bool "NVIDIA Tegra"
+-- 
+2.17.1
+

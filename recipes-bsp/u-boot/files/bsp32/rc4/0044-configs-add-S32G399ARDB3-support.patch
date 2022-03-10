@@ -1,0 +1,251 @@
+From d83e3a332ef9d41fc8b761a754d60e7154399904 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Tue, 25 Jan 2022 23:25:18 +0200
+Subject: [PATCH 44/64] configs: add S32G399ARDB3 support
+
+Issue: ALB-8376
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/Kconfig      |  4 ++
+ arch/arm/dts/Makefile               |  1 +
+ board/freescale/s32-gen1/Kconfig    |  4 +-
+ board/freescale/s32-gen1/Makefile   |  1 +
+ configs/s32g399ardb3_defconfig      | 62 ++++++++++++++++++++++++++
+ configs/s32g399ardb3_qspi_defconfig | 68 +++++++++++++++++++++++++++++
+ include/configs/s32g399a.h          |  7 ++-
+ 7 files changed, 143 insertions(+), 4 deletions(-)
+ create mode 100644 configs/s32g399ardb3_defconfig
+ create mode 100644 configs/s32g399ardb3_qspi_defconfig
+
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index 9b470788a9..d7dcdb4d6e 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -70,6 +70,10 @@ config TARGET_S32G3XXAEVB
+ 	bool "Support for S32G3 EVB boards"
+ 	select NXP_S32G3XX
+ 
++config TARGET_S32G399ARDB3
++	bool "Support s32g399ardb3"
++	select NXP_S32G3XX
++
+ endchoice
+ 
+ config S32_CMU
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 9559aa1773..b713be55a4 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -394,6 +394,7 @@ dtb-$(CONFIG_TARGET_S32G3XXAEVB) += fsl-s32g3xxaevb.dtb
+ dtb-$(CONFIG_TARGET_S32G274AEMU) += fsl-s32g274aemu.dtb
+ dtb-$(CONFIG_TARGET_S32G399AEMU) += fsl-s32g399aemu.dtb
+ dtb-$(CONFIG_TARGET_S32G274ARDB2) += fsl-s32g274ardb2.dtb
++dtb-$(CONFIG_TARGET_S32G399ARDB3) += fsl-s32g399ardb3.dtb
+ dtb-$(CONFIG_TARGET_S32R45EVB) += fsl-s32r45.dtb
+ 
+ dtb-$(CONFIG_TARGET_DRAGONBOARD410C) += dragonboard410c.dtb
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index 246e9fbebc..9829abefd9 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -11,7 +11,7 @@ endif
+ config NXP_S32GRDB_BOARD
+ 	bool
+ 	default y
+-	depends on TARGET_S32G274ARDB2
++	depends on TARGET_S32G274ARDB2 || TARGET_S32G399ARDB3
+ 
+ config S32GEN1_SET_NEAREST_FREQ
+ 	bool "Set the frequency to the nearest available"
+@@ -139,7 +139,7 @@ endchoice
+ config S32GEN1_HWCONFIG
+ 	string "S32GEN1 HWConfig definition"
+ 	depends on S32_GEN1 && (PCIE_S32GEN1 || FSL_PFENG)
+-	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=2G5" if (PCIE_S32GEN1 && FSL_PFENG) && TARGET_S32G274ARDB2
++	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=2G5" if (PCIE_S32GEN1 && FSL_PFENG) && (TARGET_S32G274ARDB2 || TARGET_S32G399ARDB3)
+ 	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0" if (PCIE_S32GEN1 && FSL_PFENG) &&  (TARGET_S32G2XXAEVB || TARGET_S32G3XXAEVB)
+ 	default "pcie0:mode=ep,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ABLUEBOX3
+ 	default "pcie0:mode=sgmii;pcie1:mode=sgmii" if (!PCIE_S32GEN1 && FSL_PFENG)
+diff --git a/board/freescale/s32-gen1/Makefile b/board/freescale/s32-gen1/Makefile
+index 92521c7a42..77d49cccb0 100644
+--- a/board/freescale/s32-gen1/Makefile
++++ b/board/freescale/s32-gen1/Makefile
+@@ -20,6 +20,7 @@ obj-$(CONFIG_NETDEVICES) += eth.o
+ obj-$(CONFIG_TARGET_S32G2XXAEVB) += s32gxxxaevb.o
+ obj-$(CONFIG_TARGET_S32G3XXAEVB) += s32gxxxaevb.o
+ obj-$(CONFIG_TARGET_S32G274ARDB2) += s32gxxxardb.o
++obj-$(CONFIG_TARGET_S32G399ARDB3) += s32gxxxardb.o
+ obj-$(CONFIG_TARGET_S32G274ABLUEBOX3) += s32g274abluebox3.o
+ 
+ obj-$(CONFIG_TARGET_S32R45EVB) += s32r45evb.o
+diff --git a/configs/s32g399ardb3_defconfig b/configs/s32g399ardb3_defconfig
+new file mode 100644
+index 0000000000..cce0043f24
+--- /dev/null
++++ b/configs/s32g399ardb3_defconfig
+@@ -0,0 +1,62 @@
++CONFIG_ARM=y
++CONFIG_ARCH_S32=y
++CONFIG_ENV_SIZE=0x2000
++CONFIG_ENV_OFFSET=0x1e0000
++CONFIG_NR_DRAM_BANKS=3
++CONFIG_TARGET_S32G399ARDB3=y
++CONFIG_SYS_ERRATUM_ERR050543=y
++CONFIG_DISTRO_DEFAULTS=y
++CONFIG_TOOLS_DEBUG=y
++CONFIG_FIT=y
++CONFIG_SD_BOOT=y
++CONFIG_USE_BOOTARGS=y
++CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
++CONFIG_BOARD_LATE_INIT=y
++CONFIG_ARCH_EARLY_INIT_R=y
++CONFIG_CMD_MD5SUM=y
++CONFIG_MD5SUM_VERIFY=y
++CONFIG_CMD_MEMTEST=y
++CONFIG_CMD_CLK=y
++CONFIG_CMD_DM=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_SPI=y
++CONFIG_CMD_PMIC=y
++CONFIG_CMD_SMC=y
++CONFIG_DEFAULT_DEVICE_TREE="fsl-s32g399ardb3"
++CONFIG_ENV_IS_IN_MMC=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_DM=y
++# CONFIG_DM_DEVICE_REMOVE is not set
++CONFIG_DM_I2C=y
++CONFIG_SYS_I2C_MXC=y
++CONFIG_DM_MMC=y
++CONFIG_FSL_USDHC=y
++CONFIG_DM_SPI_FLASH=y
++# CONFIG_SPI_FLASH_BAR is not set
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_PHY_ATHEROS=y
++CONFIG_PHY_MICREL=y
++CONFIG_PHY_MICREL_KSZ90X1=y
++CONFIG_PHY_FIXED=y
++CONFIG_DM_ETH=y
++CONFIG_FSL_PFENG=y
++CONFIG_FSL_PFENG_EMAC_1_RGMII=y
++CONFIG_DWC_ETH_QOS_DEVICES=y
++CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
++CONFIG_RGMII=y
++CONFIG_PCI=y
++CONFIG_DM_PCI=y
++CONFIG_PCIE_S32GEN1=y
++CONFIG_DM_PMIC=y
++CONFIG_DM_PMIC_VR5510=y
++CONFIG_DM_PMIC_PF5020=y
++CONFIG_DM_PMIC_FS5600=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_FSL_DSPI=y
++CONFIG_FSL_QSPI=y
++# CONFIG_EFI_LOADER is not set
+diff --git a/configs/s32g399ardb3_qspi_defconfig b/configs/s32g399ardb3_qspi_defconfig
+new file mode 100644
+index 0000000000..a5811640a6
+--- /dev/null
++++ b/configs/s32g399ardb3_qspi_defconfig
+@@ -0,0 +1,68 @@
++CONFIG_ARM=y
++CONFIG_ARCH_S32=y
++CONFIG_ENV_SIZE=0x10000
++CONFIG_ENV_SECT_SIZE=0x10000
++CONFIG_ENV_OFFSET=0x1e0000
++CONFIG_NR_DRAM_BANKS=3
++CONFIG_TARGET_S32G399ARDB3=y
++CONFIG_SYS_ERRATUM_ERR050543=y
++CONFIG_DISTRO_DEFAULTS=y
++CONFIG_TOOLS_DEBUG=y
++CONFIG_FIT=y
++CONFIG_QSPI_BOOT=y
++CONFIG_USE_BOOTARGS=y
++CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
++CONFIG_BOARD_LATE_INIT=y
++CONFIG_ARCH_EARLY_INIT_R=y
++CONFIG_CMD_MD5SUM=y
++CONFIG_MD5SUM_VERIFY=y
++CONFIG_CMD_MEMTEST=y
++CONFIG_CMD_CLK=y
++CONFIG_CMD_DM=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_SPI=y
++CONFIG_CMD_PMIC=y
++CONFIG_CMD_SMC=y
++CONFIG_DEFAULT_DEVICE_TREE="fsl-s32g399ardb3"
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_USE_ENV_SPI_BUS=y
++CONFIG_ENV_SPI_BUS=6
++CONFIG_USE_ENV_SPI_CS=y
++CONFIG_ENV_SPI_CS=0
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_DM=y
++# CONFIG_DM_DEVICE_REMOVE is not set
++CONFIG_DM_I2C=y
++CONFIG_SYS_I2C_MXC=y
++CONFIG_DM_MMC=y
++CONFIG_FSL_USDHC=y
++CONFIG_DM_SPI_FLASH=y
++# CONFIG_SPI_FLASH_BAR is not set
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_PHY_ATHEROS=y
++CONFIG_PHY_MICREL=y
++CONFIG_PHY_MICREL_KSZ90X1=y
++CONFIG_PHY_FIXED=y
++CONFIG_DM_ETH=y
++CONFIG_FSL_PFENG=y
++CONFIG_FSL_PFENG_FW_LOC_SDCARD=y
++CONFIG_FSL_PFENG_EMAC_1_RGMII=y
++CONFIG_DWC_ETH_QOS_DEVICES=y
++CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_E1000=y
++CONFIG_CMD_E1000=y
++CONFIG_RGMII=y
++CONFIG_PCI=y
++CONFIG_DM_PCI=y
++CONFIG_PCIE_S32GEN1=y
++CONFIG_DM_PMIC=y
++CONFIG_DM_PMIC_VR5510=y
++CONFIG_DM_PMIC_PF5020=y
++CONFIG_DM_PMIC_FS5600=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_FSL_DSPI=y
++CONFIG_FSL_QSPI=y
++# CONFIG_EFI_LOADER is not set
+diff --git a/include/configs/s32g399a.h b/include/configs/s32g399a.h
+index f28c28b55f..dfd1801670 100644
+--- a/include/configs/s32g399a.h
++++ b/include/configs/s32g399a.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  */
+ 
+ /*
+@@ -20,6 +20,9 @@
+ #define CONFIG_MXC_USB_PORTSC		PORT_PTS_ULPI
+ #endif
+ 
+-#endif /* CONFIG_TARGET_S32G3XXAEVB */
++#elif defined(CONFIG_TARGET_S32G399ARDB3)
++#define FDT_FILE			'fsl-s32g399a-rdb3.dtb'
++
++#endif
+ 
+ #endif
+-- 
+2.17.1
+

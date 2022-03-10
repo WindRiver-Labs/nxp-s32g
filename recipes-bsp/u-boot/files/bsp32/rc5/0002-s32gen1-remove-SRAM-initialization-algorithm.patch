@@ -1,0 +1,577 @@
+From 8b12ab065803e0cd570e196b824e7c6c86c67065 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Thu, 3 Feb 2022 12:54:12 +0200
+Subject: [PATCH 02/43] s32gen1: remove SRAM initialization algorithm
+
+With the standard ATF-first boot flow U-Boot starts directly in DDR.
+There is no need for SRAM initialization at that point - ATF takes care
+of it.
+
+Issue: ALB-8350
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/cpu.c                  |  30 -----
+ arch/arm/cpu/armv8/s32/lowlevel.S             |  27 +---
+ arch/arm/cpu/armv8/s32/s32-gen1/Makefile      |   5 -
+ .../armv8/s32/s32-gen1/include/s32gen1_sram.h |  33 -----
+ arch/arm/cpu/armv8/s32/s32-gen1/s32g3_sramc.c |  61 ---------
+ .../armv8/s32/s32-gen1/s32gen1_common_sramc.c |  42 ------
+ .../cpu/armv8/s32/s32-gen1/s32gen1_sramc.c    | 126 ------------------
+ arch/arm/cpu/armv8/s32/s32-gen1/sram.S        |  95 -------------
+ arch/arm/cpu/armv8/s32/sram.h                 |  19 ---
+ 9 files changed, 3 insertions(+), 435 deletions(-)
+ delete mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/include/s32gen1_sram.h
+ delete mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/s32g3_sramc.c
+ delete mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c
+ delete mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c
+ delete mode 100644 arch/arm/cpu/armv8/s32/s32-gen1/sram.S
+ delete mode 100644 arch/arm/cpu/armv8/s32/sram.h
+
+diff --git a/arch/arm/cpu/armv8/s32/cpu.c b/arch/arm/cpu/armv8/s32/cpu.c
+index 07d43fc26c..345ec369ed 100644
+--- a/arch/arm/cpu/armv8/s32/cpu.c
++++ b/arch/arm/cpu/armv8/s32/cpu.c
+@@ -13,7 +13,6 @@
+ #include <asm/arch/siul.h>
+ #include <asm-generic/sections.h>
+ #include "mp.h"
+-#include "sram.h"
+ #include "scmi_reset_agent.h"
+ #include "s32gen1_ocotp.h"
+ #include <asm/arch/soc.h>
+@@ -170,10 +169,6 @@ static inline void early_mmu_setup(void)
+ 	gd->arch.tlb_addr = S32_IRAM_MMU_TABLES_BASE;
+ 	gd->arch.tlb_size = get_tlb_size();
+ 
+-#if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-	sram_clr(gd->arch.tlb_addr, gd->arch.tlb_size);
+-#endif
+-
+ 	mmu_setup();
+ 	set_sctlr(get_sctlr() | CR_C);
+ }
+@@ -203,9 +198,6 @@ static inline void final_mmu_setup(void)
+ 	/* global data is already setup, no allocation yet */
+ 	gd->arch.tlb_fillptr = gd->arch.tlb_addr;
+ 
+-#if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-	sram_clr(gd->arch.tlb_addr, gd->arch.tlb_size);
+-#endif
+ 	setup_pgtables();
+ 
+ 	/* flush new MMU table */
+@@ -270,23 +262,6 @@ static int enable_periph_clocks(void)
+ }
+ #endif
+ 
+-#if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-static inline int clear_after_bss(void)
+-{
+-	int base, size, ret;
+-	/*
+-	 * Assumption: lowlevel.S will clear at least [__bss_start - __bss_end]
+-	 */
+-	base = (uintptr_t)&__bss_end;
+-	size = S32_SRAM_BASE + S32_SRAM_SIZE - base;
+-	ret = sram_clr(base, size);
+-	if (!ret)
+-		return ret;
+-
+-	return 0;
+-}
+-#endif
+-
+ int arch_cpu_init(void)
+ {
+ 	int ret = 0;
+@@ -300,11 +275,6 @@ int arch_cpu_init(void)
+ 	gd->flags |= GD_FLG_SKIP_RELOC;
+ #endif
+ 
+-#if defined(CONFIG_S32_SKIP_RELOC) && !defined(CONFIG_S32_ATF_BOOT_FLOW)
+-	ret = clear_after_bss();
+-	if (ret)
+-		return ret;
+-#endif
+ 
+ #if defined(CONFIG_S32_STANDALONE_BOOT_FLOW)
+ 	/* Platforms with Concerto/Ncore have to explicitly initialize
+diff --git a/arch/arm/cpu/armv8/s32/lowlevel.S b/arch/arm/cpu/armv8/s32/lowlevel.S
+index 41dc895675..ef20f7bb60 100644
+--- a/arch/arm/cpu/armv8/s32/lowlevel.S
++++ b/arch/arm/cpu/armv8/s32/lowlevel.S
+@@ -1,7 +1,7 @@
+ /* SPDX-License-Identifier:     GPL-2.0+ */
+ /*
+  * (C) Copyright 2014 Freescale Semiconductor
+- * Copyright 2017-2021 NXP
++ * Copyright 2017-2022 NXP
+  *
+  * Extracted from armv8/start.S
+  */
+@@ -78,29 +78,8 @@ reset_registers_for_lockstep:
+ 	branch_if_slave x0, 1f
+ #endif
+ 
+-/* Skip SRAM initialization if running with ATF and U-Boot in DDR */
+-#if !(defined(CONFIG_S32_ATF_BOOT_FLOW) && defined(CONFIG_S32_SKIP_RELOC))
+-sram_init:
+-	/* Clear stack region */
+-	ldr x0,  =(CONFIG_SYS_INIT_SP_ADDR - CONFIG_SYS_INIT_SP_OFFSET)
+-	ldr x1,  =CONFIG_SYS_INIT_SP_OFFSET
+-	bl sram_clr
+-
+-	/* Start address of the SRAM memory to init */
+-	ldr x0,  =__bss_start
+-#ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+-	ldr x1, =__bss_end
+-#else
+-	ldr x1, =CONFIG_SYS_TEXT_BASE
+-	add x1, x1, #CONFIG_UBOOT_SRAM_FOOTPRINT
+-#endif
+-	sub x1, x1, x0
+-
+-	bl sram_clr
+-	/* turn on a53 slave cores from a53 master */
+-	/* deassert cores on reset */
+-#endif
+-
++/* turn on a53 slave cores from a53 master */
++/* deassert cores on reset */
+ start_slave_cores:
+ 
+ #if defined(CONFIG_GICV2) || defined(CONFIG_GICV3)
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+index 2fda775338..269aca92d3 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+@@ -12,11 +12,6 @@ obj-$(CONFIG_HSE_SECBOOT)		+= hse_adv_secboot.o
+ obj-y					+= ncore.o
+ obj-y					+= soc.o
+ obj-$(CONFIG_NXP_S32G2XX)		+= s32g274a.o
+-obj-$(CONFIG_NXP_S32G3XX)		+= s32g3_sramc.o
+-obj-$(CONFIG_NXP_S32G2XX)		+= s32gen1_common_sramc.o
+-obj-$(CONFIG_NXP_S32R45)		+= s32gen1_common_sramc.o
+-obj-y					+= sram.o
+-obj-y					+= s32gen1_sramc.o
+ ifdef CONFIG_S32_GEN1
+ obj-$(CONFIG_NETDEVICES)		+= sgmii/sgmii.o sgmii/serdes_xpcs.o
+ endif
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/include/s32gen1_sram.h b/arch/arm/cpu/armv8/s32/s32-gen1/include/s32gen1_sram.h
+deleted file mode 100644
+index f4117e27a5..0000000000
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/include/s32gen1_sram.h
++++ /dev/null
+@@ -1,33 +0,0 @@
+-/* SPDX-License-Identifier: BSD-3-Clause */
+-/*
+- * Copyright 2021 NXP
+- */
+-#ifndef S32GEN1_SRAMC_H
+-#define S32GEN1_SRAMC_H
+-
+-#include <linux/types.h>
+-
+-#define SRAMC0_BASE_ADDR        0x4019C000
+-#define SRAMC1_BASE_ADDR        0x401A0000
+-#define SRAMC_SIZE              0x3000
+-
+-#ifndef __ASSEMBLER__
+-
+-struct sram_ctrl {
+-	uintptr_t base_addr;
+-	u32 min_sram_addr;
+-	u32 max_sram_addr;
+-	/**
+-	 * Translate an A53 SRAM address to SRAM controller offset
+-	 * associated to that memory region.
+-	 * This algorithm is platform specific.
+-	 */
+-	uintptr_t (*a53_to_sramc_offset)(uintptr_t addr);
+-};
+-
+-int s32_sram_clear(uintptr_t start, uintptr_t end);
+-void s32_ssram_clear(void);
+-void s32_get_sramc(struct sram_ctrl **ctrls, size_t *size);
+-#endif
+-#endif
+-
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32g3_sramc.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32g3_sramc.c
+deleted file mode 100644
+index 6522177b98..0000000000
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32g3_sramc.c
++++ /dev/null
+@@ -1,61 +0,0 @@
+-// SPDX-License-Identifier: BSD-3-Clause
+-/*
+- * Copyright 2021 NXP
+- */
+-#include <config.h>
+-#include <linux/kernel.h>
+-#include <s32gen1_sram.h>
+-
+-#define SRAMC2_BASE_ADDR        0x4055A000
+-#define SRAMC3_BASE_ADDR        0x4055E000
+-
+-#define SRAM_BANK_SIZE          (S32_SRAM_SIZE / 4)
+-
+-#define SRAM_BANK_MIN(N)        (S32_SRAM_BASE + (N) * SRAM_BANK_SIZE)
+-#define SRAM_BANK_MAX(N)        (S32_SRAM_BASE + ((N) + 1) * SRAM_BANK_SIZE - 1)
+-
+-static uintptr_t a53_to_sramc_offset(uintptr_t addr)
+-{
+-	/**
+-	 * mem_addr[16:0] = { (bus_addr[24:20] modulo 5),
+-	 *                    bus_addr[19:8], bus_addr[5:4]};
+-	 */
+-	addr = ((addr & 0x30) >> 4) |
+-	    (((addr & 0xFFF00) >> 8) << 2) |
+-	    (((addr & 0x1F00000) >> 20) % 5) << 14;
+-
+-	return addr;
+-}
+-
+-void s32_get_sramc(struct sram_ctrl **ctrls, size_t *size)
+-{
+-	static struct sram_ctrl controllers[] = {
+-		{
+-			.base_addr = SRAMC0_BASE_ADDR,
+-			.min_sram_addr = SRAM_BANK_MIN(0),
+-			.max_sram_addr = SRAM_BANK_MAX(0),
+-			.a53_to_sramc_offset = a53_to_sramc_offset,
+-		},
+-		{
+-			.base_addr = SRAMC1_BASE_ADDR,
+-			.min_sram_addr = SRAM_BANK_MIN(1),
+-			.max_sram_addr = SRAM_BANK_MAX(1),
+-			.a53_to_sramc_offset = a53_to_sramc_offset,
+-		},
+-		{
+-			.base_addr = SRAMC2_BASE_ADDR,
+-			.min_sram_addr = SRAM_BANK_MIN(2),
+-			.max_sram_addr = SRAM_BANK_MAX(2),
+-			.a53_to_sramc_offset = a53_to_sramc_offset,
+-		},
+-		{
+-			.base_addr = SRAMC3_BASE_ADDR,
+-			.min_sram_addr = SRAM_BANK_MIN(3),
+-			.max_sram_addr = SRAM_BANK_MAX(3),
+-			.a53_to_sramc_offset = a53_to_sramc_offset,
+-		},
+-	};
+-
+-	*ctrls = &controllers[0];
+-	*size = ARRAY_SIZE(controllers);
+-}
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c
+deleted file mode 100644
+index d1b1a0864c..0000000000
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_common_sramc.c
++++ /dev/null
+@@ -1,42 +0,0 @@
+-// SPDX-License-Identifier: BSD-3-Clause
+-/*
+- * Copyright 2021 NXP
+- */
+-#include <config.h>
+-#include <linux/kernel.h>
+-#include <s32gen1_sram.h>
+-
+-#define SRAM_BANK_SIZE          (S32_SRAM_SIZE / 2)
+-
+-#define SRAM_BANK_MIN(N)        (S32_SRAM_BASE + (N) * SRAM_BANK_SIZE)
+-#define SRAM_BANK_MAX(N)        (S32_SRAM_BASE + ((N) + 1) * SRAM_BANK_SIZE - 1)
+-
+-static uintptr_t a53_to_sramc_offset(uintptr_t addr)
+-{
+-	/* mem_addr[16:0] = {bus_addr[23:9], bus_addr[5:4]} */
+-	addr = ((addr >> 9) << 2) | ((addr >> 4) & 0x3);
+-
+-	return addr;
+-}
+-
+-void s32_get_sramc(struct sram_ctrl **ctrls, size_t *size)
+-{
+-	static struct sram_ctrl controllers[] = {
+-		{
+-			.base_addr = SRAMC0_BASE_ADDR,
+-			.min_sram_addr = SRAM_BANK_MIN(0),
+-			.max_sram_addr = SRAM_BANK_MAX(0),
+-			.a53_to_sramc_offset = a53_to_sramc_offset,
+-		},
+-		{
+-			.base_addr = SRAMC1_BASE_ADDR,
+-			.min_sram_addr = SRAM_BANK_MIN(1),
+-			.max_sram_addr = SRAM_BANK_MAX(1),
+-			.a53_to_sramc_offset = a53_to_sramc_offset,
+-		},
+-	};
+-
+-	*ctrls = &controllers[0];
+-	*size = ARRAY_SIZE(controllers);
+-}
+-
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c b/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c
+deleted file mode 100644
+index 996b29c31c..0000000000
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/s32gen1_sramc.c
++++ /dev/null
+@@ -1,126 +0,0 @@
+-// SPDX-License-Identifier: BSD-3-Clause
+-/*
+- * Copyright 2021 NXP
+- */
+-#include <asm/io.h>
+-#include <cpu_func.h>
+-#include <errno.h>
+-#include <linux/kernel.h>
+-#include <linux/string.h>
+-#include <s32gen1_sram.h>
+-
+-#define S32G_SRAM_END		(S32_SRAM_BASE + S32_SRAM_SIZE)
+-
+-/* SRAM controller is able to erase 64 bits at once */
+-#define SRAM_BLOCK              512
+-#define SRAM_BLOCK_MASK         (SRAM_BLOCK - 1)
+-
+-#define SRAMC_PRAMCR_OFFSET     0x0
+-#define SRAMC_PRAMCR_INITREQ    1
+-#define SRAMC_PRAMIAS_OFFSET    0x4
+-#define SRAMC_PRAMIAE_OFFSET    0x8
+-#define SRAMC_PRAMSR_OFFSET     0xC
+-#define SRAMC_PRAMSR_IDONE      1
+-
+-static void a53_sram_init(void *start, size_t len)
+-{
+-	memset(start, 0, len);
+-	if (dcache_status())
+-		flush_dcache_range((uintptr_t)start, len);
+-}
+-
+-static void clear_unaligned_ends(uintptr_t *start, uintptr_t *end)
+-{
+-	uintptr_t leftover;
+-
+-	if (*start % SRAM_BLOCK) {
+-		leftover = SRAM_BLOCK - (*start & SRAM_BLOCK_MASK);
+-
+-		a53_sram_init((void *)*start, round_up(leftover, 8));
+-		*start += leftover;
+-	}
+-
+-	if (*end % SRAM_BLOCK) {
+-		leftover = *end & SRAM_BLOCK_MASK;
+-
+-		a53_sram_init((void *)(*end - leftover), round_up(leftover, 8));
+-		*end -= leftover;
+-	}
+-}
+-
+-static bool in_overlap(uintptr_t s1, uintptr_t e1, uintptr_t s2, uintptr_t e2)
+-{
+-	return max(s1, s2) <= min(e1, e2);
+-}
+-
+-static void clear_sramc_range(uintptr_t base, u32 start_offset,
+-			      u32 end_offset)
+-{
+-	/* Disable the controller */
+-	writel(0x0, base + SRAMC_PRAMCR_OFFSET);
+-
+-	/* Max range */
+-	writel(start_offset, base + SRAMC_PRAMIAS_OFFSET);
+-	writel(end_offset, base + SRAMC_PRAMIAE_OFFSET);
+-
+-	/* Initialization request */
+-	writel(SRAMC_PRAMCR_INITREQ, base + SRAMC_PRAMCR_OFFSET);
+-
+-	while (!(readl(base + SRAMC_PRAMSR_OFFSET) & SRAMC_PRAMSR_IDONE))
+-		;
+-	writel(SRAMC_PRAMSR_IDONE, base + SRAMC_PRAMSR_OFFSET);
+-}
+-
+-static void clear_sram_range(struct sram_ctrl *c, uintptr_t start_addr,
+-			     uintptr_t end_addr)
+-{
+-	uintptr_t base = c->base_addr;
+-	u32 start_offset, end_offset;
+-
+-	start_addr -= c->min_sram_addr;
+-	end_addr -= c->min_sram_addr;
+-
+-	start_offset = c->a53_to_sramc_offset(start_addr);
+-	end_offset = c->a53_to_sramc_offset(end_addr) - 1;
+-
+-	clear_sramc_range(base, start_offset, end_offset);
+-}
+-
+-int s32_sram_clear(uintptr_t start, uintptr_t end)
+-{
+-	struct sram_ctrl *ctrls;
+-	struct sram_ctrl *c;
+-	size_t i, n_ctrls;
+-	uintptr_t s, e;
+-
+-	if (start == end)
+-		return 1;
+-
+-	if (end < start)
+-		return 0;
+-
+-	if (start < S32_SRAM_BASE)
+-		return 0;
+-
+-	if (end > S32G_SRAM_END)
+-		return 0;
+-
+-	clear_unaligned_ends(&start, &end);
+-
+-	s32_get_sramc(&ctrls, &n_ctrls);
+-
+-	for (i = 0u; i < n_ctrls; i++) {
+-		c = &ctrls[i];
+-
+-		if (!in_overlap(start, end, c->min_sram_addr, c->max_sram_addr))
+-			continue;
+-
+-		/* Adapt the range to current controller */
+-		s = max(start, (uintptr_t)c->min_sram_addr);
+-		e = min(end, (uintptr_t)c->max_sram_addr);
+-
+-		clear_sram_range(c, s, e);
+-	}
+-
+-	return 1;
+-}
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/sram.S b/arch/arm/cpu/armv8/s32/s32-gen1/sram.S
+deleted file mode 100644
+index fccf288f0f..0000000000
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/sram.S
++++ /dev/null
+@@ -1,95 +0,0 @@
+-/* SPDX-License-Identifier:     GPL-2.0+ */
+-/*
+- * Copyright 2021 NXP
+- */
+-
+-#include <config.h>
+-#include <linux/linkage.h>
+-
+-#define S32_STACK_GUARD	0xDEAD
+-
+-#ifndef S32_CRASH_STACK_SIZE
+-#define S32_CRASH_STACK_SIZE	0x400
+-#endif
+-
+-.section .data.s32_crash_reg_stash
+-	.align 3
+-	s32_crash_reg_stash: .quad 0, 0, 0, 0, 0
+-
+-/**
+- * Use a local buffer as stack for Linflex crash callbacks and SRAM
+- * initialization
+- */
+-.section .data.s32_plat_data_stack
+-	.balign 16
+-	s32_plat_data_stack: .skip S32_CRASH_STACK_SIZE
+-
+-/**
+- * Save intra-procedure-call scratch, frame pointer and
+- * link registers (x16, x17, x29, x30)
+- *
+- * Clobbers: reg1, reg2
+- */
+-.macro	s32_save_regs reg1=x9, reg2=x10
+-	mov	\reg1, sp
+-	adrp	\reg2, s32_crash_reg_stash
+-	add	\reg2, \reg2, :lo12:s32_crash_reg_stash
+-	stp	x16, x17, [\reg2]
+-	stp	x29, x30, [\reg2, #16]
+-	str	x9, [\reg2, #32]
+-.endm
+-
+-/**
+- * Restore intra-procedure-call scratch, frame pointer
+- * and link registers (x16, x17, x29, x30)
+- *
+- * Clobbers: reg1, reg2
+- */
+-.macro	s32_restore_regs reg1=x9, reg2=x10
+-	adrp	\reg2, s32_crash_reg_stash
+-	add	\reg2, \reg2, :lo12:s32_crash_reg_stash
+-	ldp	x16, x17, [\reg2]
+-	ldp	x29, x30, [\reg2, #16]
+-	ldr	x9, [\reg2, #32]
+-	mov	sp, \reg1
+-.endm
+-
+-.macro	s32_init_local_stack
+-	mov	w10, #S32_STACK_GUARD
+-	adrp	x9, s32_plat_data_stack
+-	add	x9, x9, :lo12:s32_plat_data_stack
+-	/* Color the end of the stack */
+-	str	w10, [x9]
+-	add	x9, x9, #S32_CRASH_STACK_SIZE
+-	mov	sp, x9
+-.endm
+-
+-.macro s32_check_stack_guard
+-	mov	w10, #S32_STACK_GUARD
+-	adrp	x9, s32_plat_data_stack
+-	add	x9, x9, :lo12:s32_plat_data_stack
+-	ldrh	w9, [x9]
+-	cmp	w9, w10
+-	b.ne	panic
+-.endm
+-
+-/**
+- * Clear SRAM region using SRAMC
+- *
+- * x0: start address of memory area to clear
+- * x1: size of the memory area to be cleared
+- * x0: return the size of the cleared memory
+- *
+- * Clobber list: x0,x1,x9,x10
+- */
+-ENTRY(sram_clr)
+-	add x1, x0, x1
+-	s32_save_regs
+-	s32_init_local_stack
+-
+-	bl s32_sram_clear
+-
+-	s32_check_stack_guard
+-	s32_restore_regs
+-	ret
+-ENDPROC(sram_clr)
+diff --git a/arch/arm/cpu/armv8/s32/sram.h b/arch/arm/cpu/armv8/s32/sram.h
+deleted file mode 100644
+index 32332329a8..0000000000
+--- a/arch/arm/cpu/armv8/s32/sram.h
++++ /dev/null
+@@ -1,19 +0,0 @@
+-/* SPDX-License-Identifier: BSD-3-Clause */
+-/*
+- * Copyright 2020 NXP
+- */
+-#ifndef S32G_SRAM_H
+-#define S32G_SRAM_H
+-
+-/**
+- * @brief Clear a memory region of size 'size' starting with address 'addr'
+- * (using DMA)
+- *
+- * @param[in] addr Start address of memory to clear
+- * @param[in] size Size of memory area to clear
+- *
+- * @return  0 on error or size of memory cleared on success
+- */
+-int sram_clr(int addr, int size);
+-
+-#endif
+-- 
+2.17.1
+

@@ -1,0 +1,365 @@
+From 3bb3c0bfeca014779f8b2c375af495c5d9f7cde8 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Mon, 17 Jan 2022 19:07:34 +0200
+Subject: [PATCH 42/64] configs: add TARGET_S32G274ARDB2 and common RDB config
+
+TARGET_S32G274ARDB is turned into TARGET_S32G274ARDB2 to better suit
+the currently supported platform as s32g274ardb1 platform is no
+longer supported.
+
+NXP_S32GRDB_BOARD is added for common RDB platforms configurations.
+
+Issue: ALB-8376
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/Kconfig                | 29 ++-----------------
+ arch/arm/dts/Makefile                         |  2 +-
+ board/freescale/Kconfig                       |  4 +--
+ board/freescale/s32-gen1/Kconfig              |  7 ++++-
+ board/freescale/s32-gen1/Makefile             |  2 +-
+ board/freescale/s32-gen1/common.c             |  2 +-
+ board/freescale/s32-gen1/eth.c                |  6 ++--
+ .../s32-gen1/{s32g274ardb.c => s32gxxxardb.c} |  0
+ configs/s32g274ardb2_defconfig                |  1 -
+ configs/s32g274ardb2_qspi_defconfig           |  1 -
+ drivers/net/Kconfig                           |  4 +--
+ drivers/net/dwc_eth_qos_s32cc.c               |  2 +-
+ drivers/net/pfeng/pfeng_cmd.c                 | 14 ++++-----
+ include/configs/s32.h                         |  2 +-
+ include/configs/s32g274a.h                    |  4 +--
+ 15 files changed, 30 insertions(+), 50 deletions(-)
+ rename board/freescale/s32-gen1/{s32g274ardb.c => s32gxxxardb.c} (100%)
+
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index 0a0b93fbd6..9b470788a9 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -28,7 +28,7 @@ config NXP_S32R45
+ 
+ choice
+ 	prompt "Select S32 Target Board Support"
+-	default TARGET_S32G274ARDB
++	default TARGET_S32G274ARDB2
+ 	help
+ 	  S32 Target Board Selection
+ 
+@@ -45,8 +45,8 @@ config TARGET_S32G2XXAEVB
+ 	select NXP_S32G2XX
+ 	select MISC_INIT_R if SJA1105
+ 
+-config TARGET_S32G274ARDB
+-	bool "Support s32g274ardb"
++config TARGET_S32G274ARDB2
++	bool "Support s32g274ardb2"
+ 	select NXP_S32G2XX
+ 	select ADC
+ 	select S32_SARADC
+@@ -72,29 +72,6 @@ config TARGET_S32G3XXAEVB
+ 
+ endchoice
+ 
+-if TARGET_S32G274ARDB
+-
+-choice
+-	prompt "S32G274ARDB Revision"
+-	default S32G274ARDB2
+-	help
+-	  S32G274ARDB Revision.
+-	  Default selection is S32G274ARDB2
+-
+-config S32G274ARDB
+-	bool "S32G274ARDB (Rev B)"
+-	help
+-	  S32G274ARDB Revision B SCH-46384.
+-
+-config S32G274ARDB2
+-	bool "S32G274ARDB2 (Rev C)"
+-	help
+-	  S32G274ARDB Revision C SCH-47440.
+-
+-endchoice
+-
+-endif
+-
+ config S32_CMU
+ 	bool "Enable Clock Monitoring Unit-Frequency Check"
+ 	default y
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 18a5a3038c..9559aa1773 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -393,7 +393,7 @@ dtb-$(CONFIG_TARGET_S32G2XXAEVB) += fsl-s32g274aevb.dtb
+ dtb-$(CONFIG_TARGET_S32G3XXAEVB) += fsl-s32g3xxaevb.dtb
+ dtb-$(CONFIG_TARGET_S32G274AEMU) += fsl-s32g274aemu.dtb
+ dtb-$(CONFIG_TARGET_S32G399AEMU) += fsl-s32g399aemu.dtb
+-dtb-$(CONFIG_S32G274ARDB2) += fsl-s32g274ardb2.dtb
++dtb-$(CONFIG_TARGET_S32G274ARDB2) += fsl-s32g274ardb2.dtb
+ dtb-$(CONFIG_TARGET_S32R45EVB) += fsl-s32r45.dtb
+ 
+ dtb-$(CONFIG_TARGET_DRAGONBOARD410C) += dragonboard410c.dtb
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 8850a75ee1..8ab83e9ef5 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -9,8 +9,8 @@ config S32_GEN1
+ 	imply CMD_GPIO
+ 	imply CMD_FUSE
+ 	imply FSL_LINFLEXUART
+-	imply ADC if !TARGET_S32G274ARDB
+-	imply S32_SARADC if !TARGET_S32G274ARDB
++	imply ADC if !NXP_S32GRDB_BOARD
++	imply S32_SARADC if !NXP_S32GRDB_BOARD
+ 	imply MISC
+ 	select ARM_SMCCC
+ 	select CLK
+diff --git a/board/freescale/s32-gen1/Kconfig b/board/freescale/s32-gen1/Kconfig
+index d1ebfab38c..246e9fbebc 100644
+--- a/board/freescale/s32-gen1/Kconfig
++++ b/board/freescale/s32-gen1/Kconfig
+@@ -8,6 +8,11 @@ config TARGET_TYPE_S32GEN1_EMULATOR
+ 
+ endif
+ 
++config NXP_S32GRDB_BOARD
++	bool
++	default y
++	depends on TARGET_S32G274ARDB2
++
+ config S32GEN1_SET_NEAREST_FREQ
+ 	bool "Set the frequency to the nearest available"
+ 	default n
+@@ -134,7 +139,7 @@ endchoice
+ config S32GEN1_HWCONFIG
+ 	string "S32GEN1 HWConfig definition"
+ 	depends on S32_GEN1 && (PCIE_S32GEN1 || FSL_PFENG)
+-	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=2G5" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ARDB
++	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=2G5" if (PCIE_S32GEN1 && FSL_PFENG) && TARGET_S32G274ARDB2
+ 	default "pcie0:mode=rc,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0" if (PCIE_S32GEN1 && FSL_PFENG) &&  (TARGET_S32G2XXAEVB || TARGET_S32G3XXAEVB)
+ 	default "pcie0:mode=ep,clock=ext;pcie1:mode=sgmii,clock=ext,fmhz=125,xpcs_mode=0" if (PCIE_S32GEN1 && FSL_PFENG) &&  TARGET_S32G274ABLUEBOX3
+ 	default "pcie0:mode=sgmii;pcie1:mode=sgmii" if (!PCIE_S32GEN1 && FSL_PFENG)
+diff --git a/board/freescale/s32-gen1/Makefile b/board/freescale/s32-gen1/Makefile
+index 6cf332c02c..92521c7a42 100644
+--- a/board/freescale/s32-gen1/Makefile
++++ b/board/freescale/s32-gen1/Makefile
+@@ -19,7 +19,7 @@ obj-$(CONFIG_NETDEVICES) += eth.o
+ 
+ obj-$(CONFIG_TARGET_S32G2XXAEVB) += s32gxxxaevb.o
+ obj-$(CONFIG_TARGET_S32G3XXAEVB) += s32gxxxaevb.o
+-obj-$(CONFIG_TARGET_S32G274ARDB) += s32g274ardb.o
++obj-$(CONFIG_TARGET_S32G274ARDB2) += s32gxxxardb.o
+ obj-$(CONFIG_TARGET_S32G274ABLUEBOX3) += s32g274abluebox3.o
+ 
+ obj-$(CONFIG_TARGET_S32R45EVB) += s32r45evb.o
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index de75ea8776..1bc1df8822 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -13,7 +13,7 @@
+ #include <asm/arch/s32-gen1/ncore.h>
+ 
+ #if defined(CONFIG_TARGET_S32G2XXAEVB) || defined(CONFIG_TARGET_S32G3XXAEVB) ||\
+-	defined(CONFIG_TARGET_S32G274ARDB)
++	defined(CONFIG_NXP_S32GRDB_BOARD)
+ #include <dm/uclass.h>
+ #include <misc.h>
+ #include <s32gen1_siul2_nvram.h>
+diff --git a/board/freescale/s32-gen1/eth.c b/board/freescale/s32-gen1/eth.c
+index 21bfc3b6d7..59d8e5cd77 100644
+--- a/board/freescale/s32-gen1/eth.c
++++ b/board/freescale/s32-gen1/eth.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+- * Copyright 2019-2021 NXP
++ * Copyright 2019-2022 NXP
+  */
+ #include <common.h>
+ #include <dm.h>
+@@ -49,7 +49,7 @@ __maybe_unused static bool intf_is_xmii(u32 intf)
+ }
+ 
+ #if CONFIG_IS_ENABLED(FSL_PFENG)
+-#ifdef CONFIG_TARGET_S32G274ARDB
++#ifdef CONFIG_NXP_S32GRDB_BOARD
+ static int get_phy_handle(const void *fdt, int nodeoffset)
+ {
+ 	const int *php;
+@@ -141,7 +141,7 @@ static void ft_enet_pfe_emac_fixup(u32 idx, void *fdt)
+ 			/* sync MAC HW addr to DT [local-mac-address] */
+ 			ft_update_eth_addr_by_name("pfe", idx, fdt, nodeoff);
+ 
+-#ifdef CONFIG_TARGET_S32G274ARDB
++#ifdef CONFIG_NXP_S32GRDB_BOARD
+ 			ft_enet_pfe_fixup_phy(idx, fdt, nodeoff);
+ 
+ 			if (idx == 0)
+diff --git a/board/freescale/s32-gen1/s32g274ardb.c b/board/freescale/s32-gen1/s32gxxxardb.c
+similarity index 100%
+rename from board/freescale/s32-gen1/s32g274ardb.c
+rename to board/freescale/s32-gen1/s32gxxxardb.c
+diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
+index 99224f2990..6d8fbc1b01 100644
+--- a/configs/s32g274ardb2_defconfig
++++ b/configs/s32g274ardb2_defconfig
+@@ -29,7 +29,6 @@ CONFIG_DM=y
+ # CONFIG_DM_DEVICE_REMOVE is not set
+ CONFIG_DM_I2C=y
+ CONFIG_SYS_I2C_MXC=y
+-CONFIG_SJA1105=y
+ CONFIG_DM_MMC=y
+ CONFIG_FSL_USDHC=y
+ CONFIG_DM_SPI_FLASH=y
+diff --git a/configs/s32g274ardb2_qspi_defconfig b/configs/s32g274ardb2_qspi_defconfig
+index 1345c0ad44..2dc8bd4a50 100644
+--- a/configs/s32g274ardb2_qspi_defconfig
++++ b/configs/s32g274ardb2_qspi_defconfig
+@@ -34,7 +34,6 @@ CONFIG_DM=y
+ # CONFIG_DM_DEVICE_REMOVE is not set
+ CONFIG_DM_I2C=y
+ CONFIG_SYS_I2C_MXC=y
+-CONFIG_SJA1105=y
+ CONFIG_DM_MMC=y
+ CONFIG_FSL_USDHC=y
+ CONFIG_DM_SPI_FLASH=y
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index 747b140fac..e5455deb86 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -120,7 +120,7 @@ config FSL_PFENG_FW_PART
+ 
+ config FSL_PFENG_EMAC_0_RGMII
+ 	bool "Allow RGMII on PFE EMAC_0"
+-	depends on TARGET_S32G2XXAEVB || TARGET_S32G274ARDB || TARGET_S32G3XXAEVB
++	depends on TARGET_S32G2XXAEVB || NXP_S32GRDB_BOARD || TARGET_S32G3XXAEVB
+ 	default n
+ 	help
+ 	  PFE EMAC_0 and EMAC_2 share RGMII interface on S32G-VNP-PROC
+@@ -129,7 +129,7 @@ config FSL_PFENG_EMAC_0_RGMII
+ 
+ config FSL_PFENG_EMAC_1_RGMII
+ 	bool "Allow RGMII on PFE EMAC 1"
+-	depends on TARGET_S32G2XXAEVB || TARGET_S32G274ARDB || TARGET_S32G3XXAEVB
++	depends on TARGET_S32G2XXAEVB || NXP_S32GRDB_BOARD || TARGET_S32G3XXAEVB
+ 	default n
+ 	help
+ 	  PFE EMAC_1 and GMAC share RGMII interface on S32G-VNP-PROC
+diff --git a/drivers/net/dwc_eth_qos_s32cc.c b/drivers/net/dwc_eth_qos_s32cc.c
+index 796499d33c..1397769406 100644
+--- a/drivers/net/dwc_eth_qos_s32cc.c
++++ b/drivers/net/dwc_eth_qos_s32cc.c
+@@ -366,7 +366,7 @@ static int check_sgmii_cfg(int gmac_no)
+ 
+ #if defined(CONFIG_TARGET_S32G2XXAEVB) || \
+ 	defined(CONFIG_TARGET_S32G3XXAEVB) || \
+-	defined(CONFIG_TARGET_S32G274ARDB) || \
++	defined(CONFIG_NXP_S32GRDB_BOARD)  || \
+ 	defined(CONFIG_TARGET_S32G399AEMU)
+ 
+ 	desired_mode1 = SGMII_XPCS_1G_OP;
+diff --git a/drivers/net/pfeng/pfeng_cmd.c b/drivers/net/pfeng/pfeng_cmd.c
+index 38b75ea9b1..e8f70dd2fb 100644
+--- a/drivers/net/pfeng/pfeng_cmd.c
++++ b/drivers/net/pfeng/pfeng_cmd.c
+@@ -33,7 +33,7 @@ static u32 emac_intf[PFENG_EMACS_COUNT] = {
+ 	PHY_INTERFACE_MODE_RGMII, /* KSZ9031 on PROC board */
+ 	PHY_INTERFACE_MODE_RGMII  /* SJA1105 on PLAT board */
+ #endif
+-#if CONFIG_IS_ENABLED(TARGET_S32G274ARDB)
++#if CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD)
+ 	PHY_INTERFACE_MODE_SGMII, /* SJA1110A */
+ 	PHY_INTERFACE_MODE_NONE,  /* disabled, clashed with GMAC */
+ 	PHY_INTERFACE_MODE_RGMII  /* KSZ9031 */
+@@ -256,7 +256,7 @@ static void set_pfe_mac0_clk(int intf0, struct udevice *pfe_dev)
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G2XXAEVB) || \
+-		CONFIG_IS_ENABLED(TARGET_S32G274ARDB) || \
++		CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD) || \
+ 		CONFIG_IS_ENABLED(TARGET_S32G3XXAEVB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		rx = "mac0_rx_rgmii";
+@@ -298,7 +298,7 @@ static void set_pfe_mac1_clk(int intf1, struct udevice *pfe_dev)
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G2XXAEVB) || \
+-		CONFIG_IS_ENABLED(TARGET_S32G274ARDB) || \
++		CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD) || \
+ 		CONFIG_IS_ENABLED(TARGET_S32G3XXAEVB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+ 		rx = "mac1_rx_rgmii";
+@@ -342,7 +342,7 @@ static void set_pfe_mac2_clk(int intf2, struct udevice *pfe_dev)
+ 		break;
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G2XXAEVB) || \
+-		CONFIG_IS_ENABLED(TARGET_S32G274ARDB) || \
++		CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD) || \
+ 		CONFIG_IS_ENABLED(TARGET_S32G3XXAEVB)
+ #if !CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		rx = "mac2_rx_rgmii";
+@@ -430,7 +430,7 @@ static void setup_iomux_pfe(struct udevice *dev,
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G2XXAEVB) || \
+-		CONFIG_IS_ENABLED(TARGET_S32G274ARDB) || \
++		CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD) || \
+ 		CONFIG_IS_ENABLED(TARGET_S32G3XXAEVB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		pinctrl_select_state(dev, "pfe0_rgmii");
+@@ -459,7 +459,7 @@ static void setup_iomux_pfe(struct udevice *dev,
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G2XXAEVB) || \
+-		CONFIG_IS_ENABLED(TARGET_S32G274ARDB) || \
++		CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD) || \
+ 		CONFIG_IS_ENABLED(TARGET_S32G3XXAEVB)
+ #if CONFIG_IS_ENABLED(FSL_PFENG_EMAC_1_RGMII)
+ 		pinctrl_select_state(dev, "pfe1_rgmii");
+@@ -488,7 +488,7 @@ static void setup_iomux_pfe(struct udevice *dev,
+ 
+ 	case PHY_INTERFACE_MODE_RGMII:
+ #if CONFIG_IS_ENABLED(TARGET_S32G2XXAEVB) || \
+-		CONFIG_IS_ENABLED(TARGET_S32G274ARDB) || \
++		CONFIG_IS_ENABLED(NXP_S32GRDB_BOARD) || \
+ 		CONFIG_IS_ENABLED(TARGET_S32G3XXAEVB)
+ #if !CONFIG_IS_ENABLED(FSL_PFENG_EMAC_0_RGMII)
+ 		pinctrl_select_state(dev, "pfe2_rgmii");
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 8bdee30d04..9610bd3bd4 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -230,7 +230,7 @@
+ #define PFENG_MODE "enable,none,rgmii,rgmii"
+ #define PFENG_EMAC "1"
+ #endif
+-#ifdef CONFIG_TARGET_S32G274ARDB
++#ifdef CONFIG_NXP_S32GRDB_BOARD
+ #define PFENG_MODE "enable,sgmii,none,rgmii"
+ #define PFENG_EMAC "2"
+ #endif
+diff --git a/include/configs/s32g274a.h b/include/configs/s32g274a.h
+index c771a0d155..fdc925a069 100644
+--- a/include/configs/s32g274a.h
++++ b/include/configs/s32g274a.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+- * Copyright 2017-2021 NXP
++ * Copyright 2017-2022 NXP
+  */
+ 
+ /*
+@@ -20,7 +20,7 @@
+ #define CONFIG_MXC_USB_PORTSC        PORT_PTS_ULPI
+ #endif
+ 
+-#elif defined(CONFIG_TARGET_S32G274ARDB)
++#elif defined(CONFIG_TARGET_S32G274ARDB2)
+ #define FDT_FILE fsl-s32g274a-rdb2.dtb
+ 
+ #elif defined(CONFIG_TARGET_S32G274ABLUEBOX3)
+-- 
+2.17.1
+

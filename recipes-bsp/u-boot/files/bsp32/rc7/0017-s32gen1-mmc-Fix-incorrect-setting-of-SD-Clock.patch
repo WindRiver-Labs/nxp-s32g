@@ -1,0 +1,33 @@
+From b068fd9cd972abe85d1c5bc7d58cff73189d1ddc Mon Sep 17 00:00:00 2001
+From: Dan Nica <dan.nica@nxp.com>
+Date: Mon, 21 Feb 2022 14:44:52 +0200
+Subject: [PATCH 17/51] s32gen1: mmc: Fix incorrect setting of SD Clock
+
+Setting pre_div = 2 would lead to an incorrect clock
+frequency and a 50% drop in performance in HS400(ES).
+
+Issue: ALB-8515
+Upstream-Status: Pending 
+
+Signed-off-by: Dan Nica <dan.nica@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/mmc/fsl_esdhc_imx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/fsl_esdhc_imx.c b/drivers/mmc/fsl_esdhc_imx.c
+index 8ce144de72..c28b152c37 100644
+--- a/drivers/mmc/fsl_esdhc_imx.c
++++ b/drivers/mmc/fsl_esdhc_imx.c
+@@ -629,7 +629,7 @@ static void set_sysctl(struct fsl_esdhc_priv *priv, struct mmc *mmc, uint clock)
+ {
+ 	struct fsl_esdhc *regs = priv->esdhc_regs;
+ 	int div = 1;
+-#ifdef ARCH_MXC
++#if defined(ARCH_MXC) || defined(CONFIG_S32_GEN1)
+ #ifdef CONFIG_MX53
+ 	/* For i.MX53 eSDHCv3, SYSCTL.SDCLKFS may not be set to 0. */
+ 	int pre_div = (regs == (struct fsl_esdhc *)MMC_SDHC3_BASE_ADDR) ? 2 : 1;
+-- 
+2.17.1
+

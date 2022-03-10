@@ -1,0 +1,33 @@
+From 86562e7f42e881defceb891ebe7cbe23d49a8ce5 Mon Sep 17 00:00:00 2001
+From: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Date: Mon, 21 Feb 2022 11:25:41 +0200
+Subject: [PATCH 01/51] s32g3: Fix compilation
+
+'s32g3_soc.c' source file was removed from U-Boot repo.
+But it's taget compilation from Makefile remained, hence
+leading to a compile time error.
+
+Issue: ALB-8536
+Upstream-Status: Pending 
+
+Signed-off-by: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/Makefile | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+index 1ebea36c2d..05fc02b58a 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/Makefile
+@@ -6,7 +6,6 @@
+ obj-$(CONFIG_S32_CMU)			+= cmu.o
+ obj-$(CONFIG_NXP_S32G2XX)		+= s32g2_cmu.o
+ obj-$(CONFIG_NXP_S32G3XX)		+= s32g3_cmu.o
+-obj-$(CONFIG_NXP_S32G3XX)		+= s32g3_soc.o
+ obj-$(CONFIG_NXP_S32R45)		+= s32r45_cmu.o
+ obj-$(CONFIG_HSE_SECBOOT)		+= hse_adv_secboot.o
+ obj-y					+= ncore.o
+-- 
+2.17.1
+

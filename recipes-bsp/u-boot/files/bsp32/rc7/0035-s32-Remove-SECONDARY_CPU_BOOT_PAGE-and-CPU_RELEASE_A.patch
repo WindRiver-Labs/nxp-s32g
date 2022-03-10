@@ -1,0 +1,31 @@
+From 0079b1c711559d7332d7c268a1b17d2ce1ffd068 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 11:31:23 +0200
+Subject: [PATCH 35/51] s32: Remove SECONDARY_CPU_BOOT_PAGE and
+ CPU_RELEASE_ADDR macros
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index ce7b1d3b24..29507ed8d6 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -17,8 +17,6 @@
+ /* Enable passing of ATAGs */
+ #define CONFIG_CMDLINE_TAG
+ 
+-#define SECONDARY_CPU_BOOT_PAGE		(CONFIG_SYS_FSL_DRAM_BASE1)
+-#define CPU_RELEASE_ADDR		SECONDARY_CPU_BOOT_PAGE
+ #define CONFIG_FSL_SMP_RELEASE_ALL
+ #ifndef CONFIG_XEN_SUPPORT
+ #define CONFIG_ARMV8_SWITCH_TO_EL1
+-- 
+2.17.1
+

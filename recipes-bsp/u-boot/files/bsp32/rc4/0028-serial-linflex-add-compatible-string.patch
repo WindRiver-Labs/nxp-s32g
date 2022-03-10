@@ -1,0 +1,46 @@
+From 518d146007a3eff010106f51179868f1b12c9823 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Mon, 31 Jan 2022 11:40:31 +0200
+Subject: [PATCH 28/64] serial: linflex: add compatible string
+
+Issue: ALB-8368
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/serial/serial_linflexuart.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/serial/serial_linflexuart.c b/drivers/serial/serial_linflexuart.c
+index 407617cce5..9b1014830b 100644
+--- a/drivers/serial/serial_linflexuart.c
++++ b/drivers/serial/serial_linflexuart.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0+
+ /*
+  * (C) Copyright 2013-2016 Freescale Semiconductor, Inc.
+- * Copyright 2017, 2019, 2021 NXP
++ * Copyright 2017, 2019, 2021-2022 NXP
+  */
+ 
+ #include <common.h>
+@@ -195,9 +195,14 @@ static const struct dm_serial_ops linflex_serial_ops = {
+ 	.setbrg = linflex_serial_setbrg,
+ };
+ 
++static const struct udevice_id linflex_serial_ids[] = {
++	{ .compatible = "fsl,s32-linflexuart", },
++};
++
+ U_BOOT_DRIVER(serial_linflex) = {
+ 	.name	= "serial_linflex",
+ 	.id	= UCLASS_SERIAL,
++	.of_match = linflex_serial_ids,
+ 	.probe = linflex_serial_probe,
+ 	.ops	= &linflex_serial_ops,
+ 	.flags = DM_FLAG_PRE_RELOC,
+-- 
+2.17.1
+

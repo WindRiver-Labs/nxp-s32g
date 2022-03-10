@@ -1,0 +1,159 @@
+From f00dd0fa8c6c87c926711aaddf1ec00e8a25b829 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Tue, 8 Feb 2022 14:28:41 +0200
+Subject: [PATCH 4/9] s32: remove CONFIG_MP ifdefine and unused variables
+
+CONFIG_MP is a dependency for building mp.c so having it as
+an #ifdef inside mp.c is pointless.
+
+Issue: ALB-8344
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/fdt.c      |  1 -
+ arch/arm/cpu/armv8/s32/lowlevel.S |  4 ----
+ arch/arm/cpu/armv8/s32/mp.c       | 16 ----------------
+ arch/arm/cpu/armv8/s32/mp.h       | 23 -----------------------
+ include/configs/s32-gen1.h        |  2 ++
+ include/configs/s32.h             |  3 ---
+ 6 files changed, 2 insertions(+), 47 deletions(-)
+ delete mode 100644 arch/arm/cpu/armv8/s32/mp.h
+
+diff --git a/arch/arm/cpu/armv8/s32/fdt.c b/arch/arm/cpu/armv8/s32/fdt.c
+index 22d686ac87..bb6d5bfa67 100644
+--- a/arch/arm/cpu/armv8/s32/fdt.c
++++ b/arch/arm/cpu/armv8/s32/fdt.c
+@@ -16,7 +16,6 @@
+ #include <asm/arch-s32/s32-gen1/serdes_hwconfig.h>
+ #include <dt-bindings/phy/phy.h>
+ #include <linux/ctype.h>
+-#include "mp.h"
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+diff --git a/arch/arm/cpu/armv8/s32/lowlevel.S b/arch/arm/cpu/armv8/s32/lowlevel.S
+index 16825c61f9..79208e8adb 100644
+--- a/arch/arm/cpu/armv8/s32/lowlevel.S
++++ b/arch/arm/cpu/armv8/s32/lowlevel.S
+@@ -14,7 +14,6 @@
+ #include <asm/armv8/mmu.h>
+ #include <asm/macro.h>
+ #include <asm/gic.h>
+-#include "mp.h"
+ 
+ ENTRY(lowlevel_init)
+ 
+@@ -79,7 +78,4 @@ ENDPROC(lowlevel_init)
+ 
+ 	/* 64 bit alignment for elements accessed as data */
+ 	.align 4
+-	.global __real_cntfrq
+-__real_cntfrq:
+-	.quad COUNTER_FREQUENCY
+ 
+diff --git a/arch/arm/cpu/armv8/s32/mp.c b/arch/arm/cpu/armv8/s32/mp.c
+index bf02b1574a..a5997c4f59 100644
+--- a/arch/arm/cpu/armv8/s32/mp.c
++++ b/arch/arm/cpu/armv8/s32/mp.c
+@@ -5,23 +5,10 @@
+  */
+ 
+ #include <common.h>
+-#include <cpu_func.h>
+-#include <asm/io.h>
+-#include <asm/system.h>
+-#include <asm/io.h>
+-#include <asm/arch/mc_me_regs.h>
+-#include <asm/arch/mc_rgm_regs.h>
+-#include <asm/spin_table.h>
+-#include "mp.h"
+-
+-#if defined(CONFIG_MP)
+ #include <dm/uclass.h>
+ #include <linux/psci.h>
+ #include <malloc.h>
+ 
+-#define CORE_SHIFT	0U
+-#define CORE_MASK	GENMASK(3, CORE_SHIFT)
+-
+ #define CLUSTER_SHIFT	8U
+ #define CLUSTER_MASK	GENMASK(11, CLUSTER_SHIFT)
+ 
+@@ -29,11 +16,9 @@ struct cpu_desc {
+ 	u32 psci_id;
+ 	bool on;
+ };
+-#endif
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+-#if defined(CONFIG_MP)
+ static struct cpu_desc *cpus;
+ static u32 n_cpus;
+ 
+@@ -222,4 +207,3 @@ int cpu_release(u32 nr, int argc, char * const argv[])
+ 
+ 	return 0;
+ }
+-#endif
+diff --git a/arch/arm/cpu/armv8/s32/mp.h b/arch/arm/cpu/armv8/s32/mp.h
+deleted file mode 100644
+index ee99eecb63..0000000000
+--- a/arch/arm/cpu/armv8/s32/mp.h
++++ /dev/null
+@@ -1,23 +0,0 @@
+-/* SPDX-License-Identifier:     GPL-2.0+ */
+-/*
+- * Copyright 2014, Freescale Semiconductor
+- * Copyright 2017-2018, 2020-2022 NXP
+- */
+-
+-#ifndef _S32_MP_H
+-#define _S32_MP_H
+-
+-#ifdef __ASSEMBLY__
+-#define PGTABLE_SIZE		(4096 * 4)
+-#else
+-extern u64 __spin_table[];
+-extern u64 __real_cntfrq;
+-extern u64 *secondary_boot_page;
+-extern size_t __secondary_boot_page_size;
+-void *get_spin_tbl_addr(void);
+-phys_addr_t determine_mp_bootpg(void);
+-void secondary_boot_func(void);
+-u32 cpu_pos_mask(void);
+-#endif
+-
+-#endif /* _S32_MP_H */
+diff --git a/include/configs/s32-gen1.h b/include/configs/s32-gen1.h
+index 5b226466b9..8b58e9c5d5 100644
+--- a/include/configs/s32-gen1.h
++++ b/include/configs/s32-gen1.h
+@@ -28,6 +28,8 @@
+ 
+ #define CONFIG_MACH_TYPE		4146
+ 
++#define CONFIG_MP
++
+ /* Config CACHE */
+ #define CONFIG_CMD_CACHE
+ 
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 55621ed1e7..13ff438403 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -44,9 +44,6 @@
+ #define CONFIG_ARMV8_SWITCH_TO_EL1
+ #endif
+ 
+-/* SMP Spin Table Definitions */
+-#define CONFIG_MP
+-
+ /* Ramdisk name */
+ #define RAMDISK_NAME		rootfs.uimg
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,49 @@
+From dbf3d654e5e4ec704e48d88bd97ab86e6d71b519 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Mon, 31 Jan 2022 11:43:10 +0200
+Subject: [PATCH 29/64] serial: linflex: fix priv->lfuart initialization
+
+Issue: ALB-8368
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/serial/serial_linflexuart.c | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/serial/serial_linflexuart.c b/drivers/serial/serial_linflexuart.c
+index 9b1014830b..0e19a1313a 100644
+--- a/drivers/serial/serial_linflexuart.c
++++ b/drivers/serial/serial_linflexuart.c
+@@ -126,11 +126,6 @@ static int _linflex_serial_init(struct linflex_fsl *base)
+ 	return 0;
+ }
+ 
+-struct linflex_serial_platdata {
+-	struct linflex_fsl *base_addr;
+-	u8 port_id; /* do we need this? */
+-};
+-
+ struct linflex_serial_priv {
+ 	struct linflex_fsl *lfuart;
+ };
+@@ -179,10 +174,12 @@ static void linflex_serial_init_internal(struct linflex_fsl *lfuart)
+ 
+ static int linflex_serial_probe(struct udevice *dev)
+ {
+-	struct linflex_serial_platdata *plat = dev->platdata;
+ 	struct linflex_serial_priv *priv = dev_get_priv(dev);
+ 
+-	priv->lfuart = (struct linflex_fsl *)plat->base_addr;
++	priv->lfuart = (struct linflex_fsl *)devfdt_get_addr(dev);
++	if (priv->lfuart == FDT_ADDR_T_NONE)
++		return -EINVAL;
++
+ 	linflex_serial_init_internal(priv->lfuart);
+ 
+ 	return 0;
+-- 
+2.17.1
+

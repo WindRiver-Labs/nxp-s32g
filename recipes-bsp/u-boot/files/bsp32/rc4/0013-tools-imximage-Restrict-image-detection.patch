@@ -1,0 +1,36 @@
+From d1f91c19c92e2cbc8555a25780e7fa4faab22a5a Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 7 Jan 2022 08:51:25 +0200
+Subject: [PATCH 13/64] tools: imximage: Restrict image detection
+
+I.MX image should be restricted to IVT version 0x40 and 0x41
+according to 'i.MX 6Dual/6Quad Applications Processor Reference Manual'
+
+This will avoid situations when an S32GEN1 image (having IVT
+version 0x60) be interpreted as an I.MX image.
+
+Issue: ALB-8305
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ tools/imximage.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tools/imximage.c b/tools/imximage.c
+index d7edd3c52f..37638f8594 100644
+--- a/tools/imximage.c
++++ b/tools/imximage.c
+@@ -130,6 +130,8 @@ static uint32_t detect_imximage_version(struct imx_header *imx_hdr)
+ 		return IMXIMAGE_V2;
+ 
+ 	if ((fhdr_v2->header.tag == IVT_HEADER_TAG) &&
++	    ((fhdr_v2->header.version == IVT_VERSION) ||
++	    (fhdr_v2->header.version == IVT_VERSION_V3)) &&
+ 	    hdr_v2->boot_data.plugin)
+ 		return IMXIMAGE_V2;
+ 
+-- 
+2.17.1
+

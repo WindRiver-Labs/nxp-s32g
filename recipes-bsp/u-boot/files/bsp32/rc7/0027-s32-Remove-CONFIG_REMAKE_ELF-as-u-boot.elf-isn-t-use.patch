@@ -1,0 +1,30 @@
+From 08002269cf5fe9553393662fc32ec7b03c787aa4 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 09:18:27 +0200
+Subject: [PATCH 27/51] s32: Remove CONFIG_REMAKE_ELF as u-boot.elf isn't used
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 7461b7fa8b..3ee267a1ea 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -12,8 +12,6 @@
+ 
+ #include <generated/autoconf.h>
+ 
+-#define CONFIG_REMAKE_ELF
+-
+ #define CONFIG_MACH_TYPE		4146
+ 
+ /* Config CACHE */
+-- 
+2.17.1
+

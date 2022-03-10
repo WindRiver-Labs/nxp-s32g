@@ -1,0 +1,58 @@
+From dc27e002d7c0eed60cc313668322626887e78b28 Mon Sep 17 00:00:00 2001
+From: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Date: Wed, 26 Jan 2022 12:52:32 +0200
+Subject: [PATCH 45/64] saradc: identify revision E for RDB3 platforms
+
+Issue: ALB-8376
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan-Gabriel Roman <bogdan-gabriel.roman@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/Kconfig         | 2 ++
+ board/freescale/s32-gen1/s32gxxxardb.c | 9 +++++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/arch/arm/cpu/armv8/s32/Kconfig b/arch/arm/cpu/armv8/s32/Kconfig
+index d7dcdb4d6e..7954dc54bb 100644
+--- a/arch/arm/cpu/armv8/s32/Kconfig
++++ b/arch/arm/cpu/armv8/s32/Kconfig
+@@ -73,6 +73,8 @@ config TARGET_S32G3XXAEVB
+ config TARGET_S32G399ARDB3
+ 	bool "Support s32g399ardb3"
+ 	select NXP_S32G3XX
++	select ADC
++	select S32_SARADC
+ 
+ endchoice
+ 
+diff --git a/board/freescale/s32-gen1/s32gxxxardb.c b/board/freescale/s32-gen1/s32gxxxardb.c
+index be845964ef..f2871ad4ec 100644
+--- a/board/freescale/s32-gen1/s32gxxxardb.c
++++ b/board/freescale/s32-gen1/s32gxxxardb.c
+@@ -36,6 +36,12 @@ static const struct {
+ 		.lower = 2275 - SARADC0_TOLERANCE,
+ 		.upper = 2275 + SARADC0_TOLERANCE,
+ 	},
++	{ /* 1.2v */
++		.rev = "E",
++		.desc = "RDB3",
++		.lower = 2730 - SARADC0_TOLERANCE,
++		.upper = 2730 + SARADC0_TOLERANCE,
++	},
+ };
+ 
+ static int find_rdb_rev(uint32_t adc_value)
+@@ -95,6 +101,9 @@ int board_late_init(void)
+ 		case 'D':
+ 			env_set("pfe1_phy_addr", "8");
+ 			break;
++		case 'E':
++			env_set("pfe1_phy_addr", "1");
++			break;
+ 		default:
+ 			env_set("pfe1_phy_addr", NULL);
+ 			break;
+-- 
+2.17.1
+

@@ -1,0 +1,474 @@
+From 7c76731c4bdc4750f1529087b982ab55f82525a2 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Mon, 31 Jan 2022 15:58:23 +0200
+Subject: [PATCH 39/64] board: s32g: remove CONFIG_BOARD_EARLY_INIT_F
+
+Remove CONFIG_BOARD_EARLY_INIT_F since is used only to call
+setup_iomux_uart and this function is removed.
+
+Issue: ALB-8368
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/Makefile           |  3 --
+ board/freescale/s32-gen1/common.c           | 46 ---------------------
+ board/freescale/s32-gen1/s32g274abluebox3.c | 11 -----
+ board/freescale/s32-gen1/s32g274ardb.c      | 26 ------------
+ board/freescale/s32-gen1/s32g_emu.c         | 21 ----------
+ board/freescale/s32-gen1/s32gxxxaevb.c      | 26 ------------
+ board/freescale/s32-gen1/s32r45emu.c        | 28 -------------
+ board/freescale/s32-gen1/s32r45evb.c        | 15 +------
+ configs/s32g274a_emu_defconfig              |  1 -
+ configs/s32g274abluebox3_defconfig          |  1 -
+ configs/s32g274abluebox3_qspi_defconfig     |  1 -
+ configs/s32g274ardb2_defconfig              |  1 -
+ configs/s32g274ardb2_qspi_defconfig         |  1 -
+ configs/s32g2xxaevb_defconfig               |  1 -
+ configs/s32g2xxaevb_qspi_defconfig          |  1 -
+ configs/s32g399a_emu_defconfig              |  1 -
+ configs/s32g3xxaevb_defconfig               |  1 -
+ configs/s32g3xxaevb_qspi_defconfig          |  1 -
+ configs/s32r45_emu_defconfig                |  1 -
+ configs/s32r45evb_defconfig                 |  1 -
+ configs/s32r45evb_qspi_defconfig            |  1 -
+ 21 files changed, 1 insertion(+), 188 deletions(-)
+ delete mode 100644 board/freescale/s32-gen1/s32g_emu.c
+ delete mode 100644 board/freescale/s32-gen1/s32r45emu.c
+
+diff --git a/board/freescale/s32-gen1/Makefile b/board/freescale/s32-gen1/Makefile
+index cabb4c56c2..6cf332c02c 100644
+--- a/board/freescale/s32-gen1/Makefile
++++ b/board/freescale/s32-gen1/Makefile
+@@ -21,11 +21,8 @@ obj-$(CONFIG_TARGET_S32G2XXAEVB) += s32gxxxaevb.o
+ obj-$(CONFIG_TARGET_S32G3XXAEVB) += s32gxxxaevb.o
+ obj-$(CONFIG_TARGET_S32G274ARDB) += s32g274ardb.o
+ obj-$(CONFIG_TARGET_S32G274ABLUEBOX3) += s32g274abluebox3.o
+-obj-$(CONFIG_TARGET_S32G274AEMU) += s32g_emu.o
+-obj-$(CONFIG_TARGET_S32G399AEMU) += s32g_emu.o
+ 
+ obj-$(CONFIG_TARGET_S32R45EVB) += s32r45evb.o
+-obj-$(CONFIG_TARGET_S32R45EMU) += s32r45emu.o
+ 
+ ifdef CONFIG_TARGET_TYPE_S32GEN1_EMULATOR
+ obj-$(CONFIG_SYS_FSL_DDRSS) += ddrss_regconf_emu.o ddrss_firmware_emu.o
+diff --git a/board/freescale/s32-gen1/common.c b/board/freescale/s32-gen1/common.c
+index f6ff826dd3..de75ea8776 100644
+--- a/board/freescale/s32-gen1/common.c
++++ b/board/freescale/s32-gen1/common.c
+@@ -11,7 +11,6 @@
+ #include <linux/libfdt.h>
+ #include <miiphy.h>
+ #include <asm/arch/s32-gen1/ncore.h>
+-#include <asm/arch/siul-s32r45.h>
+ 
+ #if defined(CONFIG_TARGET_S32G2XXAEVB) || defined(CONFIG_TARGET_S32G3XXAEVB) ||\
+ 	defined(CONFIG_TARGET_S32G274ARDB)
+@@ -32,13 +31,6 @@ int board_phy_config(struct phy_device *phydev)
+ 	return 0;
+ }
+ 
+-int board_early_init_f(void)
+-{
+-	setup_iomux_uart();
+-
+-	return 0;
+-}
+-
+ int board_init(void)
+ {
+ 	/* address of boot parameters */
+@@ -59,41 +51,3 @@ int ft_board_setup(void *blob, bd_t *bd)
+ 	return 0;
+ }
+ #endif /* defined(CONFIG_OF_FDT) && defined(CONFIG_OF_BOARD_SETUP) */
+-
+-#if defined(CONFIG_TARGET_S32G274AEMU) || \
+-	defined(CONFIG_TARGET_S32G399AEMU)
+-void setup_iomux_uart1_pb09_pb10(void)
+-{
+-	/* Muxing for linflex1 */
+-
+-	/* set PB09 - MSCR[25] - for UART1 TXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PB09_MSCR_S32_G1_UART1));
+-
+-	/* set PB10 - MSCR[26] - for UART1 RXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PB10_MSCR_S32_G1_UART1));
+-
+-	/* set PB10 - MSCR[736]/IMCR[224] - for UART1 RXD */
+-	writel(SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad,
+-	       SIUL2_1_IMCRn(SIUL2_PB10_IMCR_S32_G1_UART1));
+-}
+-#endif
+-
+-void setup_iomux_uart0_pc09_pc10(void)
+-{
+-	/* Muxing for linflex0 */
+-
+-	/* set PC09 - MSCR[41] - for UART0 TXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART0_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PC09_MSCR_S32_G1_UART0));
+-
+-	/* set PC10 - MSCR[42] - for UART0 RXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PC10_MSCR_S32_G1_UART0));
+-
+-	/* set PC10 - MSCR[512]/IMCR[0] - for UART0 RXD */
+-	writel(SIUL2_IMCR_S32G_G1_UART0_RXD_to_pad,
+-	       SIUL2_0_IMCRn(SIUL2_PC10_IMCR_S32_G1_UART0));
+-}
+-
+diff --git a/board/freescale/s32-gen1/s32g274abluebox3.c b/board/freescale/s32-gen1/s32g274abluebox3.c
+index 44c1b7e5ae..fb76afd619 100644
+--- a/board/freescale/s32-gen1/s32g274abluebox3.c
++++ b/board/freescale/s32-gen1/s32g274abluebox3.c
+@@ -13,17 +13,6 @@
+ #define BLUEBOX3_S32G_PHY_ADDR_5	0x05
+ #define BLUEBOX3_S32G_PHY_ADDR_6	0x06
+ 
+-void setup_iomux_uart(void)
+-{
+-#if (CONFIG_FSL_LINFLEX_MODULE == 0)
+-
+-	/* Muxing for linflex0 */
+-	setup_iomux_uart0_pc09_pc10();
+-#else
+-#error "Unsupported UART pinmuxing configuration"
+-#endif
+-}
+-
+ int last_stage_init(void)
+ {
+ 	struct udevice *eth;
+diff --git a/board/freescale/s32-gen1/s32g274ardb.c b/board/freescale/s32-gen1/s32g274ardb.c
+index cd3e122cab..be845964ef 100644
+--- a/board/freescale/s32-gen1/s32g274ardb.c
++++ b/board/freescale/s32-gen1/s32g274ardb.c
+@@ -12,32 +12,6 @@
+ #define SARADC0_CH5	5
+ #define SARADC0_TOLERANCE	200
+ 
+-void setup_iomux_uart(void)
+-{
+-#if (CONFIG_FSL_LINFLEX_MODULE == 0)
+-
+-	/* Muxing for linflex0 */
+-	setup_iomux_uart0_pc09_pc10();
+-
+-#elif (CONFIG_FSL_LINFLEX_MODULE == 1)
+-	/* Muxing for linflex1 */
+-
+-	/* set PA13 - MSCR[13] - for UART1 TXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PA13_MSCR_S32_G1_UART1));
+-
+-	/* set PB00 - MSCR[16] - for UART1 RXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PB00_MSCR_S32_G1_UART1));
+-
+-	/* set PB00 - MSCR[736]/IMCR[224] - for UART1 RXD */
+-	writel(SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad,
+-	       SIUL2_1_IMCRn(SIUL2_PB00_IMCR_S32_G1_UART1));
+-#else
+-#error "Unsupported UART pinmuxing configuration"
+-#endif
+-}
+-
+ static const struct {
+ 	const char *rev;
+ 	const char *desc;
+diff --git a/board/freescale/s32-gen1/s32g_emu.c b/board/freescale/s32-gen1/s32g_emu.c
+deleted file mode 100644
+index dbfb09e749..0000000000
+--- a/board/freescale/s32-gen1/s32g_emu.c
++++ /dev/null
+@@ -1,21 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+-/*
+- * Copyright 2018-2021 NXP
+- */
+-
+-#include <common.h>
+-#include <asm/arch/soc.h>
+-
+-#include "board_common.h"
+-
+-void setup_iomux_uart(void)
+-{
+-#if (CONFIG_FSL_LINFLEX_MODULE == 1)
+-
+-	/* Muxing for linflex1 */
+-	setup_iomux_uart1_pb09_pb10();
+-
+-#else
+-#error "Unsupported UART pinmuxing configuration"
+-#endif
+-}
+diff --git a/board/freescale/s32-gen1/s32gxxxaevb.c b/board/freescale/s32-gen1/s32gxxxaevb.c
+index b58cdd3685..1c14b3f567 100644
+--- a/board/freescale/s32-gen1/s32gxxxaevb.c
++++ b/board/freescale/s32-gen1/s32gxxxaevb.c
+@@ -9,32 +9,6 @@
+ 
+ #define SJA1105_NAME	"ethernet-switch@0"
+ 
+-void setup_iomux_uart(void)
+-{
+-#if (CONFIG_FSL_LINFLEX_MODULE == 0)
+-
+-	/* Muxing for linflex0 */
+-	setup_iomux_uart0_pc09_pc10();
+-
+-#elif (CONFIG_FSL_LINFLEX_MODULE == 1)
+-	/* Muxing for linflex1 */
+-
+-	/* set PC08 - MSCR[40] - for UART1 TXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART1_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PC08_MSCR_S32_G1_UART1));
+-
+-	/* set PC04 - MSCR[36] - for UART1 RXD */
+-	writel(SIUL2_MSCR_S32G_G1_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PC04_MSCR_S32_G1_UART1));
+-
+-	/* set PC04 - MSCR[736]/IMCR[224] - for UART1 RXD */
+-	writel(SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad,
+-	       SIUL2_1_IMCRn(SIUL2_PC04_IMCR_S32_G1_UART1));
+-#else
+-#error "Unsupported UART pinmuxing configuration"
+-#endif
+-}
+-
+ int misc_init_r(void)
+ {
+ #if CONFIG_IS_ENABLED(NET) && CONFIG_IS_ENABLED(FSL_PFENG) && \
+diff --git a/board/freescale/s32-gen1/s32r45emu.c b/board/freescale/s32-gen1/s32r45emu.c
+deleted file mode 100644
+index dad8bb1ffb..0000000000
+--- a/board/freescale/s32-gen1/s32r45emu.c
++++ /dev/null
+@@ -1,28 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+-/*
+- * Copyright 2018-2021 NXP
+- */
+-
+-#include "asm/arch-s32/siul-s32r45.h"
+-#include "board_common.h"
+-#include <asm/arch/soc.h>
+-#include <common.h>
+-
+-void setup_iomux_uart(void)
+-{
+-#if (CONFIG_FSL_LINFLEX_MODULE == 1)
+-	/* Set PA_11 - MSCR[11] - for LIN1_RX */
+-	writel(SIUL2_MSCR_S32R45_PORT_CTRL_UART_RXD,
+-	       SIUL2_0_MSCRn(SIUL2_PA11_MSCR_S32R45_UART1));
+-
+-	/* Set PA_11 - IMCR[674] - for LIN1_RX */
+-	writel(SIUL2_IMCR_S32R45_UART_RXD_to_pad,
+-	       SIUL2_1_IMCRn(SIUL2_PA11_IMCR_S32R45_UART1));
+-
+-	/* Set PA_12 - MSCR[12] - for LIN1_TX */
+-	writel(SIUL2_MSCR_S32R45_PORT_CTRL_UART1_TXD,
+-	       SIUL2_0_MSCRn(SIUL2_PA12_MSCR_S32R45_UART1));
+-#else
+-#error "Unsupported UART pinmuxing configuration"
+-#endif
+-}
+diff --git a/board/freescale/s32-gen1/s32r45evb.c b/board/freescale/s32-gen1/s32r45evb.c
+index 7678179845..93fd9679b3 100644
+--- a/board/freescale/s32-gen1/s32r45evb.c
++++ b/board/freescale/s32-gen1/s32r45evb.c
+@@ -1,9 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2018-2021 NXP
++ * Copyright 2018-2022 NXP
+  */
+ 
+-#include "asm/arch-s32/siul-s32r45.h"
+ #include "board_common.h"
+ #if CONFIG_IS_ENABLED(DWC_ETH_QOS_S32CC)
+ #include "s32gen1_gmac_utils.h"
+@@ -17,18 +16,6 @@
+ 
+ #define S32R_PHY_ADDR_1 0x01
+ 
+-void setup_iomux_uart(void)
+-{
+-#if (CONFIG_FSL_LINFLEX_MODULE == 0)
+-
+-	/* Muxing for linflex0 */
+-	setup_iomux_uart0_pc09_pc10();
+-
+-#else
+-#error "Unsupported UART pinmuxing configuration"
+-#endif
+-}
+-
+ /**
+  * Due to the hardware design of the reset circuit on S32R45,
+  * the PHY does not properly reset after a software reboot.
+diff --git a/configs/s32g274a_emu_defconfig b/configs/s32g274a_emu_defconfig
+index 3de5616bd0..fb299954df 100644
+--- a/configs/s32g274a_emu_defconfig
++++ b/configs/s32g274a_emu_defconfig
+@@ -13,7 +13,6 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MEMTEST=y
+ CONFIG_CMD_MMC=y
+ CONFIG_CMD_SMC=y
+diff --git a/configs/s32g274abluebox3_defconfig b/configs/s32g274abluebox3_defconfig
+index 349c001d21..22440537f3 100644
+--- a/configs/s32g274abluebox3_defconfig
++++ b/configs/s32g274abluebox3_defconfig
+@@ -12,7 +12,6 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_LAST_STAGE_INIT=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+diff --git a/configs/s32g274abluebox3_qspi_defconfig b/configs/s32g274abluebox3_qspi_defconfig
+index 77502d16a8..96e908aa55 100644
+--- a/configs/s32g274abluebox3_qspi_defconfig
++++ b/configs/s32g274abluebox3_qspi_defconfig
+@@ -13,7 +13,6 @@ CONFIG_TOOLS_DEBUG=y
+ CONFIG_FIT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_BOARD_EARLY_INIT_R=y
+ CONFIG_LAST_STAGE_INIT=y
+ CONFIG_CMD_EEPROM=y
+diff --git a/configs/s32g274ardb2_defconfig b/configs/s32g274ardb2_defconfig
+index a56b9235dc..e8ec328d83 100644
+--- a/configs/s32g274ardb2_defconfig
++++ b/configs/s32g274ardb2_defconfig
+@@ -13,7 +13,6 @@ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_BOARD_LATE_INIT=y
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+ CONFIG_CMD_MEMTEST=y
+diff --git a/configs/s32g274ardb2_qspi_defconfig b/configs/s32g274ardb2_qspi_defconfig
+index 55f574533c..0e63482030 100644
+--- a/configs/s32g274ardb2_qspi_defconfig
++++ b/configs/s32g274ardb2_qspi_defconfig
+@@ -14,7 +14,6 @@ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_BOARD_LATE_INIT=y
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+ CONFIG_CMD_MEMTEST=y
+diff --git a/configs/s32g2xxaevb_defconfig b/configs/s32g2xxaevb_defconfig
+index 3f263b8ce4..1740a66c61 100644
+--- a/configs/s32g2xxaevb_defconfig
++++ b/configs/s32g2xxaevb_defconfig
+@@ -12,7 +12,6 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+diff --git a/configs/s32g2xxaevb_qspi_defconfig b/configs/s32g2xxaevb_qspi_defconfig
+index 34b7764c27..96f91c74ee 100644
+--- a/configs/s32g2xxaevb_qspi_defconfig
++++ b/configs/s32g2xxaevb_qspi_defconfig
+@@ -13,7 +13,6 @@ CONFIG_FIT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+diff --git a/configs/s32g399a_emu_defconfig b/configs/s32g399a_emu_defconfig
+index 3bef596f3f..333567744d 100644
+--- a/configs/s32g399a_emu_defconfig
++++ b/configs/s32g399a_emu_defconfig
+@@ -13,7 +13,6 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MEMTEST=y
+ CONFIG_CMD_MMC=y
+ CONFIG_CMD_SMC=y
+diff --git a/configs/s32g3xxaevb_defconfig b/configs/s32g3xxaevb_defconfig
+index 8d0ec92276..0229347c99 100644
+--- a/configs/s32g3xxaevb_defconfig
++++ b/configs/s32g3xxaevb_defconfig
+@@ -12,7 +12,6 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+diff --git a/configs/s32g3xxaevb_qspi_defconfig b/configs/s32g3xxaevb_qspi_defconfig
+index 4464873e3e..990861b98f 100644
+--- a/configs/s32g3xxaevb_qspi_defconfig
++++ b/configs/s32g3xxaevb_qspi_defconfig
+@@ -13,7 +13,6 @@ CONFIG_FIT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+diff --git a/configs/s32r45_emu_defconfig b/configs/s32r45_emu_defconfig
+index 13f2faad6e..2cfdf5d6fc 100644
+--- a/configs/s32r45_emu_defconfig
++++ b/configs/s32r45_emu_defconfig
+@@ -12,7 +12,6 @@ CONFIG_FIT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon loglevel=7"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_MEMTEST=y
+ CONFIG_DM=y
+ # CONFIG_DM_DEVICE_REMOVE is not set
+diff --git a/configs/s32r45evb_defconfig b/configs/s32r45evb_defconfig
+index 2d612a4259..3e0cd53331 100644
+--- a/configs/s32r45evb_defconfig
++++ b/configs/s32r45evb_defconfig
+@@ -13,7 +13,6 @@ CONFIG_SD_BOOT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon loglevel=7"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_LAST_STAGE_INIT=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+diff --git a/configs/s32r45evb_qspi_defconfig b/configs/s32r45evb_qspi_defconfig
+index aae5357dfd..d3e1051e6f 100644
+--- a/configs/s32r45evb_qspi_defconfig
++++ b/configs/s32r45evb_qspi_defconfig
+@@ -14,7 +14,6 @@ CONFIG_FIT=y
+ CONFIG_USE_BOOTARGS=y
+ CONFIG_BOOTARGS="root=/dev/ram rw earlycon loglevel=7"
+ CONFIG_ARCH_EARLY_INIT_R=y
+-CONFIG_BOARD_EARLY_INIT_F=y
+ CONFIG_CMD_EEPROM=y
+ CONFIG_CMD_MD5SUM=y
+ CONFIG_MD5SUM_VERIFY=y
+-- 
+2.17.1
+

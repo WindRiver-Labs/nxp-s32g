@@ -1,0 +1,53 @@
+From 338fbb35fc4222264450b805984d76ddf86039e0 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 16:20:53 +0200
+Subject: [PATCH 41/51] s32: Remove unused CONFIG_BOARD_EXTRA_ENV_SETTINGS
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h        | 5 -----
+ scripts/config_whitelist.txt | 1 -
+ 2 files changed, 6 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 1eaf835934..d5297cb37e 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -114,10 +114,6 @@
+ 
+ #endif
+ 
+-#ifndef CONFIG_BOARD_EXTRA_ENV_SETTINGS
+-#define CONFIG_BOARD_EXTRA_ENV_SETTINGS	""
+-#endif
+-
+ #ifndef CONFIG_DCU_EXTRA_ENV_SETTINGS
+ #define CONFIG_DCU_EXTRA_ENV_SETTINGS	""
+ #endif
+@@ -221,7 +217,6 @@
+ #define INITRD_HIGH 0xFE1FFFFF
+ 
+ #define CONFIG_EXTRA_ENV_SETTINGS \
+-	CONFIG_BOARD_EXTRA_ENV_SETTINGS  \
+ 	CONFIG_DCU_EXTRA_ENV_SETTINGS \
+ 	"ipaddr=" S32_DEFAULT_IP \
+ 	"serverip=10.0.0.1\0" \
+diff --git a/scripts/config_whitelist.txt b/scripts/config_whitelist.txt
+index 8bbc464c48..120c66cfcc 100644
+--- a/scripts/config_whitelist.txt
++++ b/scripts/config_whitelist.txt
+@@ -119,7 +119,6 @@ CONFIG_BOARDNAME
+ CONFIG_BOARDNAME_LOCAL
+ CONFIG_BOARD_COMMON
+ CONFIG_BOARD_ECC_SUPPORT
+-CONFIG_BOARD_EXTRA_ENV_SETTINGS
+ CONFIG_BOARD_IS_OPENRD_BASE
+ CONFIG_BOARD_IS_OPENRD_CLIENT
+ CONFIG_BOARD_IS_OPENRD_ULTIMATE
+-- 
+2.17.1
+

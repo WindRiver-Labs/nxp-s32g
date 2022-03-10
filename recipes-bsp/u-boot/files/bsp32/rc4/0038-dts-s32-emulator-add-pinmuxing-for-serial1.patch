@@ -1,0 +1,95 @@
+From 36148ca7f6d6b7a97657316efa6d648261d166ae Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Tue, 1 Feb 2022 15:52:12 +0200
+Subject: [PATCH 38/64] dts: s32 emulator: add pinmuxing for serial1
+
+Issue: ALB-8368
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g274aemu.dts | 24 ++++++++++++++++++++++++
+ arch/arm/dts/fsl-s32g399aemu.dts | 23 +++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32g274aemu.dts b/arch/arm/dts/fsl-s32g274aemu.dts
+index 32e4b33e4c..24241ee0dc 100644
+--- a/arch/arm/dts/fsl-s32g274aemu.dts
++++ b/arch/arm/dts/fsl-s32g274aemu.dts
+@@ -4,6 +4,7 @@
+  */
+ 
+ /dts-v1/;
++#include <dt-bindings/pinctrl/s32g-pinctrl.h>
+ #include "fsl-s32g274a.dtsi"
+ 
+ / {
+@@ -14,6 +15,29 @@
+ 	};
+ };
+ 
++&pinctrl0 {
++	board_pinctrl0 {
++		pinctrl0_uart1: pinctrl0_uart1 {
++			fsl,pins = <PB09_MSCR_S32G PB09_LIN1_TX_CFG
++				    PB10_MSCR_S32G PB10_LIN1_RX_CFG>;
++		};
++	};
++};
++
++&pinctrl1 {
++	board_pinctrl1 {
++		pinctrl1_uart1: pinctrl1_uart1 {
++			fsl,pins = <LIN1_RX_IMCR PB10_LIN1_RX_IN>;
++		};
++	};
++};
++
++&uart1{
++	pinctrl-0 = <&pinctrl0_uart1 &pinctrl1_uart1>;
++	pinctrl-names = "default";
++	status = "okay";
++};
++
+ &usdhc0 {
+ 	status = "okay";
+ };
+diff --git a/arch/arm/dts/fsl-s32g399aemu.dts b/arch/arm/dts/fsl-s32g399aemu.dts
+index a07dc24a32..d7c4382bfd 100644
+--- a/arch/arm/dts/fsl-s32g399aemu.dts
++++ b/arch/arm/dts/fsl-s32g399aemu.dts
+@@ -22,6 +22,29 @@
+ 	};
+ };
+ 
++&pinctrl0 {
++	board_pinctrl0 {
++		pinctrl0_uart1: pinctrl0_uart1 {
++			fsl,pins = <PB09_MSCR_S32G PB09_LIN1_TX_CFG
++				    PB10_MSCR_S32G PB10_LIN1_RX_CFG>;
++		};
++	};
++};
++
++&pinctrl1 {
++	board_pinctrl1 {
++		pinctrl1_uart1: pinctrl1_uart1 {
++			fsl,pins = <LIN1_RX_IMCR PB10_LIN1_RX_IN>;
++		};
++	};
++};
++
++&uart1{
++	pinctrl-0 = <&pinctrl0_uart1 &pinctrl1_uart1>;
++	pinctrl-names = "default";
++	status = "okay";
++};
++
+ &usdhc0 {
+ 	status = "okay";
+ };
+-- 
+2.17.1
+

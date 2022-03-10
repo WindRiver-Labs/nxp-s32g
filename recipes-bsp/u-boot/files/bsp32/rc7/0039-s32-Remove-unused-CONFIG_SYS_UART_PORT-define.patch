@@ -1,0 +1,29 @@
+From a43dfac264e3ae0c5f0afd2305dd3fab3206d1a9 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 15:45:18 +0200
+Subject: [PATCH 39/51] s32: Remove unused CONFIG_SYS_UART_PORT define
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 164d258bde..45f0d08a49 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -102,7 +102,6 @@
+ 
+ /* Allow to overwrite serial and ethaddr */
+ #define CONFIG_ENV_OVERWRITE
+-#define CONFIG_SYS_UART_PORT		(1)
+ 
+ #undef CONFIG_CMD_IMLS
+ 
+-- 
+2.17.1
+

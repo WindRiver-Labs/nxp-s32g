@@ -1,0 +1,152 @@
+From cda94abf6a8b2c81744bd3b9abca12ce5bbed691 Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Wed, 2 Feb 2022 19:12:12 +0200
+Subject: [PATCH 41/64] dts: s32g: add u-boot,dm-pre-reloc property to
+ pinconfig nodes
+
+Issue: ALB-8368
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g274abluebox3.dts | 2 ++
+ arch/arm/dts/fsl-s32g274aemu.dts      | 4 ++++
+ arch/arm/dts/fsl-s32g274ardb.dtsi     | 2 ++
+ arch/arm/dts/fsl-s32g399aemu.dts      | 4 ++++
+ arch/arm/dts/fsl-s32gxxxaevb.dtsi     | 2 ++
+ arch/arm/dts/fsl-s32r45.dts           | 2 ++
+ 6 files changed, 16 insertions(+)
+
+diff --git a/arch/arm/dts/fsl-s32g274abluebox3.dts b/arch/arm/dts/fsl-s32g274abluebox3.dts
+index a759e4a0f8..8eb57ffb7e 100644
+--- a/arch/arm/dts/fsl-s32g274abluebox3.dts
++++ b/arch/arm/dts/fsl-s32g274abluebox3.dts
+@@ -144,6 +144,7 @@
+ 
+ &pinctrl0 {
+ 	board_pinctrl0 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl0_dspi0: pinctrl0_dspi0 {
+ 			fsl,pins = <PA13_MSCR_S32G PA13_SPI0_SCK_CFG
+ 				    PA14_MSCR_S32G PA14_SPI0_SIN_CFG
+@@ -270,6 +271,7 @@
+ 		};
+ 
+ 		pinctrl0_uart0: pinctrl0_uart0 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <PC09_MSCR_S32G PC09_LIN0_TX_CFG
+ 				    PC10_MSCR_S32G PC10_LIN0_RX_CFG
+ 				    LIN0_RX_IMCR PC10_LIN0_RX_IN>;
+diff --git a/arch/arm/dts/fsl-s32g274aemu.dts b/arch/arm/dts/fsl-s32g274aemu.dts
+index 24241ee0dc..5a432f827c 100644
+--- a/arch/arm/dts/fsl-s32g274aemu.dts
++++ b/arch/arm/dts/fsl-s32g274aemu.dts
+@@ -17,7 +17,9 @@
+ 
+ &pinctrl0 {
+ 	board_pinctrl0 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl0_uart1: pinctrl0_uart1 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <PB09_MSCR_S32G PB09_LIN1_TX_CFG
+ 				    PB10_MSCR_S32G PB10_LIN1_RX_CFG>;
+ 		};
+@@ -26,7 +28,9 @@
+ 
+ &pinctrl1 {
+ 	board_pinctrl1 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl1_uart1: pinctrl1_uart1 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <LIN1_RX_IMCR PB10_LIN1_RX_IN>;
+ 		};
+ 	};
+diff --git a/arch/arm/dts/fsl-s32g274ardb.dtsi b/arch/arm/dts/fsl-s32g274ardb.dtsi
+index e7b1c33957..50fc070c45 100644
+--- a/arch/arm/dts/fsl-s32g274ardb.dtsi
++++ b/arch/arm/dts/fsl-s32g274ardb.dtsi
+@@ -90,6 +90,7 @@
+ 
+ &pinctrl0 {
+ 	board_pinctrl0 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl0_i2c0: pinctrl0_i2c0 {
+ 			fsl,pins = <PB15_MSCR_S32G PB15_I2C0_SDA_CFG
+ 				    PC00_MSCR_S32G PC00_I2C0_SCL_CFG
+@@ -202,6 +203,7 @@
+ 		};
+ 
+ 		pinctrl0_uart0: pinctrl0_uart0 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <PC09_MSCR_S32G PC09_LIN0_TX_CFG
+ 				    PC10_MSCR_S32G PC10_LIN0_RX_CFG
+ 				    LIN0_RX_IMCR PC10_LIN0_RX_IN>;
+diff --git a/arch/arm/dts/fsl-s32g399aemu.dts b/arch/arm/dts/fsl-s32g399aemu.dts
+index d7c4382bfd..b8777a2343 100644
+--- a/arch/arm/dts/fsl-s32g399aemu.dts
++++ b/arch/arm/dts/fsl-s32g399aemu.dts
+@@ -24,7 +24,9 @@
+ 
+ &pinctrl0 {
+ 	board_pinctrl0 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl0_uart1: pinctrl0_uart1 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <PB09_MSCR_S32G PB09_LIN1_TX_CFG
+ 				    PB10_MSCR_S32G PB10_LIN1_RX_CFG>;
+ 		};
+@@ -33,7 +35,9 @@
+ 
+ &pinctrl1 {
+ 	board_pinctrl1 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl1_uart1: pinctrl1_uart1 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <LIN1_RX_IMCR PB10_LIN1_RX_IN>;
+ 		};
+ 	};
+diff --git a/arch/arm/dts/fsl-s32gxxxaevb.dtsi b/arch/arm/dts/fsl-s32gxxxaevb.dtsi
+index df146a9edd..12370212b2 100644
+--- a/arch/arm/dts/fsl-s32gxxxaevb.dtsi
++++ b/arch/arm/dts/fsl-s32gxxxaevb.dtsi
+@@ -146,6 +146,7 @@
+ 
+ &pinctrl0 {
+ 	board_pinctrl0 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl0_i2c0: pinctrl0_i2c0 {
+ 			fsl,pins = <PB00_MSCR_S32G PB00_I2C0_SDA_CFG
+ 				    PB01_MSCR_S32G PB01_I2C0_SCL_CFG
+@@ -278,6 +279,7 @@
+ 		};
+ 
+ 		pinctrl0_uart0: pinctrl0_uart0 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <PC09_MSCR_S32G PC09_LIN0_TX_CFG
+ 				    PC10_MSCR_S32G PC10_LIN0_RX_CFG
+ 				    LIN0_RX_IMCR PC10_LIN0_RX_IN>;
+diff --git a/arch/arm/dts/fsl-s32r45.dts b/arch/arm/dts/fsl-s32r45.dts
+index 53d30e8b4d..3d1e4eca25 100644
+--- a/arch/arm/dts/fsl-s32r45.dts
++++ b/arch/arm/dts/fsl-s32r45.dts
+@@ -339,6 +339,7 @@
+ 
+ &pinctrl0 {
+ 	board_pinctrl0 {
++		u-boot,dm-pre-reloc;
+ 		pinctrl0_dspi1: pinctrl0_dspi1 {
+ 			fsl,pins = <PB04_MSCR_S32R45 PB04_SPI1_SCK_CFG
+ 				    PB05_MSCR_S32R45 PB05_SPI1_SIN_CFG
+@@ -478,6 +479,7 @@
+ 		};
+ 
+ 		pinctrl0_uart0: pinctrl0_uart0 {
++			u-boot,dm-pre-reloc;
+ 			fsl,pins = <PC09_MSCR_S32R45 PC09_LIN0_TX_CFG
+ 				    PC10_MSCR_S32R45 PC10_LIN0_RX_CFG
+ 				    LIN0_RX_IMCR PC10_LIN0_RX_IN>;
+-- 
+2.17.1
+

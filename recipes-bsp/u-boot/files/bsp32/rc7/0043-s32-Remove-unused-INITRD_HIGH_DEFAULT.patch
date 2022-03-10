@@ -1,0 +1,30 @@
+From 20c183a6bef331742b2854482711a16fe56e5766 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 16:25:38 +0200
+Subject: [PATCH 43/51] s32: Remove unused INITRD_HIGH_DEFAULT
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index e191d6c840..8a6c82a822 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -207,8 +207,6 @@
+ #define XEN_EXTRA_ENV_SETTINGS  ""
+ #endif
+ 
+-#define INITRD_HIGH_DEFAULT 0xffffffff
+-
+ /* Leave room for TF-A & OPTEE */
+ #define INITRD_HIGH 0xFE1FFFFF
+ 
+-- 
+2.17.1
+

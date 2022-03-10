@@ -1,0 +1,36 @@
+From 8b7a7c7ed8b4527c61ec8c5ccc96c1362670b80c Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Thu, 10 Feb 2022 14:38:58 +0200
+Subject: [PATCH 26/43] serial: linflexuart: skip debug uart init
+
+Skip debug uart init if CONFIG_DEBUG_UART_SKIP_INIT is set to y.
+
+Issue: ALB-8504
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/serial/serial_linflexuart.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/serial/serial_linflexuart.c b/drivers/serial/serial_linflexuart.c
+index f4867d0ff8..1f22f28b42 100644
+--- a/drivers/serial/serial_linflexuart.c
++++ b/drivers/serial/serial_linflexuart.c
+@@ -264,9 +264,11 @@ U_BOOT_DRIVER(serial_linflex) = {
+ 
+ static inline void _debug_uart_init(void)
+ {
++#ifndef CONFIG_DEBUG_UART_SKIP_INIT
+ 	struct linflex_fsl *base = (struct linflex_fsl *)CONFIG_DEBUG_UART_BASE;
+ 
+ 	_linflex_serial_init(base, CONFIG_DEBUG_UART_CLOCK);
++#endif
+ }
+ 
+ static inline void _debug_uart_putc(int ch)
+-- 
+2.17.1
+

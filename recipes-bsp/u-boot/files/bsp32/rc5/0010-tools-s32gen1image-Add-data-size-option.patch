@@ -1,0 +1,151 @@
+From ce1c156d14485d186f3f18527f1a1eb824daa7aa Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 20 Jan 2022 12:07:10 +0200
+Subject: [PATCH 10/43] tools: s32gen1image: Add data size option
+
+Add 'DATA_FILE SIZE' option to mkimage configuration
+file.
+
+Issue: ALB-8433
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ doc/README.s32gen1image | 22 ++++++++++++++++
+ tools/s32gen1image.c    | 58 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 80 insertions(+)
+
+diff --git a/doc/README.s32gen1image b/doc/README.s32gen1image
+index 8778729d5b..cb56860926 100644
+--- a/doc/README.s32gen1image
++++ b/doc/README.s32gen1image
+@@ -103,6 +103,28 @@ Available commands
+ 	Usage:
+ 		QSPI_PARAMS_FILE qspi_params_MX25UW51245G.bin
+ 
++5. DATA_FILE
++	Sets the parameters to be applied to the file given using -d parameter (data_file).
++	It's useful when using a composite file and only a small part of it needs to be loaded by
++	BootROM.
++	E.g. A image that contains multiple stages plus U-Boot, and only one early stage
++	before U-Boot should be loaded by BootROM
++
++	Each entry must have the format:
++	Command      Value
++
++	where:
++		Command:   SIZE
++		Value:     Offset or size
++
++	Commands interpretation:
++		SIZE:		Sets the size starting from OFFSET
++
++	Usage:
++		DATA_FILE SIZE   0x3CB47
++
++	This will make BootROM to load the range: [0x0, 0x3CB47]
++
+ Typical example of s32gen1.cfg file:
+ -----------------------------------
+ # Boot from QSPI
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index 417b6606c2..07a608890b 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -77,6 +77,9 @@ struct image_config {
+ 		uint8_t *data;
+ 		size_t size;
+ 	} qspi_params;
++	struct {
++		uint32_t size;
++	} data_file;
+ 	bool flash_boot;
+ 	bool secboot;
+ };
+@@ -114,6 +117,11 @@ enum dcd_cmd {
+ 	INVALID_DCD_CMD,
+ };
+ 
++enum data_file_cmd {
++	SET_SIZE,
++	INVALID_DATA_FILE_CMD
++};
++
+ struct dcd_args {
+ 	enum dcd_cmd cmd;
+ 	uint32_t addr;
+@@ -135,6 +143,10 @@ static const char * const dcd_cmds[] = {
+ 	[CHECK_NOT_CLEAR] = "CHECK_NOT_CLEAR",
+ };
+ 
++static const char * const data_file_cmds[] = {
++	[SET_SIZE] = "SIZE",
++};
++
+ static struct image_config iconfig;
+ 
+ static struct program_image image_layout = {
+@@ -952,6 +964,48 @@ static int parse_qspi_cmd(char *line)
+ 	return 0;
+ }
+ 
++static int parse_data_file_cmd(char *line)
++{
++	int ret;
++	size_t i;
++	char cmd_str[sizeof(data_file_cmds)];
++	uint32_t addr;
++	enum data_file_cmd cmd = INVALID_DATA_FILE_CMD;
++
++	ret = sscanf(line, "%[^ \t]%*[^0]0x%" PRIx32, cmd_str, &addr);
++	/* 2 tokens are expected */
++	if (ret < 2) {
++		fprintf(stderr, "Failed to interpret DATA_FILE line: %s\n",
++			line);
++		return -EINVAL;
++	}
++
++	for (i = 0; i < ARRAY_SIZE(data_file_cmds); i++) {
++		if (strcmp(cmd_str, data_file_cmds[i]))
++			continue;
++
++		cmd = (enum data_file_cmd)i;
++	}
++
++	if (cmd == INVALID_DATA_FILE_CMD) {
++		fprintf(stderr, "Failed to interpret DATA_FILE command: %s\n",
++			cmd_str);
++		return -EINVAL;
++	}
++
++	switch (cmd) {
++	case SET_SIZE:
++		iconfig.data_file.size = addr;
++		break;
++	default:
++		fprintf(stderr, "Failed to interpret DATA_FILE command: %s\n",
++			cmd_str);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
+ static const struct line_parser parsers[] = {
+ 	{
+ 		.tag = "BOOT_FROM",
+@@ -969,6 +1023,10 @@ static const struct line_parser parsers[] = {
+ 		.tag = "QSPI_PARAMS_FILE",
+ 		.parse = parse_qspi_cmd,
+ 	},
++	{
++		.tag = "DATA_FILE",
++		.parse = parse_data_file_cmd,
++	},
+ };
+ 
+ static int parse_config_line(char *line)
+-- 
+2.17.1
+

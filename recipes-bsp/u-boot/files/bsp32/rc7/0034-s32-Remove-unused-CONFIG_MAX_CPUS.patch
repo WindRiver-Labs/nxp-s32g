@@ -1,0 +1,30 @@
+From 00bea37da6b09f7c32dd11858ea2297719467521 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 7 Feb 2022 11:25:26 +0200
+Subject: [PATCH 34/51] s32: Remove unused CONFIG_MAX_CPUS
+
+Issue: ALB-8483
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 2a96553e40..ce7b1d3b24 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -17,8 +17,6 @@
+ /* Enable passing of ATAGs */
+ #define CONFIG_CMDLINE_TAG
+ 
+-/* SMP definitions */
+-#define CONFIG_MAX_CPUS			(4)
+ #define SECONDARY_CPU_BOOT_PAGE		(CONFIG_SYS_FSL_DRAM_BASE1)
+ #define CPU_RELEASE_ADDR		SECONDARY_CPU_BOOT_PAGE
+ #define CONFIG_FSL_SMP_RELEASE_ALL
+-- 
+2.17.1
+

@@ -1,0 +1,345 @@
+From b949dd0586cbe5a786e3ec4cac724e54d4ef63c1 Mon Sep 17 00:00:00 2001
+From: Andrei Botila <andrei.botila@nxp.com>
+Date: Thu, 13 Jan 2022 15:56:35 +0200
+Subject: [PATCH 05/43] timer: s32: Add timer support for S32 SoC
+
+The time driver is using the Periodic Interrupt Timer(PIT)
+available on S32.
+
+Issue: ALB-8335
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Botila <andrei.botila@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/Makefile    |   1 -
+ arch/arm/cpu/armv8/s32/timer.c     |  90 ------------------------
+ arch/arm/dts/fsl-s32-gen1.dtsi     |  19 ++++++
+ board/freescale/Kconfig            |   3 +
+ drivers/clk/s32/s32gen1_scmi_ids.c |   2 +
+ drivers/timer/Kconfig              |   7 ++
+ drivers/timer/Makefile             |   1 +
+ drivers/timer/s32_timer.c          | 106 +++++++++++++++++++++++++++++
+ 8 files changed, 138 insertions(+), 91 deletions(-)
+ delete mode 100644 arch/arm/cpu/armv8/s32/timer.c
+ create mode 100644 drivers/timer/s32_timer.c
+
+diff --git a/arch/arm/cpu/armv8/s32/Makefile b/arch/arm/cpu/armv8/s32/Makefile
+index efdfb19dea..181eea017d 100644
+--- a/arch/arm/cpu/armv8/s32/Makefile
++++ b/arch/arm/cpu/armv8/s32/Makefile
+@@ -10,7 +10,6 @@ obj-$(CONFIG_S32_GEN1)		+= s32-gen1/
+ obj-$(CONFIG_S32_GEN1)		+= scmi_reset_agent.o
+ obj-y				+= cpu.o
+ obj-y				+= lowlevel.o
+-obj-$(CONFIG_SYS_PIT_TIMER)	+= timer.o
+ obj-$(CONFIG_GICSUPPORT)	+= gicsupport.o
+ obj-$(CONFIG_MP)		+= mp.o
+ obj-$(CONFIG_OF_LIBFDT)		+= fdt.o
+diff --git a/arch/arm/cpu/armv8/s32/timer.c b/arch/arm/cpu/armv8/s32/timer.c
+deleted file mode 100644
+index 9f39fbf9d7..0000000000
+--- a/arch/arm/cpu/armv8/s32/timer.c
++++ /dev/null
+@@ -1,90 +0,0 @@
+-// SPDX-License-Identifier:     GPL-2.0+
+-/*
+- * (C) Copyright 2013-2015 Freescale Semiconductor, Inc.
+- * Copyright 2022 NXP
+- */
+-
+-#include <common.h>
+-#include <asm/io.h>
+-#include <div64.h>
+-#include "s32-gen1/s32-gen1-regs.h"
+-#include <asm/arch/clock.h>
+-
+-static struct pit_reg *cur_pit = (struct pit_reg *)PIT0_BASE_ADDR;
+-
+-DECLARE_GLOBAL_DATA_PTR;
+-
+-#define TIMER_LOAD_VAL	0xffffffff
+-
+-static inline unsigned long long tick_to_time(unsigned long long tick)
+-{
+-	tick *= CONFIG_SYS_HZ;
+-	do_div(tick, mxc_get_clock(MXC_SYS6_CLK));
+-
+-	return tick;
+-}
+-
+-static inline unsigned long long us_to_tick(unsigned long long usec)
+-{
+-	usec = usec * mxc_get_clock(MXC_PERIPHERALS_CLK)  + 999999;
+-	do_div(usec, 1000000);
+-
+-	return usec;
+-}
+-
+-int timer_init(void)
+-{
+-	__raw_writel(0, &cur_pit->mcr);
+-
+-	__raw_writel(TIMER_LOAD_VAL, &cur_pit->ldval1);
+-	__raw_writel(0, &cur_pit->tctrl1);
+-	__raw_writel(1, &cur_pit->tctrl1);
+-
+-	gd->arch.tbl = 0;
+-	gd->arch.tbu = 0;
+-
+-	return 0;
+-}
+-
+-unsigned long long get_ticks(void)
+-{
+-	ulong now = TIMER_LOAD_VAL - __raw_readl(&cur_pit->cval1);
+-
+-	/* increment tbu if tbl has rolled over */
+-	if (now < gd->arch.tbl)
+-		gd->arch.tbu++;
+-	gd->arch.tbl = now;
+-
+-	return (((unsigned long long)gd->arch.tbu) << 32) | gd->arch.tbl;
+-}
+-
+-ulong get_timer_masked(void)
+-{
+-	return tick_to_time(get_ticks());
+-}
+-
+-ulong get_timer(ulong base)
+-{
+-	return get_timer_masked() - base;
+-}
+-
+-/* delay x useconds AND preserve advance timstamp value */
+-void __udelay(unsigned long usec)
+-{
+-	unsigned long long start;
+-	ulong tmo;
+-
+-	start = get_ticks();			/* get current timestamp */
+-	tmo = us_to_tick(usec);			/* convert usecs to ticks */
+-	while ((get_ticks() - start) < tmo)
+-		;				/* loop till time has passed */
+-}
+-
+-/*
+- * This function is derived from PowerPC code (timebase clock frequency).
+- * On ARM it returns the number of timer ticks per second.
+- */
+-ulong get_tbclk(void)
+-{
+-	return mxc_get_clock(MXC_PERIPHERALS_CLK);
+-}
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index b78e0bd645..cc8128ede0 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -39,6 +39,7 @@
+ 
+ 	chosen {
+ 		stdout-path = "serial0:115200n8";
++		tick-timer = &pit0;
+ 	};
+ 
+ 	cpus: cpus {
+@@ -656,5 +657,23 @@
+ 		clock-names = "adc";
+ 		status = "okay";
+ 	};
++
++	pit0: pit@40188000 {
++		compatible = "fsl,s32gen1-timer";
++		reg = <0x0 0x40188000 0x0 0x3000>;
++		interrupts = <0 53 4>;
++		clocks = <&clks S32GEN1_SCMI_CLK_PIT_MODULE>;
++		clock-names = "pit";
++		status = "okay";
++	};
++
++	pit1: pit@40288000 {
++		compatible = "fsl,s32gen1-timer";
++		reg = <0x0 0x40288000 0x0 0x3000>;
++		interrupts = <0 54 4>;
++		clocks = <&clks S32GEN1_SCMI_CLK_PIT_MODULE>;
++		clock-names = "pit";
++		status = "okay";
++	};
+ };
+ 
+diff --git a/board/freescale/Kconfig b/board/freescale/Kconfig
+index 8ab83e9ef5..05dd99026a 100644
+--- a/board/freescale/Kconfig
++++ b/board/freescale/Kconfig
+@@ -8,10 +8,13 @@ config S32_GEN1
+ 	imply CMD_CPU
+ 	imply CMD_GPIO
+ 	imply CMD_FUSE
++	imply CMD_TIMER
+ 	imply FSL_LINFLEXUART
+ 	imply ADC if !NXP_S32GRDB_BOARD
+ 	imply S32_SARADC if !NXP_S32GRDB_BOARD
+ 	imply MISC
++	imply TIMER
++	imply S32_TIMER
+ 	select ARM_SMCCC
+ 	select CLK
+ 	select CLK_SCMI
+diff --git a/drivers/clk/s32/s32gen1_scmi_ids.c b/drivers/clk/s32/s32gen1_scmi_ids.c
+index d625dd9bcb..e643628e01 100644
+--- a/drivers/clk/s32/s32gen1_scmi_ids.c
++++ b/drivers/clk/s32/s32gen1_scmi_ids.c
+@@ -68,6 +68,8 @@ static u32 s32gen1_scmi_ids[] = {
+ 	[INDEX(S32GEN1_SCMI_CLK_EIM_MODULE)] = S32GEN1_CLK_XBAR_DIV6,
+ 	[INDEX(S32GEN1_SCMI_CLK_FCCU_MODULE)] = S32GEN1_CLK_XBAR_DIV6,
+ 	[INDEX(S32GEN1_SCMI_CLK_FCCU_SAFE)] = S32GEN1_CLK_FIRC,
++	[INDEX(S32GEN1_SCMI_CLK_PIT_MODULE)] = S32GEN1_CLK_XBAR_DIV3,
++	[INDEX(S32GEN1_SCMI_CLK_PIT_REG)] = S32GEN1_CLK_XBAR_DIV3,
+ };
+ 
+ static int compound2clkid(u32 scmi_clk_id, u32 *clk_id)
+diff --git a/drivers/timer/Kconfig b/drivers/timer/Kconfig
+index 637024445c..277bab24f9 100644
+--- a/drivers/timer/Kconfig
++++ b/drivers/timer/Kconfig
+@@ -177,6 +177,13 @@ config STM32_TIMER
+ 	  Select this to enable support for the timer found on
+ 	  STM32 devices.
+ 
++config S32_TIMER
++	bool "S32 PIT timer support"
++	depends on TIMER
++	help
++	  Select this to enable Periodic Interrupt Timer (PIT)
++	  for NXP S32.
++
+ config X86_TSC_TIMER
+ 	bool "x86 Time-Stamp Counter (TSC) timer support"
+ 	depends on TIMER && X86
+diff --git a/drivers/timer/Makefile b/drivers/timer/Makefile
+index c22ffebcde..2ef7cf1fe3 100644
+--- a/drivers/timer/Makefile
++++ b/drivers/timer/Makefile
+@@ -20,5 +20,6 @@ obj-$(CONFIG_ROCKCHIP_TIMER) += rockchip_timer.o
+ obj-$(CONFIG_SANDBOX_TIMER)	+= sandbox_timer.o
+ obj-$(CONFIG_STI_TIMER)		+= sti-timer.o
+ obj-$(CONFIG_STM32_TIMER)	+= stm32_timer.o
++obj-$(CONFIG_S32_TIMER)		+= s32_timer.o
+ obj-$(CONFIG_X86_TSC_TIMER)	+= tsc_timer.o
+ obj-$(CONFIG_MTK_TIMER)		+= mtk_timer.o
+diff --git a/drivers/timer/s32_timer.c b/drivers/timer/s32_timer.c
+new file mode 100644
+index 0000000000..25bf6eadaf
+--- /dev/null
++++ b/drivers/timer/s32_timer.c
+@@ -0,0 +1,106 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright 2022 NXP
++ */
++
++#include <common.h>
++#include <dm.h>
++#include <errno.h>
++#include <fdtdec.h>
++#include <timer.h>
++#include <asm/io.h>
++
++#define PIT_LTMR64H	0xE0
++#define PIT_LTMR64L	0xE4
++
++#define PIT_LDVAL(x)	(0x100 + (x) * 0x10)
++#define PIT_TCTRL(x)	(0x108 + (x) * 0x10)
++
++/* Enable bit for timer */
++#define TCTRL_TEN	BIT(0)
++
++/* Chain Mode bit for timer */
++#define TCTRL_CHN	BIT(2)
++
++/* Timer start value for count down */
++#define TSV	0xFFFFFFFF
++
++struct s32_timer_priv {
++	fdt_addr_t base;
++};
++
++static u64 s32_time_get_lifetime_counter(struct s32_timer_priv *priv)
++{
++	u64 ltmr64h, ltmr64l;
++	u64 cntr;
++
++	ltmr64h = readl(priv->base + PIT_LTMR64H);
++	ltmr64l = readl(priv->base + PIT_LTMR64L);
++
++	cntr = (ltmr64h << 32) + ltmr64l;
++
++	return cntr;
++}
++
++static int s32_timer_get_count(struct udevice *dev, u64 *count)
++{
++	struct s32_timer_priv *priv = dev_get_priv(dev);
++	u64 cntr = s32_time_get_lifetime_counter(priv);
++
++	*count = ~0ull - cntr;
++
++	return 0;
++}
++
++static int s32_timer_probe(struct udevice *dev)
++{
++	struct s32_timer_priv *priv = dev_get_priv(dev);
++	u32 tmp;
++
++	/* Load timer0 and timer1 start value */
++	writel(TSV, priv->base + PIT_LDVAL(0));
++	writel(TSV, priv->base + PIT_LDVAL(1));
++
++	/* Activate chain mode on timer1 */
++	tmp = readl(priv->base + PIT_TCTRL(1)) | TCTRL_CHN;
++	writel(tmp, priv->base + PIT_TCTRL(1));
++
++	/* Enable timer0 and timer1 */
++	tmp = readl(priv->base + PIT_TCTRL(0)) | TCTRL_TEN;
++	writel(tmp, priv->base + PIT_TCTRL(0));
++
++	tmp = readl(priv->base + PIT_TCTRL(1)) | TCTRL_TEN;
++	writel(tmp, priv->base + PIT_TCTRL(1));
++
++	return 0;
++}
++
++static int s32_timer_ofdata_to_platdata(struct udevice *dev)
++{
++	struct s32_timer_priv *priv = dev_get_priv(dev);
++
++	priv->base = devfdt_get_addr(dev);
++	if (priv->base == (fdt_addr_t)FDT_ADDR_T_NONE)
++		return -EINVAL;
++
++	return 0;
++}
++
++static const struct timer_ops s32_timer_ops = {
++	.get_count = s32_timer_get_count,
++};
++
++static const struct udevice_id s32_timer_ids[] = {
++	{ .compatible = "fsl,s32gen1-timer" },
++	{}
++};
++
++U_BOOT_DRIVER(s32_timer) = {
++	.name	= "s32_timer",
++	.id	= UCLASS_TIMER,
++	.of_match = s32_timer_ids,
++	.probe	= s32_timer_probe,
++	.ofdata_to_platdata = s32_timer_ofdata_to_platdata,
++	.priv_auto_alloc_size = sizeof(struct s32_timer_priv),
++	.ops	= &s32_timer_ops,
++};
+-- 
+2.17.1
+

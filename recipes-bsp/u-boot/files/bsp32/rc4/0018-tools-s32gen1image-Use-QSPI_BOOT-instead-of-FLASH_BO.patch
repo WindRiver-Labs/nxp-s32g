@@ -1,0 +1,39 @@
+From 416944b7776b87926d242e90fb614e2d146010e0 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Thu, 20 Jan 2022 15:54:14 +0200
+Subject: [PATCH 18/64] tools: s32gen1image: Use QSPI_BOOT instead of
+ FLASH_BOOT
+
+Issue: ALB-8303
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/s32gen1.cfg | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/s32gen1.cfg b/board/freescale/s32-gen1/s32gen1.cfg
+index edd15b7e48..8bdde58c6a 100644
+--- a/board/freescale/s32-gen1/s32gen1.cfg
++++ b/board/freescale/s32-gen1/s32gen1.cfg
+@@ -11,7 +11,7 @@
+ #define __ASSEMBLY__
+ #include <config.h>
+ 
+-#ifdef CONFIG_FLASH_BOOT
++#ifdef CONFIG_QSPI_BOOT
+ #  define BOOT_STORAGE qspi
+ #else
+ #  define BOOT_STORAGE sd
+@@ -91,6 +91,6 @@ DCD WRITE 0x1 0x4009d31a 0x1
+  *
+  * It will be used by BootROM to load Bootloader's images.
+  */
+-#if defined(CONFIG_FLASH_BOOT) && !defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR)
++#if defined(CONFIG_QSPI_BOOT) && !defined(CONFIG_TARGET_TYPE_S32GEN1_EMULATOR)
+ QSPI_PARAMS_FILE	PATH_QSPI_PARAMS_FILE
+ #endif
+-- 
+2.17.1
+

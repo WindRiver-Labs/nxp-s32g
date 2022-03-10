@@ -1,0 +1,162 @@
+From c82dffff30ffe62defcb75d5c096e85ed4b17b92 Mon Sep 17 00:00:00 2001
+From: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Date: Wed, 9 Feb 2022 10:47:37 +0200
+Subject: [PATCH 06/43] fsl_dspi: Get DSPI clock from device tree
+
+Issue: ALB-8489
+Upstream-Status: Pending 
+
+Signed-off-by: Ciprian Costea <ciprianmarian.costea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/soc.c |  6 -----
+ arch/arm/dts/fsl-s32-gen1.dtsi        | 12 +++++++++
+ drivers/spi/fsl_dspi.c                | 36 +++++++++++++++++++++++++++
+ 3 files changed, 48 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+index 93194fdf1a..58f2bb7698 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/soc.c
+@@ -89,12 +89,6 @@ unsigned int mxc_get_clock(enum mxc_clock clk)
+ 	switch (clk) {
+ 	case MXC_UART_CLK:
+ 		return S32GEN1_LIN_BAUD_CLK_FREQ;
+-	case MXC_I2C_CLK:
+-		return s32gen1_get_plat_clk_rate(S32GEN1_CLK_XBAR_DIV3);
+-	case MXC_ESDHC_CLK:
+-		return s32gen1_get_plat_clk_rate(S32GEN1_CLK_SDHC);
+-	case MXC_DSPI_CLK:
+-		return s32gen1_get_plat_clk_rate(S32GEN1_CLK_SPI);
+ 	default:
+ 		break;
+ 	}
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index cc8128ede0..d3186f15e6 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -518,6 +518,8 @@
+ 		#size-cells = <0>;
+ 		compatible = "fsl,vf610-dspi";
+ 		reg = <0x0 0x401d4000 0x0 0x1000>;
++		clocks = <&clks S32GEN1_SCMI_CLK_SPI_MODULE>;
++		clock-names = "dspi";
+ 		num-cs = <8>;
+ 		status = "disabled";
+ 	};
+@@ -527,6 +529,8 @@
+ 		#size-cells = <0>;
+ 		compatible = "fsl,vf610-dspi";
+ 		reg = <0x0 0x401d8000 0x0 0x1000>;
++		clocks = <&clks S32GEN1_SCMI_CLK_SPI_MODULE>;
++		clock-names = "dspi";
+ 		num-cs = <5>;
+ 		status = "disabled";
+ 	};
+@@ -536,6 +540,8 @@
+ 		#size-cells = <0>;
+ 		compatible = "fsl,vf610-dspi";
+ 		reg = <0x0 0x401dc000 0x0 0x1000>;
++		clocks = <&clks S32GEN1_SCMI_CLK_SPI_MODULE>;
++		clock-names = "dspi";
+ 		num-cs = <5>;
+ 		status = "disabled";
+ 	};
+@@ -545,6 +551,8 @@
+ 		#size-cells = <0>;
+ 		compatible = "fsl,vf610-dspi";
+ 		reg = <0x0 0x402c8000 0x0 0x1000>;
++		clocks = <&clks S32GEN1_SCMI_CLK_SPI_MODULE>;
++		clock-names = "dspi";
+ 		num-cs = <5>;
+ 		status = "disabled";
+ 	};
+@@ -554,6 +562,8 @@
+ 		#size-cells = <0>;
+ 		compatible = "fsl,vf610-dspi";
+ 		reg = <0x0 0x402cc000 0x0 0x1000>;
++		clocks = <&clks S32GEN1_SCMI_CLK_SPI_MODULE>;
++		clock-names = "dspi";
+ 		num-cs = <5>;
+ 		status = "disabled";
+ 	};
+@@ -563,6 +573,8 @@
+ 		#size-cells = <0>;
+ 		compatible = "fsl,vf610-dspi";
+ 		reg = <0x0 0x402d0000 0x0 0x1000>;
++		clocks = <&clks S32GEN1_SCMI_CLK_SPI_MODULE>;
++		clock-names = "dspi";
+ 		num-cs = <5>;
+ 		status = "disabled";
+ 	};
+diff --git a/drivers/spi/fsl_dspi.c b/drivers/spi/fsl_dspi.c
+index 1cb912bbef..ab4089aa46 100644
+--- a/drivers/spi/fsl_dspi.c
++++ b/drivers/spi/fsl_dspi.c
+@@ -11,6 +11,7 @@
+  */
+ 
+ #include <common.h>
++#include <clk.h>
+ #include <dm.h>
+ #include <errno.h>
+ #include <common.h>
+@@ -188,6 +189,29 @@ static void dspi_halt(struct fsl_dspi_priv *priv, u8 halt)
+ 	dspi_write32(priv->flags, &priv->regs->mcr, mcr_val);
+ }
+ 
++#if defined(CONFIG_S32_GEN1)
++static ulong fsl_dspi_get_clk_freq(struct udevice *bus)
++{
++	struct clk clk;
++	const char *clk_name = "dspi";
++	int ret;
++
++	ret = clk_get_by_name(bus, clk_name, &clk);
++	if (ret) {
++		printf("Failed to get %s clock: %d\n", clk_name, ret);
++		return ret;
++	}
++
++	ret = clk_enable(&clk);
++	if (ret) {
++		printf("Failed to enable %s clock: %d\n", clk_name, ret);
++		return ret;
++	}
++
++	return clk_get_rate(&clk);
++}
++#endif
++
+ static void fsl_dspi_init_mcr(struct fsl_dspi_priv *priv, uint cfg_val)
+ {
+ 	/* halt DSPI module */
+@@ -511,6 +535,12 @@ struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs,
+ 
+ #ifdef CONFIG_M68K
+ 	dspi->priv.bus_clk = gd->bus_clk;
++#elif defined(CONFIG_S32_GEN1)
++	dspi->priv.bus_clk = fsl_dspi_get_clk_freq(dspi->slave.dev);
++	if (!dspi->priv.bus_clk) {
++		printf("Invalid clk rate: %u\n", dspi->priv.bus_clk);
++		return -EINVAL;
++	}
+ #else
+ 	dspi->priv.bus_clk = mxc_get_clock(MXC_DSPI_CLK);
+ #endif
+@@ -643,6 +673,12 @@ static int fsl_dspi_probe(struct udevice *bus)
+ 	priv->flags = plat->flags;
+ #ifdef CONFIG_M68K
+ 	priv->bus_clk = gd->bus_clk;
++#elif defined(CONFIG_S32_GEN1)
++	priv->bus_clk = fsl_dspi_get_clk_freq(bus);
++	if (!priv->bus_clk) {
++		printf("Invalid clk rate: %u\n", priv->bus_clk);
++		return -EINVAL;
++	}
+ #else
+ 	priv->bus_clk = mxc_get_clock(MXC_DSPI_CLK);
+ #endif
+-- 
+2.17.1
+

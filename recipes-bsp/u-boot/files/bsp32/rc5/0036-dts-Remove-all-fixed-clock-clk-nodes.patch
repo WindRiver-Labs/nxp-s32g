@@ -1,0 +1,230 @@
+From 78f08fa0c2bb979391f3195f44c233177009206a Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Thu, 10 Feb 2022 15:48:23 +0200
+Subject: [PATCH 36/43] dts: Remove all fixed-clock clk nodes
+
+Removed all "fixed-clock" clk nodes from s32* device-tree
+files, since they were unused.
+
+Issue: ALB-8352
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 103 ---------------------------------
+ arch/arm/dts/fsl-s32g.dtsi     |  54 -----------------
+ arch/arm/dts/fsl-s32r45.dts    |  18 ------
+ 3 files changed, 175 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index bbcde81de9..39495c6d3a 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -92,109 +92,6 @@
+ #endif
+ 	};
+ 
+-	fxosc: fxosc@40050000 {
+-		compatible = "fixed-clock", "fsl,s32gen1-fxosc";
+-		reg = <0x0 0x40050000 0x0 0x3000>;
+-		clock-frequency = <S32GEN1_FXOSC_FREQ>;
+-		#clock-cells = <1>;
+-	};
+-
+-	firc: firc@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <48000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	sirc: sirc@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <32000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	ftm0_ext: ftm0_ext@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <20000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	ftm1_ext: ftm1_ext@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <20000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	gmac0_ext_rx: gmac0_ext_rx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <25000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	gmac0_ext_tx: gmac0_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	gmac0_ext_ref: gmac0_ext_ref@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <50000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	gmac0_ext_ts: gmac0_ext_ts@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <200000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes0_lane0_ext_cdr: serdes0_lane0_ext_cdr@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes0_lane0_ext_tx: serdes0_lane0_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes0_lane1_ext_cdr: serdes0_lane1_ext_cdr@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes0_lane1_ext_tx: serdes0_lane1_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes1_lane0_ext_cdr: serdes1_lane0_ext_cdr@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes1_lane0_ext_tx: serdes1_lane0_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes1_lane1_ext_cdr: serdes1_lane1_ext_cdr@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	serdes1_lane1_ext_tx: serdes1_lane1_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+ 	firmware {
+ 		u-boot,dm-pre-reloc;
+ 
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index b2cc9a30e0..b535d95349 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -83,60 +83,6 @@
+ 		status = "disabled";
+ 	};
+ 
+-	pfe_mac0_ext_rx: pfe_mac0_ext_rx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <312500000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac0_ext_tx: pfe_mac0_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <300000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac0_ext_ref: pfe_mac0_ext_ref@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <50000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac1_ext_rx: pfe_mac1_ext_rx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <300000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac1_ext_tx: pfe_mac1_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <300000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac1_ext_ref: pfe_mac1_ext_ref@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <50000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac2_ext_rx: pfe_mac2_ext_rx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <300000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac2_ext_tx: pfe_mac2_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <300000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	pfe_mac2_ext_ref: pfe_mac2_ext_ref@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <50000000>;
+-		#clock-cells = <1>;
+-	};
+-
+ 	pfe: ethernet@46080000 {
+ 		compatible = "fsl,s32g274a-pfe";
+ 		reg = <0x0 0x46000000 0x0 0x1000000>;
+diff --git a/arch/arm/dts/fsl-s32r45.dts b/arch/arm/dts/fsl-s32r45.dts
+index eafb0a70e5..c2ae007ec4 100644
+--- a/arch/arm/dts/fsl-s32r45.dts
++++ b/arch/arm/dts/fsl-s32r45.dts
+@@ -41,24 +41,6 @@
+ 		};
+ 	};
+ 
+-	gmac1_ext_rx: gmac1_ext_rx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <25000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	gmac1_ext_tx: gmac1_ext_tx@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <125000000>;
+-		#clock-cells = <1>;
+-	};
+-
+-	gmac1_ext_ref: gmac1_ext_ref@0 {
+-		compatible = "fixed-clock";
+-		clock-frequency = <50000000>;
+-		#clock-cells = <1>;
+-	};
+-
+ 	siul2_0@4009C000 {
+ 		compatible = "simple-mfd";
+ 		status = "okay";
+-- 
+2.17.1
+

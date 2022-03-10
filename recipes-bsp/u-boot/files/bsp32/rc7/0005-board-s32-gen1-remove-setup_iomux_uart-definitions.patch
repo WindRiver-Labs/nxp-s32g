@@ -1,0 +1,38 @@
+From ce5ecbcaaf6ccfe1d904f42d199f27ff044e43bc Mon Sep 17 00:00:00 2001
+From: "Radu Pirea (NXP OSS)" <radu-nicolae.pirea@oss.nxp.com>
+Date: Wed, 9 Feb 2022 10:52:24 +0200
+Subject: [PATCH 05/51] board: s32-gen1: remove setup_iomux_uart* definitions
+
+Issue: ALB-8367
+
+Upstream-Status: Pending 
+
+Signed-off-by: Radu Pirea (NXP OSS) <radu-nicolae.pirea@oss.nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/board_common.h | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/board_common.h b/board/freescale/s32-gen1/board_common.h
+index 6899609a00..f13519e5b6 100644
+--- a/board/freescale/s32-gen1/board_common.h
++++ b/board/freescale/s32-gen1/board_common.h
+@@ -9,15 +9,6 @@
+ #include <config.h>
+ #include <asm/types.h>
+ 
+-void setup_iomux_uart(void);
+-
+-void setup_iomux_uart0_pc09_pc10(void);
+-
+-#if defined(CONFIG_TARGET_S32G274AEMU) || \
+-	defined(CONFIG_TARGET_S32G399AEMU)
+-void setup_iomux_uart1_pb09_pb10(void);
+-#endif
+-
+ #if CONFIG_IS_ENABLED(NETDEVICES)
+ void ft_enet_fixup(void *fdt);
+ u32 s32ccgmac_cfg_get_mode(int cardnum);
+-- 
+2.17.1
+

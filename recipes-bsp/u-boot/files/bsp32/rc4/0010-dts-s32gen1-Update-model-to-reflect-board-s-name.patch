@@ -1,0 +1,172 @@
+From ff7e90bd7b7bd45c0c6f8dd0523c23fa7b8ce82b Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 14 Jan 2022 15:45:16 +0200
+Subject: [PATCH 10/64] dts: s32gen1: Update 'model' to reflect board's name
+
+These values will be used by 'show_board_info' from 'common/board_info.c'
+to print board's name during U-Boot boot.
+
+Issue: ALB-8337
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32g.dtsi             | 2 +-
+ arch/arm/dts/fsl-s32g274a-sec-boot.dts | 5 ++++-
+ arch/arm/dts/fsl-s32g274aemu.dts       | 6 +++++-
+ arch/arm/dts/fsl-s32g274aevb.dts       | 7 ++++++-
+ arch/arm/dts/fsl-s32g274ardb2.dts      | 6 +++++-
+ arch/arm/dts/fsl-s32g399aemu.dts       | 3 ++-
+ arch/arm/dts/fsl-s32g3xxaevb.dts       | 6 +++++-
+ arch/arm/dts/fsl-s32r45.dts            | 2 +-
+ 8 files changed, 29 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index b5d48af8a9..9929bc8f2b 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -13,7 +13,7 @@
+ 
+ #include "fsl-s32-gen1.dtsi"
+ / {
+-	model = "NXP S32G2XX";
++	model = "NXP S32GXXX";
+ 	compatible = "fsl,s32g", "fsl,s32gen1", "arm,vexpress,v2p-aarch64",
+ 				"arm,vexpress";
+ 
+diff --git a/arch/arm/dts/fsl-s32g274a-sec-boot.dts b/arch/arm/dts/fsl-s32g274a-sec-boot.dts
+index 7dcfdbb9e6..98850bc458 100644
+--- a/arch/arm/dts/fsl-s32g274a-sec-boot.dts
++++ b/arch/arm/dts/fsl-s32g274a-sec-boot.dts
+@@ -1,6 +1,9 @@
++// SPDX-License-Identifier:     GPL-2.0+
++/*
++ * Copyright 2019,2022 NXP
++ */
+ /dts-v1/;
+ / {
+-	model = "S32xx public key";
+ 	compatible = "fsl,s32gen1";
+ 	signature {
+ 		key-boot_key {
+diff --git a/arch/arm/dts/fsl-s32g274aemu.dts b/arch/arm/dts/fsl-s32g274aemu.dts
+index 4f5e471651..01e5885ee8 100644
+--- a/arch/arm/dts/fsl-s32g274aemu.dts
++++ b/arch/arm/dts/fsl-s32g274aemu.dts
+@@ -1,11 +1,15 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  */
+ 
+ /dts-v1/;
+ #include "fsl-s32g274a.dtsi"
+ 
++/ {
++	model = "ZeBu model for NXP S32G274A";
++};
++
+ &usdhc0 {
+ 	status = "okay";
+ };
+diff --git a/arch/arm/dts/fsl-s32g274aevb.dts b/arch/arm/dts/fsl-s32g274aevb.dts
+index 503701b25c..a52368e8ae 100644
+--- a/arch/arm/dts/fsl-s32g274aevb.dts
++++ b/arch/arm/dts/fsl-s32g274aevb.dts
+@@ -1,8 +1,13 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  */
+ 
+ /dts-v1/;
+ #include "fsl-s32g274a.dtsi"
+ #include "fsl-s32gxxxaevb.dtsi"
++
++/ {
++	model = "NXP S32G2XXX-EVB";
++	compatible = "fsl,s32gen1", "arm,vexpress,v2p-aarch64", "arm,vexpress";
++};
+diff --git a/arch/arm/dts/fsl-s32g274ardb2.dts b/arch/arm/dts/fsl-s32g274ardb2.dts
+index 5d963c9cea..758de7b6e2 100644
+--- a/arch/arm/dts/fsl-s32g274ardb2.dts
++++ b/arch/arm/dts/fsl-s32g274ardb2.dts
+@@ -1,11 +1,15 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2019-2020 NXP
++ * Copyright 2019-2020,2022 NXP
+  */
+ 
+ /dts-v1/;
+ #include "fsl-s32g274ardb.dtsi"
+ 
++/ {
++	model = "NXP S32G274A-RDB2";
++};
++
+ /* PMIC */
+ &i2c4 {
+ 	pf5020_a {
+diff --git a/arch/arm/dts/fsl-s32g399aemu.dts b/arch/arm/dts/fsl-s32g399aemu.dts
+index f8bc534cab..2a5fc84ac0 100644
+--- a/arch/arm/dts/fsl-s32g399aemu.dts
++++ b/arch/arm/dts/fsl-s32g399aemu.dts
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  */
+ 
+ /dts-v1/;
+@@ -10,6 +10,7 @@
+ /delete-node/ &mem1;
+ /delete-node/ &mem2;
+ / {
++	model = "ZeBu model for NXP S32G399A";
+ 
+ 	mem1: memory@80000000 {
+ 		device_type = "memory";
+diff --git a/arch/arm/dts/fsl-s32g3xxaevb.dts b/arch/arm/dts/fsl-s32g3xxaevb.dts
+index 5aa6525028..587d831818 100644
+--- a/arch/arm/dts/fsl-s32g3xxaevb.dts
++++ b/arch/arm/dts/fsl-s32g3xxaevb.dts
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+- * Copyright 2021 NXP
++ * Copyright 2021-2022 NXP
+  */
+ 
+ /dts-v1/;
+@@ -8,6 +8,10 @@
+ #include "fsl-s32g3.dtsi"
+ #include "fsl-s32gxxxaevb.dtsi"
+ 
++/ {
++	model = "NXP S32G3XXX-EVB";
++};
++
+ &pcie0 {
+ 	no-check-serdes;
+ };
+diff --git a/arch/arm/dts/fsl-s32r45.dts b/arch/arm/dts/fsl-s32r45.dts
+index 1d0decec6f..b60486ed24 100644
+--- a/arch/arm/dts/fsl-s32r45.dts
++++ b/arch/arm/dts/fsl-s32r45.dts
+@@ -15,7 +15,7 @@
+ /dts-v1/;
+ #include "fsl-s32-gen1.dtsi"
+ / {
+-	model = "NXP S32R45";
++	model = "NXP S32R458-EVB";
+ 	compatible = "fsl,s32r45", "arm,vexpress,v2p-aarch64", "arm,vexpress";
+ 
+ 	aliases {
+-- 
+2.17.1
+

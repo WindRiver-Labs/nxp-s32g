@@ -1,0 +1,31 @@
+From 6f8b89b46db603758420689159ad074fdb723381 Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Tue, 25 Jan 2022 16:34:06 +0200
+Subject: [PATCH 47/64] tools: s32gen1image: Remove the gap between APP header
+ and APP code
+
+Issue: ALB-8431
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ tools/s32gen1image.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index dbb05b82c0..c2716285af 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -164,7 +164,7 @@ static struct program_image image_layout = {
+ 	},
+ 	.code = {
+ 		.offset = S32_AUTO_OFFSET,
+-		.alignment = 0x200U,
++		.alignment = 0x8U,
+ 		.size = 0,
+ 	},
+ };
+-- 
+2.17.1
+

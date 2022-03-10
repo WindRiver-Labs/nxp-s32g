@@ -1,0 +1,60 @@
+From 48e3595b5a128ae1281dade8cfd0f4fe95b62e8b Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Thu, 3 Feb 2022 17:36:50 +0200
+Subject: [PATCH 56/64] dts: s32-gen1: Move '/ddr' node to s32-gen1.dtsi file
+
+The '/ddr' node which serves as a signaling mechanism, from
+ATF through U-Boot to Linux (via DT), for enabling the ERR050543
+Erratum workaround driver, should be part of the fsl-s32-gen1.dtsi
+file, such that it is also present on S32R45 platforms.
+
+Also changed the compatible of the '/ddr' node to align with the
+compatible used in the Linux DT.
+
+Issue: ALB-8353
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/dts/fsl-s32-gen1.dtsi | 6 ++++++
+ arch/arm/dts/fsl-s32g.dtsi     | 6 ------
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm/dts/fsl-s32-gen1.dtsi b/arch/arm/dts/fsl-s32-gen1.dtsi
+index 0b19150664..29681580a4 100644
+--- a/arch/arm/dts/fsl-s32-gen1.dtsi
++++ b/arch/arm/dts/fsl-s32-gen1.dtsi
+@@ -219,6 +219,12 @@
+ 		};
+ 	};
+ 
++	ddr: ddr@403C0000 {
++		compatible = "fsl,s32gen1-ddr";
++		/* Will be modified by ATF */
++		status = "disabled";
++	};
++
+ 	clks: clks {
+ 		compatible = "fsl,s32-gen1-clocking";
+ 		#address-cells = <2>;
+diff --git a/arch/arm/dts/fsl-s32g.dtsi b/arch/arm/dts/fsl-s32g.dtsi
+index 9929bc8f2b..bf9b447f98 100644
+--- a/arch/arm/dts/fsl-s32g.dtsi
++++ b/arch/arm/dts/fsl-s32g.dtsi
+@@ -66,12 +66,6 @@
+ 		status = "okay";
+ 	};
+ 
+-	ddr: ddr@403C0000 {
+-		compatible = "fsl,s32gen1-ddr-err050543";
+-		/* Will be modified by ATF */
+-		status = "disabled";
+-	};
+-
+ 	pcie1: pcie@44100000 {
+ 		compatible = "fsl,s32gen1-pcie";
+ 		reg =
+-- 
+2.17.1
+
