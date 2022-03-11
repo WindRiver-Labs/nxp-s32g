@@ -30,9 +30,11 @@ EXTRA_OEMAKE += " \
 	CROSS_COMPILE=${TARGET_PREFIX} \
 "
 
+CFLAGS += "${HOST_CC_ARCH}${TOOLCHAIN_OPTIONS}"
+
 do_compile() {
     oe_runmake HSE_FWDIR=${S}/hse-fw  CFLAGS="${CFLAGS} -shared -fPIC -Wall -fno-builtin"
-    oe_runmake -C examples HSE_FWDIR=${S}/hse-fw LIBS="-L${STAGING_LIBDIR}/" INCLUDE="-I${STAGING_INCDIR}" LDFLAGS="${LDFLAGS} -lcrypto -lp11" "${HOST_CC_ARCH}${TOOLCHAIN_OPTIONS}"
+    oe_runmake -C examples HSE_FWDIR=${S}/hse-fw LIBS="-L${STAGING_LIBDIR}/" INCLUDE="-I${STAGING_INCDIR}" LDFLAGS="${LDFLAGS} -lcrypto -lp11"
 }
 
 do_install() {
