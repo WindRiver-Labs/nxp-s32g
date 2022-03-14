@@ -31,8 +31,8 @@ do_make_nxp_s32g2xx_wic() {
 addtask make_nxp_s32g2xx_wic after do_image_complete before do_build
 
 BOOTFS_EXTRA_CMD ?= "cp ustart.img evb.ustart.img; \
-    dd if=${DEPLOY_DIR_IMAGE}/${UBOOT_BINARY}-s32g274aevb of=evb.ustart.img conv=notrunc bs=256 count=1 seek=0; \
-    dd if=${DEPLOY_DIR_IMAGE}/${UBOOT_BINARY}-s32g274aevb of=evb.ustart.img conv=notrunc bs=512 seek=1 skip=1; \
+    dd if=${DEPLOY_DIR_IMAGE}/${UBOOT_BINARY}-s32g2xxaevb of=evb.ustart.img conv=notrunc bs=256 count=1 seek=0; \
+    dd if=${DEPLOY_DIR_IMAGE}/${UBOOT_BINARY}-s32g2xxaevb of=evb.ustart.img conv=notrunc bs=512 seek=1 skip=1; \
     if [ -e ${DEPLOY_DIR_IMAGE}/${UBOOT_BINARY}-s32g274ardb2 ]; then \
         cp ustart.img rdb2.ustart.img; \
         if [ -n "${ATF_S32G_ENABLE}" ]; then \
