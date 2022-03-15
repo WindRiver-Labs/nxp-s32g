@@ -1,4 +1,4 @@
-DESCRIPTION = "NXP IPCF FIRMWARES"
+DESCRIPTION = "NXP LLCE FIRMWARES"
 PROVIDES += "llce"
 
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
@@ -10,15 +10,10 @@ inherit deploy
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
 
-FW_INSTALL_DIR = "${D}/lib/firmware"
-FW_INSTALL_DTE_NAME ?= "dte.bin"
-FW_INSTALL_FRPE_NAME ?= "frpe.bin"
-FW_INSTALL_PPE-TX_NAME ?= "ppe_tx.bin"
-FW_INSTALL_PPE-RX_NAME ?= "ppe_rx.bin"
-LLCE_LOCAL_FIRMWARE_DIR ?= "."
 
 SRC_URI = " \
 	file://${LLCE_LOCAL_FIRMWARE_DIR} \
+	file://${LLCE_LOCAL_FIRMWARE_DIR_S32G3} \
 	file://LIENCES.txt \
 "
 
@@ -33,65 +28,84 @@ S = "${WORKDIR}"
 
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
+LLCE_FW_PLAT_FOLDERS ?= "${LLCE_FW_S32G2} ${LLCE_FW_S32G3}"
+
 do_install() {
 
-        echo  ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME} ];then
-                mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_DTE_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_DTE_NAME}"
-        fi
+	for folder in ${LLCE_FW_PLAT_FOLDERS}; do
 
-        echo ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME} ];then
-                mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_FRPE_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_FRPE_NAME}"
-        fi
+		mkdir -p "${FW_INSTALL_DIR}/${folder}"
+		if [ "${folder}" = "${LLCE_FW_S32G3}" ]; then
+			src_dir=${LLCE_LOCAL_FIRMWARE_DIR_S32G3}
+		else
+			src_dir=${LLCE_LOCAL_FIRMWARE_DIR}
+		fi
 
-        echo ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME} ];then
-                mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-TX_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_PPE-TX_NAME}"
-        fi
+		dst_dir=${FW_INSTALL_DIR}/${folder}
+		for bin in ${LLCE_FW_BIN_LIST}; do
+			install -D "${src_dir}/${bin}" "${dst_dir}/${bin}"
+		done
+	done
 
-        echo ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME}
-        if [ -f ${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME} ];then
-                mkdir -p "${FW_INSTALL_DIR}"
-                install -D "${LLCE_LOCAL_FIRMWARE_DIR}/${FW_INSTALL_PPE-RX_NAME}" "${FW_INSTALL_DIR}/${FW_INSTALL_PPE-RX_NAME}"
-        fi
 }
 
 do_deploy() {
 
-        install -d ${DEPLOYDIR}
+	for folder in ${LLCE_FW_PLAT_FOLDERS}; do
 
-        if [ -f ${FW_INSTALL_DIR}/${FW_INSTALL_DTE_NAME} ];then
-                install -m 0644 ${FW_INSTALL_DIR}/${FW_INSTALL_DTE_NAME} ${DEPLOYDIR}/${FW_INSTALL_DTE_NAME}
-        fi
+        	install -d ${DEPLOYDIR}/${folder}
+	        src_dir=${FW_INSTALL_DIR}/${folder}
+        	dst_dir=${DEPLOYDIR}/${folder}
 
-        if [ -f ${FW_INSTALL_DIR}/${FW_INSTALL_FRPE_NAME} ];then
-                install -m 0644 ${FW_INSTALL_DIR}/${FW_INSTALL_FRPE_NAME} ${DEPLOYDIR}/${FW_INSTALL_FRPE_NAME}
-        fi
-
-	if [ -f ${FW_INSTALL_DIR}/${FW_INSTALL_PPE-TX_NAME} ];then
-                install -m 0644 ${FW_INSTALL_DIR}/${FW_INSTALL_PPE-TX_NAME} ${DEPLOYDIR}/${FW_INSTALL_PPE-TX_NAME}
-        fi
-
-	if [ -f ${FW_INSTALL_DIR}/${FW_INSTALL_PPE-RX_NAME} ];then
-                install -m 0644 ${FW_INSTALL_DIR}/${FW_INSTALL_PPE-RX_NAME} ${DEPLOYDIR}/${FW_INSTALL_PPE-RX_NAME}
-        fi
+	        for bin in ${LLCE_FW_BIN_LIST}; do
+        	        install -m 0644 "${src_dir}/${bin}" "${dst_dir}/${bin}"
+	        done
+	done
 
 }
 
-addtask do_deploy after do_install
+
+pkg_postinst_ontarget_${PN} () {
+
+bins="dte.bin frpe.bin ppe_tx.bin ppe_rx.bin"
+for bin in ${bins}; do
+        if [ -f "/lib/firmware/${bin}" ]; then
+                continue
+        fi
+
+	if grep -q "s32g3" /sys/firmware/devicetree/base/compatible ; then
+                ln -s /lib/firmware/llce_fw_s32g3/${bin} /lib/firmware/${bin}
+        else
+                ln -s /lib/firmware/llce_fw_s32g2/${bin} /lib/firmware/${bin}
+        fi
+
+done
+
+mod_list="llce_can llce_core llce_mailbox"
+for mod in $mod_list; do
+        if grep -wq "^$mod" /proc/modules ; then
+                rmmod $mod;
+        fi
+done
+
+for mod in $mod_list; do
+        modprobe $mod
+done
+
+}
 
 # do_package_qa throws error "QA Issue: Architecture did not match"
 # when checking the firmware
 do_package_qa[noexec] = "1"
 do_package_qa_setscene[noexec] = "1"
 
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_DTE_NAME}"
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_FRPE_NAME}"
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_PPE-TX_NAME}"
-FILES_${PN} += "/lib/firmware/${FW_INSTALL_PPE-RX_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G2}/${FW_INSTALL_DTE_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G2}/${FW_INSTALL_FRPE_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G2}/${FW_INSTALL_PPE-TX_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G2}/${FW_INSTALL_PPE-RX_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_DTE_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_FRPE_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_PPE-TX_NAME}"
+FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_PPE-RX_NAME}"
 
 COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"

@@ -1,0 +1,15 @@
+FW_ROOTFS_DIR = "lib/firmware"
+FW_INSTALL_DIR = "${D}/${FW_ROOTFS_DIR}"
+
+FW_INSTALL_DTE_NAME ?= "dte.bin"
+FW_INSTALL_FRPE_NAME ?= "frpe.bin"
+FW_INSTALL_PPE-TX_NAME ?= "ppe_tx.bin"
+FW_INSTALL_PPE-RX_NAME ?= "ppe_rx.bin"
+LLCE_FW_BIN_LIST ?= "${FW_INSTALL_DTE_NAME} ${FW_INSTALL_FRPE_NAME} ${FW_INSTALL_PPE-TX_NAME} ${FW_INSTALL_PPE-RX_NAME}"
+LLCE_LOCAL_FIRMWARE_DIR ?= "."
+LLCE_LOCAL_FIRMWARE_DIR_S32G3 ?= "."
+
+#LLCE_FW_S32G3 is the dir name of S32G3 firmwares in build deploy path
+LLCE_FW_S32G2 ?= "llce_fw_s32g2"
+LLCE_FW_S32G3 ?= "llce_fw_s32g3"
+
