@@ -238,7 +238,6 @@ SRC_URI += " \
     file://bsp32/rc7/0050-scripts-Remove-unused-configs-from-config_whitelist..patch \
     file://bsp32/rc7/0051-s32-Replace-CONFIG_SYS_FSL-with-CONFIG_SYS_FLASH.patch \
     file://bsp32/rc8/0001-s32-gen1-env-Rename-u-boot-flashaddr-to-fip-flashadd.patch \
-    file://0001-configs-s32g274aevb-add-HSE_SECBOOT-config-for-HSE-t.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
     file://0001-scripts-mailmapper-python2-python3.patch \
     file://0001-Makefile-add-.cfgout-file-dependency-to-fix-atf-buil.patch \

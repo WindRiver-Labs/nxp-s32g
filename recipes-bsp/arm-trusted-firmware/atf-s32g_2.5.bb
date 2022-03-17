@@ -115,7 +115,7 @@ SRC_URI += " \
     file://bsp32/rc7/0005-s32-Adapt-BL33-entry-point-and-dtb-location.patch \
 "
 
-PLATFORM_nxp-s32g2xx = "s32g274ardb2 s32g399ardb3"
+PLATFORM_nxp-s32g2xx = "s32g2xxaevb s32g274ardb2 s32g399ardb3"
 BUILD_TYPE = "release"
 ATF_S32G_ENABLE = "1"
 
