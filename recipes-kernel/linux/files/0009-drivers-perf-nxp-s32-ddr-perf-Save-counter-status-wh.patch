@@ -1,0 +1,37 @@
+From 1919d93d6e96c4905c15edd39312ae9deca5dd81 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Fri, 18 Mar 2022 04:30:51 +0200
+Subject: [PATCH 09/11] drivers/perf: nxp-s32-ddr-perf: Save counter status
+ when disabling it
+
+Updated the counter disable flow to not completely overwrite the counter
+status register, but only to set the CNTR_EN bit to 0.
+
+Issue: ALB-8492
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/perf/nxp-s32-ddr-perf.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/perf/nxp-s32-ddr-perf.c b/drivers/perf/nxp-s32-ddr-perf.c
+index 6241d0cdd928..a5f29548b6c4 100644
+--- a/drivers/perf/nxp-s32-ddr-perf.c
++++ b/drivers/perf/nxp-s32-ddr-perf.c
+@@ -284,8 +284,9 @@ static void ddr_perf_counter_enable(struct ddr_pmu *pmu, int config,
+ 		val |= FIELD_PREP(CNTL_CSV_MASK, config);
+ 		iowrite32(val, pmu->base + reg);
+ 	} else {
+-		/* Disable counter */
+-		iowrite32(0, pmu->base + reg);
++		/* Disable counter without resetting it */
++		val = ioread32(pmu->base + reg) & CNTL_EN_MASK;
++		iowrite32(val, pmu->base + reg);
+ 	}
+ }
+ 
+-- 
+2.17.1
+

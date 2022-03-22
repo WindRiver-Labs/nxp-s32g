@@ -1,0 +1,42 @@
+From 8e93345ba6644ccbc15b52840113c565199c5998 Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Fri, 18 Mar 2022 14:59:45 +0200
+Subject: [PATCH 05/11] drivers/perf: nxf-s32-ddr-perf: Sort include statements
+
+Issue: ALB-8492
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/perf/nxp-s32-ddr-perf.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/perf/nxp-s32-ddr-perf.c b/drivers/perf/nxp-s32-ddr-perf.c
+index 8580401acced..1a59e4a8315e 100644
+--- a/drivers/perf/nxp-s32-ddr-perf.c
++++ b/drivers/perf/nxp-s32-ddr-perf.c
+@@ -6,15 +6,15 @@
+  * Copyright 2017,2020,2022 NXP
+  */
+ 
+-#include <linux/kernel.h>
+-#include <linux/module.h>
+-#include <linux/platform_device.h>
+-#include <linux/interrupt.h>
+-#include <linux/mod_devicetable.h>
+ #include <linux/bitfield.h>
++#include <linux/interrupt.h>
+ #include <linux/init.h>
+ #include <linux/io.h>
++#include <linux/kernel.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
+ #include <linux/perf_event.h>
++#include <linux/platform_device.h>
+ #include <linux/slab.h>
+ 
+ #define COUNTER_CNTL		0x0
+-- 
+2.17.1
+

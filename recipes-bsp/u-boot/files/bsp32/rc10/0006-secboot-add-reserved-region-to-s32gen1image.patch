@@ -1,0 +1,103 @@
+From e5d9b759e33ff20def6527c711e4269a472d7eda Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Mon, 14 Mar 2022 12:49:14 +0200
+Subject: [PATCH 6/7] secboot: add reserved region to s32gen1image
+
+add reserved region for fip signature
+
+Issue:ALB-8405
+Upstream-Status: Pending 
+
+Signed-off-by: Vlad Pelin <vlad.pelin@nxp.com>
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c |  4 +++-
+ include/hse/hse_abi.h                             |  2 +-
+ tools/s32gen1image.c                              | 15 +++++++++++++++
+ tools/s32gen1image.h                              |  1 +
+ 4 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
+index 2457b29ec4..73c2d2b20c 100644
+--- a/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
++++ b/arch/arm/cpu/armv8/s32/s32-gen1/hse_adv_secboot.c
+@@ -450,7 +450,9 @@ static int do_hse_secboot_enable(cmd_tbl_t *cmdtp, int flag,
+ 		goto out;
+ 	}
+ 
+-	ret = hse_mmc_read((void *)priv->fip_signature, 1, 1);
++	/* read signature */
++	ret = hse_mmc_read((void *)priv->fip_signature,
++			   (HSE_AUTH_TAG_OFFSET / 512), 1);
+ 	if (ret) {
+ 		printf("ERROR: FIP signature read failed!\n");
+ 		goto out;
+diff --git a/include/hse/hse_abi.h b/include/hse/hse_abi.h
+index 1233e4b859..cd3512e16f 100644
+--- a/include/hse/hse_abi.h
++++ b/include/hse/hse_abi.h
+@@ -28,7 +28,7 @@
+ 
+ #define HSE_SYS_IMG_MAX_SIZE 0xC000u
+ #define HSE_FIP_AUTH_LEN     0x100u
+-#define HSE_AUTH_TAG_OFFSET  0x200u
++#define HSE_AUTH_TAG_OFFSET  0x1200u
+ 
+ #define HSE_IVT_BLK      8
+ 
+diff --git a/tools/s32gen1image.c b/tools/s32gen1image.c
+index 7c16c1a692..e9ba43ac7d 100644
+--- a/tools/s32gen1image.c
++++ b/tools/s32gen1image.c
+@@ -177,6 +177,11 @@ static struct program_image image_layout = {
+ 		.alignment = 0x8U,
+ 		.size = 0,
+ 	},
++	.reserved = {
++		.offset = 0x1200,
++		.alignment = 0x8U,
++		.size = 0x200,
++	},
+ };
+ 
+ static const uint32_t *get_dcd_data(size_t *size)
+@@ -491,6 +496,15 @@ get_image_hse_sys_img(struct program_image *program_image)
+ 	return NULL;
+ }
+ 
++static struct image_comp *
++get_reserved_area(struct program_image *program_image)
++{
++	if (iconfig.secboot.enable)
++		return &program_image->reserved;
++
++	return NULL;
++}
++
+ static struct image_comp *
+ get_image_mbr(struct program_image *program_image)
+ {
+@@ -555,6 +569,7 @@ static int s32g2xx_build_layout(struct program_image *program_image,
+ 		get_image_dcd(program_image),
+ 		get_image_hse_fw(program_image),
+ 		get_image_hse_sys_img(program_image),
++		get_reserved_area(program_image),
+ 	};
+ 	size_t last_comp = ARRAY_SIZE(parts) - 1;
+ 
+diff --git a/tools/s32gen1image.h b/tools/s32gen1image.h
+index e8869d0ffa..7d3f224ea2 100644
+--- a/tools/s32gen1image.h
++++ b/tools/s32gen1image.h
+@@ -108,6 +108,7 @@ struct program_image {
+ 	struct image_comp hse_sys_img;
+ 	struct image_comp app_code;
+ 	struct image_comp code;
++	struct image_comp reserved;
+ 	__u8 *header;
+ };
+ 
+-- 
+2.17.1
+

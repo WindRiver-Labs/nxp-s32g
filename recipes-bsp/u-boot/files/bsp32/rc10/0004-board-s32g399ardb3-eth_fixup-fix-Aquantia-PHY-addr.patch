@@ -1,0 +1,53 @@
+From 75161d736dcc895fd4fa0f0fcb4f5d65fe8a8904 Mon Sep 17 00:00:00 2001
+From: Jan Petrous <jan.petrous@nxp.com>
+Date: Fri, 4 Mar 2022 09:24:14 +0100
+Subject: [PATCH 4/7] board:s32g399ardb3:eth_fixup: fix Aquantia PHY addr
+
+AQR113C on RDB3 has addr 0x08
+
+When in, enable pfe1 over SGMII.
+
+Issue: ALB-8568
+Upstream-Status: Pending 
+
+Signed-off-by: Jan Petrous <jan.petrous@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ board/freescale/s32-gen1/s32gxxxardb.c | 2 +-
+ include/configs/s32.h                  | 6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/board/freescale/s32-gen1/s32gxxxardb.c b/board/freescale/s32-gen1/s32gxxxardb.c
+index 985196a748..9b33bf92cb 100644
+--- a/board/freescale/s32-gen1/s32gxxxardb.c
++++ b/board/freescale/s32-gen1/s32gxxxardb.c
+@@ -101,7 +101,7 @@ int board_late_init(void)
+ 			env_set("pfe1_phy_addr", "8");
+ 			break;
+ 		case 'E':
+-			env_set("pfe1_phy_addr", "1");
++			env_set("pfe1_phy_addr", "8");
+ 			break;
+ 		default:
+ 			env_set("pfe1_phy_addr", NULL);
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 7481ec970e..13b06d6efb 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -151,8 +151,12 @@
+ #define PFENG_EMAC "1"
+ #endif
+ #ifdef CONFIG_NXP_S32GRDB_BOARD
++#ifdef CONFIG_NXP_S32G3XX
++#define PFENG_MODE "enable,sgmii,sgmii,rgmii"
++#else
+ #define PFENG_MODE "enable,sgmii,none,rgmii"
+-#define PFENG_EMAC "2"
++#endif
++#define PFENG_EMAC "0"
+ #endif
+ #ifdef CONFIG_TARGET_S32G274ABLUEBOX3
+ #define PFENG_MODE "enable,sgmii,none,none"
+-- 
+2.17.1
+

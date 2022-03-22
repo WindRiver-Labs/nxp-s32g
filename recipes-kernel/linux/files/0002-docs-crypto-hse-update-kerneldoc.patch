@@ -1,0 +1,52 @@
+From 1e4caae81aad48e2979c614584c6b42bc60a1c74 Mon Sep 17 00:00:00 2001
+From: Bogdan Folea <bogdan.folea@nxp.com>
+Date: Fri, 11 Mar 2022 11:53:00 +0200
+Subject: [PATCH 02/11] docs: crypto: hse: update kerneldoc
+
+Issue: ALB-8645
+Upstream-Status: Pending 
+
+Signed-off-by: Bogdan Folea <bogdan.folea@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ Documentation/crypto/fsl/hse.rst | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/Documentation/crypto/fsl/hse.rst b/Documentation/crypto/fsl/hse.rst
+index 8c627e534649..2458ad878733 100644
+--- a/Documentation/crypto/fsl/hse.rst
++++ b/Documentation/crypto/fsl/hse.rst
+@@ -4,11 +4,11 @@
+ HSE crypto offloading engine driver
+ ===================================
+ 
+-:Copyright: 2019-2021 NXP
++:Copyright: 2019-2022 NXP
+ 
+ Overview
+ ========
+-The NXP Hardware Security Engine is a security subsystem aimed ar running
++The NXP Hardware Security Engine is a security subsystem aimed at running
+ relevant security functions for applications with stringent confidentiality
+ and authenticity requirements. This file contains general information about
+ the HSE crypto driver, which provides support for offloading cryptographic
+@@ -20,6 +20,7 @@ This driver provides cryptographic offloading support for the
+ following NXP processors:
+ 
+ - S32G274A
++- S32G399A
+ - S32R45
+ 
+ Supported Algorithms
+@@ -88,8 +89,5 @@ Known Limitations
+ =================
+ This driver is affected by the following known issues:
+ 
+-- The crypto driver does not currently support the RNG non-blocking mode of
+-  operation (the wait parameter from hwrng_read is ignored).
+-
+ - With standard firmware, hmac(sha384) and hmac(sha512) are not supported with
+   keys between 64 and 128 bytes in length due to the firmware-imposed limits.
+-- 
+2.17.1
+

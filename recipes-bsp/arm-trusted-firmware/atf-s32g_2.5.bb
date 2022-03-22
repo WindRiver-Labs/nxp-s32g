@@ -113,6 +113,9 @@ SRC_URI += " \
     file://bsp32/rc7/0003-s32-ddr-Add-IO-Retention-fix-firmware-code.patch \
     file://bsp32/rc7/0004-s32r-psci-Implement-pwr_domain_pwr_down_wfi-callback.patch \
     file://bsp32/rc7/0005-s32-Adapt-BL33-entry-point-and-dtb-location.patch \
+    file://bsp32/rc10/0001-plat-nxp-s32-Force-boot_info.c-regeneration.patch \
+    file://bsp32/rc10/0002-secboot-add-FIRC_FREQ-define.patch \
+    file://bsp32/rc10/0003-secboot-add-support-for-atf-fip-boot.patch \
 "
 
 PLATFORM_nxp-s32g2xx = "s32g2xxaevb s32g274ardb2 s32g399ardb3"

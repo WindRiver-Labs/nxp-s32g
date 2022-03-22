@@ -238,6 +238,13 @@ SRC_URI += " \
     file://bsp32/rc7/0050-scripts-Remove-unused-configs-from-config_whitelist..patch \
     file://bsp32/rc7/0051-s32-Replace-CONFIG_SYS_FSL-with-CONFIG_SYS_FLASH.patch \
     file://bsp32/rc8/0001-s32-gen1-env-Rename-u-boot-flashaddr-to-fip-flashadd.patch \
+    file://bsp32/rc10/0001-tools-Initialize-S32GEN1-image-components.patch \
+    file://bsp32/rc10/0002-include-configs-Correct-fip.s32-update-instructions.patch \
+    file://bsp32/rc10/0003-configs-Fix-S32G274A-BlueBox-compilation.patch \
+    file://bsp32/rc10/0004-board-s32g399ardb3-eth_fixup-fix-Aquantia-PHY-addr.patch \
+    file://bsp32/rc10/0005-secboot-add-support-for-atf-fip-boot.patch \
+    file://bsp32/rc10/0006-secboot-add-reserved-region-to-s32gen1image.patch \
+    file://bsp32/rc10/0007-s32-serdes-hwconfig-Add-skip-option-to-hwconfig.patch \
     file://0001-Make-s32g274ardb2-and-s32g2xxaevb-support-ostree.patch \
     file://0001-scripts-mailmapper-python2-python3.patch \
     file://0001-Makefile-add-.cfgout-file-dependency-to-fix-atf-buil.patch \

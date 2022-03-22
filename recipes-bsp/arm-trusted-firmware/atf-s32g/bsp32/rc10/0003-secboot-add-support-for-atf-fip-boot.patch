@@ -1,0 +1,169 @@
+From b6b0419ec2d8cf84d1bf17cb3cd13d16558d639f Mon Sep 17 00:00:00 2001
+From: Vlad Pelin <vlad.pelin@nxp.com>
+Date: Tue, 15 Mar 2022 15:34:29 +0200
+Subject: [PATCH 3/3] secboot: add support for atf fip boot
+
+add support for fip auth
+fix clock issue with boot_seq and hse
+
+Issue: ALB-8405
+Upstream-Status: Pending 
+
+Signed-off-by: Vlad Pelin <vlad.pelin@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ drivers/nxp/s32/clk/early_clocks.c | 16 ++++++++++++++++
+ plat/nxp/s32/s32_bl2_el3.c         | 29 +++++++++++++++++++++++++++++
+ plat/nxp/s32/s32_common.mk         | 21 +++++++++++++++++++++
+ 3 files changed, 66 insertions(+)
+
+diff --git a/drivers/nxp/s32/clk/early_clocks.c b/drivers/nxp/s32/clk/early_clocks.c
+index e9ff530b9..ba7071c02 100644
+--- a/drivers/nxp/s32/clk/early_clocks.c
++++ b/drivers/nxp/s32/clk/early_clocks.c
+@@ -54,6 +54,7 @@ static struct clk mc_cgm1_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM1_MUX0);
+ static struct clk a53_clk = CLK_INIT(S32GEN1_CLK_A53_CORE);
+ 
+ /* XBAR clock */
++static struct clk firc = CLK_INIT(S32GEN1_CLK_FIRC);
+ static struct clk arm_dfs1 = CLK_INIT(S32GEN1_CLK_ARM_PLL_DFS1);
+ static struct clk mc_cgm0_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX0);
+ static struct clk xbar_2x = CLK_INIT(S32GEN1_CLK_XBAR_2X);
+@@ -85,6 +86,17 @@ static struct clk ddr = CLK_INIT(S32GEN1_CLK_DDR);
+ 
+ static const struct siul2_freq_mapping *early_freqs;
+ 
++static int switch_xbar_to_firc(void)
++{
++	int ret;
++
++	ret = s32gen1_set_parent(&mc_cgm0_mux0, &firc);
++	if (ret)
++		return ret;
++
++	return s32gen1_enable(&xbar_2x, 1);
++}
++
+ static int enable_xbar_clock(void)
+ {
+ 	int ret;
+@@ -257,6 +269,10 @@ int s32_plat_clock_init(bool skip_ddr_clk)
+ {
+ 	int ret;
+ 
++	ret = switch_xbar_to_firc();
++	if (ret)
++		return ret;
++
+ 	ret = s32_enable_a53_clock();
+ 	if (ret)
+ 		return ret;
+diff --git a/plat/nxp/s32/s32_bl2_el3.c b/plat/nxp/s32/s32_bl2_el3.c
+index d97eb2c89..340ed37e2 100644
+--- a/plat/nxp/s32/s32_bl2_el3.c
++++ b/plat/nxp/s32/s32_bl2_el3.c
+@@ -252,6 +252,31 @@ static int disable_qspi_mmu_entry(void)
+ 	return 0;
+ }
+ 
++#ifdef HSE_SECBOOT
++static size_t get_fip_size(void)
++{
++	static const uuid_t uuid_null = { {0} };
++	uintptr_t fip_hdr_start, fip_hdr_end;
++	fip_toc_header_t *toc_header;
++	fip_toc_entry_t *toc_entry;
++
++	fip_hdr_start = get_fip_hdr_base();
++	fip_hdr_end = fip_hdr_start + fip_hdr_size;
++
++	toc_header = (fip_toc_header_t *)fip_hdr_start;
++	toc_entry = (fip_toc_entry_t *)(toc_header + 1);
++
++	while ((uintptr_t)toc_entry < fip_hdr_end) {
++		if (!compare_uuids(&toc_entry->uuid, &uuid_null))
++			break;
++
++		toc_entry++;
++	}
++
++	return (size_t)toc_entry->offset_address;
++}
++#endif
++
+ int s32_el3_mmu_fixup(void)
+ {
+ 	const unsigned long code_start = BL_CODE_BASE;
+@@ -275,7 +300,11 @@ int s32_el3_mmu_fixup(void)
+ 		{
+ 			.base_pa = get_fip_hdr_page(),
+ 			.base_va = get_fip_hdr_page(),
++#ifdef HSE_SECBOOT
++			.size = MMU_ROUND_UP_TO_PAGE(get_fip_size()),
++#else
+ 			.size = BL2_BASE - get_fip_hdr_page(),
++#endif
+ 			.attr = MT_RO | MT_MEMORY | MT_SECURE,
+ 		},
+ 	};
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index c6cf0c2ee..4bc42e7f3 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -182,6 +182,11 @@ $(eval $(call add_define_val,S32_HAS_HV,$(S32_HAS_HV)))
+ S32_SET_NEAREST_FREQ	?= 0
+ $(eval $(call add_define_val,S32_SET_NEAREST_FREQ,$(S32_SET_NEAREST_FREQ)))
+ 
++# Process HSE_SECBOOT flag
++ifneq (${HSE_SECBOOT},)
++$(eval $(call add_define,HSE_SECBOOT))
++endif
++
+ # Reserve some space at the end of SRAM for external apps and include it
+ # in the calculation of FIP_BASE address.
+ EXT_APP_SIZE		:= 0x100000
+@@ -360,6 +365,12 @@ ${DTB_SIZE_FILE}: dtbs
+ ${BL2_W_DTB}: bl2 dtbs ${DTB_SIZE_FILE}
+ 	@cp ${BUILD_PLAT}/fdts/${DTB_FILE_NAME} $@
+ 	@dd if=${BUILD_PLAT}/bl2.bin of=$@ seek=$$(printf "%d" ${DTB_SIZE}) status=none oflag=seek_bytes
++ifneq (${HSE_SECBOOT},)
++	${Q}PADDINGHEX=$$($(call hexfilesize,${BUILD_PLAT}/bl2.bin)); \
++	PADDING=$$(printf "%d" $${PADDINGHEX}); \
++	SEEKSIZE=$$(echo "$$(printf '%d' ${DTB_SIZE}) + $${PADDING}" | bc); \
++	dd if=/dev/zero of=$@ seek=$$SEEKSIZE bs=1 count=$$PADDING
++endif
+ 
+ ${BOOT_INFO_SRC}: ${FIP_SD_OFFSET_FILE} ${FIP_EMMC_OFFSET_FILE} ${FIP_QSPI_OFFSET_FILE} ${FIP_MEMORY_OFFSET_FILE} ${FIP_HDR_SIZE_FILE} ${DTB_SIZE_FILE} FORCE
+ 	${Q}${ECHO} "  CREATE  $@"
+@@ -377,10 +388,16 @@ ${BL2_W_DTB_SIZE_FILE}: ${BL2_W_DTB}
+ ${MKIMAGE_FIP_CONF_FILE}: ${BL2_W_DTB_SIZE_FILE} ${FIP_HDR_SIZE_FILE} FORCE
+ 	${Q}${ECHO} "  CREATE  $@"
+ 	${Q}cp -f ${MKIMAGE_CFG} $@
++ifneq (${HSE_SECBOOT},)
++	${Q}ACTUAL_FIP_SIZE=$$($(call hexfilesize,${BUILD_PLAT}/${FIP_NAME})); \
++	T_SIZE=$$(printf "0x%x" $${ACTUAL_FIP_SIZE}); \
++	echo "DATA_FILE SIZE $$T_SIZE" >> $@
++else
+ 	${Q}BL2_W_DTB_SIZE=$$(cat ${BL2_W_DTB_SIZE_FILE}); \
+ 	HDR_SIZE=$$(cat ${FIP_HDR_SIZE_FILE}); \
+ 	T_SIZE=0x$$($(call hexbc, $${BL2_W_DTB_SIZE}, +, $${HDR_SIZE})); \
+ 	echo "DATA_FILE SIZE $$T_SIZE" >> $@
++endif
+ 
+ FIP_ALIGN := 16
+ all: add_to_fip
+@@ -397,7 +414,11 @@ add_to_fip: fip ${BL2_W_DTB}
+ 		false; \
+ 	fi
+ 
++ifneq (${HSE_SECBOOT},)
++BL2_BASE		:= 0x34080000
++else
+ BL2_BASE		:= 0x34302000
++endif
+ $(eval $(call add_define,BL2_BASE))
+ 
+ all: call_mkimage
+-- 
+2.17.1
+

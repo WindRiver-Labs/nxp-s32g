@@ -1,0 +1,31 @@
+From 228d6eaab48d03bc80bf8714a0a7beffeabb2e8b Mon Sep 17 00:00:00 2001
+From: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Date: Fri, 11 Mar 2022 15:14:55 +0200
+Subject: [PATCH 2/7] include: configs: Correct fip.s32 update instructions
+
+Issue: ALB-8631
+Upstream-Status: Pending 
+
+Signed-off-by: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/configs/s32.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/include/configs/s32.h b/include/configs/s32.h
+index 4b51db8e9d..7481ec970e 100644
+--- a/include/configs/s32.h
++++ b/include/configs/s32.h
+@@ -249,7 +249,8 @@
+ 		"if mmc dev ${mmcdev}; then "	\
+ 			"if ${get_cmd} ${update_sd_firmware_filename}; then " \
+ 				"setexpr fw_sz ${filesize} / 0x200; " \
+-				"setexpr fw_sz ${fw_sz} + 1; "	\
++				"setexpr fw_sz ${fw_sz} - 7; "	\
++				"setexpr loadaddr ${loadaddr} + 0x1000; " \
+ 				"mmc write ${loadaddr} 0x8 ${fw_sz}; " \
+ 			"fi; "	\
+ 		"fi\0" \
+-- 
+2.17.1
+

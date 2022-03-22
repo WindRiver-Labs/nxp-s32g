@@ -1,0 +1,32 @@
+From 9cb4f59e46e48be1b7f3ca8f477a710e805fc7de Mon Sep 17 00:00:00 2001
+From: Vlad Pelin <vlad.pelin@nxp.com>
+Date: Tue, 15 Mar 2022 17:42:40 +0200
+Subject: [PATCH 2/3] secboot: add FIRC_FREQ define
+
+added S32GEN1_FIRC_FREQ define
+(changes to dt-bindings need to be separate)
+
+Issue: ALB-8405
+Upstream-Status: Pending 
+
+Signed-off-by: Vlad Pelin <vlad.pelin@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ include/dt-bindings/clock/s32gen1-clock-freq.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index 6badbcfd2..48dd50e78 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -10,6 +10,7 @@
+ /* Frequencies */
+ #define S32GEN1_PERIPH_PLL_VCO_FREQ		(2000 * MHZ)
+ #define S32GEN1_FXOSC_FREQ			(40 * MHZ)
++#define S32GEN1_FIRC_FREQ			(48 * MHZ)
+ #define S32GEN1_LIN_BAUD_CLK_FREQ		(125 * MHZ)
+ #define S32GEN1_SDHC_CLK_FREQ			(400 * MHZ)
+ #define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+-- 
+2.17.1
+

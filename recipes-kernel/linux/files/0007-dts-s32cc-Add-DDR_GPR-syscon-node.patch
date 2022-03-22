@@ -1,0 +1,37 @@
+From dcb559da7ab14d328158c0b79f851403ebf5a80b Mon Sep 17 00:00:00 2001
+From: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Date: Fri, 18 Mar 2022 14:24:14 +0200
+Subject: [PATCH 07/11] dts: s32cc: Add DDR_GPR syscon node
+
+Added a syscon node in the common chassis dts file for the DDR_GPR
+zone to be used by the DDR PMU device, since the DDR PMU depends
+on an interrupt enabled via the DDR_GPR regs.
+
+Issue: ALB-8492
+Upstream-Status: Pending 
+
+Signed-off-by: Andrei Cherechesu <andrei.cherechesu@nxp.com>
+Signed-off-by: Zhantao Tang <zhantao.tang@windriver.com>
+---
+ arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+index 6aeac9d9f8e8..bc1dc7ed0d3d 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
++++ b/arch/arm64/boot/dts/freescale/fsl-s32-gen1.dtsi
+@@ -1081,6 +1081,11 @@
+ 		status = "okay";
+ 	};
+ 
++	ddr_gpr: ddr_gpr@4007c600 {
++		compatible = "nxp,s32cc-ddr-gpr", "syscon";
++		reg = <0x0 0x4007c600 0x0 0x20>;
++	};
++
+ 	perf: ddr-perf@403e0000 {
+ 		compatible = "fsl,s32gen1-ddr-perf";
+ 		reg = <0x0 0x403e0000 0x0 0x100>;
+-- 
+2.17.1
+
