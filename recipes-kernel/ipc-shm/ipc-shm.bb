@@ -11,9 +11,9 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/BSD-3-Clause;md5=550794465ba0ec
 inherit module deploy
 
 URL ?= "git://source.codeaurora.org/external/autobsps32/ipcf/ipc-shm;protocol=https"
-BRANCH ?= "release/bsp30.0"
+BRANCH ?= "release/SW32G_IPCF_4.5.0_D2201"
 SRC_URI = "${URL};branch=${BRANCH}"
-SRCREV = "56d3710e01052a94ad9b6f559e0390d77c059277"
+SRCREV = "83dfaa42be111e0e8e70875f212659fe7f6a109c"
 
 
 S = "${WORKDIR}/git"
@@ -27,9 +27,6 @@ MODULES_MODULE_SYMVERS_LOCATION = "."
 IPCF_MOD_DEV_NAME = "ipc-shm-dev.ko"
 IPCF_MOD_SAMPLE_NAME = "ipc-shm-sample.ko"
 IPCF_MOD_UIO_NAME = "ipc-shm-uio.ko"
-
-IPCF_M7_APP_BIN_DIR ?= "."
-IPCF_M7_APP_BIN_NAME ?= "IPCF_Example_S32G274.bin"
 
 PROVIDES += "kernel-module-ipc-shm-sample"
 RPROVIDES_${PN} += "kernel-module-ipc-shm-sample"
@@ -55,9 +52,12 @@ module_do_install() {
 do_deploy() {
 	install -d ${DEPLOYDIR}
 
-	if [ -f ${IPCF_M7_APP_BIN_DIR}/${IPCF_M7_APP_BIN_NAME} ];then
-		install -m 0644  ${IPCF_M7_APP_BIN_DIR}/${IPCF_M7_APP_BIN_NAME} ${DEPLOYDIR}/${IPCF_M7_APP_BIN_NAME}
-	fi
+	bins="${IPCF_M7_APP_BIN_NAME} ${IPCF_M7_APP_BIN_NAME_S32G3}" 
+	for bin in $bins; do
+		if [ -f ${IPCF_M7_APP_BIN_DIR}/${bin} ];then
+			install -m 0644  ${IPCF_M7_APP_BIN_DIR}/${bin} ${DEPLOYDIR}/${bin}
+		fi
+	done
 }
 addtask do_deploy after do_install
 

@@ -742,11 +742,14 @@ this feature:
 		a> disable Data Cache from uboot:
 			=>dcache off
 		b> zero-set SRAM shared memory used by both sample apps:
-			=>initsram 0x34100000 0x700000
-		c> load IPCF_Example_S32G274.bin in SRAM:
-			=>fatload mmc 0:1 0x34300000 /IPCF_Example_S32G274.bin
+			=>mw.q 0x34000000 0x0 0x100000
+		c> load IPCF binary(IPCF_Example_S32G274_M7_0.bin for S32G2 
+		   or IPCF_Example_S32G399_M7_0.bin for S32G3) in SRAM:
+			=>fatload mmc 0:1 0x80000000 IPCF_Example_S32G274_M7_0.bin
+			=>cp.q 0x80000000 0x34300000 0x30000
+			=>dcache on;
 		d> start M7 core (the argument is the address of the Interrupt Vector):
-			=>startm7 0x34501000
+			=>startm7 0x34401000;
 		e> boot Linux:
 			=>boot
 
