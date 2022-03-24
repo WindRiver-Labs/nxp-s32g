@@ -367,6 +367,15 @@ NOTICE:
     there will be "hse-rng: no data available" message shown with HSE 0.8.5
     version firmware, and using 1.0.0 version HSE firmware can fix it.
 
+6.2.4 Known issues
+------------------
+
+For HSE feature, due to the board boot flow changed from uboot to ATF by
+default, and  HSE enablement flow changed accordingly, such that HSE is not
+available for now, and its support status will be updated when NXP SDK bsp32
+officially released.
+
+
 6.3 PFE
 -------
 
