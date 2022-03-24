@@ -131,10 +131,8 @@ EXTRA_OEMAKE += " \
 # FIXME: Allow linking of 'tools' binaries with native libraries
 #        used for generating the boot logo and other tools used
 #        during the build process.
-EXTRA_OEMAKE += 'HOSTCC="${BUILD_CC} ${BUILD_CPPFLAGS}" \
-                 HOSTLD="${BUILD_LD} -L${STAGING_BASE_LIBDIR_NATIVE} \
-                 -Wl,-rpath,${STAGING_LIBDIR_NATIVE} \
-                 -Wl,-rpath,${STAGING_BASE_LIBDIR_NATIVE}" \
+EXTRA_OEMAKE += 'HOSTCC="${BUILD_CC} ${BUILD_CPPFLAGS} ${BUILD_LDFLAGS}" \
+                 HOSTLD="${BUILD_LD}" \
                  LIBPATH="${STAGING_LIBDIR_NATIVE}" \
                  HOSTSTRIP=true'
 
