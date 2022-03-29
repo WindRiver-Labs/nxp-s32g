@@ -108,4 +108,4 @@ FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_FRPE_NAME}"
 FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_PPE-TX_NAME}"
 FILES_${PN} += "/lib/firmware/${LLCE_FW_S32G3}/${FW_INSTALL_PPE-RX_NAME}"
 
-COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
+COMPATIBLE_MACHINE_nxp-s32g = "nxp-s32g"

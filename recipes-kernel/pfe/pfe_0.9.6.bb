@@ -117,4 +117,4 @@ FILES:${PN} += "/lib/firmware/${FW_INSTALL_CLASS_NAME} \
 
 
 COMPATIBLE_MACHINE = "^$"
-COMPATIBLE_MACHINE:nxp-s32g2xx = "nxp-s32g2xx"
+COMPATIBLE_MACHINE:nxp-s32g = "nxp-s32g"

@@ -1,11 +1,11 @@
-require linux-yocto-nxp-s32g2xx.inc
+require linux-yocto-nxp-s32g.inc
 
-KBRANCH_nxp-s32g2xx  = "v5.10/standard/preempt-rt/nxp-sdk-5.10/nxp-s32g2xx"
+KBRANCH_nxp-s32g  = "v5.10/standard/preempt-rt/nxp-sdk-5.10/nxp-s32g2xx"
 
-LINUX_VERSION_nxp-s32g2xx ?= "5.10.x"
+LINUX_VERSION_nxp-s32g ?= "5.10.x"
 
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
-SRC_URI_append_nxp-s32g2xx = " \
+SRC_URI_append_nxp-s32g = " \
         file://0001-dt-bindings-crypto-hse-fix-MU-node-example.patch \
         file://0002-docs-crypto-hse-update-kerneldoc.patch \
         file://0003-gmac-s32-Fixed-a-bug-related-to-spliting-the-FCS-in-.patch \

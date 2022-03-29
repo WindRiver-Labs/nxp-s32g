@@ -325,4 +325,4 @@ do_compile_append() {
 	unset i
 }
 
-COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
+COMPATIBLE_MACHINE_nxp-s32g = "nxp-s32g"

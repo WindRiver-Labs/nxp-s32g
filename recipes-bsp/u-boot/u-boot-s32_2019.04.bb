@@ -33,4 +33,4 @@ UBOOT_INITIAL_ENV = ""
 USRC ?= ""
 S = '${@oe.utils.conditional("USRC", "", "${WORKDIR}/git", "${USRC}", d)}'
 
-COMPATIBLE_MACHINE_nxp-s32g2xx = "nxp-s32g2xx"
+COMPATIBLE_MACHINE_nxp-s32g = "nxp-s32g"

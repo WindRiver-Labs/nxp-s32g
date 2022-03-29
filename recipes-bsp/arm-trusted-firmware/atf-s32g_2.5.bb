@@ -118,7 +118,7 @@ SRC_URI += " \
     file://bsp32/rc10/0003-secboot-add-support-for-atf-fip-boot.patch \
 "
 
-PLATFORM_nxp-s32g2xx = "s32g2xxaevb s32g274ardb2 s32g399ardb3"
+PLATFORM_nxp-s32g = "s32g2xxaevb s32g274ardb2 s32g399ardb3"
 BUILD_TYPE = "release"
 ATF_S32G_ENABLE = "1"
 
@@ -159,5 +159,5 @@ addtask deploy after do_compile
 
 do_compile[depends] = "virtual/bootloader:do_install"
 
-COMPATIBLE_MACHINE = "nxp-s32g2xx"
+COMPATIBLE_MACHINE = "nxp-s32g"
 ALLOW_EMPTY_${PN} = "1"
