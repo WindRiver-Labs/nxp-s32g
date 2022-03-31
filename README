@@ -673,6 +673,15 @@ For ATF feature, there are some known issues.
 
      And this list will be updated in future.
 
+
+6.5.4 Build ATF
+---------------
+
+By default, the atf image is compiled and installed. If you want atf to be manually
+compiled separately, use the following command：
+
+        # bitbake atf-s32g
+
 6.6 IPCF
 --------
 
@@ -799,3 +808,12 @@ If all the above steps succeed, the result messages should be like:
 	ipc-shm-sample: exit demo
 	ipc-shm-sample: ch 0 << 20 bytes: REPLIED MESSAGES: 10
 	root@nxp-s32g2xx:~#
+
+
+6.7 Build U-Boot
+----------------
+
+By default, the u-boot image is compiled and installed. If you want u-boot to be manually
+compiled separately, use the following command：
+
+        # bitbake u-boot-s32
