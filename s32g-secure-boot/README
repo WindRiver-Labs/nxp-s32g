@@ -1,4 +1,4 @@
-	Secure Boot High Level Design On NXP S32G274A Platform
+	Secure Boot High Level Design On NXP S32G Platform
 
 1. About this document
 ======================
@@ -8,7 +8,7 @@ of secure boot, implementation example step by step and so on.
 
 Dependencies
 ------------
-This layer depends on the nxp-s32g2xx BSP layer supplied by Wind River Linux
+This layer depends on the nxp-s32g BSP layer supplied by Wind River Linux
 
 Maintenance
 -----------
@@ -16,9 +16,9 @@ This layer is maintained by Wind River Systems, Inc.
 Contact <support@windriver.com> or your support representative for more
 information on submitting changes.
 
-Building the s32g2xx-secure-boot layer
--------------------------------------
-This layer and nxp-s32g2xx BSP layer should be added to bblayers.conf.
+Building the s32g-secure-boot layer
+-----------------------------------
+This layer and nxp-s32g BSP layer should be added to bblayers.conf.
 
 2. Preparations & Prerequisites
 ===============================
@@ -57,10 +57,10 @@ extract it to a folder. In the extracted folder, you can find the script file
 data to the SD card. 
 
 Obtain the HSE FW "hse_fw_s32g2xx_0.1.1_0.8.2_pb200220.pink", please refer to the chapter
-'6.2 HSE' of BSP nxp-s32g2xx README. 
+'6.2 HSE' of BSP nxp-s32g README. 
 
 Obtain U-Boot, using the u-boot.s32, which will be built out on the below step
-"5.1 Build nxp-s32g2xx BSP project with secure boot layer". 
+"5.1 Build nxp-s32g BSP project with secure boot layer". 
 
 3.2 SD Card Configuration
 -------------------------
@@ -190,29 +190,29 @@ The signature and verification process as follows:
    +----------+                     *
 
 Note:
- - To sign kernel image, nxp-s32g2xx secure boot feature supports rsa2048 and rsa4096 key type.
+ - To sign kernel image, nxp-s32g secure boot feature supports rsa2048 and rsa4096 key type.
    Set KERNEL_RAS_TYPE as the expected value. The default one is rsa2048.
 
-5. Enable secure boot for BSP npx-s32g2xx
+5. Enable secure boot for BSP nxp-s32g
 =========================================
 
-5.1 Build nxp-s32g2xx BSP project with secure boot layer
---------------------------------------------------------
+5.1 Build nxp-s32g BSP project with secure boot layer
+-----------------------------------------------------
 Detail steps as below:
 	$ mkdir <path_to_project>
 	$ cd <path_to_project>
-	$ <path_to_wrlinux>/wrlinux-x/setup.sh --machine nxp-s32g2xx --distro wrlinux --dl-layers --all-layers --accept-eula=yes
+	$ <path_to_wrlinux>/wrlinux-x/setup.sh --machine nxp-s32g --distro wrlinux --dl-layers --all-layers --accept-eula=yes
 	$ source ./environment-setup-x86_64-wrlinuxsdk-linux
 	$ source ./oe-init-build-env
-	$ bitbake-layers add-layer <path_to_project>/layers/nxp-s32g2xx/s32g2xx-secure-boot
+	$ bitbake-layers add-layer <path_to_project>/layers/nxp-s32g/s32g-secure-boot
 	$ bitbake wrlinux-image-std
 
 Note:
-When build nxp-s32g2xx BSP project with secure boot layer, the kernel image type is fitImage that
+When build nxp-s32g BSP project with secure boot layer, the kernel image type is fitImage that
 includes dtb and kernel image. They are all signed by the private key of a RSA-2048/RSA-4096 key that is in
-<path_to_project>/layers/nxp-s32g2xx/s32g2xx-secure-boot/s32g2xx-sample-key/fitImage-rsa2048-keys
+<path_to_project>/layers/nxp-s32g/s32g-secure-boot/s32g-sample-key/fitImage-rsa2048-keys
 
-The secure boot layer is an internal layer only for BSP nxp-s32g2xx, it doesn't support to add
+The secure boot layer is an internal layer only for BSP nxp-s32g, it doesn't support to add
 this layer with --layer option during setup project.
 
 5.2 Verify secure boot

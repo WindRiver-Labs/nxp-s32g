@@ -1,4 +1,4 @@
-		NXP S32G2XX BSP
+		NXP S32G BSP
 
 
 1. About this document
@@ -17,8 +17,8 @@ This layer is maintained by Wind River Systems, Inc.
 Contact <support@windriver.com> or your support representative for more
 information on submitting changes.
 
-Building the nxp-s32g2xx layer
------------------------------
+Building the nxp-s32g layer
+---------------------------
 This layer should be added to bblayers.conf. This is done automatically
 when using the Wind River setup.sh wrapper.
 
@@ -165,7 +165,7 @@ This BSP supports disk images for SD card.
 After build the project, user will get a WIC image under the directory
 tmp-glibc/deploy/images/<bsp name>/ ,such as:
 
-tmp-glibc/deploy/images/nxp-s32g2xx/wrlinux-image-<rootfs_type>-nxp-s32g2xx-<board>.wic
+tmp-glibc/deploy/images/nxp-s32g/wrlinux-image-<rootfs_type>-nxp-s32g-<board>.wic
 
 Then user can write the output image to a SD card:
 
@@ -175,10 +175,10 @@ Then user can write the output image to a SD card:
 To burn WIC image to SD card, user only need to execute the below command:
 
 For S32G274A-EVB:
-# dd if=wrlinux-image-small-nxp-s32g2xx-evb.wic of=/dev/your_sd_dev
+# dd if=wrlinux-image-small-nxp-s32g-evb.wic of=/dev/your_sd_dev
 
 For S32G274A-RDB2:
-# dd if=wrlinux-image-small-nxp-s32g2xx-rdb2.wic of=/dev/your_sd_dev
+# dd if=wrlinux-image-small-nxp-s32g-rdb2.wic of=/dev/your_sd_dev
 
 5.2 Set uboot env
 -----------------
@@ -340,7 +340,7 @@ The steps are as following:
 
     If succeed, the messages should like:
 
-	root@nxp-s32g2xx:~# pkcs-keyop /usr/lib64/libpkcs11-hse.so.1.0
+	root@nxp-s32g:~# pkcs-keyop /usr/lib64/libpkcs11-hse.so.1.0
 	hse: UIO device open
 
 	1 slots available
@@ -357,7 +357,7 @@ The steps are as following:
 
 	Key removed
 	hse: UIO device closed
-	root@nxp-s32g2xx:~#
+	root@nxp-s32g:~#
 
 NOTICE:
 
@@ -400,7 +400,7 @@ version 1.1.1, which have to be downloaded from NXP Software.
 1. Add the "pfe" package to the system through including the
 following line in your local.conf:
 
-	IMAGE_INSTALL_append_nxp-s32g2xx = " pfe"
+	IMAGE_INSTALL_append_nxp-s32g = " pfe"
         PFE_LOCAL_FIRMWARE_DIR = "<The firmwares fully directory path, eg: lib/firmware/>"
 
     The variable PFE_LOCAL_FIRMWARE_DIR indicates the location where can
@@ -481,8 +481,8 @@ with version 1.0.3 to be downloaded from NXP Software.
 If users want to verify LLCE CAN feature, please add the following lines in
 <build-dir>/conf/local.conf of wrlinux project:
 
-	PNWHITELIST_wr-nxp-s32g2xx += "llce"
-	IMAGE_INSTALL_append_nxp-s32g2xx = " llce"
+	PNWHITELIST_wr-nxp-s32g += "llce"
+	IMAGE_INSTALL_append_nxp-s32g = " llce"
 	LLCE_LOCAL_FIRMWARE_DIR = "<path-to-llce-firmwares-for-s32g2-boards>"
 	LLCE_LOCAL_FIRMWARE_DIR_S32G3 = "<path-to-llce-firmwares-for-s32g3-boards>"
 
@@ -511,7 +511,7 @@ using llcecan0 and llcecan14 to verify. steps as following:
 	cat llce_can.log
 
   If succeed, it should output like:
-	root@nxp-s32g2xx:~# cat llce_can.log
+	root@nxp-s32g:~# cat llce_can.log
 	  llcecan0  15575555  [20]  00 11 22 33 44 55 66 77 88 99 AA BB CC EE DD 11 22 33 00 00
 	  llcecan14  15575555  [20]  00 11 22 33 44 55 66 77 88 99 AA BB CC EE DD 11 22 33 00 00
 
@@ -563,7 +563,7 @@ following command after the board boot up:
 this command will excute STR and try to wakeup the system with RTC after
 10 seconds. If succeed, the output messages should like the following:
 
-	root@nxp-s32g2xx:~# rtcwake -d rtc0 -m mem -s 5
+	root@nxp-s32g:~# rtcwake -d rtc0 -m mem -s 5
 	rtcwake: assuming RTC uses UTC ...
 	rtcwake: wakeup from "mem" using rtc0 at Thu Jan  1 00:27:29 1970
 	PM: suspend entry (deep)
@@ -622,7 +622,7 @@ this command will excute STR and try to wakeup the system with RTC after
 	OOM killer enabled.
 	Restarting tasks ... done.
 	PM: suspend exit
-	root@nxp-s32g2xx:~#
+	root@nxp-s32g:~#
 
 6.5.2 CPU Hotplug verify steps
 ------------------------------
@@ -632,32 +632,32 @@ to verify this feature:
 
   1. check current online cpu numbers
 
-	root@nxp-s32g2xx:~#  nproc
+	root@nxp-s32g:~#  nproc
 	4
 
   2. offline cpu1
 
-	root@nxp-s32g2xx:~# echo 0 > /sys/devices/system/cpu/cpu1/online
+	root@nxp-s32g:~# echo 0 > /sys/devices/system/cpu/cpu1/online
 	NOTICE:  SIRQ78: set affinity failed(-22).
 	process 201 (rngd) no longer affine to cpu1
 	process 199 (rngd) no longer affine to cpu1
 	CPU1: shutdown
 	psci: CPU1 killed (polled 0 ms)
-	root@nxp-s32g2xx:~# nproc
+	root@nxp-s32g:~# nproc
 	3
 
   3. online cpu1
 
-	root@nxp-s32g2xx:~# echo 1 > /sys/devices/system/cpu/cpu1/online
+	root@nxp-s32g:~# echo 1 > /sys/devices/system/cpu/cpu1/online
 	NOTICE:  S32G TF-A: s32g_pwr_domain_on: booting up core 1
 	NOTICE:  S32G TF-A: s32g_pwr_domain_on_finish: cpu 1 running
 	Detected VIPT I-cache on CPU1
 	GICv3: CPU1: found redistributor 1 region 0:0x00000000508a0000
 	CPU1: Booted secondary processor 0x0000000001 [0x410fd034]
-	root@nxp-s32g2xx:~#
-	root@nxp-s32g2xx:~# nproc
+	root@nxp-s32g:~#
+	root@nxp-s32g:~# nproc
 	4
-	root@nxp-s32g2xx:~#
+	root@nxp-s32g:~#
 
 6.5.3 Known issues
 ------------------
@@ -782,7 +782,7 @@ this feature:
 
 If all the above steps succeed, the result messages should be like:
 
-	root@nxp-s32g2xx:~# echo 10 > /sys/kernel/ipc-shm-sample/ping
+	root@nxp-s32g:~# echo 10 > /sys/kernel/ipc-shm-sample/ping
 	ipc-shm-sample: starting demo...
 	ipc-shm-sample: ch 0 >> 20 bytes: SENDING MESSAGES: 10
 	ipc-shm-sample: ch 1 >> 16 bytes: #1 Hello world!
@@ -807,7 +807,7 @@ If all the above steps succeed, the result messages should be like:
 	ipc-shm-sample: ch 2 << 16 bytes: #10 Hello world
 	ipc-shm-sample: exit demo
 	ipc-shm-sample: ch 0 << 20 bytes: REPLIED MESSAGES: 10
-	root@nxp-s32g2xx:~#
+	root@nxp-s32g:~#
 
 
 6.7 Build U-Boot

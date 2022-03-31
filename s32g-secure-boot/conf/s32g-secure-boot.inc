@@ -3,7 +3,7 @@
 #
 
 UBOOT_SIGN_ENABLE = "1"
-UBOOT_SIGN_KEYDIR = "${LAYER_PATH_s32g2xx-secure-layer}/s32g2xx-sample-key/fitImage-rsa2048-keys"
+UBOOT_SIGN_KEYDIR = "${LAYER_PATH_s32g-secure-layer}/s32g-sample-key/fitImage-rsa2048-keys"
 UBOOT_MKIMAGE_DTCOPTS = "-I dts -O dtb -p 2000"
 UBOOT_SIGN_KEYNAME = "boot_key"
 

@@ -1,6 +1,6 @@
 ATF_S32G_ENABLE ??= ""
-S32G_PLAT_nxp-s32g2xx ??= "rdb2 evb rdb3"
-do_make_nxp_s32g2xx_wic() {
+S32G_PLAT ??= "rdb2 evb rdb3"
+do_make_nxp_s32g_wic() {
 	cd ${DEPLOY_DIR_IMAGE}
 	for i in {1..10}
 	do
@@ -28,7 +28,7 @@ do_make_nxp_s32g2xx_wic() {
 	done
 }
 
-addtask make_nxp_s32g2xx_wic after do_image_complete before do_build
+addtask make_nxp_s32g_wic after do_image_complete before do_build
 
 BOOTFS_EXTRA_CMD ?= "cp ustart.img evb.ustart.img; \
     dd if=${DEPLOY_DIR_IMAGE}/${UBOOT_BINARY}-s32g2xxaevb of=evb.ustart.img conv=notrunc bs=256 count=1 seek=0; \
