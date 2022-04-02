@@ -40,7 +40,7 @@ FILES_${PN} += "${sysconfdir}/modules-load.d/*"
 PROVIDES += "kernel-module-sja1105pqrs"
 RPROVIDES_${PN} += "kernel-module-sja1105pqrs"
 
-COMPATIBLE_MACHINE = "nxp-s32g"
+COMPATIBLE_MACHINE_nxp-s32g = "nxp-s32g"
 INHIBIT_PACKAGE_STRIP = "1"
 
 DEPENDS_append = " coreutils-native"
