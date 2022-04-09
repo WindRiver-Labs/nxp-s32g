@@ -21,6 +21,7 @@ FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI += " \
     file://0001-Fix-fiptool-build-error.patch \
     file://0001-s32_common.mk-Fix-DTC_VERSION.patch \
+    file://0001-Makefile-Add-BUILD_PLAT-to-FORCE-s-order-only-prereq.patch \
 "
 
 PLATFORM_nxp-s32g = "s32g2xxaevb s32g274ardb2 s32g399ardb3"

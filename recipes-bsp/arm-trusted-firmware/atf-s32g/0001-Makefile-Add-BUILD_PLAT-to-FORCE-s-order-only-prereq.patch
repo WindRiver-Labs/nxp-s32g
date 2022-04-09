@@ -1,0 +1,41 @@
+From 92603e6254a04d019591b5424f7fdff4d7132f5e Mon Sep 17 00:00:00 2001
+From: Robert Yang <liezhi.yang@windriver.com>
+Date: Sat, 9 Apr 2022 21:43:05 +0800
+Subject: [PATCH] Makefile: Add ${BUILD_PLAT} to FORCE's order-only
+ prerequisites
+
+The targets such as s32g399ardb3/release/fip_emmc_offset_flag and
+s32g399ardb3/release/fip_mem_offset_flag depends on the directory
+s32g399ardb3/release/ is created, but the directory is only created by part of
+the targets such as dummy_fip_stage, so there might be race issues when do the
+parallel build:
+
+  CREATE  /path/to/s32g399ardb3/release/fip_emmc_offset_flag
+  CREATE  /path/to/s32g399ardb3/release/fip_mem_offset_flag
+/bin/sh: /path/to/s32g399ardb3/release/fip_emmc_offset_flag: No such file or directory
+/bin/sh: /path/to/s32g399ardb3/release/fip_mem_offset_flag: No such file or directory
+
+The error happened when fip_emmc_offset_flag and fip_mem_offset_flag is
+building before dummy_fip_stage. Add ${BUILD_PLAT} to FORCE's order-only
+prerequisites to fix the problem.
+
+Upstream-Status: Pending
+
+Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 2376b9acc..83dbccadd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1386,4 +1386,4 @@ help:
+ 	@echo "  CROSS_COMPILE=aarch64-none-elf- make PLAT=fvp all"
+ 
+ .PHONY: FORCE
+-FORCE:;
++FORCE: | ${BUILD_PLAT};
+-- 
+2.17.1
+
