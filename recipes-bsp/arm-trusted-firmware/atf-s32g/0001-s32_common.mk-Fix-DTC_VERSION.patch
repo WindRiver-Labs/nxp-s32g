@@ -1,0 +1,48 @@
+From f926fa3ddf14a8cf1e0ab19225139448da7b7ac8 Mon Sep 17 00:00:00 2001
+From: Robert Yang <liezhi.yang@windriver.com>
+Date: Sat, 9 Apr 2022 19:16:29 +0800
+Subject: [PATCH] s32_common.mk: Fix DTC_VERSION
+
+Fixed the build error when "dtc --version" contains 'v' and '+':
+$ dtc --version
+Version: DTC v1.6.1+
+
+/bin/sh: line 0: [: v10601+: integer expression expected
+
+Upstream-Status: Pending
+
+Signed-off-by: Robert Yang <liezhi.yang@windriver.com>
+---
+ plat/nxp/s32/s32_common.mk   | 2 +-
+ plat/st/stm32mp1/platform.mk | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index 4bc42e7f3..ee73576e7 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -127,7 +127,7 @@ all: check_dtc_version
+ check_dtc_version:
+ 	$(eval DTC_VERSION_RAW = $(shell $(DTC) --version | cut -f3 -d" " \
+ 							  | cut -f1 -d"-"))
+-	$(eval DTC_VERSION = $(shell echo $(DTC_VERSION_RAW) | sed "s/\./0/g"))
++	$(eval DTC_VERSION = $(shell echo $(DTC_VERSION_RAW) | sed -e 's/v//' -e "s/\+//" -e "s/\./0/g"))
+ 	@if [ ${DTC_VERSION} -lt 10406 ]; then \
+ 		echo "$(DTC) version must be 1.4.6 or above"; \
+ 		false; \
+diff --git a/plat/st/stm32mp1/platform.mk b/plat/st/stm32mp1/platform.mk
+index 50fb1b77b..37d6c46b3 100644
+--- a/plat/st/stm32mp1/platform.mk
++++ b/plat/st/stm32mp1/platform.mk
+@@ -213,7 +213,7 @@ clean_stm32image:
+ 
+ check_dtc_version:
+ 	$(eval DTC_V = $(shell $(DTC) -v | awk '{print $$NF}'))
+-	$(eval DTC_VERSION = $(shell printf "%d" $(shell echo ${DTC_V} | cut -d- -f1 | sed "s/\./0/g")))
++	$(eval DTC_VERSION = $(shell printf "%d" $(shell echo ${DTC_V} | cut -d- -f1 | sed -e 's/v//' -e "s/\+//" -e "s/\./0/g")))
+ 	@if [ ${DTC_VERSION} -lt 10404 ]; then \
+ 		echo "dtc version too old (${DTC_V}), you need at least version 1.4.4"; \
+ 		false; \
+-- 
+2.17.1
+

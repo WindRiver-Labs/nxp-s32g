@@ -20,6 +20,7 @@ SRC_URI[sha256sum] = "15d263b62089b46375effede12a1917cd7b267b93dd97c68fd5ddbd1dd
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:" 
 SRC_URI += " \
     file://0001-Fix-fiptool-build-error.patch \
+    file://0001-s32_common.mk-Fix-DTC_VERSION.patch \
 "
 
 PLATFORM_nxp-s32g = "s32g2xxaevb s32g274ardb2 s32g399ardb3"
