@@ -51,6 +51,14 @@ do_compile() {
 	done
 }
 
+do_install() {
+	install -d ${D}/boot
+	for plat in ${PLATFORM}; do
+		ATF_BINARIES="${B}/${plat}/${BUILD_TYPE}"
+		cp -v ${ATF_BINARIES}/fip.s32 ${D}/boot/atf-${plat}.s32
+	done
+}
+
 do_deploy() {
 	install -d ${DEPLOY_DIR_IMAGE}
 	for plat in ${PLATFORM}; do
@@ -63,5 +71,6 @@ addtask deploy after do_compile
 
 do_compile[depends] = "virtual/bootloader:do_install"
 
+FILES_${PN} += "/boot/*"
+
 COMPATIBLE_MACHINE_nxp-s32g = "nxp-s32g"
-ALLOW_EMPTY_${PN} = "1"
