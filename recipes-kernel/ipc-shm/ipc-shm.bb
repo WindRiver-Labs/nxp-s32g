@@ -35,18 +35,32 @@ RPROVIDES_${PN} += "kernel-module-ipc-shm-dev"
 PROVIDES += "kernel-module-ipc-shm-uio"
 RPROVIDES_${PN} += "kernel-module-ipc-shm-uio"
 
+export SUPPORTED_PLATS="s32g2 s32g3"
+
 # Prevent to load ipc-shm-uio at boot time
 KERNEL_MODULE_PROBECONF += "ipc-shm-uio"
 module_conf_ipc-shm-uio = "blacklist ipc-shm-uio"
 
 # install ipcf modules
-module_do_install() {
+do_compile() {
+    for plat in ${SUPPORTED_PLATS}; do
+        export PLATFORM_FLAVOR=${plat}
+        module_do_compile
+        for m in ipc-shm-dev.ko sample/ipc-shm-sample.ko ipc-shm-uio.ko; do
+            cp $m $m.$plat
+        done
+    done
+}
 
-	mkdir -p ${INSTALL_DIR}
+do_install() {
 
-        install -D ${IPCF_MDIR}/${IPCF_MOD_DEV_NAME} ${INSTALL_DIR}/
-        install -D ${IPCF_MDIR}/${IPCF_MOD_UIO_NAME} ${INSTALL_DIR}/
-        install -D ${IPCF_SAMPLE_MDIR}/${IPCF_MOD_SAMPLE_NAME} ${INSTALL_DIR}/
+    mkdir -p ${INSTALL_DIR}
+
+    for plat in "" `echo $SUPPORTED_PLATS | sed 's/\</./g'`; do
+        install -D ${IPCF_MDIR}/${IPCF_MOD_DEV_NAME}$plat ${INSTALL_DIR}/
+        install -D ${IPCF_MDIR}/${IPCF_MOD_UIO_NAME}$plat ${INSTALL_DIR}/
+        install -D ${IPCF_SAMPLE_MDIR}/${IPCF_MOD_SAMPLE_NAME}$plat ${INSTALL_DIR}/
+    done
 }
 
 do_deploy() {
@@ -61,7 +75,32 @@ do_deploy() {
 }
 addtask do_deploy after do_install
 
-FILES_${PN} += "${sysconfdir}/modprobe.d/*"
+pkg_postinst_ontarget:${PN} () {
+
+    module_dir="/lib/modules/`uname -r`/kernel/drivers/ipc-shm"
+    mods="ipc-shm-dev ipc-shm-sample ipc-shm-uio"
+
+    [ -d $module_dir ]  || return
+
+    cd ${module_dir}
+    for plat in ${SUPPORTED_PLATS}; do
+        if grep -q $plat /sys/firmware/devicetree/base/compatible; then
+            for m in $mods; do
+                mv -f $m.ko.$plat $m.ko
+            done
+        else
+            rm `echo $mods | sed "s/[^ ]*/&.ko.$plat/g"`
+        fi
+    done
+
+    depmod
+
+}
+
+FILES:${PN} += "${sysconfdir}/modprobe.d/* ${nonarch_base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/ipc-shm/*.s32g*"
+
+INHIBIT_PACKAGE_STRIP = "1"
+INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
 
 COMPATIBLE_MACHINE = "^$"
 COMPATIBLE_MACHINE_nxp-s32g = "nxp-s32g"

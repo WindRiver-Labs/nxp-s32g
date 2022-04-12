@@ -716,15 +716,15 @@ For detail informations about the above packages setup, installation and
 build steps, please refer to the documents:
 
 	"S32DS_Installation_Guide_3.4.0.pdf"
-	"S32_RTD_4.4_1.0.0_Release_Notes.pdf"
-	"SW32G_IPCF_2.1.1_D2103_ReleaseNotes.txt"
+	"SW32_RTD_4.4_3.0.0_D2112_ReleaseNotes.pdf"
+	"SW32G_IPCF_4.5.0_D2201_ReleaseNotes.pdf"
 
 and etc., which can be found in related packages downloaded from flexra.
 
 And if the IPCF application on M7 side build successfully following the
-related documents, then users can find the binary file:
+related documents, then users can find the binary files:
 
-	"IPCF_Example_S32G274.bin"
+	"IPCF_Example_S32G274.bin" and "IPCF_Example_S32G399_M7_0.bin"
 
 from S32DS IPCF example project.
 
@@ -734,15 +734,15 @@ from S32DS IPCF example project.
 If users want to enable IPCF feature on A53 side linux system, please add
 the following lines in the <project-build-dir>/conf/local.conf:
 
-	IPCF_M7_APP_BIN_DIR = "/path/to/your-ipcf-m7-app/IPCF_Example_S32G274.bin"
+	IPCF_M7_APP_BIN_DIR = "/path/to/your-ipcf-m7-app/"	
 	IMAGE_INSTALL_append = ' ipc-shm'
 
 then build the project as normal:
 
 	bitbake wrlinux-image-std
 
-the IPCF related drivers and M7 side app binary(IPCF_Example_S32G274.bin)
-will be built into WIC image.
+the IPCF related drivers and M7 side app binaries(IPCF_Example_S32G274.bin and
+IPCF_Example_S32G399_M7_0.bin) will be built into WIC image.
 
 6.6.3 IPCF verify steps
 -----------------------
@@ -761,20 +761,26 @@ this feature:
 			=>dcache off
 		b> zero-set SRAM shared memory used by both sample apps:
 			=>mw.q 0x34000000 0x0 0x100000
-		c> load IPCF binary(IPCF_Example_S32G274_M7_0.bin for S32G2 
-		   or IPCF_Example_S32G399_M7_0.bin for S32G3) in SRAM:
+		c> load IPCF binary in SRAM:
+		   for S32G2:
 			=>fatload mmc 0:1 0x80000000 IPCF_Example_S32G274_M7_0.bin
+		   for S32G3:
+			=>fatload mmc 0:1 0x80000000 IPCF_Example_S32G399_M7_0.bin
+		   then:
 			=>cp.q 0x80000000 0x34300000 0x30000
 			=>dcache on;
 		d> start M7 core (the argument is the address of the Interrupt Vector):
+		   for S32G2:
 			=>startm7 0x34401000;
+		   for S32G3:
+			=>startm7 0x34381000;
 		e> boot Linux:
 			=>boot
 
 	4. after linux system startup, enable ipcf driver support on linux
 
-		modprobe ipc-shm-dev
 		modprobe ipc-shm-sample
+
 
 	5. run ipcf test command
 
@@ -785,28 +791,28 @@ If all the above steps succeed, the result messages should be like:
 	root@nxp-s32g:~# echo 10 > /sys/kernel/ipc-shm-sample/ping
 	ipc-shm-sample: starting demo...
 	ipc-shm-sample: ch 0 >> 20 bytes: SENDING MESSAGES: 10
-	ipc-shm-sample: ch 1 >> 16 bytes: #1 Hello world!
-	ipc-shm-sample: ch 1 << 16 bytes: #1 Hello world!
-	ipc-shm-sample: ch 2 >> 16 bytes: #2 Hello world!
-	ipc-shm-sample: ch 2 << 16 bytes: #2 Hello world!
-	ipc-shm-sample: ch 1 >> 16 bytes: #3 Hello world!
-	ipc-shm-sample: ch 1 << 16 bytes: #3 Hello world!
-	ipc-shm-sample: ch 2 >> 16 bytes: #4 Hello world!
-	ipc-shm-sample: ch 2 << 16 bytes: #4 Hello world!
-	ipc-shm-sample: ch 1 >> 16 bytes: #5 Hello world!
-	ipc-shm-sample: ch 1 << 16 bytes: #5 Hello world!
-	ipc-shm-sample: ch 2 >> 16 bytes: #6 Hello world!
-	ipc-shm-sample: ch 2 << 16 bytes: #6 Hello world!
-	ipc-shm-sample: ch 1 >> 16 bytes: #7 Hello world!
-	ipc-shm-sample: ch 1 << 16 bytes: #7 Hello world!
-	ipc-shm-sample: ch 2 >> 16 bytes: #8 Hello world!
-	ipc-shm-sample: ch 2 << 16 bytes: #8 Hello world!
-	ipc-shm-sample: ch 1 >> 16 bytes: #9 Hello world!
-	ipc-shm-sample: ch 1 << 16 bytes: #9 Hello world!
-	ipc-shm-sample: ch 2 >> 16 bytes: #10 Hello world
-	ipc-shm-sample: ch 2 << 16 bytes: #10 Hello world
-	ipc-shm-sample: exit demo
+	ipc-shm-sample: ch 1 >> 32 bytes: #0 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 1 << 32 bytes: #0 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 2 >> 32 bytes: #1 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 2 << 32 bytes: #1 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 1 >> 32 bytes: #2 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 1 << 32 bytes: #2 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 2 >> 32 bytes: #3 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 2 << 32 bytes: #3 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 1 >> 32 bytes: #4 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 1 << 32 bytes: #4 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 2 >> 32 bytes: #5 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 2 << 32 bytes: #5 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 1 >> 32 bytes: #6 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 1 << 32 bytes: #6 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 2 >> 32 bytes: #7 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 2 << 32 bytes: #7 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 1 >> 32 bytes: #8 HELLO WORLD! from KERNEL
+	ipc-shm-sample: ch 1 << 32 bytes: #8 HELLO WORLD! from CORE 4
+	ipc-shm-sample: ch 2 >> 32 bytes: #9 HELLO WORLD! from KERNEL
 	ipc-shm-sample: ch 0 << 20 bytes: REPLIED MESSAGES: 10
+	ipc-shm-sample: ch 2 << 32 bytes: #9 HELLO WORLD! from CORE 4
+	ipc-shm-sample: exit demo
 	root@nxp-s32g:~#
 
 
