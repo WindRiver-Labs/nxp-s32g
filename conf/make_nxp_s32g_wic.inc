@@ -34,7 +34,7 @@ BOOTFS_EXTRA_CMD ?= " \
     j=0; \
     for plat in ${S32G_PLAT}; do \
         j=$(expr $j + 1); \
-        type=`echo ${UBOOT_CONFIG} | awk -v "n=$j" '{print $n}'`; \
+        type=$(echo ${UBOOT_CONFIG} | awk -v "n=$j" '{print $n}'); \
         cp ustart.img ${plat}.ustart.img; \
         if [ -n "${ATF_S32G_ENABLE}" -a -e ${DEPLOY_DIR_IMAGE}/atf-${type}.s32 ]; then \
             dd if=${DEPLOY_DIR_IMAGE}/atf-${type}.s32 of=${plat}.ustart.img conv=notrunc bs=256 count=1 seek=0; \
