@@ -704,11 +704,11 @@ machine:
 
 	1. S32 Design Studio 3.4
 	2. S32 Design Studio 3.4 Development Packages for Offline Use,
-	   Support for S32G2 Family
-	3. Real Time Drivers (RTD) 4.4 version 1.0.0 D2012 (use file
+	   Support for S32G Family
+	3. Real Time Drivers (RTD) 4.4 version 3.0.0 D2112 (use file
 	   with _updatesite.zip in the name and install through
 	   Extensions and Updates in S32 Design Studio)
-	4. IPCF version 2.1.1 D2103 (use file with _updatesite.zip in
+	4. IPCF version 4.5.0 D2201 (use file with _updatesite.zip in
 	   the name and install through Extensions and Updates in
 	   S32 Design Studio)
 
@@ -743,6 +743,14 @@ then build the project as normal:
 
 the IPCF related drivers and M7 side app binaries(IPCF_Example_S32G274.bin and
 IPCF_Example_S32G399_M7_0.bin) will be built into WIC image.
+
+NOTICE:
+    The M7 side binary default names are IPCF_Example_S32G274.bin and
+IPCF_Example_S32G399_M7_0.bin, and they are defined by two variables
+IPCF_M7_APP_BIN_NAME and IPCF_M7_APP_BIN_NAME_S32G3 respectively, users can
+use different binary names by modifying these variables, or set related
+variable(s) to empty if it is unneeded for users.
+
 
 6.6.3 IPCF verify steps
 -----------------------
